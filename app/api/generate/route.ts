@@ -2,8 +2,6 @@ import { auth } from "@/lib/auth"
 import { NextRequest, NextResponse } from "next/server"
 import Anthropic from "@anthropic-ai/sdk"
 
-const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
-
 export async function POST(req: NextRequest) {
   const session = await auth()
   if (!session) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
@@ -12,6 +10,8 @@ export async function POST(req: NextRequest) {
   if (!transcription || !type_intervention || !ville) {
     return NextResponse.json({ error: 'Champs manquants' }, { status: 400 })
   }
+
+  const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
   // Appel 1 — Rapport technique
   const rapportMsg = await client.messages.create({

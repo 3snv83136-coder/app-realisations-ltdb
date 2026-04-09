@@ -2,8 +2,6 @@ import { auth } from "@/lib/auth"
 import { NextRequest, NextResponse } from "next/server"
 import OpenAI from "openai"
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
-
 export async function POST(req: NextRequest) {
   const session = await auth()
   if (!session) return NextResponse.json({ error: 'Non autorisé' }, { status: 401 })
@@ -12,6 +10,7 @@ export async function POST(req: NextRequest) {
   const audioFile = formData.get('audio') as File
   if (!audioFile) return NextResponse.json({ error: 'Fichier audio manquant' }, { status: 400 })
 
+  const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
   const transcription = await openai.audio.transcriptions.create({
     file: audioFile,
     model: "whisper-1",
