@@ -62,29 +62,10 @@ export default function NouveauPage() {
     if (technicienNom && typeof window !== 'undefined') localStorage.setItem('ltdb_technicien', technicienNom)
   }, [technicienNom])
 
-  // Auto-save brouillon
+  // Reset à chaque ouverture : on purge tout brouillon persisté
   useEffect(() => {
-    if (typeof window === 'undefined') return
-    try {
-      const draft = localStorage.getItem('ltdb_draft')
-      if (draft) {
-        const d = JSON.parse(draft)
-        if (d.transcription) setTranscription(d.transcription)
-        if (d.typeIntervention) setTypeIntervention(d.typeIntervention)
-        if (d.adresse) setAdresse(d.adresse)
-        if (d.ville) setVille(d.ville)
-        if (d.codePostal) setCodePostal(d.codePostal)
-        if (d.dateIntervention) setDateIntervention(d.dateIntervention)
-        if (d.clientNom) setClientNom(d.clientNom)
-        if (d.clientEmail) setClientEmail(d.clientEmail)
-      }
-    } catch {}
+    if (typeof window !== 'undefined') localStorage.removeItem('ltdb_draft')
   }, [])
-  useEffect(() => {
-    if (typeof window === 'undefined') return
-    const draft = { transcription, typeIntervention, adresse, ville, codePostal, dateIntervention, clientNom, clientEmail }
-    try { localStorage.setItem('ltdb_draft', JSON.stringify(draft)) } catch {}
-  }, [transcription, typeIntervention, adresse, ville, codePostal, dateIntervention, clientNom, clientEmail])
 
   // Animation progressive écran IA
   const GEN_STEPS = [
@@ -456,6 +437,9 @@ export default function NouveauPage() {
             <div className="h-2 bg-slate-200 rounded-full overflow-hidden max-w-xs mx-auto">
               <div className="h-full bg-gradient-to-r from-[#e67e22] to-[#d35400] animate-pulse" style={{ width: '60%' }} />
             </div>
+            <button onClick={() => setStep('capture')} className="text-sm text-slate-500 hover:text-[#e67e22] font-semibold underline">
+              Annuler et revenir à la dictée
+            </button>
           </div>
         )}
 
@@ -539,6 +523,9 @@ export default function NouveauPage() {
               <div className="h-full bg-gradient-to-r from-[#e67e22] to-[#d35400] transition-all duration-500" style={{ width: `${((genStepIdx + 1) / GEN_STEPS.length) * 100}%` }} />
             </div>
             <p className="text-xs text-slate-400">Temps moyen : 25-35 secondes</p>
+            <button onClick={() => setStep('validate')} className="text-sm text-slate-500 hover:text-[#e67e22] font-semibold underline">
+              Annuler et revenir à l'édition
+            </button>
           </div>
         )}
 
@@ -638,15 +625,22 @@ export default function NouveauPage() {
           <div className="max-w-3xl mx-auto">
             {error && <div className="text-red-600 text-sm font-semibold mb-2 text-center">{error}</div>}
             <div className="flex gap-3">
-              {step === 'validate' && (
+              {step === 'capture' ? (
+                <a
+                  href="/"
+                  className="flex-1 bg-slate-100 text-slate-700 py-4 rounded-xl font-bold text-base text-center active:scale-95 transition-all"
+                >
+                  ← Accueil
+                </a>
+              ) : (
                 <button onClick={() => setStep('capture')} className="flex-1 bg-slate-100 text-slate-700 py-4 rounded-xl font-bold text-base active:scale-95 transition-all">
-                  ← Retour
+                  ← Dictée
                 </button>
               )}
               <button
                 onClick={step === 'capture' ? handleExtract : handleGenerate}
-                className="flex-1 bg-gradient-to-r from-[#e67e22] to-[#d35400] text-white py-4 rounded-xl font-bold text-base shadow-lg active:scale-95 transition-all"
-                style={{ flex: step === 'capture' ? 1 : 2 }}
+                className="bg-gradient-to-r from-[#e67e22] to-[#d35400] text-white py-4 rounded-xl font-bold text-base shadow-lg active:scale-95 transition-all"
+                style={{ flex: 2 }}
               >
                 {step === 'capture' ? '✨ Analyser ma dictée' : '🚀 Générer le rapport'}
               </button>
