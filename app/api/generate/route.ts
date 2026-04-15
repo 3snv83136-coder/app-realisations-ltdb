@@ -21,7 +21,7 @@ function slugify(s: string) {
     .replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
 }
 
-async function callWithRetry<T>(fn: () => Promise<T>, maxAttempts = 4): Promise<T> {
+async function callWithRetry<T>(fn: () => Promise<T>, maxAttempts = 5): Promise<T> {
   let lastErr: any
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
@@ -29,9 +29,12 @@ async function callWithRetry<T>(fn: () => Promise<T>, maxAttempts = 4): Promise<
     } catch (e: any) {
       lastErr = e
       const status = e?.status || e?.response?.status
-      const retryable = status === 529 || status === 503 || status === 500 || status === 429
+      const msg = String(e?.message || '')
+      const retryable =
+        status === 529 || status === 503 || status === 500 || status === 429 ||
+        /529|overloaded|503|500|429|rate.?limit/i.test(msg)
       if (!retryable || attempt === maxAttempts) throw e
-      const delay = Math.min(1000 * Math.pow(2, attempt - 1), 6000) + Math.random() * 500
+      const delay = Math.min(1500 * Math.pow(2, attempt - 1), 10000) + Math.random() * 800
       await new Promise(r => setTimeout(r, delay))
     }
   }

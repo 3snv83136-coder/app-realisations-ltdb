@@ -203,6 +203,7 @@ export default function NouveauPage() {
       if (data.adresse) setAdresse(data.adresse)
       if (data.client_nom) setClientNom(data.client_nom)
       if (data.client_email) setClientEmail(data.client_email)
+      if (data.warning) setError(`⚠ ${data.warning}`)
       setStep('validate')
     } catch (e: any) {
       setError(`Erreur extraction : ${e.message}`)

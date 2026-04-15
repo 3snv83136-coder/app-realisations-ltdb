@@ -15,7 +15,7 @@ const TYPES = [
   'Curage canalisation',
 ]
 
-async function callWithRetry<T>(fn: () => Promise<T>, maxAttempts = 4): Promise<T> {
+async function callWithRetry<T>(fn: () => Promise<T>, maxAttempts = 5): Promise<T> {
   let lastErr: any
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
@@ -23,9 +23,12 @@ async function callWithRetry<T>(fn: () => Promise<T>, maxAttempts = 4): Promise<
     } catch (e: any) {
       lastErr = e
       const status = e?.status || e?.response?.status
-      const retryable = status === 529 || status === 503 || status === 500 || status === 429
+      const msg = String(e?.message || '')
+      const retryable =
+        status === 529 || status === 503 || status === 500 || status === 429 ||
+        /529|overloaded|503|500|429|rate.?limit/i.test(msg)
       if (!retryable || attempt === maxAttempts) throw e
-      const delay = Math.min(1000 * Math.pow(2, attempt - 1), 6000) + Math.random() * 500
+      const delay = Math.min(1500 * Math.pow(2, attempt - 1), 10000) + Math.random() * 800
       await new Promise(r => setTimeout(r, delay))
     }
   }
@@ -75,6 +78,7 @@ Réponds UNIQUEMENT avec ce JSON (sans markdown, sans backticks) :
   "client_email": "email si dicté (ex: 'arobase' → @, 'point' → .), sinon \\"\\""
 }`
 
+  // Fallback gracieux : si l'API est KO, on renvoie des champs vides pour ne pas bloquer le flow.
   let msg
   try {
     msg = await callWithRetry(() => client.messages.create({
@@ -83,14 +87,26 @@ Réponds UNIQUEMENT avec ce JSON (sans markdown, sans backticks) :
       messages: [{ role: "user", content: prompt }],
     }))
   } catch (e: any) {
-    return NextResponse.json({ error: `Anthropic : ${e.message}` }, { status: 500 })
+    return NextResponse.json({
+      type_intervention: 'Débouchage canalisation',
+      ville: '',
+      code_postal: '',
+      adresse: '',
+      client_nom: '',
+      client_email: '',
+      warning: `Extraction IA indisponible (${e?.status || ''} ${String(e?.message || '').slice(0, 120)}) — remplis les champs à la main.`,
+    })
   }
 
   let data: any
   try {
     data = parseJson((msg.content[0] as { type: string; text: string }).text)
   } catch (e: any) {
-    return NextResponse.json({ error: `Parsing : ${e.message}` }, { status: 500 })
+    return NextResponse.json({
+      type_intervention: 'Débouchage canalisation',
+      ville: '', code_postal: '', adresse: '', client_nom: '', client_email: '',
+      warning: `Réponse IA illisible — remplis à la main.`,
+    })
   }
 
   // Normalisation ville + récupération CP
