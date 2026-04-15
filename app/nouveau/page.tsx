@@ -7,6 +7,9 @@ import dynamic from "next/dynamic"
 import { VILLES_VAR, searchVilles, findVilleByName, type VilleVar } from "@/lib/villes-var"
 
 const PDFDownloadButton = dynamic(() => import("@/components/RealisationPDF"), { ssr: false })
+const PDFPreviewModal = dynamic(() => import("@/components/PDFPreviewModal"), { ssr: false })
+const DriveSaveButton = dynamic(() => import("@/components/DriveSaveButton"), { ssr: false })
+import SitePreviewModal from "@/components/SitePreviewModal"
 
 type Step = 'capture' | 'extracting' | 'validate' | 'generating' | 'preview' | 'publishing' | 'done'
 
@@ -46,6 +49,8 @@ export default function NouveauPage() {
   const [publishedSlug, setPublishedSlug] = useState('')
   const [emailSent, setEmailSent] = useState(false)
   const [emailSending, setEmailSending] = useState(false)
+  const [showPdfPreview, setShowPdfPreview] = useState(false)
+  const [showSitePreview, setShowSitePreview] = useState(false)
 
   // Persist nom technicien
   useEffect(() => {
@@ -548,33 +553,60 @@ export default function NouveauPage() {
 
             {error && <div className="bg-red-50 border border-red-200 text-red-700 p-3 rounded-xl text-sm">{error}</div>}
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-4 border-t border-slate-100">
-              <PDFDownloadButton
-                clientNom={clientNom}
-                adresse={adresse}
-                ville={ville}
-                codePostal={codePostal}
-                dateIntervention={dateIntervention}
-                typeIntervention={typeIntervention}
-                technicienNom={technicienNom || session?.user?.name || 'Technicien'}
-                rapport={rapport}
-                photos={photos.map(p => ({ url: p.dataUrl, legende: p.legende }))}
-              />
-              <button
-                onClick={handleSendToClient}
-                disabled={emailSending || emailSent || !clientEmail}
-                className="bg-orange-500 text-white px-4 py-3 rounded-xl font-bold hover:bg-orange-600 disabled:opacity-50 active:scale-95 transition-all"
-              >
-                {emailSent ? '✓ Envoyé' : emailSending ? 'Envoi…' : '✉ Envoyer client'}
-              </button>
-              <button
-                onClick={handlePublish}
-                disabled={step === 'publishing'}
-                className="bg-[#1e8449] text-white px-4 py-3 rounded-xl font-bold hover:bg-[#196f3d] disabled:opacity-50 active:scale-95 transition-all"
-              >
-                {step === 'publishing' ? 'Publication…' : '🌐 Publier site'}
-              </button>
-            </div>
+            {(() => {
+              const pdfProps = {
+                clientNom, adresse, ville, codePostal, dateIntervention, typeIntervention,
+                technicienNom: technicienNom || session?.user?.name || 'Technicien',
+                rapport,
+                photos: photos.map(p => ({ url: p.dataUrl, legende: p.legende })),
+              }
+              const pdfFilename = `rapport-${(ville || 'intervention').toLowerCase()}-${dateIntervention}.pdf`
+              return (
+                <div className="pt-4 border-t border-slate-100 space-y-3">
+                  {/* Aperçus */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <button
+                      onClick={() => setShowPdfPreview(true)}
+                      className="bg-slate-100 text-[#0e2a52] px-4 py-3 rounded-xl font-bold hover:bg-slate-200 active:scale-95 transition-all border-2 border-slate-200"
+                    >
+                      👁 Aperçu PDF
+                    </button>
+                    <button
+                      onClick={() => setShowSitePreview(true)}
+                      className="bg-slate-100 text-[#0e2a52] px-4 py-3 rounded-xl font-bold hover:bg-slate-200 active:scale-95 transition-all border-2 border-slate-200"
+                    >
+                      🌐 Aperçu page web
+                    </button>
+                  </div>
+
+                  {/* Export & envoi */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <PDFDownloadButton {...pdfProps} />
+                    <DriveSaveButton pdfProps={pdfProps} filename={pdfFilename} />
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <button
+                      onClick={handleSendToClient}
+                      disabled={emailSending || emailSent || !clientEmail}
+                      className="bg-orange-500 text-white px-4 py-3 rounded-xl font-bold hover:bg-orange-600 disabled:opacity-50 active:scale-95 transition-all"
+                    >
+                      {emailSent ? '✓ Envoyé' : emailSending ? 'Envoi…' : '✉ Envoyer client'}
+                    </button>
+                    <button
+                      onClick={handlePublish}
+                      disabled={step === 'publishing'}
+                      className="bg-[#1e8449] text-white px-4 py-3 rounded-xl font-bold hover:bg-[#196f3d] disabled:opacity-50 active:scale-95 transition-all"
+                    >
+                      {step === 'publishing' ? 'Publication…' : '🌐 Publier site'}
+                    </button>
+                  </div>
+
+                  <PDFPreviewModal open={showPdfPreview} onClose={() => setShowPdfPreview(false)} pdfProps={pdfProps} />
+                  <SitePreviewModal open={showSitePreview} onClose={() => setShowSitePreview(false)} seo={seo} ville={ville} photos={photos.map(p => ({ dataUrl: p.dataUrl, legende: p.legende }))} />
+                </div>
+              )
+            })()}
           </div>
         )}
 

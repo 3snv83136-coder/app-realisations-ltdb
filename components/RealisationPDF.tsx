@@ -386,7 +386,7 @@ export interface RapportData {
   reference?: string
 }
 
-interface PDFProps {
+export interface PDFProps {
   clientNom: string
   adresse: string
   ville: string
@@ -454,7 +454,7 @@ const Section = ({ num, title }: { num: number | string; title: string }) => (
 )
 
 /* ============ DOCUMENT ============ */
-function RealisationDocument({ clientNom, adresse, ville, codePostal, dateIntervention, typeIntervention, technicienNom, rapport, reference, photos }: PDFProps) {
+export function RealisationDocument({ clientNom, adresse, ville, codePostal, dateIntervention, typeIntervention, technicienNom, rapport, reference, photos }: PDFProps) {
   const ref = reference || `LTDB-${dateIntervention.replace(/-/g, '')}`
   const hasPhotos = (photos?.length ?? 0) > 0
   const totalPages = 3 + (hasPhotos ? 1 : 0) + (rapport.devis ? 1 : 0)
