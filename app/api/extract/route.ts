@@ -15,6 +15,23 @@ const TYPES = [
   'Curage canalisation',
 ]
 
+async function callWithRetry<T>(fn: () => Promise<T>, maxAttempts = 4): Promise<T> {
+  let lastErr: any
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      return await fn()
+    } catch (e: any) {
+      lastErr = e
+      const status = e?.status || e?.response?.status
+      const retryable = status === 529 || status === 503 || status === 500 || status === 429
+      if (!retryable || attempt === maxAttempts) throw e
+      const delay = Math.min(1000 * Math.pow(2, attempt - 1), 6000) + Math.random() * 500
+      await new Promise(r => setTimeout(r, delay))
+    }
+  }
+  throw lastErr
+}
+
 function parseJson(raw: string) {
   const cleaned = raw.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '')
   try { return JSON.parse(cleaned) } catch {}
@@ -60,11 +77,11 @@ Réponds UNIQUEMENT avec ce JSON (sans markdown, sans backticks) :
 
   let msg
   try {
-    msg = await client.messages.create({
+    msg = await callWithRetry(() => client.messages.create({
       model: MODEL,
       max_tokens: 500,
       messages: [{ role: "user", content: prompt }],
-    })
+    }))
   } catch (e: any) {
     return NextResponse.json({ error: `Anthropic : ${e.message}` }, { status: 500 })
   }

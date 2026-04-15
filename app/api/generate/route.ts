@@ -21,6 +21,23 @@ function slugify(s: string) {
     .replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
 }
 
+async function callWithRetry<T>(fn: () => Promise<T>, maxAttempts = 4): Promise<T> {
+  let lastErr: any
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      return await fn()
+    } catch (e: any) {
+      lastErr = e
+      const status = e?.status || e?.response?.status
+      const retryable = status === 529 || status === 503 || status === 500 || status === 429
+      if (!retryable || attempt === maxAttempts) throw e
+      const delay = Math.min(1000 * Math.pow(2, attempt - 1), 6000) + Math.random() * 500
+      await new Promise(r => setTimeout(r, delay))
+    }
+  }
+  throw lastErr
+}
+
 function parseJson(raw: string) {
   let cleaned = raw.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '')
   // Premier essai
@@ -234,8 +251,8 @@ Réponds UNIQUEMENT avec ce JSON (sans markdown, sans backticks) :
   let rapportMsg, seoMsg
   try {
     [rapportMsg, seoMsg] = await Promise.all([
-      client.messages.create({ model: MODEL, max_tokens: 6000, messages: [{ role: "user", content: rapportPrompt }] }),
-      client.messages.create({ model: MODEL, max_tokens: 6000, messages: [{ role: "user", content: seoPrompt }] }),
+      callWithRetry(() => client.messages.create({ model: MODEL, max_tokens: 6000, messages: [{ role: "user", content: rapportPrompt }] })),
+      callWithRetry(() => client.messages.create({ model: MODEL, max_tokens: 6000, messages: [{ role: "user", content: seoPrompt }] })),
     ])
   } catch (e: any) {
     return NextResponse.json({ error: `Anthropic API : ${e.message || e.toString()}`, model: MODEL }, { status: 500 })
