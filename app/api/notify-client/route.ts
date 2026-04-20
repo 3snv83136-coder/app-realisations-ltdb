@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { Resend } from "resend"
+import crypto from "crypto"
 
 function escapeHtml(s: unknown): string {
   return String(s ?? '')
@@ -12,6 +13,18 @@ function escapeHtml(s: unknown): string {
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/
 
+function getBaseUrl(req: NextRequest): string {
+  const configured = process.env.APP_BASE_URL
+    || process.env.NEXTAUTH_URL
+    || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "")
+  if (configured) return configured.replace(/\/+$/, "")
+  return req.nextUrl.origin.replace(/\/+$/, "")
+}
+
+function signStopPayload(payload: string, exp: number, secret: string): string {
+  return crypto.createHmac("sha256", secret).update(`${payload}.${exp}`).digest("hex")
+}
+
 export async function POST(req: NextRequest) {
   const { clientEmail, clientNom, technicienNom, ville, dateIntervention, pdfBase64, pdfFilename } = await req.json()
 
@@ -21,7 +34,7 @@ export async function POST(req: NextRequest) {
 
   const resendKey = process.env.RESEND_API_KEY
   const fromEmail = process.env.RESEND_FROM_EMAIL || 'contact@lestechniciensdudebouchage.fr'
-  const reviewUrl = process.env.GOOGLE_REVIEW_URL || 'https://g.page/r/lestechniciensdudebouchage/review'
+  const reviewUrl = process.env.GOOGLE_REVIEW_URL || 'https://www.google.com/maps/place/Les+Techniciens+du+Débouchage/@43.1284504,5.9090923,17z/data=!3m1!4b1!4m6!3m5!1s0x21ef75613753f47f:0x840c1e4a335b1cab!8m2!3d43.1284504!4d5.9090923!16s%2Fg%2F11xf1s70y8?entry=ttu&g_ep=EgoyMDI2MDQxMi4wIKXMDSoASAFQAw%3D%3D'
 
   if (!resendKey) {
     return NextResponse.json({ error: 'RESEND_API_KEY manquante' }, { status: 500 })
@@ -39,12 +52,38 @@ export async function POST(req: NextRequest) {
     ? [{ filename: pdfFilename, content: pdfBase64 }]
     : undefined
 
-  // 1. Envoi immédiat — rapport PDF
+  // 1) Relances avis Google tous les 2 jours (J+2, J+4, J+6)
+  const days = [2, 4, 6]
+  const followUps = await Promise.all(
+    days.map((d) => {
+      const scheduledAt = new Date(Date.now() + d * 24 * 60 * 60 * 1000).toISOString()
+      return resend.emails.send({
+        from: `Les Techniciens du Débouchage <${fromEmail}>`,
+        to: recipient,
+        subject: relanceSubject(d, prenomClient),
+        html: emailRelance({ clientNom, technicienNom: tech, ville, reviewUrl, jour: d }),
+        scheduledAt,
+      })
+    })
+  )
+
+  const relanceIds = followUps.map((f) => f.data?.id).filter(Boolean) as string[]
+  const signSecret = process.env.REVIEW_STOP_SECRET || process.env.NEXTAUTH_SECRET || resendKey
+  const stopExp = Date.now() + 10 * 24 * 60 * 60 * 1000 // valable 10 jours
+  const stopPayload = relanceIds.length > 0
+    ? Buffer.from(JSON.stringify({ ids: relanceIds }), "utf-8").toString("base64url")
+    : ""
+  const stopSig = stopPayload ? signStopPayload(stopPayload, stopExp, signSecret) : ""
+  const stopUrl = stopPayload
+    ? `${getBaseUrl(req)}/api/notify-client/stop-review?p=${encodeURIComponent(stopPayload)}&exp=${stopExp}&sig=${stopSig}`
+    : ""
+
+  // 2) Envoi immédiat — rapport PDF
   const immediate = await resend.emails.send({
     from: `Les Techniciens du Débouchage <${fromEmail}>`,
     to: recipient,
     subject: `Votre rapport d'intervention — ${ville}`,
-    html: emailRapport({ clientNom, technicienNom: tech, ville, dateIntervention, reviewUrl }),
+    html: emailRapport({ clientNom, technicienNom: tech, ville, dateIntervention, reviewUrl, stopUrl }),
     attachments,
   })
 
@@ -57,28 +96,12 @@ export async function POST(req: NextRequest) {
     }, { status: 500 })
   }
 
-  // 2-4. Relances avis Google — J+2, J+4, J+6
-  const now = Date.now()
-  const days = [2, 4, 6]
-  const followUps = await Promise.all(
-    days.map(d => {
-      const scheduledAt = new Date(now + d * 24 * 60 * 60 * 1000).toISOString()
-      return resend.emails.send({
-        from: `Les Techniciens du Débouchage <${fromEmail}>`,
-        to: recipient,
-        subject: relanceSubject(d, prenomClient),
-        html: emailRelance({ clientNom, technicienNom: tech, ville, reviewUrl, jour: d }),
-        scheduledAt,
-      })
-    })
-  )
-
-  const followUpErrors = followUps.filter(f => f.error).map(f => f.error?.message)
+  const followUpErrors = followUps.filter((f) => f.error).map((f) => f.error?.message || "Erreur relance")
 
   return NextResponse.json({
     ok: true,
     immediate_id: immediate.data?.id,
-    followUps_ids: followUps.map(f => f.data?.id || null),
+    followUps_ids: relanceIds,
     followUp_errors: followUpErrors.length > 0 ? followUpErrors : undefined,
   })
 }
@@ -89,12 +112,13 @@ function relanceSubject(jour: number, prenom: string) {
   return `Dernière chance — partagez votre expérience`
 }
 
-function emailRapport({ clientNom, technicienNom, ville, dateIntervention, reviewUrl }: { clientNom: string; technicienNom: string; ville: string; dateIntervention: string; reviewUrl: string }) {
+function emailRapport({ clientNom, technicienNom, ville, dateIntervention, reviewUrl, stopUrl }: { clientNom: string; technicienNom: string; ville: string; dateIntervention: string; reviewUrl: string; stopUrl: string }) {
   const cn = escapeHtml(clientNom || 'Madame, Monsieur')
   const tn = escapeHtml(technicienNom)
   const v = escapeHtml(ville)
   const di = escapeHtml(dateIntervention)
   const ru = encodeURI(reviewUrl)
+  const su = stopUrl ? encodeURI(stopUrl) : ''
   return `<!doctype html>
 <html><body style="margin:0;padding:0;font-family:Arial,sans-serif;background:#f4f6fa;color:#1a1a1a">
 <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f6fa;padding:30px 0">
@@ -112,6 +136,7 @@ function emailRapport({ clientNom, technicienNom, ville, dateIntervention, revie
           <p style="margin:0 0 10px;font-weight:bold;color:#a04e09">Votre avis compte</p>
           <p style="margin:0 0 14px;font-size:14px">Si vous êtes satisfait, prenez 30 secondes pour laisser un avis Google.</p>
           <a href="${ru}" style="display:inline-block;background:#e67e22;color:#fff;padding:12px 24px;text-decoration:none;border-radius:6px;font-weight:bold">⭐ Laisser un avis Google</a>
+          ${su ? `<p style="margin:12px 0 0;font-size:12px;color:#6b7280">Vous avez deja laisse un avis ? <a href="${su}" style="color:#2c5fa8">Cliquez ici pour ne plus recevoir de relance</a>.</p>` : ''}
         </div>
         <p style="margin-top:30px;font-size:13px;color:#666">Cordialement,<br><strong>${tn}</strong> — Expert en assainissement<br>Les Techniciens du Débouchage</p>
       </td></tr>

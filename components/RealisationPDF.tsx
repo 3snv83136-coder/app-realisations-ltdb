@@ -4,25 +4,25 @@ import { Document, Page, Text, View, Image, StyleSheet, PDFDownloadLink } from "
 /* ============ CHARTE LTDB ============ */
 const C = {
   navy: '#0e2a52',
-  blue: '#1a3a6b',
-  blueMid: '#2c5fa8',
-  blueLight: '#e8eef9',
-  orange: '#e67e22',
-  orangeLight: '#fef0e0',
-  critical: '#c0392b',
-  criticalBg: '#fdecea',
-  warn: '#e67e22',
-  warnBg: '#fef3e6',
-  info: '#2980b9',
-  infoBg: '#e7f1fa',
-  ok: '#1e8449',
-  okBg: '#e6f4ea',
-  neutral: '#7f8c8d',
-  neutralBg: '#f0f2f3',
-  text: '#1a1a1a',
-  muted: '#6b7280',
-  border: '#e1e6ef',
-  bgSoft: '#f7f9fc',
+  blue: '#1a4a8a',
+  blueMid: '#2563eb',
+  blueLight: '#e8f0fe',
+  orange: '#f59e0b',
+  orangeLight: '#fffbeb',
+  critical: '#dc2626',
+  criticalBg: '#fef2f2',
+  warn: '#ea580c',
+  warnBg: '#fff7ed',
+  info: '#2563eb',
+  infoBg: '#eff6ff',
+  ok: '#16a34a',
+  okBg: '#f0fdf4',
+  neutral: '#6b7280',
+  neutralBg: '#f3f4f6',
+  text: '#1e293b',
+  muted: '#64748b',
+  border: '#cbd5e1',
+  bgSoft: '#f1f5f9',
   white: '#ffffff',
 }
 
@@ -44,7 +44,7 @@ const s = StyleSheet.create({
   },
   topbarOrange: {
     position: 'absolute', top: 0, right: 0,
-    height: 6, width: '30%', backgroundColor: C.orange,
+    height: 6, width: '30%', backgroundColor: C.blueMid,
   },
   headerBand: {
     position: 'absolute', top: 6, left: 0, right: 0,
@@ -55,10 +55,10 @@ const s = StyleSheet.create({
   },
   brand: { flexDirection: 'row', alignItems: 'center' },
   logo: {
-    width: 38, height: 38, backgroundColor: C.navy, borderRadius: 6,
+    width: 42, height: 42, backgroundColor: C.navy, borderRadius: 8,
     alignItems: 'center', justifyContent: 'center', marginRight: 10,
   },
-  logoText: { color: C.white, fontSize: 13, fontFamily: 'Helvetica-Bold' },
+  logoText: { color: C.white, fontSize: 9, fontFamily: 'Helvetica-Bold', letterSpacing: 0.5 },
   brandName: { fontSize: 10, color: C.navy, fontFamily: 'Helvetica-Bold' },
   brandTag: { fontSize: 7, color: C.muted, marginTop: 2 },
   refBlock: { textAlign: 'right' },
@@ -78,8 +78,8 @@ const s = StyleSheet.create({
   /* Cover */
   cover: { paddingTop: 30, alignItems: 'center' },
   eyebrow: {
-    backgroundColor: C.orange, color: C.white,
-    paddingVertical: 4, paddingHorizontal: 14,
+    backgroundColor: C.blueMid, color: C.white,
+    paddingVertical: 5, paddingHorizontal: 16,
     fontSize: 8, fontFamily: 'Helvetica-Bold',
     letterSpacing: 1.5, borderRadius: 12, marginBottom: 16,
   },
@@ -88,14 +88,15 @@ const s = StyleSheet.create({
     textAlign: 'center', marginBottom: 6,
   },
   coverSubtitle: { fontSize: 11, color: C.muted, marginBottom: 24 },
-  coverDivider: { width: 60, height: 3, backgroundColor: C.orange, marginBottom: 24 },
+  coverDivider: { width: 60, height: 3, backgroundColor: C.blueMid, marginBottom: 24 },
 
   /* Stats */
   stats: { flexDirection: 'row', marginVertical: 20, gap: 10 },
   stat: {
     flex: 1, borderWidth: 1, borderColor: C.border,
-    borderTopWidth: 3, borderTopColor: C.blueMid,
-    borderRadius: 4, paddingVertical: 12, alignItems: 'center',
+    borderTopWidth: 4, borderTopColor: C.blueMid,
+    borderRadius: 6, paddingVertical: 14, alignItems: 'center',
+    backgroundColor: '#f8fafc',
   },
   statCritical: { borderTopColor: C.critical },
   statWarn: { borderTopColor: C.warn },
@@ -108,8 +109,8 @@ const s = StyleSheet.create({
 
   /* Cover card */
   coverCard: {
-    backgroundColor: C.blueLight, borderLeftWidth: 4, borderLeftColor: C.navy,
-    padding: 18, borderRadius: 3, marginTop: 14,
+    backgroundColor: C.blueLight, borderLeftWidth: 5, borderLeftColor: C.blueMid,
+    padding: 20, borderRadius: 6, marginTop: 14,
   },
   coverCardTitle: {
     fontSize: 8, color: C.navy, fontFamily: 'Helvetica-Bold',
@@ -121,43 +122,43 @@ const s = StyleSheet.create({
   coverV: { fontSize: 10, color: C.text, fontFamily: 'Helvetica-Bold' },
 
   /* Sections */
-  sectionWrap: { marginTop: 22 },
+  sectionWrap: { marginTop: 24 },
   sectionRow: {
     flexDirection: 'row', alignItems: 'center',
-    borderBottomWidth: 2, borderBottomColor: C.navy,
-    paddingBottom: 6, marginBottom: 4,
+    borderBottomWidth: 2, borderBottomColor: C.blueMid,
+    paddingBottom: 8, marginBottom: 6,
   },
   sectionNum: {
-    width: 22, height: 22, backgroundColor: C.navy, color: C.white,
-    fontSize: 11, fontFamily: 'Helvetica-Bold',
-    textAlign: 'center', borderRadius: 4, marginRight: 8, paddingTop: 5,
+    width: 24, height: 24, backgroundColor: C.blueMid, color: C.white,
+    fontSize: 12, fontFamily: 'Helvetica-Bold',
+    textAlign: 'center', borderRadius: 5, marginRight: 10, paddingTop: 5,
   },
   sectionTitle: {
     fontSize: 13, color: C.navy, fontFamily: 'Helvetica-Bold',
-    textTransform: 'uppercase', letterSpacing: 0.5,
+    textTransform: 'uppercase', letterSpacing: 0.6,
   },
-  sectionAccent: { width: 50, height: 2, backgroundColor: C.orange },
+  sectionAccent: { width: 50, height: 3, backgroundColor: C.blueMid },
 
   /* Infobox */
   infobox: {
-    backgroundColor: C.bgSoft, borderLeftWidth: 3, borderLeftColor: C.blueMid,
-    padding: 12, marginTop: 10, borderRadius: 2,
+    backgroundColor: C.blueLight, borderLeftWidth: 4, borderLeftColor: C.blueMid,
+    padding: 14, marginTop: 10, borderRadius: 4, fontSize: 9.5, lineHeight: 1.5,
   },
-  infoboxTtl: { color: C.navy, fontFamily: 'Helvetica-Bold' },
+  infoboxTtl: { color: C.navy, fontFamily: 'Helvetica-Bold', fontSize: 9.5 },
 
   /* Phase */
   phase: {
     borderWidth: 1, borderColor: C.border,
-    borderLeftWidth: 4, borderLeftColor: C.navy,
-    backgroundColor: C.white, padding: 14, marginTop: 12, borderRadius: 3,
+    borderLeftWidth: 5, borderLeftColor: C.blueMid,
+    backgroundColor: '#f8fafc', padding: 16, marginTop: 12, borderRadius: 6,
   },
   phaseSuccess: { borderLeftColor: C.ok },
   phaseFailed: { borderLeftColor: C.warn },
   phaseHead: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
   phaseNum: {
-    width: 22, height: 22, borderRadius: 11, backgroundColor: C.navy,
-    color: C.white, textAlign: 'center', fontSize: 10,
-    fontFamily: 'Helvetica-Bold', paddingTop: 5, marginRight: 10,
+    width: 24, height: 24, borderRadius: 12, backgroundColor: C.blueMid,
+    color: C.white, textAlign: 'center', fontSize: 11,
+    fontFamily: 'Helvetica-Bold', paddingTop: 6, marginRight: 10,
   },
   phaseNumOk: { backgroundColor: C.ok },
   phaseNumWarn: { backgroundColor: C.warn },
@@ -199,18 +200,18 @@ const s = StyleSheet.create({
 
   /* Tableau */
   table: {
-    marginTop: 12, borderWidth: 1, borderColor: C.border, borderRadius: 4,
+    marginTop: 12, borderWidth: 1, borderColor: C.border, borderRadius: 6, overflow: 'hidden',
   },
   tableHeader: { flexDirection: 'row', backgroundColor: C.navy },
   tableHeaderCell: {
     color: C.white, fontFamily: 'Helvetica-Bold', fontSize: 8,
-    padding: 8, textTransform: 'uppercase',
+    padding: 10, textTransform: 'uppercase', letterSpacing: 0.3,
   },
   tableRow: {
     flexDirection: 'row', borderTopWidth: 1, borderTopColor: C.border,
   },
-  tableRowAlt: { backgroundColor: C.bgSoft },
-  tableCell: { padding: 8, fontSize: 8 },
+  tableRowAlt: { backgroundColor: C.blueLight },
+  tableCell: { padding: 10, fontSize: 8.5 },
   tableCellFirst: { color: C.navy, fontFamily: 'Helvetica-Bold' },
 
   /* Badge */
@@ -236,8 +237,8 @@ const s = StyleSheet.create({
 
   /* Signature */
   endBlock: {
-    marginTop: 24, padding: 18, backgroundColor: C.bgSoft,
-    borderRadius: 4, borderWidth: 1, borderColor: C.border, borderStyle: 'dashed',
+    marginTop: 24, padding: 20, backgroundColor: C.blueLight,
+    borderRadius: 6, borderWidth: 1, borderColor: C.border,
     alignItems: 'center',
   },
   endStrong: {
@@ -248,10 +249,10 @@ const s = StyleSheet.create({
   signatureRow: {
     flexDirection: 'row', marginTop: 18, width: '100%', gap: 16,
   },
-  sigBlock: { flex: 1, borderTopWidth: 2, borderTopColor: C.navy, paddingTop: 6 },
+  sigBlock: { flex: 1, borderTopWidth: 2, borderTopColor: C.blueMid, paddingTop: 8 },
   sigRole: { fontSize: 7, color: C.muted, textTransform: 'uppercase', letterSpacing: 0.4 },
   sigName: { fontFamily: 'Helvetica-Bold', color: C.navy, fontSize: 10, marginTop: 2 },
-  sigQual: { color: C.orange, fontSize: 8, fontFamily: 'Helvetica-BoldOblique', marginTop: 2 },
+  sigQual: { color: C.blueMid, fontSize: 8, fontFamily: 'Helvetica-BoldOblique', marginTop: 2 },
   sigScript: { fontSize: 16, color: C.navy, fontFamily: 'Helvetica-Oblique', marginTop: 8 },
   sigLine: {
     marginTop: 14, borderTopWidth: 0.5, borderTopColor: C.border,
@@ -278,16 +279,16 @@ const s = StyleSheet.create({
     flexDirection: 'row', justifyContent: 'space-between', marginTop: 4,
   },
   devisHeaderTitle: { color: C.white, fontSize: 18, fontFamily: 'Helvetica-Bold' },
-  devisHeaderSub: { color: '#a0c0ff', fontSize: 9, marginTop: 4 },
+  devisHeaderSub: { color: '#93c5fd', fontSize: 9, marginTop: 4 },
   devisHeaderRight: { alignItems: 'flex-end' },
-  devisHeaderLbl: { color: '#a0c0ff', fontSize: 7, textTransform: 'uppercase' },
+  devisHeaderLbl: { color: '#93c5fd', fontSize: 7, textTransform: 'uppercase' },
   devisHeaderV: { color: C.white, fontSize: 10, fontFamily: 'Helvetica-Bold', marginBottom: 4 },
 
   devisMeta: { flexDirection: 'row', flexWrap: 'wrap', marginTop: 14 },
   devisMetaItem: {
-    width: '50%', backgroundColor: C.bgSoft,
-    borderLeftWidth: 3, borderLeftColor: C.navy,
-    padding: 8, marginBottom: 8,
+    width: '50%', backgroundColor: C.blueLight,
+    borderLeftWidth: 3, borderLeftColor: C.blueMid,
+    padding: 10, marginBottom: 8,
   },
 
   devisTable: {
@@ -319,7 +320,7 @@ const s = StyleSheet.create({
   totauxRowTtc: { backgroundColor: C.navy },
   totauxLbl: { color: C.muted, fontSize: 9 },
   totauxV: { color: C.navy, fontFamily: 'Helvetica-Bold', fontSize: 9 },
-  totauxLblTtc: { color: '#a0c0ff', fontSize: 11, fontFamily: 'Helvetica-Bold' },
+  totauxLblTtc: { color: '#93c5fd', fontSize: 11, fontFamily: 'Helvetica-Bold' },
   totauxVTtc: { color: C.white, fontSize: 12, fontFamily: 'Helvetica-Bold' },
 
   conditions: {
@@ -423,16 +424,16 @@ const Header = ({ reference, dateIntervention, ville }: { reference: string; dat
     <View style={s.topbarOrange} fixed />
     <View style={s.headerBand} fixed>
       <View style={s.brand}>
-        <View style={s.logo}><Text style={s.logoText}>LT</Text></View>
+        <View style={s.logo}><Text style={s.logoText}>LTDB</Text></View>
         <View>
-          <Text style={s.brandName}>LES TECHNICIENS DU DÉBOUCHAGE</Text>
-          <Text style={s.brandTag}>Plomberie · Hydrocurage · Inspection caméra · Var</Text>
+          <Text style={s.brandName}>LTDB — LES TECHNICIENS DU DÉBOUCHAGE</Text>
+          <Text style={s.brandTag}>Débouchage · Curage · Inspection caméra · Assainissement</Text>
         </View>
       </View>
       <View style={s.refBlock}>
-        <Text style={s.refLabel}>RÉF. RAPPORT</Text>
+        <Text style={s.refLabel}>RAPPORT D&apos;INTERVENTION</Text>
         <Text style={s.refNum}>{reference}</Text>
-        <Text style={s.refLabel}>{dateIntervention}</Text>
+        <Text style={s.refLabel}>{dateIntervention} · {ville}</Text>
       </View>
     </View>
   </>
@@ -440,8 +441,8 @@ const Header = ({ reference, dateIntervention, ville }: { reference: string; dat
 
 const Footer = ({ num, total }: { num: number; total: number }) => (
   <View style={s.pageFooter} fixed>
-    <Text>lestechniciensdudebouchage.fr · 07 83 63 68 35</Text>
-    <Text>Document confidentiel</Text>
+    <Text>LTDB · Les Techniciens du Débouchage · Assainissement</Text>
+    <Text>Rapport rédigé à titre probatoire</Text>
     <Text style={s.pageNum}>{num} / {total}</Text>
   </View>
 )
@@ -482,13 +483,13 @@ export function RealisationDocument({ clientNom, adresse, ville, codePostal, dat
       {/* ============ PAGE 1 — COUVERTURE ============ */}
       <Page size="A4" style={s.page}>
         <Header reference={ref} dateIntervention={dateIntervention} ville={ville} />
-        <Text style={s.watermark} fixed>LTDB</Text>
+        <Text style={s.watermark} fixed>RAPPORT</Text>
 
         <View style={s.content}>
           <View style={s.cover}>
             <Text style={s.eyebrow}>RAPPORT D'INTERVENTION</Text>
-            <Text style={s.coverTitle}>RAPPORT D'INSPECTION</Text>
-            <Text style={s.coverTitle}>& DIAGNOSTIC</Text>
+            <Text style={s.coverTitle}>Débouchage & diagnostic approfondi</Text>
+            <Text style={s.coverTitle}>du réseau d'évacuation</Text>
             <Text style={s.coverSubtitle}>{rapport.objet || `${typeIntervention} — ${ville}`}</Text>
             <View style={s.coverDivider} />
           </View>
@@ -496,31 +497,31 @@ export function RealisationDocument({ clientNom, adresse, ville, codePostal, dat
           <View style={s.stats}>
             <View style={[s.stat, s.statCritical]}>
               <Text style={[s.statNum, s.statNumCritical]}>{counts.critical || 0}</Text>
-              <Text style={s.statLbl}>Points critiques</Text>
+              <Text style={s.statLbl}>Anomalies critiques</Text>
             </View>
             <View style={[s.stat, s.statWarn]}>
               <Text style={[s.statNum, s.statNumWarn]}>{counts.warn || 0}</Text>
-              <Text style={s.statLbl}>Attention</Text>
+              <Text style={s.statLbl}>Non-conformités</Text>
             </View>
             <View style={[s.stat, s.statOk]}>
               <Text style={[s.statNum, s.statNumOk]}>{counts.ok || 0}</Text>
-              <Text style={s.statLbl}>Traités / OK</Text>
+              <Text style={s.statLbl}>Conformes</Text>
             </View>
             <View style={s.stat}>
               <Text style={s.statNum}>{(rapport.phases || []).length}</Text>
-              <Text style={s.statLbl}>Phases</Text>
+              <Text style={s.statLbl}>Investigations</Text>
             </View>
           </View>
 
           <View style={s.coverCard}>
-            <Text style={s.coverCardTitle}>▸ INFORMATIONS CHANTIER</Text>
+            <Text style={s.coverCardTitle}>▸ INFORMATIONS DOSSIER</Text>
             <View style={s.coverGrid}>
               <View style={s.coverItem}><Text style={s.coverK}>CLIENT</Text><Text style={s.coverV}>{clientNom || '—'}</Text></View>
-              <View style={s.coverItem}><Text style={s.coverK}>TYPE D'INTERVENTION</Text><Text style={s.coverV}>{typeIntervention}</Text></View>
+              <View style={s.coverItem}><Text style={s.coverK}>NATURE INITIALE</Text><Text style={s.coverV}>{typeIntervention}</Text></View>
               <View style={s.coverItem}><Text style={s.coverK}>ADRESSE</Text><Text style={s.coverV}>{adresse}{'\n'}{codePostal} {ville}</Text></View>
               <View style={s.coverItem}><Text style={s.coverK}>DATE D'INTERVENTION</Text><Text style={s.coverV}>{dateIntervention}</Text></View>
-              <View style={s.coverItem}><Text style={s.coverK}>INTERVENANT</Text><Text style={s.coverV}>{technicienNom}</Text></View>
-              <View style={s.coverItem}><Text style={s.coverK}>OBJET</Text><Text style={s.coverV}>{rapport.objet || `${typeIntervention} ${ville}`}</Text></View>
+              <View style={s.coverItem}><Text style={s.coverK}>TECHNICIEN INTERVENANT</Text><Text style={s.coverV}>{technicienNom}</Text></View>
+              <View style={s.coverItem}><Text style={s.coverK}>NATURE FINALE</Text><Text style={s.coverV}>{rapport.objet || `${typeIntervention} ${ville}`}</Text></View>
             </View>
           </View>
         </View>
@@ -531,7 +532,7 @@ export function RealisationDocument({ clientNom, adresse, ville, codePostal, dat
       {/* ============ PAGE 2 — LOCALISATION + OPÉRATIONS ============ */}
       <Page size="A4" style={s.page}>
         <Header reference={ref} dateIntervention={dateIntervention} ville={ville} />
-        <Text style={s.watermark} fixed>LTDB</Text>
+        <Text style={s.watermark} fixed>CONSTATS</Text>
 
         <View style={s.content}>
           {rapport.contexte && (
@@ -544,7 +545,7 @@ export function RealisationDocument({ clientNom, adresse, ville, codePostal, dat
           )}
 
           <View style={s.sectionWrap}>
-            <Section num={rapport.contexte ? "2" : "1"} title="LOCALISATION ET ACCÈS" />
+              <Section num={rapport.contexte ? "2" : "1"} title="MÉTHODOLOGIE D'INVESTIGATION" />
             {rapport.localisation?.zone && (
               <View style={s.infobox}>
                 <Text><Text style={s.infoboxTtl}>Zone d'intervention : </Text>{rapport.localisation.zone}</Text>
@@ -569,7 +570,7 @@ export function RealisationDocument({ clientNom, adresse, ville, codePostal, dat
 
           {rapport.diagnostic && (
             <View style={s.sectionWrap}>
-              <Section num={rapport.contexte ? "3" : "2"} title="DIAGNOSTIC TECHNIQUE" />
+              <Section num={rapport.contexte ? "3" : "2"} title="ANOMALIES CONSTATÉES" />
               <View style={s.infobox}>
                 <Text>{rapport.diagnostic}</Text>
               </View>
@@ -578,7 +579,7 @@ export function RealisationDocument({ clientNom, adresse, ville, codePostal, dat
 
           {rapport.travaux_realises && (
             <View style={s.sectionWrap}>
-              <Section num={rapport.contexte ? "4" : "3"} title="TRAVAUX RÉALISÉS" />
+              <Section num={rapport.contexte ? "4" : "3"} title="CONSTATS ET OPÉRATIONS RÉALISÉES" />
               <View style={s.infobox}>
                 <Text>{rapport.travaux_realises}</Text>
               </View>
@@ -595,7 +596,7 @@ export function RealisationDocument({ clientNom, adresse, ville, codePostal, dat
 
           {rapport.recommandations && (
             <View style={s.sectionWrap}>
-              <Section num={rapport.contexte ? "5" : "4"} title="RECOMMANDATIONS PRÉVENTIVES" />
+              <Section num={rapport.contexte ? "5" : "4"} title="PRESCRIPTIONS & TRAVAUX À ENGAGER" />
               <View style={s.infobox}>
                 <Text>{rapport.recommandations}</Text>
               </View>
@@ -604,7 +605,7 @@ export function RealisationDocument({ clientNom, adresse, ville, codePostal, dat
 
           {(rapport.phases?.length ?? 0) > 0 && (
             <View style={s.sectionWrap}>
-              <Section num={rapport.contexte ? "6" : "5"} title="PHASES DE L'INTERVENTION" />
+              <Section num={rapport.contexte ? "6" : "5"} title="MÉTHODOLOGIE D'INVESTIGATION" />
               {rapport.phases!.map((p, i) => {
                 const c = phaseColor(p.statut)
                 return (
@@ -629,12 +630,12 @@ export function RealisationDocument({ clientNom, adresse, ville, codePostal, dat
       {/* ============ PAGE 3 — AVIS + ANALYSE + PRÉCONISATIONS + SIGNATURE ============ */}
       <Page size="A4" style={s.page}>
         <Header reference={ref} dateIntervention={dateIntervention} ville={ville} />
-        <Text style={s.watermark} fixed>LTDB</Text>
+        <Text style={s.watermark} fixed>SYNTHÈSE</Text>
 
         <View style={s.content}>
           {rapport.avis_technique && (
             <View style={s.sectionWrap}>
-              <Section num="3" title="SYNTHÈSE ET AVIS TECHNIQUE" />
+              <Section num="6" title="SYNTHÈSE ET AVIS TECHNIQUE" />
               <View style={s.avis}>
                 <Text style={s.avisTag}>⚠ AVIS CRITIQUE</Text>
                 <Text style={s.avisTitle}>{rapport.avis_technique.titre}</Text>
@@ -650,7 +651,7 @@ export function RealisationDocument({ clientNom, adresse, ville, codePostal, dat
 
           {(rapport.analyse_table?.length ?? 0) > 0 && (
             <View style={s.sectionWrap}>
-              <Section num="4" title="ANALYSE DÉTAILLÉE" />
+              <Section num="7" title="ANALYSE DÉTAILLÉE" />
               <View style={s.table}>
                 <View style={s.tableHeader}>
                   <Text style={[s.tableHeaderCell, { width: '25%' }]}>Problème</Text>
@@ -682,7 +683,7 @@ export function RealisationDocument({ clientNom, adresse, ville, codePostal, dat
 
           {(rapport.preconisations?.length ?? 0) > 0 && (
             <View style={s.sectionWrap}>
-              <Section num="5" title="PRÉCONISATIONS DE TRAVAUX" />
+              <Section num="8" title="PRÉCONISATIONS DE TRAVAUX" />
               {rapport.preconisations!.map((p, i) => (
                 <View key={i} style={s.preco}>
                   <Text style={s.precoTag}>{p.tag}</Text>
@@ -696,18 +697,18 @@ export function RealisationDocument({ clientNom, adresse, ville, codePostal, dat
           )}
 
           <View style={s.endBlock}>
-            <Text style={s.endStrong}>FIN DE L'INTERVENTION</Text>
-            <Text style={s.endGen}>Rapport généré par Les Techniciens du Débouchage — {dateIntervention}</Text>
+            <Text style={s.endStrong}>CONCLUSION</Text>
+            <Text style={s.endGen}>Rapport d'intervention du {dateIntervention} — document technique probatoire</Text>
             <View style={s.signatureRow}>
               <View style={s.sigBlock}>
                 <Text style={s.sigRole}>TECHNICIEN INTERVENANT</Text>
                 <Text style={s.sigName}>{technicienNom}</Text>
-                <Text style={s.sigQual}>★ Expert en assainissement</Text>
+                <Text style={s.sigQual}>Lu et validé</Text>
                 <Text style={s.sigScript}>{technicienNom}</Text>
                 <Text style={s.sigLine}>Signature et cachet</Text>
               </View>
               <View style={s.sigBlock}>
-                <Text style={s.sigRole}>VALIDATION CLIENT</Text>
+                  <Text style={s.sigRole}>CLIENT — LU ET APPROUVÉ</Text>
                 <Text style={s.sigName}>{clientNom || '—'}</Text>
                 <Text style={s.sigQual}>Lu et approuvé</Text>
                 <Text style={s.sigLine}>Date · Signature</Text>
@@ -723,11 +724,11 @@ export function RealisationDocument({ clientNom, adresse, ville, codePostal, dat
       {hasPhotos && (
         <Page size="A4" style={s.page}>
           <Header reference={ref} dateIntervention={dateIntervention} ville={ville} />
-          <Text style={s.watermark} fixed>LTDB</Text>
+          <Text style={s.watermark} fixed>PHOTOS</Text>
 
           <View style={s.content}>
             <View style={s.sectionWrap}>
-              <Section num="6" title="DOCUMENTATION PHOTOGRAPHIQUE" />
+              <Section num="9" title="DOCUMENTS PHOTOGRAPHIQUES" />
               <View style={s.photoGrid}>
                 {photos!.map((p, i) => (
                   <View key={i} style={s.photoCard}>
