@@ -24,6 +24,21 @@ const TYPES = [
   { v: 'Curage canalisation', icon: '⚙' },
 ]
 
+const STEPPER_STEPS = [
+  { key: 'capture', label: 'Dictée & Photos', icon: '🎤' },
+  { key: 'validate', label: 'Vérification', icon: '✅' },
+  { key: 'preview', label: 'Rapport', icon: '📄' },
+  { key: 'done', label: 'Terminé', icon: '🎉' },
+]
+
+function getStepperIndex(step: Step): number {
+  if (step === 'capture' || step === 'extracting') return 0
+  if (step === 'validate' || step === 'generating') return 1
+  if (step === 'preview' || step === 'publishing') return 2
+  if (step === 'done') return 3
+  return 0
+}
+
 export default function NouveauPage() {
   const { data: session } = useSession()
   const [step, setStep] = useState<Step>('capture')
@@ -62,7 +77,6 @@ export default function NouveauPage() {
     if (technicienNom && typeof window !== 'undefined') localStorage.setItem('ltdb_technicien', technicienNom)
   }, [technicienNom])
 
-  // Reset à chaque ouverture : on purge tout brouillon persisté
   useEffect(() => {
     if (typeof window !== 'undefined') localStorage.removeItem('ltdb_draft')
   }, [])
@@ -71,11 +85,11 @@ export default function NouveauPage() {
   const GEN_STEPS = [
     '🎙️ Analyse de la dictée…',
     '📝 Structuration du rapport…',
-    '⚙️ Identification des phases et points critiques…',
+    '⚙️ Identification des phases…',
     '📊 Génération du tableau d\'analyse…',
     '🏷️ Optimisation SEO local…',
-    '🔗 Tissage du maillage interne…',
-    '❓ Rédaction de la FAQ…',
+    '🔗 Maillage interne…',
+    '❓ Rédaction FAQ…',
     '📦 Assemblage JSON-LD…',
     '✨ Finalisation…',
   ]
@@ -310,15 +324,16 @@ export default function NouveauPage() {
   }
 
   const totalMb = photos.reduce((s, p) => s + p.file.size, 0) / 1024 / 1024
+  const currentStepperIdx = getStepperIndex(step)
 
   return (
-    <div className="min-h-screen bg-slate-100 pb-32">
+    <div className="min-h-screen bg-slate-50 pb-32">
       {/* Header */}
-      <nav className="bg-gradient-to-r from-[#0e2a52] to-[#1a3a6b] text-white px-4 py-3 sm:px-6 sm:py-4 shadow-lg sticky top-0 z-30">
+      <nav className="bg-[#0e2a52] text-white px-4 py-3 sm:px-6 sm:py-4 shadow-lg sticky top-0 z-30">
         <div className="max-w-3xl mx-auto flex justify-between items-center gap-3">
           <div>
             <div className="font-black text-base sm:text-lg leading-tight">LTDB</div>
-            <div className="text-xs opacity-75">Nouvelle réalisation</div>
+            <div className="text-[11px] opacity-70">Nouvelle réalisation</div>
           </div>
           <div className="text-right flex items-center gap-2">
             {editTech ? (
@@ -341,57 +356,83 @@ export default function NouveauPage() {
         </div>
       </nav>
 
+      {/* STEPPER */}
+      <div className="bg-white border-b border-slate-200 shadow-sm sticky top-[52px] sm:top-[60px] z-20">
+        <div className="max-w-3xl mx-auto px-4 py-3">
+          <div className="flex items-center justify-between">
+            {STEPPER_STEPS.map((s, i) => {
+              const isActive = i === currentStepperIdx
+              const isDone = i < currentStepperIdx
+              return (
+                <div key={s.key} className="flex items-center flex-1 last:flex-none">
+                  <div className="flex flex-col items-center">
+                    <div className={`w-9 h-9 sm:w-10 sm:h-10 rounded-full flex items-center justify-center text-sm sm:text-base font-bold transition-all ${
+                      isDone ? 'bg-emerald-500 text-white shadow-md' :
+                      isActive ? 'bg-[#0e2a52] text-white shadow-lg ring-4 ring-blue-100' :
+                      'bg-slate-100 text-slate-400 border-2 border-slate-200'
+                    }`}>
+                      {isDone ? '✓' : s.icon}
+                    </div>
+                    <span className={`text-[10px] sm:text-xs mt-1 font-semibold text-center leading-tight ${
+                      isActive ? 'text-[#0e2a52]' : isDone ? 'text-emerald-600' : 'text-slate-400'
+                    }`}>{s.label}</span>
+                  </div>
+                  {i < STEPPER_STEPS.length - 1 && (
+                    <div className={`flex-1 h-0.5 mx-2 sm:mx-3 rounded-full transition-all ${
+                      i < currentStepperIdx ? 'bg-emerald-400' : 'bg-slate-200'
+                    }`} />
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      </div>
+
       <main className="max-w-3xl mx-auto px-4 py-5 space-y-4">
 
-        {/* ÉTAPE 1 — CAPTURE (dictée + photos) */}
-        {step === 'capture' && (
+        {/* ═══════════ ÉTAPE 1 — DICTÉE + PHOTOS ═══════════ */}
+        {(step === 'capture' || step === 'extracting') && (
           <>
-            <div className="bg-white rounded-2xl shadow-lg p-5 sm:p-7 space-y-5">
+            {/* Dictée */}
+            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 sm:p-6 space-y-4">
               <div>
-                <h2 className="text-2xl font-black text-[#0e2a52]">🎤 Raconte l'intervention</h2>
-                <p className="text-sm text-slate-500 mt-1">Dicte tout : ce que tu as fait, où, pour qui. L'IA remplira les champs.</p>
+                <h2 className="text-xl font-black text-[#0e2a52]">Raconte l&apos;intervention</h2>
+                <p className="text-sm text-slate-500 mt-1">Dicte ou tape : l&apos;IA remplira les champs.</p>
               </div>
 
-              <div className="bg-gradient-to-br from-orange-50 to-amber-50 border-2 border-orange-200 rounded-2xl p-4">
+              <div className="bg-blue-50 border border-blue-200 rounded-xl p-3">
                 <VoiceRecorder onTranscription={t => setTranscription(prev => prev ? prev + ' ' + t : t)} />
               </div>
 
-              <div>
-                <textarea
-                  value={transcription}
-                  onChange={e => setTranscription(e.target.value)}
-                  rows={7}
-                  placeholder="Ex : Débouchage WC chez Mme Dupont à Toulon, 5 rue des Tombades. Colonne EU bouchée au 2e étage, furet électrique 15m, évacuation rétablie. Son mail c'est dupont arobase gmail point com."
-                  className="w-full border-2 border-slate-200 focus:border-[#e67e22] outline-none rounded-xl px-4 py-3 text-base"
-                />
-                <div className="flex justify-between text-xs text-slate-400 mt-1">
-                  <span>{transcription.length} caractères</span>
-                  <span>{transcription.length < 50 ? '📝 Ajoute plus de détails' : '✓ Prêt'}</span>
-                </div>
-              </div>
-
-              <div className="bg-emerald-50 border-l-4 border-emerald-400 p-3 rounded text-xs text-emerald-900">
-                💡 <strong>Astuce :</strong> mentionne dans ta dictée la <strong>ville</strong>, l'<strong>adresse</strong>, le <strong>nom du client</strong> et son <strong>email</strong> — l'IA remplira automatiquement les champs.
+              <textarea
+                value={transcription}
+                onChange={e => setTranscription(e.target.value)}
+                rows={5}
+                placeholder="Ex : Débouchage WC chez Mme Dupont à Toulon, 5 rue des Tombades. Colonne EU bouchée au 2e étage, furet électrique 15m…"
+                className="w-full border-2 border-slate-200 focus:border-blue-500 outline-none rounded-xl px-4 py-3 text-base transition-colors"
+              />
+              <div className="flex justify-between text-xs text-slate-400">
+                <span>{transcription.length} car.</span>
+                <span>{transcription.length < 50 ? 'Ajoute plus de détails' : '✓ OK'}</span>
               </div>
             </div>
 
             {/* Photos */}
-            <div className="bg-white rounded-2xl shadow-lg p-5 sm:p-7 space-y-4">
-              <div className="flex justify-between items-start">
+            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 sm:p-6 space-y-4">
+              <div className="flex justify-between items-center">
                 <div>
-                  <h2 className="text-2xl font-black text-[#0e2a52]">📷 Photos</h2>
-                  <p className="text-sm text-slate-500 mt-1">Avant / après — illimité, min. 1</p>
+                  <h2 className="text-xl font-black text-[#0e2a52]">Photos</h2>
+                  <p className="text-sm text-slate-500">Avant / après — min. 1 photo</p>
                 </div>
-                <div className="text-right">
-                  <span className="bg-[#e67e22] text-white text-xs font-bold px-3 py-1 rounded-full">{photos.length}</span>
-                  {photos.length > 0 && (
-                    <div className="text-[10px] text-slate-500 mt-1">{totalMb.toFixed(1)} / 4 MB</div>
-                  )}
+                <div className="flex items-center gap-2">
+                  <span className="bg-[#0e2a52] text-white text-xs font-bold w-7 h-7 rounded-full flex items-center justify-center">{photos.length}</span>
+                  {photos.length > 0 && <span className="text-[11px] text-slate-400">{totalMb.toFixed(1)} MB</span>}
                 </div>
               </div>
 
               {photos.length > 0 && (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="grid grid-cols-2 gap-3">
                   {photos.map((p, i) => (
                     <PhotoItemCard
                       key={p.preview}
@@ -408,133 +449,123 @@ export default function NouveauPage() {
                 </div>
               )}
 
-              <div className="border-2 border-dashed border-slate-300 rounded-2xl p-5 bg-slate-50">
-                <div className="grid grid-cols-2 gap-2 max-w-sm mx-auto">
-                  <label htmlFor="add-cam" className="bg-[#0e2a52] text-white px-3 py-3 rounded-xl text-sm font-bold cursor-pointer active:scale-95 transition text-center">
-                    📸 Prendre
-                    <input id="add-cam" type="file" accept="image/*" capture="environment" onChange={e => { addPhoto(e.target.files?.[0] || null); (e.target as HTMLInputElement).value = '' }} className="hidden" />
-                  </label>
-                  <label htmlFor="add-gal" className="bg-white border-2 border-[#0e2a52] text-[#0e2a52] px-3 py-3 rounded-xl text-sm font-bold cursor-pointer active:scale-95 transition text-center">
-                    🖼 Galerie
-                    <input id="add-gal" type="file" accept="image/*" multiple onChange={async e => {
-                      const files = Array.from(e.target.files || [])
-                      for (const f of files) await addPhoto(f)
-                      ;(e.target as HTMLInputElement).value = ''
-                    }} className="hidden" />
-                  </label>
-                </div>
+              <div className="grid grid-cols-2 gap-3">
+                <label htmlFor="add-cam" className="bg-[#0e2a52] text-white px-4 py-3.5 rounded-xl text-sm font-bold cursor-pointer active:scale-95 transition text-center">
+                  📸 Prendre photo
+                  <input id="add-cam" type="file" accept="image/*" capture="environment" onChange={e => { addPhoto(e.target.files?.[0] || null); (e.target as HTMLInputElement).value = '' }} className="hidden" />
+                </label>
+                <label htmlFor="add-gal" className="bg-white border-2 border-[#0e2a52] text-[#0e2a52] px-4 py-3.5 rounded-xl text-sm font-bold cursor-pointer active:scale-95 transition text-center">
+                  🖼 Galerie
+                  <input id="add-gal" type="file" accept="image/*" multiple onChange={async e => {
+                    const files = Array.from(e.target.files || [])
+                    for (const f of files) await addPhoto(f)
+                    ;(e.target as HTMLInputElement).value = ''
+                  }} className="hidden" />
+                </label>
               </div>
             </div>
+
+            {/* Loading extraction */}
+            {step === 'extracting' && (
+              <div className="bg-blue-50 border border-blue-200 rounded-2xl p-6 text-center space-y-3">
+                <div className="text-4xl animate-pulse">✨</div>
+                <p className="text-sm font-semibold text-blue-900">Lecture de ta dictée…</p>
+                <div className="h-1.5 bg-blue-100 rounded-full overflow-hidden max-w-xs mx-auto">
+                  <div className="h-full bg-blue-500 animate-pulse rounded-full" style={{ width: '65%' }} />
+                </div>
+              </div>
+            )}
           </>
         )}
 
-        {/* EXTRACTING */}
-        {step === 'extracting' && (
-          <div className="bg-white rounded-2xl shadow-lg p-8 text-center space-y-5">
-            <div className="text-6xl animate-pulse">✨</div>
-            <h2 className="text-xl font-black text-[#0e2a52]">Lecture de ta dictée…</h2>
-            <p className="text-sm text-slate-500">Extraction auto du type, de la ville, du client…</p>
-            <div className="h-2 bg-slate-200 rounded-full overflow-hidden max-w-xs mx-auto">
-              <div className="h-full bg-gradient-to-r from-[#e67e22] to-[#d35400] animate-pulse" style={{ width: '60%' }} />
+        {/* ═══════════ ÉTAPE 2 — VÉRIFICATION ═══════════ */}
+        {(step === 'validate' || step === 'generating') && (
+          <>
+            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 sm:p-6 space-y-5">
+              <div>
+                <h2 className="text-xl font-black text-[#0e2a52]">Vérifie les informations</h2>
+                <p className="text-sm text-slate-500 mt-1">Pré-rempli par l&apos;IA. Corrige si besoin.</p>
+              </div>
+
+              {/* Type intervention */}
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Type d&apos;intervention</label>
+                <div className="grid grid-cols-2 gap-2">
+                  {TYPES.map(t => (
+                    <button key={t.v} type="button"
+                      onClick={() => setTypeIntervention(t.v)}
+                      className={`p-3 rounded-xl border-2 text-left text-sm font-semibold transition-all ${
+                        typeIntervention === t.v
+                          ? 'border-blue-500 bg-blue-50 text-[#0e2a52] shadow-sm'
+                          : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
+                      }`}>
+                      <span className="text-lg mr-1">{t.icon}</span>
+                      {t.v}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Ville */}
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Ville *</label>
+                <VilleCombobox value={ville} onSelect={(v: VilleVar) => { setVille(v.nom); setCodePostal(v.cp) }} onChange={setVille} />
+              </div>
+
+              {/* CP + Date */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Code postal</label>
+                  <input value={codePostal} onChange={e => setCodePostal(e.target.value)} placeholder="83000" inputMode="numeric" pattern="[0-9]*" className="w-full border-2 border-slate-200 focus:border-blue-500 outline-none rounded-xl px-4 py-3 text-base transition-colors" />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Date</label>
+                  <input type="date" value={dateIntervention} onChange={e => setDateIntervention(e.target.value)} className="w-full border-2 border-slate-200 focus:border-blue-500 outline-none rounded-xl px-4 py-3 text-base transition-colors" />
+                </div>
+              </div>
+
+              {/* Adresse */}
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Adresse <span className="font-normal text-slate-400 normal-case">(optionnel)</span></label>
+                <input value={adresse} onChange={e => setAdresse(e.target.value)} placeholder="ex: 5 rue des Tombades" className="w-full border-2 border-slate-200 focus:border-blue-500 outline-none rounded-xl px-4 py-3 text-base transition-colors" />
+              </div>
             </div>
-            <button onClick={() => setStep('capture')} className="text-sm text-slate-500 hover:text-[#e67e22] font-semibold underline">
-              Annuler et revenir à la dictée
-            </button>
-          </div>
+
+            {/* Client */}
+            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 sm:p-6 space-y-4">
+              <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wider">Client (optionnel)</h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 mb-1.5">Nom</label>
+                  <input value={clientNom} onChange={e => setClientNom(e.target.value)} placeholder="M. Dupont" className="w-full border-2 border-slate-200 focus:border-blue-500 outline-none rounded-xl px-4 py-3 text-base transition-colors" />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 mb-1.5">Email</label>
+                  <input type="email" value={clientEmail} onChange={e => setClientEmail(e.target.value)} placeholder="client@exemple.fr" inputMode="email" autoCapitalize="none" autoCorrect="off" className="w-full border-2 border-slate-200 focus:border-blue-500 outline-none rounded-xl px-4 py-3 text-base transition-colors" />
+                </div>
+              </div>
+            </div>
+
+            {/* Loading génération */}
+            {step === 'generating' && (
+              <div className="bg-blue-50 border border-blue-200 rounded-2xl p-6 text-center space-y-3">
+                <div className="text-4xl animate-bounce">🤖</div>
+                <p className="text-sm font-bold text-blue-900">{GEN_STEPS[genStepIdx]}</p>
+                <div className="h-1.5 bg-blue-100 rounded-full overflow-hidden max-w-xs mx-auto">
+                  <div className="h-full bg-blue-500 rounded-full transition-all duration-500" style={{ width: `${((genStepIdx + 1) / GEN_STEPS.length) * 100}%` }} />
+                </div>
+                <p className="text-[11px] text-slate-400">~30 secondes</p>
+              </div>
+            )}
+          </>
         )}
 
-        {/* ÉTAPE 2 — VALIDATION (pré-rempli par l'IA) */}
-        {step === 'validate' && (
-          <div className="bg-white rounded-2xl shadow-lg p-5 sm:p-7 space-y-5">
-            <div className="flex justify-between items-start">
-              <div>
-                <h2 className="text-2xl font-black text-[#0e2a52]">✅ Vérifie et corrige</h2>
-                <p className="text-sm text-slate-500 mt-1">L'IA a pré-rempli les champs depuis ta dictée. Corrige si besoin.</p>
-              </div>
-              <button onClick={() => setStep('capture')} className="text-sm text-slate-500 hover:text-[#e67e22] font-semibold">← Dictée</button>
-            </div>
-
-            <div>
-              <label className="block text-sm font-bold text-slate-700 mb-2">Type d'intervention</label>
-              <div className="grid grid-cols-2 gap-2">
-                {TYPES.map(t => (
-                  <button key={t.v} type="button"
-                    onClick={() => setTypeIntervention(t.v)}
-                    className={`p-3 rounded-xl border-2 text-left text-sm font-semibold transition-all ${
-                      typeIntervention === t.v
-                        ? 'border-[#e67e22] bg-orange-50 text-[#0e2a52] shadow-md'
-                        : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
-                    }`}>
-                    <span className="text-xl mr-1">{t.icon}</span>
-                    {t.v}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-sm font-bold text-slate-700 mb-2">Ville du Var *</label>
-              <VilleCombobox
-                value={ville}
-                onSelect={(v: VilleVar) => { setVille(v.nom); setCodePostal(v.cp) }}
-                onChange={setVille}
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-sm font-bold text-slate-700 mb-2">Code postal</label>
-                <input value={codePostal} onChange={e => setCodePostal(e.target.value)} placeholder="83000" inputMode="numeric" pattern="[0-9]*" className="w-full border-2 border-slate-200 focus:border-[#e67e22] outline-none rounded-xl px-4 py-3 text-base" />
-              </div>
-              <div>
-                <label className="block text-sm font-bold text-slate-700 mb-2">Date</label>
-                <input type="date" value={dateIntervention} onChange={e => setDateIntervention(e.target.value)} className="w-full border-2 border-slate-200 focus:border-[#e67e22] outline-none rounded-xl px-4 py-3 text-base" />
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-sm font-bold text-slate-700 mb-2">Adresse <span className="font-normal text-slate-400">(optionnel)</span></label>
-              <input value={adresse} onChange={e => setAdresse(e.target.value)} placeholder="ex: 5 rue des Tombades" className="w-full border-2 border-slate-200 focus:border-[#e67e22] outline-none rounded-xl px-4 py-3 text-base" />
-            </div>
-
-            <div className="border-t border-slate-100 pt-5 space-y-4">
-              <p className="text-xs text-slate-400 uppercase font-bold tracking-wider">Client (optionnel, pour le PDF + relances avis)</p>
-              <div>
-                <label className="block text-sm font-bold text-slate-700 mb-2">Nom du client</label>
-                <input value={clientNom} onChange={e => setClientNom(e.target.value)} placeholder="ex: M. Dupont" className="w-full border-2 border-slate-200 focus:border-[#e67e22] outline-none rounded-xl px-4 py-3 text-base" />
-              </div>
-              <div>
-                <label className="block text-sm font-bold text-slate-700 mb-2">Email client</label>
-                <input type="email" value={clientEmail} onChange={e => setClientEmail(e.target.value)} placeholder="client@exemple.fr" inputMode="email" autoCapitalize="none" autoCorrect="off" className="w-full border-2 border-slate-200 focus:border-[#e67e22] outline-none rounded-xl px-4 py-3 text-base" />
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* GENERATING */}
-        {step === 'generating' && (
-          <div className="bg-white rounded-2xl shadow-lg p-8 text-center space-y-5">
-            <div className="text-6xl animate-bounce">🤖</div>
-            <h2 className="text-xl font-black text-[#0e2a52]">L'IA travaille…</h2>
-            <div className="min-h-[48px] flex items-center justify-center">
-              <p className="text-base text-slate-700 font-semibold transition-all">{GEN_STEPS[genStepIdx]}</p>
-            </div>
-            <div className="h-2 bg-slate-200 rounded-full overflow-hidden max-w-xs mx-auto">
-              <div className="h-full bg-gradient-to-r from-[#e67e22] to-[#d35400] transition-all duration-500" style={{ width: `${((genStepIdx + 1) / GEN_STEPS.length) * 100}%` }} />
-            </div>
-            <p className="text-xs text-slate-400">Temps moyen : 25-35 secondes</p>
-            <button onClick={() => setStep('validate')} className="text-sm text-slate-500 hover:text-[#e67e22] font-semibold underline">
-              Annuler et revenir à l'édition
-            </button>
-          </div>
-        )}
-
-        {/* PREVIEW */}
+        {/* ═══════════ ÉTAPE 3 — RAPPORT PRÊT ═══════════ */}
         {(step === 'preview' || step === 'publishing') && rapport && seo && (
-          <div className="bg-white rounded-2xl shadow-lg p-5 sm:p-7 space-y-5">
-            <div className="flex justify-between items-center">
-              <h2 className="text-2xl font-black text-[#0e2a52]">✅ Rapport prêt</h2>
-              <button onClick={() => setStep('validate')} className="text-sm text-slate-500 hover:text-[#e67e22] font-semibold">← Modifier</button>
+          <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 sm:p-6 space-y-5">
+            <div>
+              <h2 className="text-xl font-black text-[#0e2a52]">Rapport prêt</h2>
+              <p className="text-sm text-slate-500 mt-1">Vérifie, exporte ou publie.</p>
             </div>
 
             <GenerationPreview rapport={rapport} seo={seo} onRapportChange={setRapport} onSeoChange={setSeo} />
@@ -550,43 +581,38 @@ export default function NouveauPage() {
               }
               const pdfFilename = `rapport-${(ville || 'intervention').toLowerCase()}-${dateIntervention}.pdf`
               return (
-                <div className="pt-4 border-t border-slate-100 space-y-3">
+                <div className="space-y-3 pt-4 border-t border-slate-100">
                   {/* Aperçus */}
                   <div className="grid grid-cols-2 gap-3">
-                    <button
-                      onClick={() => setShowPdfPreview(true)}
-                      className="bg-slate-100 text-[#0e2a52] px-4 py-3 rounded-xl font-bold hover:bg-slate-200 active:scale-95 transition-all border-2 border-slate-200"
-                    >
+                    <button onClick={() => setShowPdfPreview(true)} className="bg-slate-50 text-[#0e2a52] px-4 py-3 rounded-xl font-bold hover:bg-slate-100 active:scale-95 transition-all border-2 border-slate-200">
                       👁 Aperçu PDF
                     </button>
-                    <button
-                      onClick={() => setShowSitePreview(true)}
-                      className="bg-slate-100 text-[#0e2a52] px-4 py-3 rounded-xl font-bold hover:bg-slate-200 active:scale-95 transition-all border-2 border-slate-200"
-                    >
-                      🌐 Aperçu page web
+                    <button onClick={() => setShowSitePreview(true)} className="bg-slate-50 text-[#0e2a52] px-4 py-3 rounded-xl font-bold hover:bg-slate-100 active:scale-95 transition-all border-2 border-slate-200">
+                      🌐 Aperçu page
                     </button>
                   </div>
 
-                  {/* Export & envoi */}
+                  {/* Export */}
                   <div className="grid grid-cols-2 gap-3">
                     <PDFDownloadButton {...pdfProps} />
                     <DriveSaveButton pdfProps={pdfProps} filename={pdfFilename} />
                   </div>
 
+                  {/* Actions */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <button
                       onClick={handleSendToClient}
                       disabled={emailSending || emailSent || !clientEmail}
-                      className="bg-orange-500 text-white px-4 py-3 rounded-xl font-bold hover:bg-orange-600 disabled:opacity-50 active:scale-95 transition-all"
+                      className="bg-blue-600 text-white px-4 py-3.5 rounded-xl font-bold hover:bg-blue-700 disabled:opacity-50 active:scale-95 transition-all"
                     >
-                      {emailSent ? '✓ Envoyé' : emailSending ? 'Envoi…' : '✉ Envoyer client'}
+                      {emailSent ? '✓ Email envoyé' : emailSending ? 'Envoi…' : '✉ Envoyer au client'}
                     </button>
                     <button
                       onClick={handlePublish}
                       disabled={step === 'publishing'}
-                      className="bg-[#1e8449] text-white px-4 py-3 rounded-xl font-bold hover:bg-[#196f3d] disabled:opacity-50 active:scale-95 transition-all"
+                      className="bg-emerald-600 text-white px-4 py-3.5 rounded-xl font-bold hover:bg-emerald-700 disabled:opacity-50 active:scale-95 transition-all"
                     >
-                      {step === 'publishing' ? 'Publication…' : '🌐 Publier site'}
+                      {step === 'publishing' ? 'Publication…' : '🌐 Publier sur le site'}
                     </button>
                   </div>
 
@@ -598,53 +624,59 @@ export default function NouveauPage() {
           </div>
         )}
 
-        {/* DONE */}
+        {/* ═══════════ ÉTAPE 4 — TERMINÉ ═══════════ */}
         {step === 'done' && (
-          <div className="bg-white rounded-2xl shadow-lg p-8 text-center space-y-5">
-            <div className="text-6xl">🎉</div>
-            <h2 className="text-2xl font-black text-[#1e8449]">Réalisation publiée !</h2>
+          <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-8 text-center space-y-5">
+            <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto text-3xl">🎉</div>
+            <h2 className="text-2xl font-black text-emerald-700">Réalisation publiée !</h2>
             <p className="text-slate-600">La page est en ligne sur le site.</p>
             <a
               href={`https://www.lestechniciensdudebouchage.fr/${publishedSlug}`}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-block bg-[#0e2a52] text-white px-6 py-3 rounded-xl font-bold hover:bg-[#1a3a6b]"
+              className="inline-block bg-[#0e2a52] text-white px-6 py-3 rounded-xl font-bold hover:bg-[#1a3a6b] transition-colors"
             >
               Voir la page publiée →
             </a>
             <div className="pt-4">
-              <button onClick={resetForm} className="text-[#e67e22] hover:underline font-bold">+ Nouvelle réalisation</button>
+              <button onClick={resetForm} className="text-blue-600 hover:underline font-bold">+ Nouvelle réalisation</button>
             </div>
           </div>
         )}
       </main>
 
-      {/* STICKY BOTTOM BAR */}
-      {(step === 'capture' || step === 'validate') && (
-        <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 shadow-2xl p-3 z-30">
+      {/* ═══════════ BARRE D'ACTION BOTTOM ═══════════ */}
+      {(['capture', 'validate'] as Step[]).includes(step) && (
+        <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 shadow-[0_-4px_20px_rgba(0,0,0,0.08)] p-3 z-30">
           <div className="max-w-3xl mx-auto">
             {error && <div className="text-red-600 text-sm font-semibold mb-2 text-center">{error}</div>}
             <div className="flex gap-3">
               {step === 'capture' ? (
-                <a
-                  href="/"
-                  className="flex-1 bg-slate-100 text-slate-700 py-4 rounded-xl font-bold text-base text-center active:scale-95 transition-all"
-                >
-                  ← Accueil
-                </a>
+                <button onClick={() => {}} className="flex-1 bg-slate-100 text-slate-600 py-3.5 rounded-xl font-bold text-sm active:scale-95 transition-all">
+                  Annuler
+                </button>
               ) : (
-                <button onClick={() => setStep('capture')} className="flex-1 bg-slate-100 text-slate-700 py-4 rounded-xl font-bold text-base active:scale-95 transition-all">
-                  ← Dictée
+                <button onClick={() => setStep('capture')} className="flex-1 bg-slate-100 text-slate-600 py-3.5 rounded-xl font-bold text-sm active:scale-95 transition-all">
+                  ← Retour
                 </button>
               )}
               <button
                 onClick={step === 'capture' ? handleExtract : handleGenerate}
-                className="bg-gradient-to-r from-[#e67e22] to-[#d35400] text-white py-4 rounded-xl font-bold text-base shadow-lg active:scale-95 transition-all"
-                style={{ flex: 2 }}
+                className="flex-[2] bg-[#0e2a52] text-white py-3.5 rounded-xl font-bold text-sm shadow-lg active:scale-95 transition-all disabled:opacity-60"
               >
-                {step === 'capture' ? '✨ Analyser ma dictée' : '🚀 Générer le rapport'}
+                {step === 'capture' ? 'Suivant →' : '🚀 Générer le rapport'}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {(['preview', 'publishing'] as Step[]).includes(step) && (
+        <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 shadow-[0_-4px_20px_rgba(0,0,0,0.08)] p-3 z-30">
+          <div className="max-w-3xl mx-auto">
+            <button onClick={() => setStep('validate')} className="w-full bg-slate-100 text-slate-600 py-3 rounded-xl font-bold text-sm active:scale-95 transition-all">
+              ← Modifier les informations
+            </button>
           </div>
         </div>
       )}
@@ -686,9 +718,9 @@ function VilleCombobox({ value, onChange, onSelect }: { value: string; onChange:
           else if (e.key === 'Enter' && suggestions[highlight]) { e.preventDefault(); pick(suggestions[highlight]) }
           else if (e.key === 'Escape') setOpen(false)
         }}
-        placeholder="Tape : Toulon, Hyères, Bandol…"
+        placeholder="Toulon, Hyères, Bandol…"
         autoComplete="off"
-        className={`w-full border-2 ${isExactMatch ? 'border-emerald-400 bg-emerald-50' : 'border-slate-200'} focus:border-[#e67e22] outline-none rounded-xl px-4 py-3 text-base`}
+        className={`w-full border-2 ${isExactMatch ? 'border-emerald-400 bg-emerald-50' : 'border-slate-200'} focus:border-blue-500 outline-none rounded-xl px-4 py-3 text-base transition-colors`}
       />
       {isExactMatch && <span className="absolute right-3 top-1/2 -translate-y-1/2 text-emerald-600 text-lg">✓</span>}
       {open && suggestions.length > 0 && (
@@ -700,7 +732,7 @@ function VilleCombobox({ value, onChange, onSelect }: { value: string; onChange:
               onClick={() => pick(v)}
               onMouseEnter={() => setHighlight(i)}
               className={`w-full text-left px-4 py-3 flex justify-between items-center border-b border-slate-100 last:border-b-0 transition ${
-                i === highlight ? 'bg-orange-50 text-[#e67e22]' : 'text-[#0e2a52] hover:bg-slate-50'
+                i === highlight ? 'bg-blue-50 text-blue-700' : 'text-[#0e2a52] hover:bg-slate-50'
               }`}
             >
               <span className="font-semibold text-sm">{v.nom}</span>
@@ -726,33 +758,32 @@ type PhotoItemCardProps = {
 
 function PhotoItemCard({ index, photo, isFirst, isLast, onLegendeChange, onRemove, onMoveUp, onMoveDown }: PhotoItemCardProps) {
   return (
-    <div className="bg-white border-2 border-slate-200 rounded-2xl overflow-hidden shadow-sm">
+    <div className="bg-white border-2 border-slate-200 rounded-xl overflow-hidden">
       <div className="relative">
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={photo.preview} alt={photo.legende} className="w-full h-44 object-cover" />
-        <div className="absolute top-2 left-2 bg-[#0e2a52] text-white w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm shadow">
+        <img src={photo.preview} alt={photo.legende} className="w-full h-36 object-cover" />
+        <div className="absolute top-2 left-2 bg-[#0e2a52] text-white w-7 h-7 rounded-full flex items-center justify-center font-bold text-xs shadow">
           {index + 1}
         </div>
         <button onClick={onRemove} type="button" aria-label="Supprimer"
-          className="absolute top-2 right-2 bg-white/95 backdrop-blur w-8 h-8 rounded-full text-red-600 font-bold shadow flex items-center justify-center">✕</button>
+          className="absolute top-2 right-2 bg-white/95 w-7 h-7 rounded-full text-red-600 font-bold shadow flex items-center justify-center text-sm">✕</button>
         <div className="absolute bottom-2 right-2 flex gap-1">
           {!isFirst && (
             <button onClick={onMoveUp} type="button" aria-label="Monter"
-              className="bg-white/95 backdrop-blur w-8 h-8 rounded-full text-[#0e2a52] font-bold shadow flex items-center justify-center">↑</button>
+              className="bg-white/95 w-7 h-7 rounded-full text-[#0e2a52] font-bold shadow flex items-center justify-center text-sm">↑</button>
           )}
           {!isLast && (
             <button onClick={onMoveDown} type="button" aria-label="Descendre"
-              className="bg-white/95 backdrop-blur w-8 h-8 rounded-full text-[#0e2a52] font-bold shadow flex items-center justify-center">↓</button>
+              className="bg-white/95 w-7 h-7 rounded-full text-[#0e2a52] font-bold shadow flex items-center justify-center text-sm">↓</button>
           )}
         </div>
       </div>
-      <div className="p-3">
-        <label className="block text-xs font-bold text-slate-600 mb-1">Nom / légende</label>
+      <div className="p-2.5">
         <input
           value={photo.legende}
           onChange={e => onLegendeChange(e.target.value)}
           placeholder={`Photo ${index + 1}`}
-          className="w-full border-2 border-slate-200 focus:border-[#e67e22] outline-none rounded-lg px-3 py-2 text-sm"
+          className="w-full border border-slate-200 focus:border-blue-500 outline-none rounded-lg px-3 py-2 text-sm transition-colors"
         />
       </div>
     </div>
