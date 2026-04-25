@@ -251,16 +251,36 @@ export default function NouveauPage() {
 
   async function handleSendToClient() {
     if (!clientEmail) { setError('Email client manquant.'); return }
+    if (!rapport) { setError('Rapport indisponible.'); return }
     setEmailSending(true); setError('')
     try {
+      const photosForPdf = photos.map(p => ({ url: p.dataUrl, legende: p.legende }))
+      const tech = technicienNom || session?.user?.name || 'Technicien'
+      const [{ RealisationDocument }, { pdfDocumentToBase64 }, React] = await Promise.all([
+        import('@/components/RealisationPDF'),
+        import('@/lib/pdfToBase64'),
+        import('react'),
+      ])
+      const pdfBase64 = await pdfDocumentToBase64(
+        React.createElement(RealisationDocument, {
+          clientNom, adresse, ville, codePostal, dateIntervention, typeIntervention,
+          technicienNom: tech,
+          rapport,
+          photos: photosForPdf,
+        })
+      )
+      const pdfFilename = `rapport-${(ville || 'intervention').toLowerCase()}-${dateIntervention}.pdf`.replace(/\s+/g, '-')
       const res = await fetch('/api/notify-client', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ clientEmail, clientNom, technicienNom, ville, dateIntervention }),
+        body: JSON.stringify({
+          clientEmail, clientNom, technicienNom: tech, ville, dateIntervention,
+          pdfBase64, pdfFilename,
+        }),
       })
       if (!res.ok) {
-        const data = await res.json()
-        throw new Error(data.error || 'Erreur envoi')
+        const data = await res.json().catch(() => ({}))
+        throw new Error(data.error || `HTTP ${res.status}`)
       }
       setEmailSent(true)
     } catch (e: any) {

@@ -90,6 +90,53 @@ export default function AttestationPage() {
 
   const [data, setData] = useState<AttestationData | null>(null)
 
+  const [clientEmail, setClientEmail] = useState('')
+  const [emailSending, setEmailSending] = useState(false)
+  const [emailSent, setEmailSent] = useState(false)
+  const [emailError, setEmailError] = useState('')
+
+  async function handleSendToClient() {
+    if (!data) return
+    if (!clientEmail) { setEmailError('Renseigne l\'email du client.'); return }
+    setEmailSending(true); setEmailError(''); setEmailSent(false)
+    try {
+      const photosForPdf = photos.map(p => ({ url: p.dataUrl, legende: p.legende }))
+      const [{ AttestationDocument }, { pdfDocumentToBase64 }, React] = await Promise.all([
+        import('@/components/AttestationPDF'),
+        import('@/lib/pdfToBase64'),
+        import('react'),
+      ])
+      const pdfBase64 = await pdfDocumentToBase64(
+        React.createElement(AttestationDocument, { data, photos: photosForPdf })
+      )
+      const filename = `${data.numero || 'attestation'}.pdf`.replace(/\s+/g, '-')
+      const res = await fetch('/api/notify-attestation', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          clientEmail,
+          clientNom: `${data.prenom || ''} ${data.nom || ''}`.trim(),
+          technicienNom: data.technicienNom,
+          ville: data.ville,
+          dateAttestation: data.date,
+          numero: data.numero,
+          variante: data.variante,
+          pdfBase64,
+          pdfFilename: filename,
+        }),
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.error || `HTTP ${res.status}`)
+      }
+      setEmailSent(true)
+    } catch (e: any) {
+      setEmailError(`Erreur envoi : ${e.message || e}`)
+    } finally {
+      setEmailSending(false)
+    }
+  }
+
   useEffect(() => {
     const saved = typeof window !== 'undefined' ? localStorage.getItem('ltdb_technicien') : null
     if (saved) setTechnicienNom(saved)
@@ -196,6 +243,33 @@ export default function AttestationPage() {
               <AttestationDownloadButton data={data} photos={photosForPdf} />
             </div>
           </div>
+
+          {/* Envoi au client */}
+          <section className="bg-white rounded-2xl border border-slate-200 p-5 space-y-3">
+            <h2 className="font-bold text-[#0f2e5c]">Envoyer l'attestation au client</h2>
+            <p className="text-xs text-slate-500">Le PDF sera envoyé par email avec un mot d'accompagnement.</p>
+            <div className="flex flex-col sm:flex-row gap-2">
+              <input
+                type="email"
+                inputMode="email"
+                autoComplete="email"
+                value={clientEmail}
+                onChange={e => setClientEmail(e.target.value)}
+                placeholder="email@client.com"
+                className="flex-1 border-2 border-slate-200 focus:border-[#0f2e5c] outline-none rounded-lg px-3 py-2 text-sm"
+                disabled={emailSending}
+              />
+              <button
+                onClick={handleSendToClient}
+                disabled={emailSending || !clientEmail}
+                className="bg-[#0f2e5c] text-white font-semibold rounded-lg px-4 py-2 text-sm hover:bg-[#0a2047] disabled:opacity-50 disabled:cursor-not-allowed transition"
+              >
+                {emailSending ? 'Envoi…' : '✉ Envoyer le PDF'}
+              </button>
+            </div>
+            {emailSent && <p className="text-sm text-emerald-700">✓ Attestation envoyée à <strong>{clientEmail}</strong></p>}
+            {emailError && <p className="text-sm text-red-600">{emailError}</p>}
+          </section>
 
           {/* Identité du bien */}
           <section className="bg-white rounded-2xl border border-slate-200 p-5 space-y-3">

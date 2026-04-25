@@ -43,6 +43,70 @@ export default function DevisPage() {
   // Résultat IA (éditable)
   const [devis, setDevis] = useState<DevisData | null>(null)
 
+  // Envoi email
+  const [clientEmail, setClientEmail] = useState('')
+  const [emailSending, setEmailSending] = useState(false)
+  const [emailSent, setEmailSent] = useState(false)
+  const [emailError, setEmailError] = useState('')
+
+  async function handleSendToClient() {
+    if (!devis) return
+    if (!clientEmail) { setEmailError('Renseigne l\'email du client.'); return }
+    setEmailSending(true); setEmailError(''); setEmailSent(false)
+    try {
+      const totalHT = devis.lignes.reduce((s, l) => s + (Number(l.pu_ht) || 0) * (Number(l.qte) || 0), 0)
+      const totalTTC = totalHT * (1 + ((devis.tva_taux ?? 10) / 100))
+      const technicienNom = typeof window !== 'undefined' ? (localStorage.getItem('ltdb_technicien') || '') : ''
+      const client: ClientData = {
+        nom: clientNom || '—',
+        adresseLignes: [
+          clientAdresse || '',
+          [clientCP, clientVille].filter(Boolean).join(' '),
+        ].filter(Boolean),
+        adresseChantier: adresseChantier || undefined,
+      }
+      const [{ DevisDocument }, { pdfDocumentToBase64 }, React] = await Promise.all([
+        import('@/components/DevisPDF'),
+        import('@/lib/pdfToBase64'),
+        import('react'),
+      ])
+      const pdfBase64 = await pdfDocumentToBase64(
+        React.createElement(DevisDocument, {
+          emetteur: EMETTEUR_DEFAULT,
+          client,
+          devis,
+          phone: EMETTEUR_DEFAULT.telephone,
+        })
+      )
+      const filename = `devis-${devis.numero || 'sans-numero'}.pdf`.replace(/\s+/g, '-')
+      const res = await fetch('/api/notify-devis', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          clientEmail,
+          clientNom,
+          technicienNom,
+          ville: clientVille,
+          dateDevis,
+          numero: devis.numero,
+          totalTTC,
+          validiteJours: devis.validite_jours,
+          pdfBase64,
+          pdfFilename: filename,
+        }),
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.error || `HTTP ${res.status}`)
+      }
+      setEmailSent(true)
+    } catch (e: any) {
+      setEmailError(`Erreur envoi : ${e.message || e}`)
+    } finally {
+      setEmailSending(false)
+    }
+  }
+
   async function handleExtractClient() {
     if (!transcription || transcription.trim().length < 10) return
     setStep('extracting'); setError('')
@@ -181,6 +245,33 @@ export default function DevisPage() {
               <DevisDownloadButton {...pdfProps} />
             </div>
           </div>
+
+          {/* Envoi au client */}
+          <section className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 space-y-3">
+            <h2 className="font-bold text-[#0e2a52]">Envoyer le devis au client</h2>
+            <p className="text-xs text-slate-500">Le PDF sera joint à un email présentant le devis et le total TTC.</p>
+            <div className="flex flex-col sm:flex-row gap-2">
+              <input
+                type="email"
+                inputMode="email"
+                autoComplete="email"
+                value={clientEmail}
+                onChange={e => setClientEmail(e.target.value)}
+                placeholder="email@client.com"
+                className="flex-1 border-2 border-slate-200 focus:border-[#0e2a52] outline-none rounded-lg px-3 py-2 text-sm"
+                disabled={emailSending}
+              />
+              <button
+                onClick={handleSendToClient}
+                disabled={emailSending || !clientEmail}
+                className="bg-[#0e2a52] text-white font-semibold rounded-lg px-4 py-2 text-sm hover:bg-[#0a2047] disabled:opacity-50 disabled:cursor-not-allowed transition"
+              >
+                {emailSending ? 'Envoi…' : '✉ Envoyer le PDF'}
+              </button>
+            </div>
+            {emailSent && <p className="text-sm text-emerald-700">✓ Devis envoyé à <strong>{clientEmail}</strong></p>}
+            {emailError && <p className="text-sm text-red-600">{emailError}</p>}
+          </section>
 
           {/* Client */}
           <section className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 space-y-3">

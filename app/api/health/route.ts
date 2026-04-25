@@ -35,15 +35,45 @@ async function checkBackend(): Promise<Check> {
   }
 }
 
+async function checkResend(): Promise<Check> {
+  const key = process.env.RESEND_API_KEY
+  if (!key) return { ok: false, detail: 'RESEND_API_KEY missing' }
+  const start = Date.now()
+  try {
+    const res = await fetch('https://api.resend.com/domains', {
+      method: 'GET',
+      headers: { Authorization: `Bearer ${key}` },
+      signal: AbortSignal.timeout(8000),
+    })
+    if (res.status === 401 || res.status === 403) {
+      return { ok: false, latencyMs: Date.now() - start, detail: `auth rejected (HTTP ${res.status})` }
+    }
+    if (!res.ok) return { ok: false, latencyMs: Date.now() - start, detail: `HTTP ${res.status}` }
+    const body = await res.json().catch(() => null) as { data?: Array<{ name: string; status: string }> } | null
+    const fromEmail = process.env.RESEND_FROM_EMAIL || 'contact@lestechniciensdudebouchage.fr'
+    const fromDomain = fromEmail.split('@')[1]
+    const verified = body?.data?.find(d => d.name === fromDomain && d.status === 'verified')
+    if (!verified) {
+      const status = body?.data?.find(d => d.name === fromDomain)?.status || 'absent'
+      return { ok: false, latencyMs: Date.now() - start, detail: `domain "${fromDomain}" not verified on Resend (status: ${status})` }
+    }
+    return { ok: true, latencyMs: Date.now() - start, detail: `domain "${fromDomain}" verified` }
+  } catch (e: any) {
+    return { ok: false, latencyMs: Date.now() - start, detail: String(e?.message || e).slice(0, 240) }
+  }
+}
+
 export async function GET() {
-  const [anthropic, backend] = await Promise.all([checkAnthropic(), checkBackend()])
+  const [anthropic, backend, resend] = await Promise.all([checkAnthropic(), checkBackend(), checkResend()])
 
   const checks = {
     env_anthropic_key: { ok: !!process.env.ANTHROPIC_API_KEY } as Check,
     env_ltdb_api_url: { ok: !!process.env.LTDB_API_URL } as Check,
     env_nextauth_secret: { ok: !!process.env.NEXTAUTH_SECRET } as Check,
+    env_resend_key: { ok: !!process.env.RESEND_API_KEY } as Check,
     anthropic_api: anthropic,
     backend_api: backend,
+    resend_api: resend,
   }
 
   const failures: string[] = []
