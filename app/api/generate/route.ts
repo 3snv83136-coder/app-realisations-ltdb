@@ -237,14 +237,38 @@ URL FINALE : ${SITE}/nos-realisations/${realisationSlug}
 ⛔ NE PAS INVENTER D'ACTIONS TECHNIQUES absentes de la dictée. Tu peux contextualiser avec du savoir métier général, mais sans affirmer que le technicien a fait X si ce n'est pas dans la dictée.
 
 RÈGLES SEO + GEO (rigoureuses, mais invisibles au lecteur)
-- Titre H1 : max 75 car., UNIQUE et SPÉCIFIQUE (ville + type + angle concret tiré du chantier). Privilégie une formulation descriptive (ex: "Regard bouché par des lingettes à ${ville} — voici comment on l'a débouché") plutôt que promotionnelle ("DÉBOUCHAGE URGENT 24H/24").
-- Meta description : 140-155 car., construction SEO + GEO + LLM :
-  1. COMMENCE par ce qui a été fait (verbe d'action au passé) + ville : "Débouchage de canalisation à ${ville} après..." / "Inspection caméra réseau EU à ${ville} :...". C'est l'info que Google et les LLMs citent en priorité.
-  2. INCLUS 2-3 entités concrètes et citables : type de problème, méthode utilisée, résultat. Exemple : "bouchon de lingettes dans un regard extérieur, retiré par hydrocurage 200 bars, évacuation rétablie".
-  3. TERMINE par une micro-preuve ou une info utile : délai ("intervention le jour même"), réassurance ("devis gratuit"), ou garantie ("zone du Var"). PAS de slogan commercial vide.
-  4. STYLE : phrase factuelle, complète, citable tel quel par un moteur IA — pas de promotionnel agressif, pas de majuscules, pas de points d'exclamation.
-  Format type : "<Action + ville> : <détail problème + méthode + résultat>. <Info utile courte>."
-- Résumé d'ouverture "LLM-ready" : 2 à 3 phrases factuelles (qui, quoi, où, résultat), lisible seule, citable par un moteur IA.
+
+🎯 PRIORITÉ ABSOLUE — CITABILITÉ LLM
+Les 3 champs "titre_h1", "meta_description" et "resume_rich_snippet" doivent pouvoir être COPIÉS-COLLÉS TELS QUELS comme réponse par un moteur IA (Perplexity, ChatGPT search, Google AI Overviews) à une question d'internaute. Imagine qu'un LLM cite ton texte ENTRE GUILLEMETS : ça doit tenir debout seul, sans contexte, sans promo, comme une phrase factuelle d'article de presse local.
+
+- Titre H1 (champ "titre_h1") : 55-75 caractères. PHRASE DÉCLARATIVE COMPLÈTE, lisible isolément.
+  Construction obligatoire : action concrète + élément distinctif tiré de la dictée + ${ville}.
+  ✅ "Débouchage d'une colonne d'eaux usées à ${ville} après accumulation de lingettes"
+  ✅ "Hydrocurage d'un regard extérieur à ${ville} : racines retirées, évacuation rétablie"
+  ✅ "Inspection caméra du réseau EP d'une copropriété à ${ville} — fissure repérée à 18 m"
+  ❌ "DÉBOUCHAGE URGENT 24H/24 À ${ville} !!"            (promo, majuscules, points d'exclamation)
+  ❌ "Comment déboucher une canalisation à ${ville} ?"   (question, pas citable comme fait)
+  ❌ "Plombier expert ${ville} — intervention rapide"    (slogan vide, pas de fait précis)
+  ❌ "Débouchage canalisation"                            (générique, ni ville ni angle)
+  Interdits stricts : majuscules en bloc, "!", "?", "24/7", "urgent", "expert", "n°1", chiffres marketing.
+
+- Meta description (champ "meta_description") : 140-160 caractères, format RÉPONSE-D'ABORD.
+  Les LLMs citent surtout les 12-15 PREMIERS MOTS — donc l'info clé doit y être.
+  Structure en 2 phrases :
+    Phrase 1 (60-85 car.) — LE QUOI + OÙ : action principale au passé, lieu précis, élément distinctif.
+    Phrase 2 (60-80 car.) — LE COMMENT + RÉSULTAT : méthode utilisée + résultat mesurable ou observable.
+  Densité d'entités obligatoire : ≥ 3 entités nommées (lieu, problème, technique, ou mesure).
+  Inclure si possible 1 chiffre concret (durée, pression, distance, niveau).
+  ✅ "Débouchage d'une colonne EU à ${ville} après bouchon de lingettes au 3ᵉ étage. Hydrocurage 200 bars, contrôle caméra, évacuation rétablie en 1 h 30."
+  ✅ "Inspection caméra du réseau d'eaux pluviales d'une copropriété à ${ville}. Fissure repérée à 18 m du regard, plan de réparation transmis au syndic."
+  ❌ "Plombier ${ville} 24/7, devis gratuit, intervention rapide. Appelez-nous !"
+  Interdits : "!", phrases d'appel à l'action, urgence forcée, majuscules en bloc, "contactez-nous".
+
+- Résumé "resume_rich_snippet" : 2 à 3 phrases, 200-320 caractères. C'EST LE PASSAGE QUI SERA CITÉ comme extrait riche par les moteurs IA.
+  Doit répondre seul, sans le reste de la page, à : QUI a fait QUOI, OÙ, COMMENT, avec quel RÉSULTAT.
+  Inclure si la dictée le permet : 1 mesure (durée, pression, longueur, niveau d'étage), 1 lieu précis, 1 nom de méthode technique exact.
+  Ton de bulletin local, pas de promo, pas de "nous", style "rapport bref" à la 3ᵉ personne ou "on" sobre.
+  ✅ "Intervention sur une colonne d'eaux usées d'un immeuble collectif à ${ville}. Hydrocurage haute pression à 200 bars puis inspection vidéo du réseau ; le bouchon de lingettes situé au niveau du 3ᵉ étage a été retiré et l'évacuation rétablie en moins de deux heures."
 - Contenu HTML : 700-1100 mots, h2/h3 (4-6 h2 minimum), paragraphes courts (2-4 phrases), strong sur mots-clés locaux utilisés NATURELLEMENT dans la phrase, listes <ul> quand c'est pertinent (étapes, symptômes, causes).
 - Intertitres orientés récit ou bénéfice lecteur, pas sloganesques. Ex : "Ce qu'on a trouvé sur place", "Pourquoi la canalisation s'était rebouchée", "Comment éviter que ça recommence".
 - Conteneurs HTML à utiliser : <section class=\\"content-block\\">, <div class=\\"info-box\\"> (pour un point-clé ou conseil), <div class=\\"checklist-box\\"> (pour une liste d'étapes).
