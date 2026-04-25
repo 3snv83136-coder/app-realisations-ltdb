@@ -38,6 +38,11 @@ async function checkBackend(): Promise<Check> {
 async function checkResend(): Promise<Check> {
   const key = process.env.RESEND_API_KEY
   if (!key) return { ok: false, detail: 'RESEND_API_KEY missing' }
+
+  const fromEmail = process.env.RESEND_FROM_EMAIL
+    || (process.env.RESEND_TEST_EMAIL ? 'onboarding@resend.dev' : 'contact@lestechniciensdudebouchage.fr')
+  const fromDomain = fromEmail.split('@')[1]
+
   const start = Date.now()
   try {
     const res = await fetch('https://api.resend.com/domains', {
@@ -49,9 +54,12 @@ async function checkResend(): Promise<Check> {
       return { ok: false, latencyMs: Date.now() - start, detail: `auth rejected (HTTP ${res.status})` }
     }
     if (!res.ok) return { ok: false, latencyMs: Date.now() - start, detail: `HTTP ${res.status}` }
+
+    if (fromDomain === 'resend.dev') {
+      return { ok: true, latencyMs: Date.now() - start, detail: 'test mode via resend.dev (RESEND_TEST_EMAIL set)' }
+    }
+
     const body = await res.json().catch(() => null) as { data?: Array<{ name: string; status: string }> } | null
-    const fromEmail = process.env.RESEND_FROM_EMAIL || 'contact@lestechniciensdudebouchage.fr'
-    const fromDomain = fromEmail.split('@')[1]
     const verified = body?.data?.find(d => d.name === fromDomain && d.status === 'verified')
     if (!verified) {
       const status = body?.data?.find(d => d.name === fromDomain)?.status || 'absent'

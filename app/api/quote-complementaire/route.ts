@@ -81,7 +81,8 @@ export async function POST(req: NextRequest) {
 
   const resendKey = process.env.RESEND_API_KEY
   if (!resendKey) return NextResponse.json({ error: "RESEND_API_KEY manquante" }, { status: 500 })
-  const fromEmail = process.env.RESEND_FROM_EMAIL || "contact@lestechniciensdudebouchage.fr"
+  const fromEmail = process.env.RESEND_FROM_EMAIL
+    || (process.env.RESEND_TEST_EMAIL ? "onboarding@resend.dev" : "contact@lestechniciensdudebouchage.fr")
 
   const quoteId = quoteRef()
   const recipient = process.env.RESEND_TEST_EMAIL || clientEmail

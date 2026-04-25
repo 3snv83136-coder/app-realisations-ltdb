@@ -27,7 +27,8 @@ export async function POST(req: NextRequest) {
   }
 
   const resendKey = process.env.RESEND_API_KEY
-  const fromEmail = process.env.RESEND_FROM_EMAIL || 'contact@lestechniciensdudebouchage.fr'
+  const fromEmail = process.env.RESEND_FROM_EMAIL
+    || (process.env.RESEND_TEST_EMAIL ? 'onboarding@resend.dev' : 'contact@lestechniciensdudebouchage.fr')
 
   if (!resendKey) {
     return NextResponse.json({ error: 'RESEND_API_KEY manquante' }, { status: 500 })
