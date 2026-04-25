@@ -11,7 +11,7 @@ const PDFDownloadButton = dynamic(() => import("@/components/RealisationPDF"), {
 const PDFPreviewModal = dynamic(() => import("@/components/PDFPreviewModal"), { ssr: false })
 const DriveSaveButton = dynamic(() => import("@/components/DriveSaveButton"), { ssr: false })
 import SitePreviewModal from "@/components/SitePreviewModal"
-import TruckLoader from "@/components/TruckLoader"
+import CatLoader from "@/components/CatLoader"
 
 function notifyDone(title: string, body: string) {
   if (typeof window === 'undefined' || !('Notification' in window)) return
@@ -577,7 +577,7 @@ export default function NouveauPage() {
             {step === 'generating' && (
               <div className="bg-blue-50 border border-blue-200 rounded-2xl p-5 text-center space-y-3">
                 <p className="text-sm font-bold text-blue-900">{GEN_STEPS[genStepIdx]}</p>
-                <TruckLoader />
+                <CatLoader />
                 <p className="text-[11px] text-slate-500">
                   Compte 30 à 90 secondes — tu peux laisser la page ouverte, on te notifie quand c'est prêt.
                 </p>
