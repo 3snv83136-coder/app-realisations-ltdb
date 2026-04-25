@@ -3,6 +3,7 @@ import { useState, useEffect, useRef } from "react"
 import { useSession } from "next-auth/react"
 import VoiceRecorder from "@/components/VoiceRecorder"
 import GenerationPreview from "@/components/GenerationPreview"
+import AppTabs from "@/components/AppTabs"
 import dynamic from "next/dynamic"
 import { VILLES_VAR, searchVilles, findVilleByName, type VilleVar } from "@/lib/villes-var"
 
@@ -328,6 +329,12 @@ export default function NouveauPage() {
 
   return (
     <div className="min-h-screen bg-slate-50 pb-32">
+      {/* App tabs (rapport vs devis) */}
+      <div className="bg-white border-b border-slate-200 py-2">
+        <div className="max-w-3xl mx-auto px-4">
+          <AppTabs />
+        </div>
+      </div>
       {/* Header */}
       <nav className="bg-[#0e2a52] text-white px-4 py-3 sm:px-6 sm:py-4 shadow-lg sticky top-0 z-30">
         <div className="max-w-3xl mx-auto flex justify-between items-center gap-3">
@@ -631,7 +638,7 @@ export default function NouveauPage() {
             <h2 className="text-2xl font-black text-emerald-700">Réalisation publiée !</h2>
             <p className="text-slate-600">La page est en ligne sur le site.</p>
             <a
-              href={`https://www.lestechniciensdudebouchage.fr/${publishedSlug}`}
+              href={`https://lestechniciensdudebouchage.fr/nos-realisations/${publishedSlug}`}
               target="_blank"
               rel="noopener noreferrer"
               className="inline-block bg-[#0e2a52] text-white px-6 py-3 rounded-xl font-bold hover:bg-[#1a3a6b] transition-colors"

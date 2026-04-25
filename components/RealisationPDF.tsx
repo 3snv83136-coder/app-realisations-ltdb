@@ -1,352 +1,331 @@
 'use client'
+import React from "react"
 import { Document, Page, Text, View, Image, StyleSheet, PDFDownloadLink } from "@react-pdf/renderer"
 
-/* ============ CHARTE LTDB ============ */
+/* ============ CHARTE FRANCE-ADPT-LIKE ============ */
 const C = {
-  navy: '#0e2a52',
-  blue: '#1a4a8a',
-  blueMid: '#2563eb',
-  blueLight: '#e8f0fe',
-  orange: '#f59e0b',
-  orangeLight: '#fffbeb',
-  critical: '#dc2626',
-  criticalBg: '#fef2f2',
-  warn: '#ea580c',
-  warnBg: '#fff7ed',
-  info: '#2563eb',
-  infoBg: '#eff6ff',
-  ok: '#16a34a',
-  okBg: '#f0fdf4',
-  neutral: '#6b7280',
-  neutralBg: '#f3f4f6',
+  navy: '#1e3a6f',
+  navyDark: '#142a52',
+  navyMid: '#2d4f8f',
+  red: '#c0392b',
+  redSoft: '#fdecea',
+  orange: '#e67e22',
+  orangeSoft: '#fdf0e3',
+  teal: '#3fb8a8',
+  tealSoft: '#e7f6f4',
+  rowAlt: '#eaf1fa',
+  border: '#d9dfe7',
   text: '#1e293b',
-  muted: '#64748b',
-  border: '#cbd5e1',
-  bgSoft: '#f1f5f9',
+  muted: '#6b7280',
+  mutedLight: '#9ca3af',
   white: '#ffffff',
+  bgSoft: '#f6f8fb',
 }
 
 /* ============ STYLES ============ */
 const s = StyleSheet.create({
   page: {
-    paddingTop: 90,
-    paddingBottom: 60,
     paddingHorizontal: 0,
     fontFamily: 'Helvetica',
-    fontSize: 9,
+    fontSize: 9.5,
     color: C.text,
     backgroundColor: C.white,
-    position: 'relative',
+    lineHeight: 1.45,
   },
-  topbar: {
-    position: 'absolute', top: 0, left: 0, right: 0,
-    height: 6, backgroundColor: C.navy,
-  },
-  topbarOrange: {
-    position: 'absolute', top: 0, right: 0,
-    height: 6, width: '30%', backgroundColor: C.blueMid,
-  },
-  headerBand: {
-    position: 'absolute', top: 6, left: 0, right: 0,
+  /* Header (flow-placed + fixed) */
+  headerTop: {
+    paddingHorizontal: 40, paddingTop: 18, paddingBottom: 10,
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    paddingHorizontal: 40, paddingVertical: 14,
-    borderBottomWidth: 1, borderBottomColor: C.border,
     backgroundColor: C.white,
+    borderBottomWidth: 2, borderBottomColor: C.red,
   },
-  brand: { flexDirection: 'row', alignItems: 'center' },
-  logo: {
-    width: 42, height: 42, backgroundColor: C.navy, borderRadius: 8,
-    alignItems: 'center', justifyContent: 'center', marginRight: 10,
+  brandRow: { flexDirection: 'row', alignItems: 'baseline' },
+  brandName: {
+    color: C.navy, fontSize: 11, fontFamily: 'Helvetica-Bold',
+    letterSpacing: 0.4, marginRight: 8,
   },
-  logoText: { color: C.white, fontSize: 9, fontFamily: 'Helvetica-Bold', letterSpacing: 0.5 },
-  brandName: { fontSize: 10, color: C.navy, fontFamily: 'Helvetica-Bold' },
-  brandTag: { fontSize: 7, color: C.muted, marginTop: 2 },
-  refBlock: { textAlign: 'right' },
-  refLabel: { fontSize: 7, color: C.muted },
-  refNum: { fontSize: 9, color: C.navy, fontFamily: 'Helvetica-Bold', marginVertical: 1 },
+  brandTag: { color: C.muted, fontSize: 8 },
+  headerPhone: { color: C.text, fontSize: 8.5 },
 
-  content: { paddingHorizontal: 40 },
+  /* Content container */
+  content: { paddingHorizontal: 40, paddingTop: 10, paddingBottom: 10, flexGrow: 1 },
 
-  /* Filigrane */
-  watermark: {
-    position: 'absolute', top: 320, left: 0, right: 0,
-    textAlign: 'center', fontSize: 110,
-    color: '#0e2a520a', fontFamily: 'Helvetica-Bold',
-    letterSpacing: 8, transform: 'rotate(-30deg)',
+  /* Cover title block (navy filled, red left bar) */
+  titleBlock: {
+    flexDirection: 'row', marginTop: 4, marginBottom: 14,
+  },
+  titleRedBar: { width: 6, backgroundColor: C.red },
+  titleInner: {
+    flex: 1, backgroundColor: C.navy,
+    paddingVertical: 20, paddingHorizontal: 22,
+  },
+  titleMain: {
+    color: C.white, fontSize: 22, fontFamily: 'Helvetica-Bold',
+    letterSpacing: 0.5, textTransform: 'uppercase', lineHeight: 1.15,
+  },
+  titleSub: { color: '#c8d4e8', fontSize: 10.5, marginTop: 10, lineHeight: 1.35 },
+
+  /* Identity table */
+  idTable: {
+    borderWidth: 1, borderColor: C.border,
+    marginBottom: 14,
+  },
+  idRow: {
+    flexDirection: 'row',
+    borderBottomWidth: 1, borderBottomColor: C.border,
+  },
+  idRowLast: { borderBottomWidth: 0 },
+  idRowAlt: { backgroundColor: C.rowAlt },
+  idLabel: {
+    width: '35%', paddingVertical: 8, paddingHorizontal: 10,
+    color: C.navy, fontFamily: 'Helvetica-Bold', fontSize: 9,
+    borderRightWidth: 1, borderRightColor: C.border,
+  },
+  idValue: {
+    flex: 1, paddingVertical: 8, paddingHorizontal: 10,
+    color: C.text, fontSize: 9.5,
   },
 
-  /* Cover */
-  cover: { paddingTop: 30, alignItems: 'center' },
-  eyebrow: {
-    backgroundColor: C.blueMid, color: C.white,
-    paddingVertical: 5, paddingHorizontal: 16,
-    fontSize: 8, fontFamily: 'Helvetica-Bold',
-    letterSpacing: 1.5, borderRadius: 12, marginBottom: 16,
+  /* Section band */
+  sectionBand: {
+    flexDirection: 'row', alignItems: 'stretch',
+    marginTop: 22, marginBottom: 10,
   },
-  coverTitle: {
-    fontSize: 26, color: C.navy, fontFamily: 'Helvetica-Bold',
-    textAlign: 'center', marginBottom: 6,
+  sectionNumBox: {
+    width: 34, backgroundColor: C.navy,
+    alignItems: 'center', justifyContent: 'center',
   },
-  coverSubtitle: { fontSize: 11, color: C.muted, marginBottom: 24 },
-  coverDivider: { width: 60, height: 3, backgroundColor: C.blueMid, marginBottom: 24 },
-
-  /* Stats */
-  stats: { flexDirection: 'row', marginVertical: 20, gap: 10 },
-  stat: {
-    flex: 1, borderWidth: 1, borderColor: C.border,
-    borderTopWidth: 4, borderTopColor: C.blueMid,
-    borderRadius: 6, paddingVertical: 14, alignItems: 'center',
-    backgroundColor: '#f8fafc',
+  sectionNumTxt: {
+    color: C.white, fontSize: 14, fontFamily: 'Helvetica-Bold',
   },
-  statCritical: { borderTopColor: C.critical },
-  statWarn: { borderTopColor: C.warn },
-  statOk: { borderTopColor: C.ok },
-  statNum: { fontSize: 22, color: C.navy, fontFamily: 'Helvetica-Bold' },
-  statNumCritical: { color: C.critical },
-  statNumWarn: { color: C.warn },
-  statNumOk: { color: C.ok },
-  statLbl: { fontSize: 7, color: C.muted, marginTop: 4, textTransform: 'uppercase' },
-
-  /* Cover card */
-  coverCard: {
-    backgroundColor: C.blueLight, borderLeftWidth: 5, borderLeftColor: C.blueMid,
-    padding: 20, borderRadius: 6, marginTop: 14,
+  sectionTitleBox: {
+    flex: 1, backgroundColor: C.navyMid,
+    paddingVertical: 9, paddingHorizontal: 14, justifyContent: 'center',
   },
-  coverCardTitle: {
-    fontSize: 8, color: C.navy, fontFamily: 'Helvetica-Bold',
-    letterSpacing: 1, marginBottom: 12,
-  },
-  coverGrid: { flexDirection: 'row', flexWrap: 'wrap' },
-  coverItem: { width: '50%', marginBottom: 10, paddingRight: 10 },
-  coverK: { fontSize: 7, color: C.muted, letterSpacing: 0.4, marginBottom: 2 },
-  coverV: { fontSize: 10, color: C.text, fontFamily: 'Helvetica-Bold' },
-
-  /* Sections */
-  sectionWrap: { marginTop: 24 },
-  sectionRow: {
-    flexDirection: 'row', alignItems: 'center',
-    borderBottomWidth: 2, borderBottomColor: C.blueMid,
-    paddingBottom: 8, marginBottom: 6,
-  },
-  sectionNum: {
-    width: 24, height: 24, backgroundColor: C.blueMid, color: C.white,
-    fontSize: 12, fontFamily: 'Helvetica-Bold',
-    textAlign: 'center', borderRadius: 5, marginRight: 10, paddingTop: 5,
-  },
-  sectionTitle: {
-    fontSize: 13, color: C.navy, fontFamily: 'Helvetica-Bold',
+  sectionTitleTxt: {
+    color: C.white, fontSize: 11, fontFamily: 'Helvetica-Bold',
     textTransform: 'uppercase', letterSpacing: 0.6,
   },
-  sectionAccent: { width: 50, height: 3, backgroundColor: C.blueMid },
 
-  /* Infobox */
-  infobox: {
-    backgroundColor: C.blueLight, borderLeftWidth: 4, borderLeftColor: C.blueMid,
-    padding: 14, marginTop: 10, borderRadius: 4, fontSize: 9.5, lineHeight: 1.5,
+  /* Section band variants */
+  bandRed: { backgroundColor: C.red },
+  bandOrange: { backgroundColor: C.orange },
+  bandTeal: { backgroundColor: C.teal },
+  numBoxNavyDark: { backgroundColor: C.navyDark },
+
+  /* Paragraph */
+  para: { marginBottom: 8, color: C.text, fontSize: 9.5, lineHeight: 1.5 },
+
+  /* Declarative red-bordered callout (ÉLÉMENT ESSENTIEL) */
+  callout: {
+    borderWidth: 1, borderColor: C.red, borderRadius: 2,
+    marginTop: 4, marginBottom: 8,
   },
-  infoboxTtl: { color: C.navy, fontFamily: 'Helvetica-Bold', fontSize: 9.5 },
+  calloutHead: {
+    backgroundColor: C.red, paddingVertical: 6, paddingHorizontal: 12,
+  },
+  calloutHeadTxt: {
+    color: C.white, fontSize: 9, fontFamily: 'Helvetica-Bold',
+    letterSpacing: 0.4, textTransform: 'uppercase',
+  },
+  calloutBody: {
+    backgroundColor: C.redSoft, paddingVertical: 12, paddingHorizontal: 14,
+  },
+  calloutText: {
+    color: C.text, fontSize: 9.5, lineHeight: 1.5, marginBottom: 6,
+  },
 
-  /* Phase */
-  phase: {
+  /* Methodology numbered list */
+  methStep: {
+    flexDirection: 'row', alignItems: 'flex-start',
+    marginBottom: 6,
+  },
+  methNum: {
+    width: 22, height: 22, backgroundColor: C.navyMid,
+    color: C.white, textAlign: 'center', paddingTop: 5,
+    fontSize: 10, fontFamily: 'Helvetica-Bold', marginRight: 10,
+  },
+  methText: { flex: 1, paddingTop: 4, color: C.text, fontSize: 9.5 },
+
+  /* Anomaly card */
+  anomaly: {
+    flexDirection: 'row', marginBottom: 10,
+  },
+  anomalyBar: { width: 4 },
+  anomalyBody: {
+    flex: 1, borderWidth: 1, borderColor: C.border, borderLeftWidth: 0,
+    paddingVertical: 10, paddingHorizontal: 12,
+  },
+  anomalyHead: {
+    flexDirection: 'row', alignItems: 'center',
+    marginBottom: 6,
+  },
+  anomalyTag: {
+    color: C.navy, fontFamily: 'Helvetica-Bold', fontSize: 10,
+    marginRight: 8,
+  },
+  anomalyTitle: {
+    flex: 1, color: C.navy, fontFamily: 'Helvetica-Bold', fontSize: 10,
+  },
+  anomalyBadge: {
+    paddingVertical: 2, paddingHorizontal: 8,
+    fontSize: 7.5, fontFamily: 'Helvetica-Bold',
+    color: C.white, letterSpacing: 0.5,
+  },
+  anomalyDesc: { color: C.text, fontSize: 9, lineHeight: 1.45 },
+
+  /* Photos */
+  photosWrap: { marginTop: 6 },
+  photosIntro: { color: C.text, fontSize: 9.5, marginBottom: 10 },
+  photosGrid: {
+    flexDirection: 'row', flexWrap: 'wrap', marginHorizontal: -6,
+  },
+  photoCell: {
+    width: '50%', paddingHorizontal: 6, marginBottom: 12,
+  },
+  photoCard: {
     borderWidth: 1, borderColor: C.border,
-    borderLeftWidth: 5, borderLeftColor: C.blueMid,
-    backgroundColor: '#f8fafc', padding: 16, marginTop: 12, borderRadius: 6,
+    padding: 6, backgroundColor: C.white,
   },
-  phaseSuccess: { borderLeftColor: C.ok },
-  phaseFailed: { borderLeftColor: C.warn },
-  phaseHead: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
-  phaseNum: {
-    width: 24, height: 24, borderRadius: 12, backgroundColor: C.blueMid,
-    color: C.white, textAlign: 'center', fontSize: 11,
-    fontFamily: 'Helvetica-Bold', paddingTop: 6, marginRight: 10,
+  photoImg: { width: '100%', height: 150, objectFit: 'cover' },
+  photoCap: {
+    marginTop: 6, color: C.text, fontSize: 8,
+    textAlign: 'center', paddingHorizontal: 2,
   },
-  phaseNumOk: { backgroundColor: C.ok },
-  phaseNumWarn: { backgroundColor: C.warn },
-  phaseTitle: { fontSize: 11, color: C.navy, fontFamily: 'Helvetica-Bold', flex: 1 },
-  phaseTitleOk: { color: C.ok },
-  phaseTitleWarn: { color: C.warn },
-  phaseItem: { marginBottom: 6, paddingLeft: 10 },
-  phaseK: { color: C.navy, fontFamily: 'Helvetica-Bold' },
 
-  /* Avis */
-  avis: {
-    backgroundColor: C.criticalBg, borderLeftWidth: 5, borderLeftColor: C.critical,
-    padding: 16, marginTop: 14, borderRadius: 3,
+  /* Prescriptions sub-band */
+  subBand: {
+    paddingVertical: 6, paddingHorizontal: 12,
+    marginTop: 12, marginBottom: 6,
   },
-  avisTag: {
-    alignSelf: 'flex-start', backgroundColor: C.critical, color: C.white,
-    fontSize: 8, fontFamily: 'Helvetica-Bold',
-    paddingHorizontal: 10, paddingVertical: 4, borderRadius: 3, marginBottom: 8,
+  subBandRed: { backgroundColor: C.red },
+  subBandBlue: { backgroundColor: C.navyMid },
+  subBandTeal: { backgroundColor: C.teal },
+  subBandTxt: {
+    color: C.white, fontSize: 9.5, fontFamily: 'Helvetica-Bold',
   },
-  avisTitle: {
-    color: C.critical, fontSize: 12, fontFamily: 'Helvetica-Bold', marginBottom: 8,
+  precoItem: {
+    flexDirection: 'row', alignItems: 'flex-start',
+    marginBottom: 5, paddingLeft: 2,
   },
-  avisP: { marginVertical: 5 },
-  avisBullet: { marginVertical: 3, paddingLeft: 12 },
+  precoSquare: {
+    width: 8, height: 8, marginTop: 4, marginRight: 9,
+  },
+  sqRed: { backgroundColor: C.red },
+  sqBlue: { backgroundColor: C.navyMid },
+  sqTeal: { backgroundColor: C.teal },
+  precoTxt: { flex: 1, color: C.text, fontSize: 9.5, lineHeight: 1.45 },
 
-  /* Préconisations */
-  preco: {
-    backgroundColor: C.orangeLight, borderLeftWidth: 5, borderLeftColor: C.orange,
-    padding: 16, marginTop: 12, borderRadius: 3,
+  /* Conclusion filled navy block */
+  conclusionBlock: {
+    backgroundColor: C.navy,
+    paddingVertical: 16, paddingHorizontal: 18,
+    marginTop: 4, marginBottom: 14,
   },
-  precoTag: {
-    alignSelf: 'flex-start', backgroundColor: C.orange, color: C.white,
-    fontSize: 8, fontFamily: 'Helvetica-Bold',
-    paddingHorizontal: 10, paddingVertical: 4, borderRadius: 3, marginBottom: 8,
+  conclusionP: {
+    color: C.white, fontSize: 9.5, lineHeight: 1.55, marginBottom: 8,
   },
-  precoTitle: { color: '#a04e09', fontSize: 11, fontFamily: 'Helvetica-Bold', marginBottom: 8 },
-  precoItem: { marginVertical: 4, paddingLeft: 14 },
-  precoK: { color: '#7d3c00', fontFamily: 'Helvetica-Bold' },
 
-  /* Tableau */
-  table: {
-    marginTop: 12, borderWidth: 1, borderColor: C.border, borderRadius: 6, overflow: 'hidden',
+  /* Signature 2-col table */
+  sigTable: {
+    flexDirection: 'row',
+    borderWidth: 1, borderColor: C.border,
+    marginTop: 10,
   },
-  tableHeader: { flexDirection: 'row', backgroundColor: C.navy },
-  tableHeaderCell: {
-    color: C.white, fontFamily: 'Helvetica-Bold', fontSize: 8,
-    padding: 10, textTransform: 'uppercase', letterSpacing: 0.3,
+  sigCol: {
+    flex: 1, padding: 0,
   },
-  tableRow: {
-    flexDirection: 'row', borderTopWidth: 1, borderTopColor: C.border,
+  sigColSep: { borderRightWidth: 1, borderRightColor: C.border },
+  sigHead: {
+    backgroundColor: C.rowAlt,
+    paddingVertical: 7, paddingHorizontal: 10,
+    borderBottomWidth: 1, borderBottomColor: C.border,
+    color: C.navy, fontFamily: 'Helvetica-Bold', fontSize: 9,
   },
-  tableRowAlt: { backgroundColor: C.blueLight },
-  tableCell: { padding: 10, fontSize: 8.5 },
-  tableCellFirst: { color: C.navy, fontFamily: 'Helvetica-Bold' },
-
-  /* Badge */
-  badge: {
-    alignSelf: 'flex-start',
-    paddingVertical: 2, paddingHorizontal: 6,
-    borderRadius: 8, fontSize: 7, fontFamily: 'Helvetica-Bold',
-    borderWidth: 1,
+  sigBody: {
+    paddingVertical: 14, paddingHorizontal: 10, minHeight: 80,
   },
-  badgeCritical: { color: C.critical, backgroundColor: C.criticalBg, borderColor: '#f5b7b1' },
-  badgeWarn: { color: C.warn, backgroundColor: C.warnBg, borderColor: '#f5cba7' },
-  badgeInfo: { color: C.info, backgroundColor: C.infoBg, borderColor: '#aed6f1' },
-  badgeOk: { color: C.ok, backgroundColor: C.okBg, borderColor: '#abebc6' },
-  badgeNeutral: { color: C.neutral, backgroundColor: C.neutralBg, borderColor: '#d5d8dc' },
-
-  /* Légende */
-  legend: {
-    flexDirection: 'row', flexWrap: 'wrap', marginTop: 10,
-    padding: 10, backgroundColor: C.bgSoft, borderRadius: 3, fontSize: 7,
-  },
-  legendItem: { flexDirection: 'row', alignItems: 'center', marginRight: 10 },
-  legendDot: { width: 8, height: 8, borderRadius: 4, marginRight: 4 },
-
-  /* Signature */
-  endBlock: {
-    marginTop: 24, padding: 20, backgroundColor: C.blueLight,
-    borderRadius: 6, borderWidth: 1, borderColor: C.border,
-    alignItems: 'center',
-  },
-  endStrong: {
-    fontSize: 12, color: C.navy, fontFamily: 'Helvetica-Bold',
-    textTransform: 'uppercase', letterSpacing: 1,
-  },
-  endGen: { fontSize: 8, color: C.muted, marginTop: 4, fontStyle: 'italic' },
-  signatureRow: {
-    flexDirection: 'row', marginTop: 18, width: '100%', gap: 16,
-  },
-  sigBlock: { flex: 1, borderTopWidth: 2, borderTopColor: C.blueMid, paddingTop: 8 },
-  sigRole: { fontSize: 7, color: C.muted, textTransform: 'uppercase', letterSpacing: 0.4 },
-  sigName: { fontFamily: 'Helvetica-Bold', color: C.navy, fontSize: 10, marginTop: 2 },
-  sigQual: { color: C.blueMid, fontSize: 8, fontFamily: 'Helvetica-BoldOblique', marginTop: 2 },
-  sigScript: { fontSize: 16, color: C.navy, fontFamily: 'Helvetica-Oblique', marginTop: 8 },
   sigLine: {
-    marginTop: 14, borderTopWidth: 0.5, borderTopColor: C.border,
-    paddingTop: 4, fontSize: 7, color: C.muted, fontStyle: 'italic', textAlign: 'center',
+    color: C.muted, fontSize: 8.5, marginBottom: 10,
   },
 
-  /* Footer */
-  pageFooter: {
-    position: 'absolute', bottom: 0, left: 0, right: 0,
-    paddingHorizontal: 40, paddingVertical: 10,
-    backgroundColor: C.bgSoft, borderTopWidth: 1, borderTopColor: C.border,
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    fontSize: 7, color: C.muted,
+  /* Footer (flow-placed + fixed) */
+  footer: {
+    paddingHorizontal: 40, paddingTop: 10, paddingBottom: 14,
+    borderTopWidth: 1, borderTopColor: C.border,
+    flexDirection: 'row', justifyContent: 'space-between',
+    backgroundColor: C.white,
   },
-  pageNum: {
-    backgroundColor: C.navy, color: C.white,
-    paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8,
-    fontFamily: 'Helvetica-Bold',
-  },
+  footerL: { color: C.muted, fontSize: 7.5, lineHeight: 1.4 },
+  footerR: { color: C.muted, fontSize: 7.5, textAlign: 'right' },
 
-  /* ===== DEVIS ===== */
+  /* Devis */
   devisHeader: {
-    backgroundColor: C.navy, padding: 20, borderRadius: 4,
-    flexDirection: 'row', justifyContent: 'space-between', marginTop: 4,
+    flexDirection: 'row', justifyContent: 'space-between',
+    backgroundColor: C.navy, padding: 16, marginTop: 2, marginBottom: 14,
   },
-  devisHeaderTitle: { color: C.white, fontSize: 18, fontFamily: 'Helvetica-Bold' },
-  devisHeaderSub: { color: '#93c5fd', fontSize: 9, marginTop: 4 },
+  devisHeaderTitle: { color: C.white, fontSize: 16, fontFamily: 'Helvetica-Bold' },
+  devisHeaderSub: { color: '#c8d4e8', fontSize: 9, marginTop: 3 },
   devisHeaderRight: { alignItems: 'flex-end' },
-  devisHeaderLbl: { color: '#93c5fd', fontSize: 7, textTransform: 'uppercase' },
+  devisHeaderLbl: { color: '#c8d4e8', fontSize: 7, letterSpacing: 0.5 },
   devisHeaderV: { color: C.white, fontSize: 10, fontFamily: 'Helvetica-Bold', marginBottom: 4 },
-
-  devisMeta: { flexDirection: 'row', flexWrap: 'wrap', marginTop: 14 },
-  devisMetaItem: {
-    width: '50%', backgroundColor: C.blueLight,
-    borderLeftWidth: 3, borderLeftColor: C.blueMid,
-    padding: 10, marginBottom: 8,
+  devisMetaRow: {
+    flexDirection: 'row', flexWrap: 'wrap',
+    borderWidth: 1, borderColor: C.border, marginBottom: 12,
   },
-
+  devisMetaCell: {
+    width: '50%', padding: 10,
+    borderBottomWidth: 1, borderBottomColor: C.border,
+  },
+  devisMetaK: { color: C.navy, fontFamily: 'Helvetica-Bold', fontSize: 8, letterSpacing: 0.3 },
+  devisMetaV: { color: C.text, fontSize: 9.5, marginTop: 3 },
   devisTable: {
-    marginTop: 14, borderWidth: 1, borderColor: C.border, borderRadius: 4,
+    borderWidth: 1, borderColor: C.border, marginBottom: 10,
   },
   devisHead: { flexDirection: 'row', backgroundColor: C.navy },
   devisHeadCell: {
     color: C.white, fontFamily: 'Helvetica-Bold', fontSize: 8,
-    padding: 8, textTransform: 'uppercase',
+    padding: 8, textTransform: 'uppercase', letterSpacing: 0.4,
   },
-  devisSectionRow: { backgroundColor: C.blueLight, padding: 6 },
+  devisSectionRow: {
+    backgroundColor: C.rowAlt, paddingVertical: 5, paddingHorizontal: 10,
+    borderTopWidth: 1, borderTopColor: C.border,
+  },
   devisSectionTxt: {
-    color: C.navy, fontFamily: 'Helvetica-Bold', fontSize: 8,
-    textTransform: 'uppercase',
+    color: C.navy, fontFamily: 'Helvetica-Bold', fontSize: 8.5,
+    textTransform: 'uppercase', letterSpacing: 0.4,
   },
   devisLine: {
-    flexDirection: 'row', borderTopWidth: 1, borderTopColor: C.border, padding: 8,
+    flexDirection: 'row', borderTopWidth: 1, borderTopColor: C.border,
+    padding: 8,
   },
   devisDesignation: { color: C.navy, fontFamily: 'Helvetica-Bold', fontSize: 9 },
   devisDescription: { color: C.muted, fontSize: 8, marginTop: 2 },
+  devisCell: { padding: 8, fontSize: 9 },
 
-  totaux: { marginTop: 14, marginLeft: 'auto', width: '55%' },
+  totaux: { marginLeft: 'auto', width: '55%', marginBottom: 14 },
   totauxRow: {
     flexDirection: 'row', justifyContent: 'space-between',
-    paddingHorizontal: 14, paddingVertical: 8,
+    paddingHorizontal: 12, paddingVertical: 7,
     borderBottomWidth: 1, borderBottomColor: C.border,
-    backgroundColor: C.bgSoft,
   },
-  totauxRowTtc: { backgroundColor: C.navy },
+  totauxRowTtc: { backgroundColor: C.navy, borderBottomWidth: 0 },
   totauxLbl: { color: C.muted, fontSize: 9 },
   totauxV: { color: C.navy, fontFamily: 'Helvetica-Bold', fontSize: 9 },
-  totauxLblTtc: { color: '#93c5fd', fontSize: 11, fontFamily: 'Helvetica-Bold' },
-  totauxVTtc: { color: C.white, fontSize: 12, fontFamily: 'Helvetica-Bold' },
+  totauxLblTtc: { color: '#c8d4e8', fontSize: 10, fontFamily: 'Helvetica-Bold' },
+  totauxVTtc: { color: C.white, fontSize: 11, fontFamily: 'Helvetica-Bold' },
 
   conditions: {
-    marginTop: 16, backgroundColor: C.orangeLight,
     borderLeftWidth: 4, borderLeftColor: C.orange,
-    padding: 12, borderRadius: 3,
+    backgroundColor: C.orangeSoft,
+    paddingVertical: 10, paddingHorizontal: 14,
+    marginBottom: 10,
   },
   conditionsTitle: {
-    color: '#a04e09', fontSize: 9, fontFamily: 'Helvetica-Bold',
-    textTransform: 'uppercase', marginBottom: 6,
+    color: C.navy, fontFamily: 'Helvetica-Bold', fontSize: 9,
+    textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 6,
   },
-  conditionsItem: { marginVertical: 2, paddingLeft: 8, fontSize: 8 },
-
-  /* Photos */
-  photoGrid: { flexDirection: 'row', flexWrap: 'wrap', marginTop: 12, gap: 10 },
-  photoCard: {
-    width: '47%', borderWidth: 1, borderColor: C.border,
-    borderRadius: 4, overflow: 'hidden', marginBottom: 10, backgroundColor: C.white,
-  },
-  photoImg: { width: '100%', height: 130, objectFit: 'cover' },
-  photoCap: { padding: 6, fontSize: 7, color: C.muted, fontStyle: 'italic', textAlign: 'center' },
-  photoBadge: {
-    position: 'absolute', top: 6, left: 6, backgroundColor: C.navy, color: C.white,
-    paddingHorizontal: 6, paddingVertical: 2, borderRadius: 8,
-    fontSize: 7, fontFamily: 'Helvetica-Bold',
-  },
+  conditionsItem: { color: C.text, fontSize: 9, marginBottom: 3 },
 })
 
 /* ============ TYPES ============ */
@@ -402,403 +381,417 @@ export interface PDFProps {
 }
 
 /* ============ HELPERS ============ */
-const badgeStyle = (statut: Statut) => {
+const fmtEur = (n: number) =>
+  n.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+    .replace(/[\u00A0\u202F\u2007\u2009\u200A]/g, ' ') + ' €'
+
+const fmtDateFR = (iso: string) => {
+  if (!iso) return ''
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso)
+  if (m) return `${m[3]} / ${m[2]} / ${m[1]}`
+  return iso
+}
+
+const statutLabel = (statut: Statut): { text: string; bg: string; barColor: string } => {
   switch (statut) {
-    case 'critical': return s.badgeCritical
-    case 'warn': return s.badgeWarn
-    case 'info': return s.badgeInfo
-    case 'ok': return s.badgeOk
-    default: return s.badgeNeutral
+    case 'critical': return { text: 'CRITIQUE', bg: C.red, barColor: C.red }
+    case 'warn':     return { text: 'ÉLEVÉE', bg: C.orange, barColor: C.orange }
+    case 'info':     return { text: 'À PRÉVOIR', bg: C.navyMid, barColor: C.navyMid }
+    case 'ok':       return { text: 'CONFORME', bg: C.teal, barColor: C.teal }
+    default:         return { text: 'N/A', bg: C.mutedLight, barColor: C.mutedLight }
   }
 }
-const phaseColor = (statut?: Statut) => {
-  if (statut === 'ok') return { wrap: s.phaseSuccess, num: s.phaseNumOk, title: s.phaseTitleOk }
-  if (statut === 'warn' || statut === 'critical') return { wrap: s.phaseFailed, num: s.phaseNumWarn, title: s.phaseTitleWarn }
-  return { wrap: {}, num: {}, title: {} }
-}
-const fmtEur = (n: number) => n.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).replace(/\u202f/g, ' ') + ' €'
 
-const Header = ({ reference, dateIntervention, ville }: { reference: string; dateIntervention: string; ville: string }) => (
-  <>
-    <View style={s.topbar} fixed />
-    <View style={s.topbarOrange} fixed />
-    <View style={s.headerBand} fixed>
-      <View style={s.brand}>
-        <View style={s.logo}><Text style={s.logoText}>LTDB</Text></View>
-        <View>
-          <Text style={s.brandName}>LTDB — LES TECHNICIENS DU DÉBOUCHAGE</Text>
-          <Text style={s.brandTag}>Débouchage · Curage · Inspection caméra · Assainissement</Text>
-        </View>
+const Header = ({ phone }: { phone?: string }) => (
+  <View style={s.headerTop} fixed>
+    <View style={s.brandRow}>
+      <Text style={s.brandName}>LTDB</Text>
+      <Text style={s.brandTag}>Débouchage · Curage · Inspection caméra · Assainissement</Text>
+    </View>
+    <Text style={s.headerPhone}>Tél. {phone || '07 83 63 68 35'}</Text>
+  </View>
+)
+
+const Footer = () => (
+  <View style={s.footer} fixed>
+    <View>
+      <Text style={s.footerL}>
+        Les Techniciens du Débouchage · Intervention et assainissement dans le Var
+      </Text>
+      <Text style={s.footerL}>
+        Tél. 07 83 63 68 35 · contact@lestechniciensdudebouchage.fr · www.lestechniciensdudebouchage.fr
+      </Text>
+    </View>
+    <Text style={s.footerR} render={({ pageNumber, totalPages }) => `Page ${pageNumber} / ${totalPages}`} />
+  </View>
+)
+
+const SectionBand = ({
+  num, title, variant,
+}: { num: number | string; title: string; variant?: 'default' | 'red' | 'orange' | 'teal' }) => {
+  const bandStyle =
+    variant === 'red' ? s.bandRed :
+    variant === 'orange' ? s.bandOrange :
+    variant === 'teal' ? s.bandTeal : {}
+  const numStyle = variant ? s.numBoxNavyDark : {}
+  return (
+    <View style={s.sectionBand} wrap={false}>
+      <View style={[s.sectionNumBox, numStyle]}>
+        <Text style={s.sectionNumTxt}>{num}</Text>
       </View>
-      <View style={s.refBlock}>
-        <Text style={s.refLabel}>RAPPORT D&apos;INTERVENTION</Text>
-        <Text style={s.refNum}>{reference}</Text>
-        <Text style={s.refLabel}>{dateIntervention} · {ville}</Text>
+      <View style={[s.sectionTitleBox, bandStyle]}>
+        <Text style={s.sectionTitleTxt}>{title}</Text>
       </View>
     </View>
-  </>
-)
-
-const Footer = ({ num, total }: { num: number; total: number }) => (
-  <View style={s.pageFooter} fixed>
-    <Text>LTDB · Les Techniciens du Débouchage · Assainissement</Text>
-    <Text>Rapport rédigé à titre probatoire</Text>
-    <Text style={s.pageNum}>{num} / {total}</Text>
-  </View>
-)
-
-const Section = ({ num, title }: { num: number | string; title: string }) => (
-  <View style={s.sectionRow}>
-    <Text style={s.sectionNum}>{num}</Text>
-    <Text style={s.sectionTitle}>{title}</Text>
-  </View>
-)
+  )
+}
 
 /* ============ DOCUMENT ============ */
-export function RealisationDocument({ clientNom, adresse, ville, codePostal, dateIntervention, typeIntervention, technicienNom, rapport, reference, photos }: PDFProps) {
-  const ref = reference || `LTDB-${dateIntervention.replace(/-/g, '')}`
+export function RealisationDocument({
+  clientNom, adresse, ville, codePostal, dateIntervention, typeIntervention,
+  technicienNom, rapport, reference, photos, phone,
+}: PDFProps) {
+  const ref = reference || rapport.reference || `LTDB-${dateIntervention.replace(/-/g, '')}`
   const hasPhotos = (photos?.length ?? 0) > 0
-  const totalPages = 3 + (hasPhotos ? 1 : 0) + (rapport.devis ? 1 : 0)
 
-  const counts = (rapport.analyse_table || []).reduce((acc, r) => {
-    acc[r.statut] = (acc[r.statut] || 0) + 1
-    return acc
-  }, {} as Record<Statut, number>)
+  /* Section numbering (stable: skip empty sections) */
+  const hasContexte     = !!(rapport.contexte && rapport.contexte.trim())
+  const hasMethodo      = (rapport.phases?.length ?? 0) > 0 || !!(rapport.travaux_realises && rapport.travaux_realises.trim())
+  const hasAnomalies    = (rapport.analyse_table?.length ?? 0) > 0
+  const hasPrecos       = (rapport.preconisations?.length ?? 0) > 0 || !!(rapport.recommandations && rapport.recommandations.trim())
+  const hasConclusion   =
+    !!(rapport.avis_technique?.diagnostic_final || rapport.avis_technique?.recommandation_urgente) ||
+    !!(rapport.diagnostic && rapport.diagnostic.trim()) ||
+    !!(rapport.commentaire_technicien && rapport.commentaire_technicien.trim())
 
+  const sections: string[] = []
+  if (hasContexte) sections.push('contexte')
+  if (hasMethodo) sections.push('methodo')
+  if (hasAnomalies) sections.push('anomalies')
+  if (hasPhotos) sections.push('photos')
+  if (hasPrecos) sections.push('precos')
+  if (hasConclusion) sections.push('conclusion')
+
+  const numOf = (key: string) => String(sections.indexOf(key) + 1)
+
+  /* Critical callout (ÉLÉMENT ESSENTIEL) — shown only when avis_technique is critical */
+  const showCritical =
+    rapport.avis_technique &&
+    (rapport.avis_technique.niveau === 'critical' || !rapport.avis_technique.niveau) &&
+    !!(rapport.avis_technique.intro || rapport.avis_technique.titre)
+
+  /* Methodology steps: use phases titres, fallback to travaux_realises split */
+  const methoSteps: string[] =
+    (rapport.phases && rapport.phases.length > 0)
+      ? rapport.phases.map(p => p.titre || '').filter(Boolean)
+      : (rapport.travaux_realises ? [rapport.travaux_realises] : [])
+
+  /* Devis calc */
   const lignes = rapport.devis?.lignes || []
   const totalHT = lignes.reduce((sum, l) => sum + l.pu_ht * l.qte, 0)
   const tvaTaux = rapport.devis?.tva_taux ?? 10
   const tva = totalHT * tvaTaux / 100
   const totalTTC = totalHT + tva
-  // Group by section
-  const sections = new Map<string, DevisLine[]>()
+  const devisSectionsMap = new Map<string, DevisLine[]>()
   lignes.forEach(l => {
     const k = l.section || 'Prestations'
-    if (!sections.has(k)) sections.set(k, [])
-    sections.get(k)!.push(l)
+    if (!devisSectionsMap.has(k)) devisSectionsMap.set(k, [])
+    devisSectionsMap.get(k)!.push(l)
   })
 
   return (
     <Document>
-      {/* ============ PAGE 1 — COUVERTURE ============ */}
+      {/* ============ RAPPORT (flow sur plusieurs pages) ============ */}
       <Page size="A4" style={s.page}>
-        <Header reference={ref} dateIntervention={dateIntervention} ville={ville} />
-        <Text style={s.watermark} fixed>RAPPORT</Text>
+        <Header phone={phone} />
 
         <View style={s.content}>
-          <View style={s.cover}>
-            <Text style={s.eyebrow}>RAPPORT D'INTERVENTION</Text>
-            <Text style={s.coverTitle}>Débouchage & diagnostic approfondi</Text>
-            <Text style={s.coverTitle}>du réseau d'évacuation</Text>
-            <Text style={s.coverSubtitle}>{rapport.objet || `${typeIntervention} — ${ville}`}</Text>
-            <View style={s.coverDivider} />
-          </View>
-
-          <View style={s.stats}>
-            <View style={[s.stat, s.statCritical]}>
-              <Text style={[s.statNum, s.statNumCritical]}>{counts.critical || 0}</Text>
-              <Text style={s.statLbl}>Anomalies critiques</Text>
-            </View>
-            <View style={[s.stat, s.statWarn]}>
-              <Text style={[s.statNum, s.statNumWarn]}>{counts.warn || 0}</Text>
-              <Text style={s.statLbl}>Non-conformités</Text>
-            </View>
-            <View style={[s.stat, s.statOk]}>
-              <Text style={[s.statNum, s.statNumOk]}>{counts.ok || 0}</Text>
-              <Text style={s.statLbl}>Conformes</Text>
-            </View>
-            <View style={s.stat}>
-              <Text style={s.statNum}>{(rapport.phases || []).length}</Text>
-              <Text style={s.statLbl}>Investigations</Text>
+          {/* Title block */}
+          <View style={s.titleBlock} wrap={false}>
+            <View style={s.titleRedBar} />
+            <View style={s.titleInner}>
+              <Text style={s.titleMain}>Rapport d&apos;intervention</Text>
+              <Text style={s.titleSub}>
+                {rapport.objet || `${typeIntervention} — ${ville}`}
+              </Text>
             </View>
           </View>
 
-          <View style={s.coverCard}>
-            <Text style={s.coverCardTitle}>▸ INFORMATIONS DOSSIER</Text>
-            <View style={s.coverGrid}>
-              <View style={s.coverItem}><Text style={s.coverK}>CLIENT</Text><Text style={s.coverV}>{clientNom || '—'}</Text></View>
-              <View style={s.coverItem}><Text style={s.coverK}>NATURE INITIALE</Text><Text style={s.coverV}>{typeIntervention}</Text></View>
-              <View style={s.coverItem}><Text style={s.coverK}>ADRESSE</Text><Text style={s.coverV}>{adresse}{'\n'}{codePostal} {ville}</Text></View>
-              <View style={s.coverItem}><Text style={s.coverK}>DATE D'INTERVENTION</Text><Text style={s.coverV}>{dateIntervention}</Text></View>
-              <View style={s.coverItem}><Text style={s.coverK}>TECHNICIEN INTERVENANT</Text><Text style={s.coverV}>{technicienNom}</Text></View>
-              <View style={s.coverItem}><Text style={s.coverK}>NATURE FINALE</Text><Text style={s.coverV}>{rapport.objet || `${typeIntervention} ${ville}`}</Text></View>
+          {/* Identity table */}
+          <View style={s.idTable} wrap={false}>
+            <View style={s.idRow}>
+              <Text style={s.idLabel}>Société</Text>
+              <Text style={s.idValue}>Les Techniciens du Débouchage</Text>
+            </View>
+            <View style={[s.idRow, s.idRowAlt]}>
+              <Text style={s.idLabel}>Date d&apos;intervention</Text>
+              <Text style={s.idValue}>{fmtDateFR(dateIntervention)}</Text>
+            </View>
+            <View style={s.idRow}>
+              <Text style={s.idLabel}>Client</Text>
+              <Text style={s.idValue}>{clientNom || '—'}</Text>
+            </View>
+            <View style={[s.idRow, s.idRowAlt]}>
+              <Text style={s.idLabel}>Adresse du chantier</Text>
+              <Text style={s.idValue}>
+                {[adresse, [codePostal, ville].filter(Boolean).join(' ')].filter(Boolean).join(' — ')}
+              </Text>
+            </View>
+            <View style={s.idRow}>
+              <Text style={s.idLabel}>Nature de l&apos;intervention</Text>
+              <Text style={s.idValue}>{typeIntervention}</Text>
+            </View>
+            <View style={[s.idRow, s.idRowAlt]}>
+              <Text style={s.idLabel}>Technicien intervenant</Text>
+              <Text style={s.idValue}>{technicienNom || '—'}</Text>
+            </View>
+            <View style={[s.idRow, s.idRowLast]}>
+              <Text style={s.idLabel}>Référence dossier</Text>
+              <Text style={s.idValue}>{ref}</Text>
             </View>
           </View>
-        </View>
 
-        <Footer num={1} total={totalPages} />
-      </Page>
+          {/* Section 1 — CONTEXTE */}
+          {hasContexte && (
+            <View>
+              <SectionBand num={numOf('contexte')} title="Contexte de l'intervention" />
+              <Text style={s.para}>{rapport.contexte}</Text>
 
-      {/* ============ PAGE 2 — LOCALISATION + OPÉRATIONS ============ */}
-      <Page size="A4" style={s.page}>
-        <Header reference={ref} dateIntervention={dateIntervention} ville={ville} />
-        <Text style={s.watermark} fixed>CONSTATS</Text>
-
-        <View style={s.content}>
-          {rapport.contexte && (
-            <View style={s.sectionWrap}>
-              <Section num="1" title="CONTEXTE DE L'INTERVENTION" />
-              <View style={s.infobox}>
-                <Text>{rapport.contexte}</Text>
-              </View>
-            </View>
-          )}
-
-          <View style={s.sectionWrap}>
-              <Section num={rapport.contexte ? "2" : "1"} title="MÉTHODOLOGIE D'INVESTIGATION" />
-            {rapport.localisation?.zone && (
-              <View style={s.infobox}>
-                <Text><Text style={s.infoboxTtl}>Zone d'intervention : </Text>{rapport.localisation.zone}</Text>
-              </View>
-            )}
-            {rapport.localisation?.configuration && (
-              <View style={s.infobox}>
-                <Text><Text style={s.infoboxTtl}>Configuration technique : </Text>{rapport.localisation.configuration}</Text>
-              </View>
-            )}
-            {rapport.conditions_intervention && (
-              <View style={s.infobox}>
-                <Text><Text style={s.infoboxTtl}>Conditions d'intervention : </Text>{rapport.conditions_intervention}</Text>
-              </View>
-            )}
-            {rapport.duree_intervention && (
-              <View style={s.infobox}>
-                <Text><Text style={s.infoboxTtl}>Durée : </Text>{rapport.duree_intervention}</Text>
-              </View>
-            )}
-          </View>
-
-          {rapport.diagnostic && (
-            <View style={s.sectionWrap}>
-              <Section num={rapport.contexte ? "3" : "2"} title="ANOMALIES CONSTATÉES" />
-              <View style={s.infobox}>
-                <Text>{rapport.diagnostic}</Text>
-              </View>
-            </View>
-          )}
-
-          {rapport.travaux_realises && (
-            <View style={s.sectionWrap}>
-              <Section num={rapport.contexte ? "4" : "3"} title="CONSTATS ET OPÉRATIONS RÉALISÉES" />
-              <View style={s.infobox}>
-                <Text>{rapport.travaux_realises}</Text>
-              </View>
-              {(rapport.materiel_utilise?.length ?? 0) > 0 && (
-                <View style={s.infobox}>
-                  <Text style={s.infoboxTtl}>Matériel utilisé :</Text>
-                  {rapport.materiel_utilise!.map((m, i) => (
-                    <Text key={i}>• {m}</Text>
-                  ))}
+              {showCritical && (
+                <View style={s.callout} wrap={false}>
+                  <View style={s.calloutHead}>
+                    <Text style={s.calloutHeadTxt}>
+                      !  Élément essentiel — {rapport.avis_technique?.titre || 'Point de vigilance'}
+                    </Text>
+                  </View>
+                  <View style={s.calloutBody}>
+                    {rapport.avis_technique?.intro && (
+                      <Text style={s.calloutText}>{rapport.avis_technique.intro}</Text>
+                    )}
+                    {(rapport.avis_technique?.points_majeurs || []).map((pt, i) => (
+                      <Text key={i} style={s.calloutText}>• {pt}</Text>
+                    ))}
+                  </View>
                 </View>
               )}
             </View>
           )}
 
-          {rapport.recommandations && (
-            <View style={s.sectionWrap}>
-              <Section num={rapport.contexte ? "5" : "4"} title="PRESCRIPTIONS & TRAVAUX À ENGAGER" />
-              <View style={s.infobox}>
-                <Text>{rapport.recommandations}</Text>
-              </View>
+          {/* Section 2 — MÉTHODOLOGIE */}
+          {hasMethodo && (
+            <View>
+              <SectionBand num={numOf('methodo')} title="Méthodologie d'investigation" />
+              {methoSteps.map((step, i) => (
+                <View key={i} style={s.methStep} wrap={false}>
+                  <Text style={s.methNum}>{i + 1}</Text>
+                  <Text style={s.methText}>{step}</Text>
+                </View>
+              ))}
             </View>
           )}
 
-          {(rapport.phases?.length ?? 0) > 0 && (
-            <View style={s.sectionWrap}>
-              <Section num={rapport.contexte ? "6" : "5"} title="MÉTHODOLOGIE D'INVESTIGATION" />
-              {rapport.phases!.map((p, i) => {
-                const c = phaseColor(p.statut)
+          {/* Section 3 — ANOMALIES */}
+          {hasAnomalies && (
+            <View>
+              <SectionBand num={numOf('anomalies')} title="Anomalies constatées" variant="orange" />
+              {rapport.analyse_table!.map((row, i) => {
+                const st = statutLabel(row.statut)
                 return (
-                  <View key={i} style={[s.phase, c.wrap]}>
-                    <View style={s.phaseHead}>
-                      <Text style={[s.phaseNum, c.num]}>{i + 1}</Text>
-                      <Text style={[s.phaseTitle, c.title]}>{p.titre}</Text>
+                  <View key={i} style={s.anomaly} wrap={false}>
+                    <View style={[s.anomalyBar, { backgroundColor: st.barColor }]} />
+                    <View style={s.anomalyBody}>
+                      <View style={s.anomalyHead}>
+                        <Text style={s.anomalyTag}>#{i + 1}</Text>
+                        <Text style={s.anomalyTitle}>{row.probleme}</Text>
+                        <Text style={[s.anomalyBadge, { backgroundColor: st.bg }]}>{st.text}</Text>
+                      </View>
+                      <Text style={s.anomalyDesc}>
+                        {row.localisation ? <Text>{row.localisation} — </Text> : null}
+                        {row.description}
+                      </Text>
                     </View>
-                    <View style={s.phaseItem}><Text><Text style={s.phaseK}>Contexte : </Text>{p.contexte}</Text></View>
-                    <View style={s.phaseItem}><Text><Text style={s.phaseK}>Action : </Text>{p.action}</Text></View>
-                    <View style={s.phaseItem}><Text><Text style={s.phaseK}>Résultat : </Text>{p.resultat}</Text></View>
                   </View>
                 )
               })}
             </View>
           )}
-        </View>
 
-        <Footer num={2} total={totalPages} />
-      </Page>
-
-      {/* ============ PAGE 3 — AVIS + ANALYSE + PRÉCONISATIONS + SIGNATURE ============ */}
-      <Page size="A4" style={s.page}>
-        <Header reference={ref} dateIntervention={dateIntervention} ville={ville} />
-        <Text style={s.watermark} fixed>SYNTHÈSE</Text>
-
-        <View style={s.content}>
-          {rapport.avis_technique && (
-            <View style={s.sectionWrap}>
-              <Section num="6" title="SYNTHÈSE ET AVIS TECHNIQUE" />
-              <View style={s.avis}>
-                <Text style={s.avisTag}>⚠ AVIS CRITIQUE</Text>
-                <Text style={s.avisTitle}>{rapport.avis_technique.titre}</Text>
-                <Text style={s.avisP}>{rapport.avis_technique.intro}</Text>
-                {rapport.avis_technique.points_majeurs.map((pt, i) => (
-                  <Text key={i} style={s.avisBullet}>• {pt}</Text>
-                ))}
-                <Text style={s.avisP}><Text style={s.infoboxTtl}>Diagnostic final : </Text>{rapport.avis_technique.diagnostic_final}</Text>
-                <Text style={s.avisP}><Text style={s.infoboxTtl}>Recommandation urgente : </Text>{rapport.avis_technique.recommandation_urgente}</Text>
-              </View>
-            </View>
-          )}
-
-          {(rapport.analyse_table?.length ?? 0) > 0 && (
-            <View style={s.sectionWrap}>
-              <Section num="7" title="ANALYSE DÉTAILLÉE" />
-              <View style={s.table}>
-                <View style={s.tableHeader}>
-                  <Text style={[s.tableHeaderCell, { width: '25%' }]}>Problème</Text>
-                  <Text style={[s.tableHeaderCell, { width: '22%' }]}>Localisation</Text>
-                  <Text style={[s.tableHeaderCell, { width: '33%' }]}>Description</Text>
-                  <Text style={[s.tableHeaderCell, { width: '20%' }]}>Diagnostic</Text>
-                </View>
-                {rapport.analyse_table!.map((row, i) => (
-                  <View key={i} style={[s.tableRow, i % 2 ? s.tableRowAlt : {}]}>
-                    <Text style={[s.tableCell, s.tableCellFirst, { width: '25%' }]}>{row.probleme}</Text>
-                    <Text style={[s.tableCell, { width: '22%' }]}>{row.localisation}</Text>
-                    <Text style={[s.tableCell, { width: '33%' }]}>{row.description}</Text>
-                    <View style={[s.tableCell, { width: '20%' }]}>
-                      <Text style={[s.badge, badgeStyle(row.statut)]}>{row.label}</Text>
+          {/* Section 4 — PHOTOS */}
+          {hasPhotos && (
+            <View>
+              <SectionBand num={numOf('photos')} title="Documents photographiques" />
+              <Text style={s.photosIntro}>
+                Clichés pris lors de l&apos;intervention, annexés au présent rapport à titre de constat :
+              </Text>
+              <View style={s.photosGrid}>
+                {photos!.map((p, i) => (
+                  <View key={i} style={s.photoCell} wrap={false}>
+                    <View style={s.photoCard}>
+                      {/* eslint-disable-next-line jsx-a11y/alt-text */}
+                      <Image src={p.url} style={s.photoImg} />
+                      <Text style={s.photoCap}>
+                        Photo nº {i + 1}{p.legende ? ` — ${p.legende}` : ''}
+                      </Text>
                     </View>
                   </View>
                 ))}
               </View>
-
-              <View style={s.legend}>
-                <View style={s.legendItem}><View style={[s.legendDot, { backgroundColor: C.critical }]} /><Text>Critique</Text></View>
-                <View style={s.legendItem}><View style={[s.legendDot, { backgroundColor: C.warn }]} /><Text>Attention</Text></View>
-                <View style={s.legendItem}><View style={[s.legendDot, { backgroundColor: C.info }]} /><Text>À prévoir</Text></View>
-                <View style={s.legendItem}><View style={[s.legendDot, { backgroundColor: C.ok }]} /><Text>Conforme</Text></View>
-                <View style={s.legendItem}><View style={[s.legendDot, { backgroundColor: C.neutral }]} /><Text>N/A</Text></View>
-              </View>
             </View>
           )}
 
-          {(rapport.preconisations?.length ?? 0) > 0 && (
-            <View style={s.sectionWrap}>
-              <Section num="8" title="PRÉCONISATIONS DE TRAVAUX" />
-              {rapport.preconisations!.map((p, i) => (
-                <View key={i} style={s.preco}>
-                  <Text style={s.precoTag}>{p.tag}</Text>
-                  <Text style={s.precoTitle}>{p.titre}</Text>
-                  {p.items.map((it, j) => (
-                    <Text key={j} style={s.precoItem}>{j + 1}. <Text style={s.precoK}>{it.k} : </Text>{it.v}</Text>
-                  ))}
+          {/* Section 5 — PRESCRIPTIONS */}
+          {hasPrecos && (
+            <View>
+              <SectionBand num={numOf('precos')} title="Prescriptions & travaux à engager" variant="teal" />
+
+              {(rapport.preconisations?.length ?? 0) > 0 ? (
+                rapport.preconisations!.map((p, idx) => {
+                  const kind = idx % 3 === 0 ? 'red' : idx % 3 === 1 ? 'blue' : 'teal'
+                  const bandStyle = kind === 'red' ? s.subBandRed : kind === 'blue' ? s.subBandBlue : s.subBandTeal
+                  const sqStyle = kind === 'red' ? s.sqRed : kind === 'blue' ? s.sqBlue : s.sqTeal
+                  return (
+                    <View key={idx}>
+                      <View style={[s.subBand, bandStyle]} wrap={false}>
+                        <Text style={s.subBandTxt}>
+                          {`5.${idx + 1}`}  {p.titre || p.tag}
+                        </Text>
+                      </View>
+                      {p.items.map((it, j) => (
+                        <View key={j} style={s.precoItem} wrap={false}>
+                          <View style={[s.precoSquare, sqStyle]} />
+                          <Text style={s.precoTxt}>
+                            {it.k ? <Text style={{ fontFamily: 'Helvetica-Bold' }}>{it.k} : </Text> : null}
+                            {it.v}
+                          </Text>
+                        </View>
+                      ))}
+                    </View>
+                  )
+                })
+              ) : (
+                <>
+                  <View style={[s.subBand, s.subBandBlue]} wrap={false}>
+                    <Text style={s.subBandTxt}>5.1  Recommandations</Text>
+                  </View>
+                  <Text style={s.para}>{rapport.recommandations}</Text>
+                </>
+              )}
+            </View>
+          )}
+
+          {/* Section 6 — CONCLUSION */}
+          {hasConclusion && (
+            <View>
+              <SectionBand num={numOf('conclusion')} title="Conclusion" />
+              <View style={s.conclusionBlock}>
+                {rapport.avis_technique?.diagnostic_final && (
+                  <Text style={s.conclusionP}>{rapport.avis_technique.diagnostic_final}</Text>
+                )}
+                {rapport.avis_technique?.recommandation_urgente && (
+                  <Text style={s.conclusionP}>{rapport.avis_technique.recommandation_urgente}</Text>
+                )}
+                {!rapport.avis_technique?.diagnostic_final && rapport.diagnostic && (
+                  <Text style={s.conclusionP}>{rapport.diagnostic}</Text>
+                )}
+                {rapport.commentaire_technicien && (
+                  <Text style={s.conclusionP}>{rapport.commentaire_technicien}</Text>
+                )}
+              </View>
+
+              {/* Signatures */}
+              <View style={s.sigTable} wrap={false}>
+                <View style={[s.sigCol, s.sigColSep]}>
+                  <Text style={s.sigHead}>LTDB — Technicien intervenant</Text>
+                  <View style={s.sigBody}>
+                    <Text style={s.sigLine}>Date : {fmtDateFR(dateIntervention)}</Text>
+                    <Text style={s.sigLine}>Nom : {technicienNom || '—'}</Text>
+                    <Text style={s.sigLine}>Signature :</Text>
+                  </View>
                 </View>
-              ))}
+                <View style={s.sigCol}>
+                  <Text style={s.sigHead}>Client — Lu et approuvé</Text>
+                  <View style={s.sigBody}>
+                    <Text style={s.sigLine}>{clientNom || '—'}</Text>
+                    <Text style={s.sigLine}>Date : {fmtDateFR(dateIntervention)}</Text>
+                    <Text style={s.sigLine}>Signature :</Text>
+                  </View>
+                </View>
+              </View>
             </View>
           )}
-
-          <View style={s.endBlock}>
-            <Text style={s.endStrong}>CONCLUSION</Text>
-            <Text style={s.endGen}>Rapport d'intervention du {dateIntervention} — document technique probatoire</Text>
-            <View style={s.signatureRow}>
-              <View style={s.sigBlock}>
-                <Text style={s.sigRole}>TECHNICIEN INTERVENANT</Text>
-                <Text style={s.sigName}>{technicienNom}</Text>
-                <Text style={s.sigQual}>Lu et validé</Text>
-                <Text style={s.sigScript}>{technicienNom}</Text>
-                <Text style={s.sigLine}>Signature et cachet</Text>
-              </View>
-              <View style={s.sigBlock}>
-                  <Text style={s.sigRole}>CLIENT — LU ET APPROUVÉ</Text>
-                <Text style={s.sigName}>{clientNom || '—'}</Text>
-                <Text style={s.sigQual}>Lu et approuvé</Text>
-                <Text style={s.sigLine}>Date · Signature</Text>
-              </View>
-            </View>
-          </View>
         </View>
 
-        <Footer num={3} total={totalPages} />
+        <Footer />
       </Page>
 
-      {/* ============ PAGE 4 — PHOTOS ============ */}
-      {hasPhotos && (
-        <Page size="A4" style={s.page}>
-          <Header reference={ref} dateIntervention={dateIntervention} ville={ville} />
-          <Text style={s.watermark} fixed>PHOTOS</Text>
-
-          <View style={s.content}>
-            <View style={s.sectionWrap}>
-              <Section num="9" title="DOCUMENTS PHOTOGRAPHIQUES" />
-              <View style={s.photoGrid}>
-                {photos!.map((p, i) => (
-                  <View key={i} style={s.photoCard}>
-                    {/* eslint-disable-next-line jsx-a11y/alt-text */}
-                    <Image src={p.url} style={s.photoImg} />
-                    <Text style={s.photoBadge}>{i + 1}</Text>
-                    {p.legende && <Text style={s.photoCap}>{p.legende}</Text>}
-                  </View>
-                ))}
-              </View>
-            </View>
-          </View>
-
-          <Footer num={4} total={totalPages} />
-        </Page>
-      )}
-
-      {/* ============ PAGE DEVIS ============ */}
+      {/* ============ DEVIS (page dédiée si présent) ============ */}
       {rapport.devis && (
         <Page size="A4" style={s.page}>
-          <Header reference={ref} dateIntervention={dateIntervention} ville={ville} />
-          <Text style={s.watermark} fixed>DEVIS</Text>
+          <Header phone={phone} />
 
           <View style={s.content}>
-            <View style={s.devisHeader}>
+            <View style={s.devisHeader} wrap={false}>
               <View>
-                <Text style={s.devisHeaderTitle}>DEVIS Nº {rapport.devis.numero || `DV-${ref}`}</Text>
-                <Text style={s.devisHeaderSub}>Travaux complémentaires suite à intervention du {dateIntervention}</Text>
+                <Text style={s.devisHeaderTitle}>
+                  DEVIS Nº {rapport.devis.numero || `DV-${ref}`}
+                </Text>
+                <Text style={s.devisHeaderSub}>
+                  Travaux complémentaires — intervention du {fmtDateFR(dateIntervention)}
+                </Text>
               </View>
               <View style={s.devisHeaderRight}>
                 <Text style={s.devisHeaderLbl}>VALIDITÉ</Text>
                 <Text style={s.devisHeaderV}>{rapport.devis.validite_jours || 30} jours</Text>
                 <Text style={s.devisHeaderLbl}>ÉMIS LE</Text>
-                <Text style={s.devisHeaderV}>{dateIntervention}</Text>
+                <Text style={s.devisHeaderV}>{fmtDateFR(dateIntervention)}</Text>
               </View>
             </View>
 
-            <View style={s.devisMeta}>
-              <View style={s.devisMetaItem}><Text style={s.coverK}>CLIENT</Text><Text style={s.coverV}>{clientNom || '—'}</Text></View>
-              <View style={s.devisMetaItem}><Text style={s.coverK}>CHANTIER</Text><Text style={s.coverV}>{adresse}, {codePostal} {ville}</Text></View>
-              <View style={s.devisMetaItem}><Text style={s.coverK}>RÉFÉRENCE INTERVENTION</Text><Text style={s.coverV}>{ref}</Text></View>
-              <View style={s.devisMetaItem}><Text style={s.coverK}>DÉLAI D'EXÉCUTION</Text><Text style={s.coverV}>Sous 15 jours après acceptation</Text></View>
+            <View style={s.devisMetaRow} wrap={false}>
+              <View style={[s.devisMetaCell, { borderRightWidth: 1, borderRightColor: C.border }]}>
+                <Text style={s.devisMetaK}>CLIENT</Text>
+                <Text style={s.devisMetaV}>{clientNom || '—'}</Text>
+              </View>
+              <View style={s.devisMetaCell}>
+                <Text style={s.devisMetaK}>CHANTIER</Text>
+                <Text style={s.devisMetaV}>{adresse}, {codePostal} {ville}</Text>
+              </View>
+              <View style={[s.devisMetaCell, { borderRightWidth: 1, borderRightColor: C.border, borderBottomWidth: 0 }]}>
+                <Text style={s.devisMetaK}>RÉFÉRENCE INTERVENTION</Text>
+                <Text style={s.devisMetaV}>{ref}</Text>
+              </View>
+              <View style={[s.devisMetaCell, { borderBottomWidth: 0 }]}>
+                <Text style={s.devisMetaK}>DÉLAI D&apos;EXÉCUTION</Text>
+                <Text style={s.devisMetaV}>Sous 15 jours après acceptation</Text>
+              </View>
             </View>
 
             <View style={s.devisTable}>
-              <View style={s.devisHead}>
+              <View style={s.devisHead} fixed>
                 <Text style={[s.devisHeadCell, { width: '52%' }]}>Désignation</Text>
                 <Text style={[s.devisHeadCell, { width: '12%', textAlign: 'right' }]}>Qté</Text>
                 <Text style={[s.devisHeadCell, { width: '18%', textAlign: 'right' }]}>PU HT</Text>
                 <Text style={[s.devisHeadCell, { width: '18%', textAlign: 'right' }]}>Total HT</Text>
               </View>
-              {Array.from(sections.entries()).map(([sec, items], si) => (
+              {Array.from(devisSectionsMap.entries()).map(([sec, items], si) => (
                 <View key={si}>
                   <View style={s.devisSectionRow}><Text style={s.devisSectionTxt}>{sec}</Text></View>
                   {items.map((l, li) => (
-                    <View key={li} style={s.devisLine}>
+                    <View key={li} style={s.devisLine} wrap={false}>
                       <View style={{ width: '52%' }}>
                         <Text style={s.devisDesignation}>{l.designation}</Text>
-                        {l.description && <Text style={s.devisDescription}>{l.description}</Text>}
+                        {l.description ? <Text style={s.devisDescription}>{l.description}</Text> : null}
                       </View>
-                      <Text style={[s.tableCell, { width: '12%', textAlign: 'right' }]}>{l.qte}</Text>
-                      <Text style={[s.tableCell, { width: '18%', textAlign: 'right' }]}>{fmtEur(l.pu_ht)}</Text>
-                      <Text style={[s.tableCell, { width: '18%', textAlign: 'right' }]}>{fmtEur(l.pu_ht * l.qte)}</Text>
+                      <Text style={[s.devisCell, { width: '12%', textAlign: 'right' }]}>{l.qte}</Text>
+                      <Text style={[s.devisCell, { width: '18%', textAlign: 'right' }]}>{fmtEur(l.pu_ht)}</Text>
+                      <Text style={[s.devisCell, { width: '18%', textAlign: 'right' }]}>{fmtEur(l.pu_ht * l.qte)}</Text>
                     </View>
                   ))}
                 </View>
               ))}
             </View>
 
-            <View style={s.totaux}>
+            <View style={s.totaux} wrap={false}>
               <View style={s.totauxRow}>
                 <Text style={s.totauxLbl}>Total HT</Text>
                 <Text style={s.totauxV}>{fmtEur(totalHT)}</Text>
@@ -814,34 +807,35 @@ export function RealisationDocument({ clientNom, adresse, ville, codePostal, dat
             </View>
 
             {rapport.devis.conditions && rapport.devis.conditions.length > 0 && (
-              <View style={s.conditions}>
-                <Text style={s.conditionsTitle}>▸ CONDITIONS</Text>
+              <View style={s.conditions} wrap={false}>
+                <Text style={s.conditionsTitle}>Conditions</Text>
                 {rapport.devis.conditions.map((c, i) => (
                   <Text key={i} style={s.conditionsItem}>• {c}</Text>
                 ))}
               </View>
             )}
 
-            <View style={[s.endBlock, { marginTop: 14, padding: 14 }]}>
-              <View style={s.signatureRow}>
-                <View style={s.sigBlock}>
-                  <Text style={s.sigRole}>ÉTABLI PAR</Text>
-                  <Text style={s.sigName}>{technicienNom}</Text>
-                  <Text style={s.sigQual}>★ Expert en assainissement</Text>
-                  <Text style={s.sigScript}>{technicienNom}</Text>
-                  <Text style={s.sigLine}>Pour Les Techniciens du Débouchage</Text>
+            <View style={s.sigTable} wrap={false}>
+              <View style={[s.sigCol, s.sigColSep]}>
+                <Text style={s.sigHead}>Établi par — LTDB</Text>
+                <View style={s.sigBody}>
+                  <Text style={s.sigLine}>Nom : {technicienNom || '—'}</Text>
+                  <Text style={s.sigLine}>Date : {fmtDateFR(dateIntervention)}</Text>
+                  <Text style={s.sigLine}>Signature :</Text>
                 </View>
-                <View style={s.sigBlock}>
-                  <Text style={s.sigRole}>BON POUR ACCORD</Text>
-                  <Text style={s.sigName}>{clientNom || '—'}</Text>
-                  <Text style={s.sigQual}>Mention manuscrite obligatoire</Text>
-                  <Text style={s.sigLine}>Date · Signature précédée de « Bon pour accord »</Text>
+              </View>
+              <View style={s.sigCol}>
+                <Text style={s.sigHead}>Bon pour accord — Client</Text>
+                <View style={s.sigBody}>
+                  <Text style={s.sigLine}>Nom : {clientNom || '—'}</Text>
+                  <Text style={s.sigLine}>Date :</Text>
+                  <Text style={s.sigLine}>Mention « Bon pour accord » + signature :</Text>
                 </View>
               </View>
             </View>
           </View>
 
-          <Footer num={hasPhotos ? 5 : 4} total={totalPages} />
+          <Footer />
         </Page>
       )}
     </Document>

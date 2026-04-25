@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import Anthropic from "@anthropic-ai/sdk"
 
 const MODEL = process.env.ANTHROPIC_MODEL || "claude-sonnet-4-5"
-const SITE = 'https://www.lestechniciensdudebouchage.fr'
+const SITE = 'https://lestechniciensdudebouchage.fr'
 
 const SERVICES = [
   { slug: 'debouchage/debouchage-canalisations', label: 'Débouchage de canalisations' },
@@ -135,6 +135,12 @@ Date: ${today.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year:
 - "devis": null par défaut, sauf si le technicien mentionne explicitement des prix/montants
 - "avis_technique": null sauf si le technicien exprime une préoccupation ou un diagnostic critique
 
+⚠ RÈGLE STATUT "ok" / CONFORME ⚠
+N'utilise JAMAIS "statut": "ok" (qui affichera "CONFORME" dans le rapport) par défaut ou pour combler. Ce statut est réservé aux cas où le technicien DIT EXPLICITEMENT que quelque chose est en bon état / conforme / sans problème / fonctionne correctement.
+- Dans le doute → "statut": "neutral" (affichera "N/A") ou "statut": "info" (affichera "À PRÉVOIR").
+- Pour une simple étape de contrôle final sans anomalie ET confirmée par le technicien : OK pour "ok".
+- Ne met JAMAIS "ok" sur un élément dont le technicien n'a pas parlé explicitement.
+
 📝 RÈGLES DE RÉDACTION — RAPPORT ÉTOFFÉ
 - Ton : professionnel, technique, précis (éviter le langage parlé)
 - Paragraphes développés : chaque champ texte doit contenir 4-6 phrases complètes minimum (sauf commentaire_technicien qui reste court)
@@ -186,16 +192,28 @@ Si et seulement si le technicien mentionne explicitement des prix/montants/devis
 }`
 
   // === APPEL 2 — SEO unique (contenu différent à chaque génération) ===
-  const seoPrompt = `Tu es un rédacteur SEO/GEO senior spécialisé plomberie/assainissement local. Tu rédiges une page de réalisation client UNIQUE qui sera publiée sur ${SITE}.
+  const seoPrompt = `Tu es un rédacteur web expérimenté en plomberie/assainissement local. Tu écris une page de réalisation client UNIQUE qui sera publiée sur ${SITE}.
 
-⚠️ OBJECTIF D'UNICITÉ SEO ⚠️
-Cette page doit être RADICALEMENT UNIQUE même si la ville et le type d'intervention sont identiques à d'autres réalisations existantes. Google pénalise le contenu dupliqué.
-Pour garantir l'unicité :
-1. ANCRE LE CONTENU sur des détails SPÉCIFIQUES et CONCRETS extraits de la dictée : type de bâtiment (immeuble, maison, commerce, restaurant…), contexte (locataire, syndic, particulier…), nature exacte du bouchon/problème, méthode précise utilisée, résultat obtenu.
-2. ÉVITE les formulations génériques "nous intervenons à ${ville} pour déboucher vos canalisations…" — à la place, raconte CETTE intervention précise.
-3. Le H1 doit contenir un ANGLE UNIQUE (ex: "Débouchage colonne EU immeuble ancien à ${ville} — diagnostic complet", "Déblocage urgent canalisation restaurant ${ville}", "Débouchage WC 3e étage résidence ${ville}") — PAS "Débouchage canalisation ${ville}" générique.
-4. Le contenu principal doit faire 600-900 mots et raconter l'histoire de l'intervention tout en restant SEO-optimisé (h2/h3, strong, liens).
-5. Varie les structures : commence parfois par le contexte, parfois par le problème, parfois par la solution. Ne reproduis pas toujours le même squelette.
+🎙 TON ET VOIX — PRIORITÉ ABSOLUE 🎙
+Cette page doit SONNER COMME UN ARTISAN QUI RACONTE SON CHANTIER, pas comme une brochure commerciale ni comme une fiche SEO générique. Objectif : que le lecteur se dise "ok, ces gens font vraiment le métier, je peux leur faire confiance".
+
+Règles de ton :
+- Utilise "on" (et "nous" parfois). Jamais "notre entreprise s'est déplacée", plutôt "on est arrivés sur place".
+- Phrases courtes, rythmées, orales mais pas relâchées. Pas d'argot, pas de "tu".
+- Raconte CE chantier précis comme une histoire : le contexte, ce qu'on a trouvé, ce qu'on a fait, ce qu'on a conseillé.
+- Vocabulaire technique présent mais expliqué ("on a passé la caméra — l'inspection vidéo — pour voir à l'intérieur de la canalisation").
+- Pas de superlatifs commerciaux vides ("intervention ultra-rapide", "professionnels reconnus", "qualité premium"). Bannis-les.
+- Pas d'urgence agressive type "APPELEZ MAINTENANT 24H/24 !!". La crédibilité fait le travail.
+- Si la dictée nomme un repère local (rue, quartier), reprends-le — ça ancre la page.
+- Reste factuel : si la dictée ne dit pas combien de temps ça a pris, ne l'invente pas.
+
+Exemples d'ouvertures correctes :
+- "Appel en fin de matinée : un client de ${ville} a son évier qui ne s'évacue plus depuis la veille."
+- "Sur cette intervention à ${ville}, le problème venait plus loin qu'on ne le pensait au premier coup d'œil."
+- "Quand on arrive sur un regard bouché, on commence toujours par la même chose : repérer où est l'arrivée et où est la sortie."
+
+⚠️ UNICITÉ SEO
+La page doit être unique même si ville+service reviennent. Pour ça : ANCRE sur les détails concrets de la dictée (type de bâtiment, nature exacte du problème, méthode, résultat). ÉVITE les intros génériques interchangeables. VARIE la structure d'une page à l'autre (commence parfois par le contexte, parfois par le problème, parfois par la méthode).
 
 CONTEXTE — DICTÉE DU TECHNICIEN (source de vérité, reformule pro mais sans inventer d'actions) :
 """
@@ -212,21 +230,27 @@ PAGE VILLE DE DESTINATION (OBLIGATOIRE) :
 - Page locale "${ville}" → ${cityUrl}
 - Page Var → ${SITE}/debouchage-var
 
-URL FINALE : ${SITE}/${realisationSlug}
+URL FINALE : ${SITE}/nos-realisations/${realisationSlug}
 
 ⛔ NE PAS INVENTER D'ACTIONS TECHNIQUES absentes de la dictée. Tu peux contextualiser avec du savoir métier général, mais sans affirmer que le technicien a fait X si ce n'est pas dans la dictée.
 
-RÈGLES SEO + GEO + LLM
-- Titre H1 : max 75 car., UNIQUE et SPÉCIFIQUE (contient ville + type + angle distinctif)
-- Meta description : max 155 car., accrocheuse, contient ville + bénéfice
-- Résumé d'ouverture "LLM-ready" : 2 à 3 phrases factuelles (qui, quoi, où, résultat), lisible seule, sans fluff
-- Contenu HTML : 700-1100 mots, structuré h2/h3 (4-6 h2 minimum), paragraphes courts (2-4 phrases), strong sur mots-clés locaux, listes <ul> si pertinent
-- Lisibilité : utilise des conteneurs HTML explicites dans le contenu (<section class=\\"content-block\\">, <div class=\\"info-box\\">, <div class=\\"checklist-box\\">) avec titres clairs
-- MAILLAGE INTERNE : ≥ 3 liens vers les SERVICES + ≥ 2 liens vers la page ville (${cityUrl}) + 1 lien vers la page Var
-- Prix : placeholders {PRIX_MIN}/{PRIX_MAX} uniquement si un tarif est mentionné par le technicien
-- FAQ : 6 questions GÉNÉRIQUES sur le service à ${ville} (longue traîne) — elles peuvent être réutilisées entre pages
-- 8-12 mots-clés ciblés longue traîne
-- GEO : phrases courtes, informations vérifiables, ancrage local précis, style citable pour AI Overviews/LLM
+RÈGLES SEO + GEO (rigoureuses, mais invisibles au lecteur)
+- Titre H1 : max 75 car., UNIQUE et SPÉCIFIQUE (ville + type + angle concret tiré du chantier). Privilégie une formulation descriptive (ex: "Regard bouché par des lingettes à ${ville} — voici comment on l'a débouché") plutôt que promotionnelle ("DÉBOUCHAGE URGENT 24H/24").
+- Meta description : 140-155 car., construction SEO + GEO + LLM :
+  1. COMMENCE par ce qui a été fait (verbe d'action au passé) + ville : "Débouchage de canalisation à ${ville} après..." / "Inspection caméra réseau EU à ${ville} :...". C'est l'info que Google et les LLMs citent en priorité.
+  2. INCLUS 2-3 entités concrètes et citables : type de problème, méthode utilisée, résultat. Exemple : "bouchon de lingettes dans un regard extérieur, retiré par hydrocurage 200 bars, évacuation rétablie".
+  3. TERMINE par une micro-preuve ou une info utile : délai ("intervention le jour même"), réassurance ("devis gratuit"), ou garantie ("zone du Var"). PAS de slogan commercial vide.
+  4. STYLE : phrase factuelle, complète, citable tel quel par un moteur IA — pas de promotionnel agressif, pas de majuscules, pas de points d'exclamation.
+  Format type : "<Action + ville> : <détail problème + méthode + résultat>. <Info utile courte>."
+- Résumé d'ouverture "LLM-ready" : 2 à 3 phrases factuelles (qui, quoi, où, résultat), lisible seule, citable par un moteur IA.
+- Contenu HTML : 700-1100 mots, h2/h3 (4-6 h2 minimum), paragraphes courts (2-4 phrases), strong sur mots-clés locaux utilisés NATURELLEMENT dans la phrase, listes <ul> quand c'est pertinent (étapes, symptômes, causes).
+- Intertitres orientés récit ou bénéfice lecteur, pas sloganesques. Ex : "Ce qu'on a trouvé sur place", "Pourquoi la canalisation s'était rebouchée", "Comment éviter que ça recommence".
+- Conteneurs HTML à utiliser : <section class=\\"content-block\\">, <div class=\\"info-box\\"> (pour un point-clé ou conseil), <div class=\\"checklist-box\\"> (pour une liste d'étapes).
+- MAILLAGE INTERNE : ≥ 3 liens vers les SERVICES + ≥ 2 liens vers la page ville (${cityUrl}) + 1 lien vers la page Var. Les liens doivent apparaître naturellement dans une phrase, pas collés en fin de paragraphe comme une liste SEO.
+- Prix : placeholders {PRIX_MIN}/{PRIX_MAX} uniquement si un tarif est mentionné par le technicien.
+- FAQ : 6 questions que de VRAIS clients se posent à ${ville} (longue traîne). Réponses courtes, honnêtes, sans langue de bois. Pas de "contactez-nous vite !" en fin de réponse.
+- 8-12 mots-clés longue traîne, vrais termes de recherche humains.
+- GEO / citabilité IA : phrases courtes, vérifiables, ancrage local précis, style factuel.
 
 Réponds UNIQUEMENT avec ce JSON (sans markdown, sans backticks) :
 {
@@ -280,7 +304,7 @@ Réponds UNIQUEMENT avec ce JSON (sans markdown, sans backticks) :
   rapport.reference = reference
   seo.resume_rich_snippet = seo.resume_rich_snippet || seo.meta_description || ''
 
-  const pageUrl = `${SITE}/${realisationSlug}`
+  const pageUrl = `${SITE}/nos-realisations/${realisationSlug}`
   const datePublished = today.toISOString()
 
   seo.jsonld = {
