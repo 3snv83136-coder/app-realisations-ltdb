@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server"
 import Anthropic from "@anthropic-ai/sdk"
 
+export const maxDuration = 300
+
 const MODEL = process.env.ANTHROPIC_MODEL || "claude-sonnet-4-5"
 const SITE = 'https://lestechniciensdudebouchage.fr'
 
@@ -21,7 +23,7 @@ function slugify(s: string) {
     .replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
 }
 
-async function callWithRetry<T>(fn: () => Promise<T>, maxAttempts = 5): Promise<T> {
+async function callWithRetry<T>(fn: () => Promise<T>, maxAttempts = 3): Promise<T> {
   let lastErr: any
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {

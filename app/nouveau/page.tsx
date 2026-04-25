@@ -11,6 +11,20 @@ const PDFDownloadButton = dynamic(() => import("@/components/RealisationPDF"), {
 const PDFPreviewModal = dynamic(() => import("@/components/PDFPreviewModal"), { ssr: false })
 const DriveSaveButton = dynamic(() => import("@/components/DriveSaveButton"), { ssr: false })
 import SitePreviewModal from "@/components/SitePreviewModal"
+import TruckLoader from "@/components/TruckLoader"
+
+function notifyDone(title: string, body: string) {
+  if (typeof window === 'undefined' || !('Notification' in window)) return
+  if (Notification.permission !== 'granted') return
+  try { new Notification(title, { body, icon: '/icon-192.png', tag: 'ltdb-rapport' }) } catch {}
+}
+
+async function ensureNotificationPermission() {
+  if (typeof window === 'undefined' || !('Notification' in window)) return
+  if (Notification.permission === 'default') {
+    try { await Notification.requestPermission() } catch {}
+  }
+}
 
 type Step = 'capture' | 'extracting' | 'validate' | 'generating' | 'preview' | 'publishing' | 'done'
 
@@ -213,18 +227,24 @@ export default function NouveauPage() {
       return
     }
     setError(''); setStep('generating')
+    ensureNotificationPermission()
     try {
       const res = await fetch('/api/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ transcription, type_intervention: typeIntervention, ville, code_postal: codePostal }),
+        signal: AbortSignal.timeout(180_000),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Génération échouée')
       setRapport(data.rapport); setSeo(data.seo)
       setStep('preview')
+      notifyDone('Rapport prêt', `${typeIntervention} — ${ville}`)
     } catch (e: any) {
-      setError(`Erreur IA : ${e.message}`)
+      const isTimeout = e?.name === 'TimeoutError' || /aborted|timeout/i.test(String(e?.message || ''))
+      setError(isTimeout
+        ? 'La génération a dépassé 3 minutes. Réessaie ou raccourcis la dictée.'
+        : `Erreur IA : ${e.message}`)
       setStep('validate')
     }
   }
@@ -555,13 +575,12 @@ export default function NouveauPage() {
 
             {/* Loading génération */}
             {step === 'generating' && (
-              <div className="bg-blue-50 border border-blue-200 rounded-2xl p-6 text-center space-y-3">
-                <div className="text-4xl animate-bounce">🤖</div>
+              <div className="bg-blue-50 border border-blue-200 rounded-2xl p-5 text-center space-y-3">
                 <p className="text-sm font-bold text-blue-900">{GEN_STEPS[genStepIdx]}</p>
-                <div className="h-1.5 bg-blue-100 rounded-full overflow-hidden max-w-xs mx-auto">
-                  <div className="h-full bg-blue-500 rounded-full transition-all duration-500" style={{ width: `${((genStepIdx + 1) / GEN_STEPS.length) * 100}%` }} />
-                </div>
-                <p className="text-[11px] text-slate-400">~30 secondes</p>
+                <TruckLoader />
+                <p className="text-[11px] text-slate-500">
+                  Compte 30 à 90 secondes — tu peux laisser la page ouverte, on te notifie quand c'est prêt.
+                </p>
               </div>
             )}
           </>
