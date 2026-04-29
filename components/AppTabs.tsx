@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation"
 const TABS = [
   { href: '/nouveau', label: 'Rapport d\'intervention', icon: '📄' },
   { href: '/devis',   label: 'Devis',                  icon: '🧾' },
+  { href: '/facture', label: 'Facture',                icon: '💶' },
 ]
 
 export default function AppTabs() {
