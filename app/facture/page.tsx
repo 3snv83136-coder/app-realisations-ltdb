@@ -4,6 +4,7 @@ import { useSession } from "next-auth/react"
 import dynamic from "next/dynamic"
 import VoiceRecorder from "@/components/VoiceRecorder"
 import AppTabs from "@/components/AppTabs"
+import VilleCombobox from "@/components/VilleCombobox"
 import { AGENCES, type Agence } from "@/lib/agences"
 import type {
   FacturePDFProps,
@@ -380,7 +381,16 @@ export default function FacturePage() {
               <Field label="Nom du client" value={clientNom} onChange={setClientNom} placeholder="M. Dupont / Mme Jules…" />
               <Field label="Adresse client" value={clientAdresse} onChange={setClientAdresse} />
               <Field label="Code postal" value={clientCP} onChange={setClientCP} />
-              <Field label="Ville" value={clientVille} onChange={setClientVille} />
+              <label className="block text-sm">
+                <span className="text-xs uppercase tracking-wide text-slate-500">Ville</span>
+                <div className="mt-1">
+                  <VilleCombobox
+                    value={clientVille}
+                    onChange={setClientVille}
+                    onSelect={v => { setClientVille(v.nom); setClientCP(v.cp) }}
+                  />
+                </div>
+              </label>
               <Field label="Adresse du chantier" value={adresseChantier} onChange={setAdresseChantier} placeholder="idem ou adresse différente" />
               <Field label="Référence dossier (optionnel)"
                 value={facture.reference_dossier || ''}
@@ -629,7 +639,16 @@ export default function FacturePage() {
             <Field label="Nom du client" value={clientNom} onChange={setClientNom} placeholder="M. Dupont / Mme Jules…" />
             <Field label="Adresse" value={clientAdresse} onChange={setClientAdresse} />
             <Field label="Code postal" value={clientCP} onChange={setClientCP} />
-            <Field label="Ville" value={clientVille} onChange={setClientVille} />
+            <label className="block text-sm">
+              <span className="text-xs uppercase tracking-wide text-slate-500">Ville</span>
+              <div className="mt-1">
+                <VilleCombobox
+                  value={clientVille}
+                  onChange={setClientVille}
+                  onSelect={v => { setClientVille(v.nom); setClientCP(v.cp) }}
+                />
+              </div>
+            </label>
             <Field label="Adresse du chantier" value={adresseChantier} onChange={setAdresseChantier} placeholder="idem / autre" />
             <label className="block text-sm">
               <span className="text-xs uppercase tracking-wide text-slate-500">Date de la facture</span>

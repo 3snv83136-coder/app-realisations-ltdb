@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation"
 import dynamic from "next/dynamic"
 import VoiceRecorder from "@/components/VoiceRecorder"
 import AppTabs from "@/components/AppTabs"
+import VilleCombobox from "@/components/VilleCombobox"
 import type { DevisPDFProps, DevisLineData, EmetteurData, ClientData, DevisData } from "@/components/DevisPDF"
 
 const DevisDownloadButton = dynamic(() => import("@/components/DevisPDF"), { ssr: false })
@@ -333,7 +334,16 @@ export default function DevisPage() {
               <Field label="Nom du client" value={clientNom} onChange={setClientNom} placeholder="M. Dupont / SAS Martin…" />
               <Field label="Adresse client" value={clientAdresse} onChange={setClientAdresse} />
               <Field label="Code postal" value={clientCP} onChange={setClientCP} />
-              <Field label="Ville" value={clientVille} onChange={setClientVille} />
+              <label className="block text-sm">
+                <span className="text-xs uppercase tracking-wide text-slate-500">Ville</span>
+                <div className="mt-1">
+                  <VilleCombobox
+                    value={clientVille}
+                    onChange={setClientVille}
+                    onSelect={v => { setClientVille(v.nom); setClientCP(v.cp) }}
+                  />
+                </div>
+              </label>
               <Field label="Adresse du chantier" value={adresseChantier} onChange={setAdresseChantier} placeholder="idem ou adresse différente" />
               <Field label="Référence dossier (optionnel)"
                 value={devis.reference_dossier || ''}
@@ -571,7 +581,16 @@ export default function DevisPage() {
             <Field label="Nom du client" value={clientNom} onChange={setClientNom} placeholder="M. Dupont / SAS Martin…" />
             <Field label="Adresse" value={clientAdresse} onChange={setClientAdresse} />
             <Field label="Code postal" value={clientCP} onChange={setClientCP} />
-            <Field label="Ville" value={clientVille} onChange={setClientVille} />
+            <label className="block text-sm">
+              <span className="text-xs uppercase tracking-wide text-slate-500">Ville</span>
+              <div className="mt-1">
+                <VilleCombobox
+                  value={clientVille}
+                  onChange={setClientVille}
+                  onSelect={v => { setClientVille(v.nom); setClientCP(v.cp) }}
+                />
+              </div>
+            </label>
             <Field label="Adresse du chantier" value={adresseChantier} onChange={setAdresseChantier} placeholder="idem / autre" />
             <label className="block text-sm">
               <span className="text-xs uppercase tracking-wide text-slate-500">Date du devis</span>

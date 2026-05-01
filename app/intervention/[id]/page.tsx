@@ -123,6 +123,24 @@ export default function InterventionDetailPage({ params }: { params: { id: strin
     }
   }
 
+  async function hardDelete() {
+    if (!intervention) return
+    const confirm1 = confirm('Supprimer DÉFINITIVEMENT cette intervention ? Cette action est irréversible.')
+    if (!confirm1) return
+    const confirm2 = prompt('Tape SUPPRIMER pour confirmer la suppression définitive.')
+    if (confirm2 !== 'SUPPRIMER') return
+    setActionInProgress(true); setError('')
+    try {
+      const res = await fetch(`/api/interventions/${intervention.id}?hard=1`, { method: 'DELETE' })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`)
+      router.push('/planning')
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+      setActionInProgress(false)
+    }
+  }
+
   function goToRapport() {
     if (!intervention) return
     const prefill = {
@@ -242,7 +260,7 @@ export default function InterventionDetailPage({ params }: { params: { id: strin
               {intervention.statut !== 'annulee' && intervention.statut !== 'terminee' && (
                 <button
                   onClick={() => {
-                    if (confirm('Annuler cette intervention ?')) updateStatut('annulee')
+                    if (confirm('Annuler cette intervention ? (statut → annulée, conservée dans l\'historique)')) updateStatut('annulee')
                   }}
                   disabled={actionInProgress}
                   className="bg-white border-2 border-slate-300 text-slate-700 hover:bg-slate-50 px-4 py-2.5 rounded-xl font-bold text-sm disabled:opacity-50 transition"
@@ -250,6 +268,14 @@ export default function InterventionDetailPage({ params }: { params: { id: strin
                   ✕ Annuler
                 </button>
               )}
+              <button
+                onClick={hardDelete}
+                disabled={actionInProgress}
+                className="bg-white border-2 border-red-300 text-red-700 hover:bg-red-50 px-4 py-2.5 rounded-xl font-bold text-sm disabled:opacity-50 transition"
+                title="Supprime définitivement de la base de données — irréversible"
+              >
+                🗑 Supprimer
+              </button>
             </div>
           </div>
         </section>

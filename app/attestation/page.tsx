@@ -4,6 +4,7 @@ import { useSession } from "next-auth/react"
 import dynamic from "next/dynamic"
 import Link from "next/link"
 import VoiceRecorder from "@/components/VoiceRecorder"
+import VilleCombobox from "@/components/VilleCombobox"
 import type { AttestationData, AttestationObservation, Variante } from "@/components/AttestationPDF"
 
 const AttestationDownloadButton = dynamic(() => import("@/components/AttestationPDF"), { ssr: false })
@@ -283,7 +284,16 @@ export default function AttestationPage() {
               <Field label="Nom" value={data.nom} onChange={v => setData({ ...data, nom: v })} />
               <Field label="Adresse" value={data.adresse} onChange={v => setData({ ...data, adresse: v })} />
               <Field label="Code postal" value={data.codePostal} onChange={v => setData({ ...data, codePostal: v })} />
-              <Field label="Ville" value={data.ville} onChange={v => setData({ ...data, ville: v })} />
+              <label className="block text-sm">
+                <span className="text-xs uppercase tracking-wide text-slate-500">Ville</span>
+                <div className="mt-1">
+                  <VilleCombobox
+                    value={data.ville}
+                    onChange={v => setData({ ...data, ville: v })}
+                    onSelect={v => setData({ ...data, ville: v.nom, codePostal: v.cp })}
+                  />
+                </div>
+              </label>
               <Field label="Technicien" value={data.technicienNom} onChange={v => setData({ ...data, technicienNom: v })} />
             </div>
           </section>
@@ -459,7 +469,16 @@ export default function AttestationPage() {
             <Field label="Nom" value={nom} onChange={setNom} placeholder="Dupont" />
             <Field label="Adresse du bien" value={adresse} onChange={setAdresse} placeholder="1 place du Château" />
             <Field label="Code postal" value={codePostal} onChange={setCodePostal} />
-            <Field label="Ville" value={ville} onChange={setVille} />
+            <label className="block text-sm">
+              <span className="text-xs uppercase tracking-wide text-slate-500">Ville</span>
+              <div className="mt-1">
+                <VilleCombobox
+                  value={ville}
+                  onChange={setVille}
+                  onSelect={v => { setVille(v.nom); setCodePostal(v.cp) }}
+                />
+              </div>
+            </label>
             <label className="block text-sm">
               <span className="text-xs uppercase tracking-wide text-slate-500">Date de l&apos;inspection</span>
               <input type="date" value={date} onChange={e => setDate(e.target.value)} className="w-full border border-slate-200 rounded px-2 py-1.5 mt-1" />

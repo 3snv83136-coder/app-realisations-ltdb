@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import Link from "next/link"
 import AppTabs from "@/components/AppTabs"
+import VilleCombobox from "@/components/VilleCombobox"
 import { AGENCES } from "@/lib/agences"
 
 type Statut = 'planifiee' | 'en_cours' | 'terminee' | 'annulee'
@@ -495,7 +496,16 @@ function NouvelleInterventionModal({
               <Field label="Email" type="email" value={clientEmail} onChange={setClientEmail} placeholder="client@exemple.fr" />
               <Field label="Téléphone" value={clientTel} onChange={setClientTel} placeholder="06 12 34 56 78" />
               <Field label="Adresse" value={clientAdresse} onChange={setClientAdresse} placeholder="5 rue des Tombades" />
-              <Field label="Ville" value={clientVille} onChange={setClientVille} placeholder="Toulon" />
+              <label className="block text-sm">
+                <span className="text-xs uppercase tracking-wide text-slate-500">Ville</span>
+                <div className="mt-1">
+                  <VilleCombobox
+                    value={clientVille}
+                    onChange={setClientVille}
+                    onSelect={v => { setClientVille(v.nom); setClientCP(v.cp) }}
+                  />
+                </div>
+              </label>
               <Field label="Code postal" value={clientCP} onChange={setClientCP} placeholder="83000" />
             </div>
           </section>
@@ -510,7 +520,16 @@ function NouvelleInterventionModal({
             {!chantierIdem && (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <Field label="Adresse chantier" value={adresseChantier} onChange={setAdresseChantier} />
-                <Field label="Ville" value={villeChantier} onChange={setVilleChantier} />
+                <label className="block text-sm">
+                  <span className="text-xs uppercase tracking-wide text-slate-500">Ville</span>
+                  <div className="mt-1">
+                    <VilleCombobox
+                      value={villeChantier}
+                      onChange={setVilleChantier}
+                      onSelect={v => { setVilleChantier(v.nom); setCpChantier(v.cp) }}
+                    />
+                  </div>
+                </label>
                 <Field label="Code postal" value={cpChantier} onChange={setCpChantier} />
               </div>
             )}

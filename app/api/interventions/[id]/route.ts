@@ -114,7 +114,7 @@ export async function PUT(req: NextRequest, { params }: Params) {
   return NextResponse.json({ intervention: data })
 }
 
-export async function DELETE(_req: NextRequest, { params }: Params) {
+export async function DELETE(req: NextRequest, { params }: Params) {
   const sb = getSupabaseOrNull()
   if (!sb) {
     return NextResponse.json({
@@ -122,6 +122,22 @@ export async function DELETE(_req: NextRequest, { params }: Params) {
     }, { status: 500 })
   }
 
+  const url = new URL(req.url)
+  const hard = url.searchParams.get('hard') === '1'
+
+  if (hard) {
+    // Suppression définitive — détache d'abord les documents liés
+    // (FK on delete set null déjà géré par le schema, mais on ne touche pas
+    // aux documents/factures pour préserver l'historique comptable).
+    const { error } = await sb
+      .from('interventions')
+      .delete()
+      .eq('id', params.id)
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json({ ok: true, hard: true })
+  }
+
+  // Soft delete : statut=annulee (par défaut, préserve l'historique)
   const { data, error } = await sb
     .from('interventions')
     .update({ statut: 'annulee' })
