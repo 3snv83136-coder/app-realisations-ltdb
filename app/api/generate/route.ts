@@ -117,7 +117,8 @@ export async function POST(req: NextRequest) {
   const today = new Date()
   const dateSlug = String(today.getDate()).padStart(2, '0') + String(today.getMonth() + 1).padStart(2, '0') + today.getFullYear()
   // Numérotation séquentielle basée sur l'heure (évite collisions même jour)
-  const seq = String(today.getHours()).padStart(2, '0') + String(today.getMinutes()).padStart(2, '0')
+  // Inclut HHMMSS pour éviter les collisions sur la table interventions (ref unique).
+  const seq = String(today.getHours()).padStart(2, '0') + String(today.getMinutes()).padStart(2, '0') + String(today.getSeconds()).padStart(2, '0')
   // Slug inclut l'heure → unique même si 2 interventions/jour sur même ville/type
   const realisationSlug = `${typeSlug}-${villeSlug}-${dateSlug}-${seq}`
   const reference = `LTDB-${today.getFullYear()}${String(today.getMonth() + 1).padStart(2, '0')}${String(today.getDate()).padStart(2, '0')}-${seq}`

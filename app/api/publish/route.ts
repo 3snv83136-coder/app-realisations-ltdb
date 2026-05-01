@@ -96,22 +96,37 @@ async function persistIntervention(formData: FormData, ltdbResponse: any) {
     return
   }
 
-  // Sinon, insère une nouvelle intervention (status terminée car publiée)
-  const { error } = await sb.from('interventions').insert({
-    reference,
-    client_id: clientId,
-    type_intervention: typeIntervention || null,
-    adresse_chantier: clientAdresse || null,
-    ville: ville || null,
-    code_postal: codePostal || null,
-    date_realisee: dateRealisee,
-    statut: 'terminee',
-    transcription: transcription || null,
-    rapport_json: rapportJson,
-    seo_json: seoJson,
-    publie_slug: slug || null,
-  })
-  if (error) console.error('[persistIntervention]', error)
+  // Sinon, insère une nouvelle intervention (status terminée car publiée).
+  // Tente jusqu'à 5 fois en suffixant la référence si collision unique.
+  let attempt = 0
+  let currentRef: string | null = reference
+  while (attempt < 5) {
+    const { error } = await sb.from('interventions').insert({
+      reference: currentRef,
+      client_id: clientId,
+      type_intervention: typeIntervention || null,
+      adresse_chantier: clientAdresse || null,
+      ville: ville || null,
+      code_postal: codePostal || null,
+      date_realisee: dateRealisee,
+      statut: 'terminee',
+      transcription: transcription || null,
+      rapport_json: rapportJson,
+      seo_json: seoJson,
+      publie_slug: slug || null,
+    })
+    if (!error) return
+    // 23505 = unique_violation Postgres
+    if (error.code === '23505' && currentRef) {
+      attempt++
+      const suffix = Math.random().toString(36).slice(2, 5).toUpperCase()
+      currentRef = `${reference}-${suffix}`
+      continue
+    }
+    console.error('[persistIntervention]', error)
+    return
+  }
+  console.error('[persistIntervention] exhausted retries on duplicate reference')
 }
 
 function safeParseJson(s: string | null): any {

@@ -164,8 +164,8 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // 2. Reference
-  const reference = buildReference(body.date_prevue, body.heure_prevue)
+  // 2. Reference (avec retry sur collision unique)
+  const baseReference = buildReference(body.date_prevue, body.heure_prevue)
 
   // 3. Default chantier address from client if not provided
   const adresseChantier = body.adresse_chantier ?? body.client?.adresse ?? null
@@ -176,27 +176,45 @@ export async function POST(req: NextRequest) {
     ? body.heure_prevue.slice(0, 5)
     : null
 
-  const { data: inserted, error: insertErr } = await sb
-    .from('interventions')
-    .insert({
-      reference,
-      client_id: clientId,
-      technicien_id: body.technicien_id || null,
-      agence: body.agence || null,
-      type_intervention: body.type_intervention,
-      adresse_chantier: adresseChantier,
-      ville,
-      code_postal: codePostal,
-      date_prevue: body.date_prevue || null,
-      heure_prevue: heurePrevueClean,
-      duree_estimee_min: typeof body.duree_estimee_min === 'number' ? body.duree_estimee_min : null,
-      urgence: !!body.urgence,
-      statut: 'planifiee',
-      prix_prevu: typeof body.prix_prevu === 'number' ? body.prix_prevu : null,
-      notes_internes: body.notes_internes || null,
-    })
-    .select('*')
-    .single()
+  const baseRow = {
+    client_id: clientId,
+    technicien_id: body.technicien_id || null,
+    agence: body.agence || null,
+    type_intervention: body.type_intervention,
+    adresse_chantier: adresseChantier,
+    ville,
+    code_postal: codePostal,
+    date_prevue: body.date_prevue || null,
+    heure_prevue: heurePrevueClean,
+    duree_estimee_min: typeof body.duree_estimee_min === 'number' ? body.duree_estimee_min : null,
+    urgence: !!body.urgence,
+    statut: 'planifiee',
+    prix_prevu: typeof body.prix_prevu === 'number' ? body.prix_prevu : null,
+    notes_internes: body.notes_internes || null,
+  }
+
+  let inserted: any = null
+  let insertErr: any = null
+  let currentRef = baseReference
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const res = await sb
+      .from('interventions')
+      .insert({ reference: currentRef, ...baseRow })
+      .select('*')
+      .single()
+    if (!res.error && res.data) {
+      inserted = res.data
+      insertErr = null
+      break
+    }
+    insertErr = res.error
+    if (res.error?.code === '23505') {
+      const suffix = Math.random().toString(36).slice(2, 5).toUpperCase()
+      currentRef = `${baseReference}-${suffix}`
+      continue
+    }
+    break
+  }
 
   if (insertErr || !inserted) {
     return NextResponse.json({ error: insertErr?.message || 'Insertion échouée' }, { status: 500 })
