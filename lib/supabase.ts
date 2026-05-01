@@ -1,0 +1,236 @@
+import { createClient, type SupabaseClient } from '@supabase/supabase-js'
+
+let cached: SupabaseClient | null = null
+
+/**
+ * Client Supabase server-side avec la service_role key.
+ * NE JAMAIS importer ce fichier dans un composant client.
+ * Utilisable uniquement depuis les routes API et Server Components.
+ */
+export function getSupabase(): SupabaseClient {
+  if (cached) return cached
+  const url = process.env.SUPABASE_URL
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY
+  if (!url || !key) {
+    throw new Error('SUPABASE_URL ou SUPABASE_SERVICE_ROLE_KEY non configurée')
+  }
+  cached = createClient(url, key, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  })
+  return cached
+}
+
+/** Renvoie null si Supabase n'est pas configuré (mode dégradé). */
+export function getSupabaseOrNull(): SupabaseClient | null {
+  if (cached) return cached
+  if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) return null
+  return getSupabase()
+}
+
+// =====================================================================
+// Types — miroir du schéma SQL (à garder synchronisé manuellement
+// ou regénérer avec `supabase gen types typescript`)
+// =====================================================================
+
+export type Statut =
+  | 'planifiee' | 'en_cours' | 'terminee' | 'annulee'
+
+export type DocumentType = 'facture' | 'devis' | 'attestation' | 'rapport'
+
+export type DocumentStatut =
+  | 'brouillon' | 'envoye' | 'paye' | 'annule'
+  | 'accepte' | 'refuse' | 'expire'
+
+export interface Client {
+  id: string
+  nom: string
+  email: string | null
+  telephone: string | null
+  adresse: string | null
+  code_postal: string | null
+  ville: string | null
+  notes: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface Technicien {
+  id: string
+  nom: string
+  email: string | null
+  telephone: string | null
+  agence: string | null
+  actif: boolean
+  created_at: string
+}
+
+export interface Intervention {
+  id: string
+  reference: string | null
+  client_id: string | null
+  technicien_id: string | null
+  agence: string | null
+  type_intervention: string | null
+  adresse_chantier: string | null
+  ville: string | null
+  code_postal: string | null
+  date_prevue: string | null
+  heure_prevue: string | null
+  duree_estimee_min: number | null
+  date_realisee: string | null
+  urgence: boolean
+  statut: Statut
+  prix_prevu: number | null
+  notes_internes: string | null
+  transcription: string | null
+  rapport_json: any
+  seo_json: any
+  photos_urls: string[] | null
+  pdf_rapport_url: string | null
+  publie_slug: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface Document {
+  id: string
+  intervention_id: string | null
+  client_id: string | null
+  type: DocumentType
+  numero: string | null
+  agence: string | null
+  date_emission: string
+  echeance: string | null
+  statut: DocumentStatut
+  montant_ht: number | null
+  montant_ttc: number | null
+  tva_taux: number | null
+  payload: any
+  pdf_url: string | null
+  envoye_email: string | null
+  envoye_at: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface FactureFournisseur {
+  id: string
+  fournisseur: string
+  numero: string | null
+  date_facture: string
+  montant_ht: number
+  tva: number
+  montant_ttc: number
+  categorie: string | null
+  description: string | null
+  pdf_url: string | null
+  agence: string | null
+  created_at: string
+}
+
+// =====================================================================
+// Helpers — upsert client par nom+email (évite les doublons)
+// =====================================================================
+
+/**
+ * Sauve (insert) un document (facture/devis/attestation) en DB.
+ * Best-effort : log et renvoie null en cas d'erreur, ne throw pas.
+ */
+export async function saveDocument(input: {
+  type: DocumentType
+  numero?: string | null
+  agence?: string | null
+  date_emission?: string | null              // YYYY-MM-DD
+  echeance?: string | null
+  statut?: DocumentStatut
+  montant_ht?: number | null
+  montant_ttc?: number | null
+  tva_taux?: number | null
+  payload: any
+  intervention_id?: string | null
+  client_id?: string | null
+  pdf_url?: string | null
+  envoye_email?: string | null
+  envoye_at?: string | null
+}): Promise<string | null> {
+  const sb = getSupabaseOrNull()
+  if (!sb) return null
+  const { data, error } = await sb
+    .from('documents')
+    .insert({
+      type: input.type,
+      numero: input.numero || null,
+      agence: input.agence || null,
+      date_emission: input.date_emission || new Date().toISOString().slice(0, 10),
+      echeance: input.echeance || null,
+      statut: input.statut || 'envoye',
+      montant_ht: input.montant_ht ?? null,
+      montant_ttc: input.montant_ttc ?? null,
+      tva_taux: input.tva_taux ?? null,
+      payload: input.payload || {},
+      intervention_id: input.intervention_id || null,
+      client_id: input.client_id || null,
+      pdf_url: input.pdf_url || null,
+      envoye_email: input.envoye_email || null,
+      envoye_at: input.envoye_at || null,
+    })
+    .select('id')
+    .single()
+  if (error) {
+    console.error('[saveDocument]', error)
+    return null
+  }
+  return data?.id || null
+}
+
+export async function upsertClient(input: {
+  nom?: string | null
+  email?: string | null
+  telephone?: string | null
+  adresse?: string | null
+  code_postal?: string | null
+  ville?: string | null
+}): Promise<string | null> {
+  const sb = getSupabaseOrNull()
+  if (!sb) return null
+  const nom = (input.nom || '').trim()
+  if (!nom) return null
+
+  // Cherche par email (le plus fiable) sinon par nom+ville
+  if (input.email) {
+    const { data: existing } = await sb
+      .from('clients')
+      .select('id')
+      .eq('email', input.email)
+      .limit(1)
+      .maybeSingle()
+    if (existing?.id) return existing.id
+  } else {
+    const { data: existing } = await sb
+      .from('clients')
+      .select('id')
+      .eq('nom', nom)
+      .eq('ville', input.ville || '')
+      .limit(1)
+      .maybeSingle()
+    if (existing?.id) return existing.id
+  }
+
+  const { data, error } = await sb
+    .from('clients')
+    .insert({
+      nom,
+      email: input.email || null,
+      telephone: input.telephone || null,
+      adresse: input.adresse || null,
+      code_postal: input.code_postal || null,
+      ville: input.ville || null,
+    })
+    .select('id')
+    .single()
+  if (error) {
+    console.error('[upsertClient]', error)
+    return null
+  }
+  return data?.id || null
+}

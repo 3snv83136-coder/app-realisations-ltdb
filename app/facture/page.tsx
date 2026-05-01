@@ -140,6 +140,12 @@ export default function FacturePage() {
           agence,
           pdfBase64,
           pdfFilename: filename,
+          // Champs persistance DB
+          facture,
+          totalHT,
+          tvaTaux: facture.tva_taux ?? 10,
+          clientAdresse,
+          clientCP,
         }),
       })
       if (!res.ok) {

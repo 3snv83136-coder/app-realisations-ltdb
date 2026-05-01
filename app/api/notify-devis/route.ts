@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { Resend } from "resend"
+import { saveDocument, upsertClient } from "@/lib/supabase"
 
 export const maxDuration = 30
 
@@ -20,7 +21,10 @@ function fmtEUR(n: number) {
 }
 
 export async function POST(req: NextRequest) {
-  const { clientEmail, clientNom, technicienNom, ville, dateDevis, numero, totalTTC, validiteJours, pdfBase64, pdfFilename } = await req.json()
+  const {
+    clientEmail, clientNom, technicienNom, ville, dateDevis, numero, totalTTC, validiteJours, pdfBase64, pdfFilename,
+    devis, totalHT, tvaTaux, agence, clientAdresse, clientCP,
+  } = await req.json()
 
   if (!clientEmail || typeof clientEmail !== 'string' || !EMAIL_RE.test(clientEmail)) {
     return NextResponse.json({ error: 'Email client invalide' }, { status: 400 })
@@ -63,7 +67,40 @@ export async function POST(req: NextRequest) {
     }, { status: 500 })
   }
 
+  if (devis) {
+    persistDevis({
+      devis, clientNom, clientEmail, clientAdresse, clientCP, ville,
+      agence, numero, totalHT, totalTTC, tvaTaux, validiteJours,
+    }).catch(e => console.error('[notify-devis] persist', e))
+  }
+
   return NextResponse.json({ ok: true, id: result.data?.id })
+}
+
+async function persistDevis(p: {
+  devis: any; clientNom?: string; clientEmail?: string; clientAdresse?: string;
+  clientCP?: string; ville?: string; agence?: string; numero?: string;
+  totalHT?: number; totalTTC?: number; tvaTaux?: number; validiteJours?: number;
+}) {
+  const clientId = await upsertClient({
+    nom: p.clientNom, email: p.clientEmail, adresse: p.clientAdresse,
+    code_postal: p.clientCP, ville: p.ville,
+  })
+  await saveDocument({
+    type: 'devis',
+    numero: p.numero,
+    agence: p.agence,
+    date_emission: p.devis?.date_devis || null,
+    echeance: typeof p.validiteJours === 'number' ? `${p.validiteJours} jours` : null,
+    statut: 'envoye',
+    montant_ht: typeof p.totalHT === 'number' ? p.totalHT : null,
+    montant_ttc: typeof p.totalTTC === 'number' ? p.totalTTC : null,
+    tva_taux: typeof p.tvaTaux === 'number' ? p.tvaTaux : null,
+    payload: p.devis,
+    client_id: clientId,
+    envoye_email: p.clientEmail,
+    envoye_at: new Date().toISOString(),
+  })
 }
 
 function emailDevis({ clientNom, technicienNom, ville, dateDevis, numero, totalTTC, validiteJours }: {

@@ -70,8 +70,42 @@ export default function NouveauPage() {
   const [clientEmail, setClientEmail] = useState('')
   const [technicienNom, setTechnicienNom] = useState('')
   const [editTech, setEditTech] = useState(false)
+  const [interventionId, setInterventionId] = useState<string | null>(null)
   type PhotoItem = { file: File; dataUrl: string; preview: string; legende: string }
   const [photos, setPhotos] = useState<PhotoItem[]>([])
+
+  // Pré-remplissage depuis Planning (sessionStorage 'ltdb_intervention_prefill')
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const raw = sessionStorage.getItem('ltdb_intervention_prefill')
+    if (!raw) return
+    try {
+      const p = JSON.parse(raw) as {
+        intervention_id?: string
+        clientNom?: string
+        clientEmail?: string
+        adresse?: string
+        ville?: string
+        codePostal?: string
+        dateIntervention?: string
+        typeIntervention?: string
+        technicienNom?: string
+      }
+      if (p.intervention_id) setInterventionId(p.intervention_id)
+      if (p.clientNom) setClientNom(p.clientNom)
+      if (p.clientEmail) setClientEmail(p.clientEmail)
+      if (p.adresse) setAdresse(p.adresse)
+      if (p.ville) setVille(p.ville)
+      if (p.codePostal) setCodePostal(p.codePostal)
+      if (p.dateIntervention) setDateIntervention(p.dateIntervention)
+      if (p.typeIntervention) setTypeIntervention(p.typeIntervention)
+      if (p.technicienNom) setTechnicienNom(p.technicienNom)
+    } catch {
+      /* ignore */
+    } finally {
+      sessionStorage.removeItem('ltdb_intervention_prefill')
+    }
+  }, [])
 
   // Résultats IA
   const [rapport, setRapport] = useState<any>(null)
@@ -328,6 +362,7 @@ export default function NouveauPage() {
     formData.append('client_nom', clientNom || '')
     formData.append('client_email', clientEmail || '')
     formData.append('client_adresse', `${adresse || ''} ${codePostal || ''} ${ville || ''}`.trim())
+    if (interventionId) formData.append('intervention_id', interventionId)
     formData.append('before_image', photos[0].file)
     formData.append('after_image', (photos[1] || photos[0]).file)
     photos.slice(2).forEach((p, i) => formData.append(`extra_image_${i}`, p.file))
@@ -347,6 +382,7 @@ export default function NouveauPage() {
       setClientNom(''); setClientEmail(''); setAdresse(''); setVille(''); setCodePostal('')
       setPhotos([])
       setEmailSent(false)
+      setInterventionId(null)
       if (typeof window !== 'undefined') localStorage.removeItem('ltdb_draft')
       setStep('done')
     } catch (e: any) {
@@ -361,6 +397,7 @@ export default function NouveauPage() {
     setClientNom(''); setClientEmail(''); setAdresse(''); setVille(''); setCodePostal('')
     setPhotos([])
     setEmailSent(false); setPublishedSlug('')
+    setInterventionId(null)
     if (typeof window !== 'undefined') localStorage.removeItem('ltdb_draft')
   }
 

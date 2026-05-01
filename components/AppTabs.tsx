@@ -3,9 +3,13 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 
 const TABS = [
-  { href: '/nouveau', label: 'Rapport d\'intervention', icon: '📄' },
-  { href: '/devis',   label: 'Devis',                  icon: '🧾' },
-  { href: '/facture', label: 'Facture',                icon: '💶' },
+  { href: '/planning',     label: 'Planning',    icon: '📅' },
+  { href: '/nouveau',      label: 'Rapport',     icon: '📄' },
+  { href: '/devis',        label: 'Devis',       icon: '📝' },
+  { href: '/facture',      label: 'Facture',     icon: '🧾' },
+  { href: '/attestation',  label: 'Attestation', icon: '✅' },
+  { href: '/historique',   label: 'Historique',  icon: '📚' },
+  { href: '/comptabilite', label: 'Compta',      icon: '💼' },
 ]
 
 export default function AppTabs() {

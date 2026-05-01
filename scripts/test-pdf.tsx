@@ -3,6 +3,7 @@ import { createElement } from 'react'
 import { writeFileSync } from 'fs'
 import { RealisationDocument, type PDFProps } from '../components/RealisationPDF'
 import { DevisDocument, type DevisPDFProps } from '../components/DevisPDF'
+import { FactureDocument, type FacturePDFProps } from '../components/FacturePDF'
 
 const rapportProps: PDFProps = {
   clientNom: "M. et Mme Durand",
@@ -101,6 +102,35 @@ const devisProps: DevisPDFProps = {
   },
 }
 
+const factureProps: FacturePDFProps = {
+  emetteur: {
+    raisonSociale: 'LTDB — Les Techniciens du Débouchage',
+    adresseLignes: ['700 Avenue du 15ème Corps', '83000 Toulon'],
+    telephone: '07 83 63 68 35',
+    email: 'contact@lestechniciensdudebouchage.fr',
+  },
+  client: {
+    nom: 'SCI Exemple',
+    adresseLignes: ['12 rue des Lilas', '83100 Toulon'],
+  },
+  phone: '07 83 63 68 35',
+  facture: {
+    numero: 'FA-20260429-2008',
+    date_facture: '2026-04-29',
+    echeance: 'Réglée',
+    objet: 'Débouchage et curage colonne EU — immeuble collectif',
+    reference_dossier: 'Rapport LTDB-20260420',
+    tva_taux: 10,
+    mode_reglement: 'Réglé par virement le 28/04/2026.',
+    observations: 'Écoulement rétabli, contrôle caméra OK sur 12 m.',
+    recommandation: 'Entretien annuel du réseau.',
+    lignes: [
+      { designation: 'Intervention débouchage', description: 'Furet + hydrocurage', qte: 1, unite: 'forfait', pu_ht: 420 },
+      { designation: 'Inspection caméra', description: 'Compte-rendu vidéo', qte: 1, unite: 'forfait', pu_ht: 195 },
+    ],
+  },
+}
+
 async function main() {
   console.log('[renderToFile] rapport...')
   await renderToFile(createElement(RealisationDocument, rapportProps), '/tmp/test-rapport.pdf')
@@ -109,6 +139,10 @@ async function main() {
   console.log('[renderToFile] devis...')
   await renderToFile(createElement(DevisDocument, devisProps), '/tmp/test-devis.pdf')
   console.log('  → /tmp/test-devis.pdf')
+
+  console.log('[renderToFile] facture...')
+  await renderToFile(createElement(FactureDocument, factureProps), '/tmp/test-facture.pdf')
+  console.log('  → /tmp/test-facture.pdf')
 
   // Simule le chemin BROWSER : pdf(<Doc/>).toBlob()
   async function collect(stream: NodeJS.ReadableStream): Promise<Buffer> {
@@ -130,6 +164,13 @@ async function main() {
   const buf2 = await collect(stream2 as any)
   writeFileSync('/tmp/test-devis-browser.pdf', buf2)
   console.log('  → /tmp/test-devis-browser.pdf size=', buf2.length)
+
+  console.log('[pdf().toBlob()-like] facture (browser-path)...')
+  const doc3 = pdf(createElement(FactureDocument, factureProps))
+  const stream3 = await doc3.toBuffer()
+  const buf3 = await collect(stream3 as any)
+  writeFileSync('/tmp/test-facture-browser.pdf', buf3)
+  console.log('  → /tmp/test-facture-browser.pdf size=', buf3.length)
 }
 
 main().catch(err => {

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { Resend } from "resend"
+import { saveDocument, upsertClient } from "@/lib/supabase"
 
 export const maxDuration = 30
 
@@ -23,6 +24,8 @@ export async function POST(req: NextRequest) {
   const {
     clientEmail, clientNom, technicienNom, ville, dateFacture,
     numero, totalTTC, echeance, agence, pdfBase64, pdfFilename,
+    // Champs persistance (optionnels pour rétrocompat)
+    facture, totalHT, tvaTaux, clientAdresse, clientCP,
   } = await req.json()
 
   if (!clientEmail || typeof clientEmail !== 'string' || !EMAIL_RE.test(clientEmail)) {
@@ -66,7 +69,41 @@ export async function POST(req: NextRequest) {
     }, { status: 500 })
   }
 
+  // Persistance DB (best-effort, non bloquant)
+  if (facture) {
+    persistFacture({
+      facture, clientNom, clientEmail, clientAdresse, clientCP, ville,
+      agence, numero, totalHT, totalTTC, tvaTaux, echeance,
+    }).catch(e => console.error('[notify-facture] persist', e))
+  }
+
   return NextResponse.json({ ok: true, id: result.data?.id })
+}
+
+async function persistFacture(p: {
+  facture: any; clientNom?: string; clientEmail?: string; clientAdresse?: string;
+  clientCP?: string; ville?: string; agence?: string; numero?: string;
+  totalHT?: number; totalTTC?: number; tvaTaux?: number; echeance?: string;
+}) {
+  const clientId = await upsertClient({
+    nom: p.clientNom, email: p.clientEmail, adresse: p.clientAdresse,
+    code_postal: p.clientCP, ville: p.ville,
+  })
+  await saveDocument({
+    type: 'facture',
+    numero: p.numero,
+    agence: p.agence,
+    date_emission: p.facture?.date_facture || null,
+    echeance: p.echeance,
+    statut: /^r[ée]gl[ée]e?$/i.test((p.echeance || '').trim()) ? 'paye' : 'envoye',
+    montant_ht: typeof p.totalHT === 'number' ? p.totalHT : null,
+    montant_ttc: typeof p.totalTTC === 'number' ? p.totalTTC : null,
+    tva_taux: typeof p.tvaTaux === 'number' ? p.tvaTaux : null,
+    payload: p.facture,
+    client_id: clientId,
+    envoye_email: p.clientEmail,
+    envoye_at: new Date().toISOString(),
+  })
 }
 
 function emailFacture({ clientNom, technicienNom, ville, dateFacture, numero, totalTTC, echeance, agence }: {

@@ -1,17 +1,19 @@
 'use client'
 
 interface Rapport {
-  diagnostic: string
-  travaux_realises: string
-  recommandations: string
-  commentaire_technicien: string
+  diagnostic?: string
+  travaux_realises?: string
+  recommandations?: string
+  commentaire_technicien?: string
+  [k: string]: any
 }
 
 interface SEO {
-  titre_h1: string
-  meta_description: string
-  contenu_principal: string
-  faq: { question: string; reponse: string }[]
+  titre_h1?: string
+  meta_description?: string
+  contenu_principal?: string
+  faq?: { question: string; reponse: string }[]
+  [k: string]: any
 }
 
 interface Props {
@@ -22,6 +24,11 @@ interface Props {
 }
 
 export default function GenerationPreview({ rapport, seo, onRapportChange, onSeoChange }: Props) {
+  const titreH1 = seo?.titre_h1 ?? ''
+  const metaDesc = seo?.meta_description ?? ''
+  const contenu = seo?.contenu_principal ?? ''
+  const faq = Array.isArray(seo?.faq) ? seo!.faq! : []
+
   function updateRapport(field: keyof Rapport, value: string) {
     onRapportChange({ ...rapport, [field]: value })
   }
@@ -31,7 +38,7 @@ export default function GenerationPreview({ rapport, seo, onRapportChange, onSeo
   }
 
   function updateFaq(index: number, field: 'question' | 'reponse', value: string) {
-    const newFaq = [...seo.faq]
+    const newFaq = [...faq]
     newFaq[index] = { ...newFaq[index], [field]: value }
     onSeoChange({ ...seo, faq: newFaq })
   }
@@ -48,7 +55,7 @@ export default function GenerationPreview({ rapport, seo, onRapportChange, onSeo
             <div key={field}>
               <label className={labelClass}>{field.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}</label>
               <textarea
-                value={rapport[field]}
+                value={rapport?.[field] ?? ''}
                 onChange={e => updateRapport(field, e.target.value)}
                 rows={3}
                 className={fieldClass}
@@ -62,18 +69,18 @@ export default function GenerationPreview({ rapport, seo, onRapportChange, onSeo
         <h3 className="font-bold text-gray-800 mb-3 text-lg">Contenu SEO</h3>
         <div className="space-y-3">
           <div>
-            <label className={labelClass}>Titre H1 ({seo.titre_h1.length}/70 car.)</label>
+            <label className={labelClass}>Titre H1 ({titreH1.length}/70 car.)</label>
             <input
-              value={seo.titre_h1}
+              value={titreH1}
               onChange={e => updateSeo('titre_h1', e.target.value)}
               maxLength={70}
               className={fieldClass}
             />
           </div>
           <div>
-            <label className={labelClass}>Meta description ({seo.meta_description.length}/155 car.)</label>
+            <label className={labelClass}>Meta description ({metaDesc.length}/155 car.)</label>
             <textarea
-              value={seo.meta_description}
+              value={metaDesc}
               onChange={e => updateSeo('meta_description', e.target.value)}
               maxLength={155}
               rows={2}
@@ -83,7 +90,7 @@ export default function GenerationPreview({ rapport, seo, onRapportChange, onSeo
           <div>
             <label className={labelClass}>Contenu principal (HTML)</label>
             <textarea
-              value={seo.contenu_principal}
+              value={contenu}
               onChange={e => updateSeo('contenu_principal', e.target.value)}
               rows={6}
               className={`${fieldClass} font-mono text-xs`}
@@ -93,14 +100,14 @@ export default function GenerationPreview({ rapport, seo, onRapportChange, onSeo
       </section>
 
       <section>
-        <h3 className="font-bold text-gray-800 mb-3 text-lg">FAQ ({seo.faq.length} questions)</h3>
+        <h3 className="font-bold text-gray-800 mb-3 text-lg">FAQ ({faq.length} questions)</h3>
         <div className="space-y-4">
-          {seo.faq.map((item, i) => (
+          {faq.map((item, i) => (
             <div key={i} className="border rounded p-3 bg-gray-50">
               <div className="mb-2">
                 <label className={labelClass}>Question {i + 1}</label>
                 <input
-                  value={item.question}
+                  value={item?.question ?? ''}
                   onChange={e => updateFaq(i, 'question', e.target.value)}
                   className={fieldClass}
                 />
@@ -108,7 +115,7 @@ export default function GenerationPreview({ rapport, seo, onRapportChange, onSeo
               <div>
                 <label className={labelClass}>Réponse</label>
                 <textarea
-                  value={item.reponse}
+                  value={item?.reponse ?? ''}
                   onChange={e => updateFaq(i, 'reponse', e.target.value)}
                   rows={2}
                   className={fieldClass}

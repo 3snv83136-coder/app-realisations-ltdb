@@ -325,6 +325,27 @@ Réponds UNIQUEMENT avec ce JSON (sans markdown, sans backticks) :
     return NextResponse.json({ error: `Parsing SEO Claude : ${e.message}`, raw: (seoMsg.content[0] as any)?.text?.slice(0, 500) }, { status: 500 })
   }
 
+  // Normalisation : garantit que la sortie a toujours la forme attendue
+  // côté UI/publish, même si le LLM tronque ou omet une clé.
+  rapport = rapport && typeof rapport === 'object' ? rapport : {}
+  rapport.diagnostic = typeof rapport.diagnostic === 'string' ? rapport.diagnostic : ''
+  rapport.travaux_realises = typeof rapport.travaux_realises === 'string' ? rapport.travaux_realises : ''
+  rapport.recommandations = typeof rapport.recommandations === 'string' ? rapport.recommandations : ''
+  rapport.commentaire_technicien = typeof rapport.commentaire_technicien === 'string' ? rapport.commentaire_technicien : ''
+
+  seo = seo && typeof seo === 'object' ? seo : {}
+  seo.titre_h1 = typeof seo.titre_h1 === 'string' ? seo.titre_h1 : ''
+  seo.meta_description = typeof seo.meta_description === 'string' ? seo.meta_description : ''
+  seo.contenu_principal = typeof seo.contenu_principal === 'string' ? seo.contenu_principal : ''
+  seo.meta_keywords = Array.isArray(seo.meta_keywords) ? seo.meta_keywords : []
+  seo.related_services = Array.isArray(seo.related_services) ? seo.related_services : []
+  seo.faq = Array.isArray(seo.faq)
+    ? seo.faq.filter((f: any) => f && typeof f === 'object').map((f: any) => ({
+        question: typeof f.question === 'string' ? f.question : '',
+        reponse: typeof f.reponse === 'string' ? f.reponse : '',
+      }))
+    : []
+
   // Slug + référence déterministes côté serveur
   seo.slug = realisationSlug
   rapport.reference = reference

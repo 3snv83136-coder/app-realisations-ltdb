@@ -123,6 +123,10 @@ export default function AttestationPage() {
           variante: data.variante,
           pdfBase64,
           pdfFilename: filename,
+          // Champs persistance DB
+          attestation: data,
+          clientAdresse: data.adresse,
+          clientCP: data.codePostal,
         }),
       })
       if (!res.ok) {

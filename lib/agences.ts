@@ -1,4 +1,5 @@
 export const AGENCES = [
+  "Agence de Toulon",
   "Agence d'Aubagne",
   "Agence de Marseille",
   "Agence de Fréjus",

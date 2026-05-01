@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { Resend } from "resend"
+import { saveDocument, upsertClient } from "@/lib/supabase"
 
 export const maxDuration = 30
 
@@ -21,7 +22,10 @@ const VARIANT_LABELS: Record<string, string> = {
 }
 
 export async function POST(req: NextRequest) {
-  const { clientEmail, clientNom, technicienNom, ville, dateAttestation, numero, variante, pdfBase64, pdfFilename } = await req.json()
+  const {
+    clientEmail, clientNom, technicienNom, ville, dateAttestation, numero, variante, pdfBase64, pdfFilename,
+    attestation, agence, clientAdresse, clientCP,
+  } = await req.json()
 
   if (!clientEmail || typeof clientEmail !== 'string' || !EMAIL_RE.test(clientEmail)) {
     return NextResponse.json({ error: 'Email client invalide' }, { status: 400 })
@@ -66,7 +70,36 @@ export async function POST(req: NextRequest) {
     }, { status: 500 })
   }
 
+  if (attestation || numero || variante) {
+    persistAttestation({
+      attestation, clientNom, clientEmail, clientAdresse, clientCP, ville,
+      agence, numero, variante, dateAttestation,
+    }).catch(e => console.error('[notify-attestation] persist', e))
+  }
+
   return NextResponse.json({ ok: true, id: result.data?.id })
+}
+
+async function persistAttestation(p: {
+  attestation: any; clientNom?: string; clientEmail?: string; clientAdresse?: string;
+  clientCP?: string; ville?: string; agence?: string; numero?: string;
+  variante?: string; dateAttestation?: string;
+}) {
+  const clientId = await upsertClient({
+    nom: p.clientNom, email: p.clientEmail, adresse: p.clientAdresse,
+    code_postal: p.clientCP, ville: p.ville,
+  })
+  await saveDocument({
+    type: 'attestation',
+    numero: p.numero,
+    agence: p.agence,
+    date_emission: p.attestation?.date_attestation || null,
+    statut: 'envoye',
+    payload: { ...(p.attestation || {}), variante: p.variante || null },
+    client_id: clientId,
+    envoye_email: p.clientEmail,
+    envoye_at: new Date().toISOString(),
+  })
 }
 
 function emailAttestation({ clientNom, technicienNom, ville, dateAttestation, variantLabel, numero }: {

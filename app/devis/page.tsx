@@ -95,6 +95,12 @@ export default function DevisPage() {
           validiteJours: devis.validite_jours,
           pdfBase64,
           pdfFilename: filename,
+          // Champs persistance DB
+          devis,
+          totalHT,
+          tvaTaux: devis.tva_taux ?? 10,
+          clientAdresse,
+          clientCP,
         }),
       })
       if (!res.ok) {
