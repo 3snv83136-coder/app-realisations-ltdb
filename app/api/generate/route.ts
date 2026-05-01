@@ -333,6 +333,37 @@ Réponds UNIQUEMENT avec ce JSON (sans markdown, sans backticks) :
   rapport.travaux_realises = typeof rapport.travaux_realises === 'string' ? rapport.travaux_realises : ''
   rapport.recommandations = typeof rapport.recommandations === 'string' ? rapport.recommandations : ''
   rapport.commentaire_technicien = typeof rapport.commentaire_technicien === 'string' ? rapport.commentaire_technicien : ''
+  rapport.phases = Array.isArray(rapport.phases)
+    ? rapport.phases.filter((p: any) => p && typeof p === 'object').map((p: any) => ({
+        titre: typeof p.titre === 'string' ? p.titre : '',
+        statut: p.statut || 'neutral',
+        contexte: typeof p.contexte === 'string' ? p.contexte : '',
+        action: typeof p.action === 'string' ? p.action : '',
+        resultat: typeof p.resultat === 'string' ? p.resultat : '',
+      }))
+    : []
+  rapport.analyse_table = Array.isArray(rapport.analyse_table)
+    ? rapport.analyse_table.filter((r: any) => r && typeof r === 'object').map((r: any) => ({
+        probleme: typeof r.probleme === 'string' ? r.probleme : '',
+        localisation: typeof r.localisation === 'string' ? r.localisation : '',
+        description: typeof r.description === 'string' ? r.description : '',
+        statut: r.statut || 'neutral',
+        label: typeof r.label === 'string' ? r.label : '',
+      }))
+    : []
+  rapport.preconisations = Array.isArray(rapport.preconisations)
+    ? rapport.preconisations.filter((p: any) => p && typeof p === 'object').map((p: any) => ({
+        tag: typeof p.tag === 'string' ? p.tag : '',
+        titre: typeof p.titre === 'string' ? p.titre : '',
+        items: Array.isArray(p.items)
+          ? p.items.filter((it: any) => it && typeof it === 'object').map((it: any) => ({
+              k: typeof it.k === 'string' ? it.k : '',
+              v: typeof it.v === 'string' ? it.v : '',
+            }))
+          : [],
+      }))
+    : []
+  rapport.materiel_utilise = Array.isArray(rapport.materiel_utilise) ? rapport.materiel_utilise : []
 
   seo = seo && typeof seo === 'object' ? seo : {}
   seo.titre_h1 = typeof seo.titre_h1 === 'string' ? seo.titre_h1 : ''

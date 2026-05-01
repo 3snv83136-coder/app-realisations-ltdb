@@ -352,7 +352,7 @@ export default function NouveauPage() {
     formData.append('description', seo.meta_description)
     formData.append('meta_keywords', (seo.meta_keywords || []).join(', '))
     formData.append('content', contentWithContainers)
-    formData.append('faq_json', JSON.stringify({ "@context": "https://schema.org", "@type": "FAQPage", "mainEntity": seo.faq.map((f: any) => ({ "@type": "Question", "name": f.question, "acceptedAnswer": { "@type": "Answer", "text": f.reponse } })) }))
+    formData.append('faq_json', JSON.stringify({ "@context": "https://schema.org", "@type": "FAQPage", "mainEntity": (Array.isArray(seo?.faq) ? seo.faq : []).map((f: any) => ({ "@type": "Question", "name": f?.question || '', "acceptedAnswer": { "@type": "Answer", "text": f?.reponse || '' } })) }))
     formData.append('jsonld', JSON.stringify(seo.jsonld || {}))
     formData.append('related_services_json', JSON.stringify(seo.related_services || []))
     formData.append('is_published', 'true')

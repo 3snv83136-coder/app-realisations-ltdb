@@ -656,12 +656,12 @@ export function RealisationDocument({
                           {`5.${idx + 1}`}  {p.titre || p.tag}
                         </Text>
                       </View>
-                      {p.items.map((it, j) => (
+                      {(Array.isArray(p.items) ? p.items : []).map((it, j) => (
                         <View key={j} style={s.precoItem} wrap={false}>
                           <View style={[s.precoSquare, sqStyle]} />
                           <Text style={s.precoTxt}>
-                            {it.k ? <Text style={{ fontFamily: 'Helvetica-Bold' }}>{it.k} : </Text> : null}
-                            {it.v}
+                            {it?.k ? <Text style={{ fontFamily: 'Helvetica-Bold' }}>{it.k} : </Text> : null}
+                            {it?.v}
                           </Text>
                         </View>
                       ))}
