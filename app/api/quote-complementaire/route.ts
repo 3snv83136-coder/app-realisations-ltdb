@@ -1,17 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { Resend } from "resend"
 import crypto from "crypto"
-
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/
-
-function escapeHtml(s: unknown): string {
-  return String(s ?? "")
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;")
-}
+import { EMAIL_RE, escapeHtml, getResendFromEmail, getResendRecipient } from "@/lib/email-utils"
 
 function getBaseUrl(req: NextRequest): string {
   const configured = process.env.APP_BASE_URL
@@ -81,11 +71,10 @@ export async function POST(req: NextRequest) {
 
   const resendKey = process.env.RESEND_API_KEY
   if (!resendKey) return NextResponse.json({ error: "RESEND_API_KEY manquante" }, { status: 500 })
-  const fromEmail = process.env.RESEND_FROM_EMAIL
-    || (process.env.RESEND_TEST_EMAIL ? "onboarding@resend.dev" : "contact@lestechniciensdudebouchage.fr")
+  const fromEmail = getResendFromEmail()
 
   const quoteId = quoteRef()
-  const recipient = process.env.RESEND_TEST_EMAIL || clientEmail
+  const recipient = getResendRecipient(clientEmail)
   const tech = technicienNom || "Votre technicien"
   const quotePayload = {
     quote_id: quoteId,

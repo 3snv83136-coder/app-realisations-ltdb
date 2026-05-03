@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { saveDocument, upsertClient } from "@/lib/supabase"
+import { persistAttestation } from "@/lib/persist"
 
 export const dynamic = 'force-dynamic'
 
@@ -11,29 +11,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'JSON invalide' }, { status: 400 })
   }
 
-  const {
-    attestation, clientNom, clientEmail, clientAdresse, clientCP, ville,
-    agence, numero, variante, dateAttestation,
-  } = body || {}
-
-  if (!attestation || typeof attestation !== 'object') {
+  if (!body?.attestation || typeof body.attestation !== 'object') {
     return NextResponse.json({ error: 'Champ attestation manquant' }, { status: 400 })
   }
 
   try {
-    const clientId = await upsertClient({
-      nom: clientNom, email: clientEmail, adresse: clientAdresse,
-      code_postal: clientCP, ville,
-    })
-    const id = await saveDocument({
-      type: 'attestation',
-      numero: numero || attestation?.numero || null,
-      agence: agence || null,
-      date_emission: attestation?.date || dateAttestation || null,
-      statut: 'brouillon',
-      payload: { ...(attestation || {}), variante: variante || attestation?.variante || null },
-      client_id: clientId,
-    })
+    const id = await persistAttestation({ ...body, emailSent: false })
     if (!id) {
       return NextResponse.json({
         error: "Sauvegarde impossible (Supabase non configuré ou erreur d'insertion)",

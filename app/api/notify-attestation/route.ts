@@ -1,19 +1,8 @@
 import { NextRequest, NextResponse } from "next/server"
-import { Resend } from "resend"
-import { saveDocument, upsertClient } from "@/lib/supabase"
+import { escapeHtml, initResend } from "@/lib/email-utils"
+import { persistAttestation } from "@/lib/persist"
 
 export const maxDuration = 30
-
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/
-
-function escapeHtml(s: unknown): string {
-  return String(s ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;')
-}
 
 const VARIANT_LABELS: Record<string, string> = {
   'tout-a-legout': 'Tout-à-l\'égout',
@@ -27,22 +16,11 @@ export async function POST(req: NextRequest) {
     attestation, agence, clientAdresse, clientCP,
   } = await req.json()
 
-  if (!clientEmail || typeof clientEmail !== 'string' || !EMAIL_RE.test(clientEmail)) {
-    return NextResponse.json({ error: 'Email client invalide' }, { status: 400 })
-  }
+  const ctx = initResend(clientEmail)
+  if ('error' in ctx) return NextResponse.json({ error: ctx.error }, { status: ctx.status })
+  const { resend, fromEmail, recipient } = ctx
 
-  const resendKey = process.env.RESEND_API_KEY
-  const fromEmail = process.env.RESEND_FROM_EMAIL
-    || (process.env.RESEND_TEST_EMAIL ? 'onboarding@resend.dev' : 'contact@lestechniciensdudebouchage.fr')
-
-  if (!resendKey) {
-    return NextResponse.json({ error: 'RESEND_API_KEY manquante' }, { status: 500 })
-  }
-
-  const resend = new Resend(resendKey)
-  const recipient = process.env.RESEND_TEST_EMAIL || clientEmail
   const tech = technicienNom || 'votre technicien'
-
   const attachments = pdfBase64 && pdfFilename
     ? [{ filename: pdfFilename, content: pdfBase64 }]
     : undefined
@@ -74,32 +52,11 @@ export async function POST(req: NextRequest) {
     persistAttestation({
       attestation, clientNom, clientEmail, clientAdresse, clientCP, ville,
       agence, numero, variante, dateAttestation,
+      emailSent: true,
     }).catch(e => console.error('[notify-attestation] persist', e))
   }
 
   return NextResponse.json({ ok: true, id: result.data?.id })
-}
-
-async function persistAttestation(p: {
-  attestation: any; clientNom?: string; clientEmail?: string; clientAdresse?: string;
-  clientCP?: string; ville?: string; agence?: string; numero?: string;
-  variante?: string; dateAttestation?: string;
-}) {
-  const clientId = await upsertClient({
-    nom: p.clientNom, email: p.clientEmail, adresse: p.clientAdresse,
-    code_postal: p.clientCP, ville: p.ville,
-  })
-  await saveDocument({
-    type: 'attestation',
-    numero: p.numero,
-    agence: p.agence,
-    date_emission: p.attestation?.date_attestation || null,
-    statut: 'envoye',
-    payload: { ...(p.attestation || {}), variante: p.variante || null },
-    client_id: clientId,
-    envoye_email: p.clientEmail,
-    envoye_at: new Date().toISOString(),
-  })
 }
 
 function emailAttestation({ clientNom, technicienNom, ville, dateAttestation, variantLabel, numero }: {

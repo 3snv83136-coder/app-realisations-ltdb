@@ -1,17 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { Resend } from "resend"
 import crypto from "crypto"
-
-function escapeHtml(s: unknown): string {
-  return String(s ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;')
-}
-
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/
+import { EMAIL_RE, escapeHtml, getResendFromEmail, getResendRecipient } from "@/lib/email-utils"
 
 function getBaseUrl(req: NextRequest): string {
   const configured = process.env.APP_BASE_URL
@@ -33,8 +23,7 @@ export async function POST(req: NextRequest) {
   }
 
   const resendKey = process.env.RESEND_API_KEY
-  const fromEmail = process.env.RESEND_FROM_EMAIL
-    || (process.env.RESEND_TEST_EMAIL ? 'onboarding@resend.dev' : 'contact@lestechniciensdudebouchage.fr')
+  const fromEmail = getResendFromEmail()
   const reviewUrl = process.env.GOOGLE_REVIEW_URL || 'https://www.google.com/maps/place/Les+Techniciens+du+Débouchage/@43.1284504,5.9090923,17z/data=!3m1!4b1!4m6!3m5!1s0x21ef75613753f47f:0x840c1e4a335b1cab!8m2!3d43.1284504!4d5.9090923!16s%2Fg%2F11xf1s70y8?entry=ttu&g_ep=EgoyMDI2MDQxMi4wIKXMDSoASAFQAw%3D%3D'
 
   if (!resendKey) {
@@ -47,7 +36,7 @@ export async function POST(req: NextRequest) {
 
   // Tant que le domaine n'est pas vérifié sur Resend, on force la destination
   // vers RESEND_TEST_EMAIL si défini (sinon on envoie au vrai client).
-  const recipient = process.env.RESEND_TEST_EMAIL || clientEmail
+  const recipient = getResendRecipient(clientEmail)
 
   const attachments = pdfBase64 && pdfFilename
     ? [{ filename: pdfFilename, content: pdfBase64 }]

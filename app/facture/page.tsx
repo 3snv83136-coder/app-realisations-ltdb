@@ -6,10 +6,11 @@ import VoiceRecorder from "@/components/VoiceRecorder"
 import AppTabs from "@/components/AppTabs"
 import VilleCombobox from "@/components/VilleCombobox"
 import { AGENCES, type Agence } from "@/lib/agences"
+import { LTDB_EMETTEUR, ltdbFactureEmetteur } from "@/lib/emetteur"
+import { fmtDateISOtoFR } from "@/lib/format"
 import type {
   FacturePDFProps,
   FactureLineData,
-  FactureEmetteurData,
   FactureData,
 } from "@/components/FacturePDF"
 import type { ClientData } from "@/components/DevisPDF"
@@ -19,16 +20,6 @@ const SaveDocumentButton = dynamic(() => import("@/components/SaveDocumentButton
 
 type Step = 'capture' | 'extracting' | 'generating' | 'preview'
 
-const EMETTEUR_BASE = {
-  raisonSociale: 'LTDB — Les Techniciens du Débouchage',
-  adresseLignes: ['700 Avenue du 15ème Corps', '83000 Toulon'],
-  telephone: '07 83 63 68 35',
-  email: 'contact@lestechniciensdudebouchage.fr',
-  rcs: '',
-  capital: '',
-  siret: '',
-}
-
 const ECHEANCES_PRESETS = [
   'Réglée',
   'À réception',
@@ -37,11 +28,6 @@ const ECHEANCES_PRESETS = [
   '45 jours fin de mois',
   '60 jours fin de mois',
 ] as const
-
-function fmtDateISOtoFR(iso: string) {
-  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso)
-  return m ? `${m[3]}/${m[2]}/${m[1]}` : iso
-}
 
 export default function FacturePage() {
   useSession()
@@ -112,7 +98,7 @@ export default function FacturePage() {
         ].filter(Boolean),
         adresseChantier: adresseChantier || undefined,
       }
-      const emetteur: FactureEmetteurData = { ...EMETTEUR_BASE, agence }
+      const emetteur = ltdbFactureEmetteur(agence)
       const [{ FactureDocument }, { pdfDocumentToBase64 }, React] = await Promise.all([
         import('@/components/FacturePDF'),
         import('@/lib/pdfToBase64'),
@@ -270,7 +256,7 @@ export default function FacturePage() {
       ].filter(Boolean),
       adresseChantier: adresseChantier || undefined,
     }
-    const emetteur: FactureEmetteurData = { ...EMETTEUR_BASE, agence }
+    const emetteur = ltdbFactureEmetteur(agence)
     const pdfProps: FacturePDFProps = {
       emetteur,
       client,

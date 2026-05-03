@@ -1,19 +1,11 @@
 'use client'
 import React, { useState } from "react"
 import { pdfElementToBlob } from "@/lib/pdfToBase64"
-import { FactureDocument, type FactureData, type FactureEmetteurData } from "./FacturePDF"
-import { DevisDocument, type DevisData, type EmetteurData, type ClientData } from "./DevisPDF"
+import { LTDB_EMETTEUR, ltdbFactureEmetteur } from "@/lib/emetteur"
+import { safeFilename } from "@/lib/filename"
+import { FactureDocument, type FactureData } from "./FacturePDF"
+import { DevisDocument, type DevisData, type ClientData } from "./DevisPDF"
 import { AttestationDocument, type AttestationData } from "./AttestationPDF"
-
-const EMETTEUR_BASE: EmetteurData = {
-  raisonSociale: 'LTDB — Les Techniciens du Débouchage',
-  adresseLignes: ['700 Avenue du 15ème Corps', '83000 Toulon'],
-  telephone: '07 83 63 68 35',
-  email: 'contact@lestechniciensdudebouchage.fr',
-  rcs: '',
-  capital: '',
-  siret: '',
-}
 
 export type DocType = 'facture' | 'devis' | 'attestation' | 'rapport'
 
@@ -41,20 +33,13 @@ function buildClientData(d: HistoriqueDocument): ClientData {
   }
 }
 
-function safeFilename(prefix: string, suffix: string) {
-  return `${prefix}-${suffix || 'document'}.pdf`
-    .toLowerCase()
-    .replace(/[^a-z0-9.-]+/gi, '-')
-    .replace(/-+/g, '-')
-}
-
 async function buildPdfBlob(doc: HistoriqueDocument): Promise<{ blob: Blob; filename: string } | null> {
   if (!doc.payload || typeof doc.payload !== 'object') return null
 
   if (doc.type === 'facture') {
     const facture: FactureData = doc.payload as FactureData
     if (!facture.lignes) return null
-    const emetteur: FactureEmetteurData = { ...EMETTEUR_BASE, agence: doc.agence || undefined }
+    const emetteur = ltdbFactureEmetteur(doc.agence || undefined)
     const element = React.createElement(FactureDocument, {
       emetteur,
       client: buildClientData(doc),
@@ -69,10 +54,10 @@ async function buildPdfBlob(doc: HistoriqueDocument): Promise<{ blob: Blob; file
     const devis: DevisData = doc.payload as DevisData
     if (!devis.lignes) return null
     const element = React.createElement(DevisDocument, {
-      emetteur: EMETTEUR_BASE,
+      emetteur: LTDB_EMETTEUR,
       client: buildClientData(doc),
       devis,
-      phone: EMETTEUR_BASE.telephone,
+      phone: LTDB_EMETTEUR.telephone,
     })
     const blob = await pdfElementToBlob(element)
     return { blob, filename: safeFilename('devis', devis.numero || doc.numero || doc.id) }

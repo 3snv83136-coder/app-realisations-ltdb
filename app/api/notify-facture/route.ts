@@ -1,49 +1,22 @@
 import { NextRequest, NextResponse } from "next/server"
-import { Resend } from "resend"
-import { saveDocument, upsertClient } from "@/lib/supabase"
+import { escapeHtml, initResend } from "@/lib/email-utils"
+import { fmtEUR } from "@/lib/format"
+import { persistFacture } from "@/lib/persist"
 
 export const maxDuration = 30
-
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/
-
-function escapeHtml(s: unknown): string {
-  return String(s ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;')
-}
-
-function fmtEUR(n: number) {
-  if (!Number.isFinite(n)) return '—'
-  return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(n)
-}
 
 export async function POST(req: NextRequest) {
   const {
     clientEmail, clientNom, technicienNom, ville, dateFacture,
     numero, totalTTC, echeance, agence, pdfBase64, pdfFilename,
-    // Champs persistance (optionnels pour rétrocompat)
     facture, totalHT, tvaTaux, clientAdresse, clientCP,
   } = await req.json()
 
-  if (!clientEmail || typeof clientEmail !== 'string' || !EMAIL_RE.test(clientEmail)) {
-    return NextResponse.json({ error: 'Email client invalide' }, { status: 400 })
-  }
+  const ctx = initResend(clientEmail)
+  if ('error' in ctx) return NextResponse.json({ error: ctx.error }, { status: ctx.status })
+  const { resend, fromEmail, recipient } = ctx
 
-  const resendKey = process.env.RESEND_API_KEY
-  const fromEmail = process.env.RESEND_FROM_EMAIL
-    || (process.env.RESEND_TEST_EMAIL ? 'onboarding@resend.dev' : 'contact@lestechniciensdudebouchage.fr')
-
-  if (!resendKey) {
-    return NextResponse.json({ error: 'RESEND_API_KEY manquante' }, { status: 500 })
-  }
-
-  const resend = new Resend(resendKey)
-  const recipient = process.env.RESEND_TEST_EMAIL || clientEmail
   const tech = technicienNom || 'votre technicien'
-
   const attachments = pdfBase64 && pdfFilename
     ? [{ filename: pdfFilename, content: pdfBase64 }]
     : undefined
@@ -74,36 +47,11 @@ export async function POST(req: NextRequest) {
     persistFacture({
       facture, clientNom, clientEmail, clientAdresse, clientCP, ville,
       agence, numero, totalHT, totalTTC, tvaTaux, echeance,
+      emailSent: true,
     }).catch(e => console.error('[notify-facture] persist', e))
   }
 
   return NextResponse.json({ ok: true, id: result.data?.id })
-}
-
-async function persistFacture(p: {
-  facture: any; clientNom?: string; clientEmail?: string; clientAdresse?: string;
-  clientCP?: string; ville?: string; agence?: string; numero?: string;
-  totalHT?: number; totalTTC?: number; tvaTaux?: number; echeance?: string;
-}) {
-  const clientId = await upsertClient({
-    nom: p.clientNom, email: p.clientEmail, adresse: p.clientAdresse,
-    code_postal: p.clientCP, ville: p.ville,
-  })
-  await saveDocument({
-    type: 'facture',
-    numero: p.numero,
-    agence: p.agence,
-    date_emission: p.facture?.date_facture || null,
-    echeance: p.echeance,
-    statut: /^r[ée]gl[ée]e?$/i.test((p.echeance || '').trim()) ? 'paye' : 'envoye',
-    montant_ht: typeof p.totalHT === 'number' ? p.totalHT : null,
-    montant_ttc: typeof p.totalTTC === 'number' ? p.totalTTC : null,
-    tva_taux: typeof p.tvaTaux === 'number' ? p.tvaTaux : null,
-    payload: p.facture,
-    client_id: clientId,
-    envoye_email: p.clientEmail,
-    envoye_at: new Date().toISOString(),
-  })
 }
 
 function emailFacture({ clientNom, technicienNom, ville, dateFacture, numero, totalTTC, echeance, agence }: {

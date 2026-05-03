@@ -6,27 +6,14 @@ import dynamic from "next/dynamic"
 import VoiceRecorder from "@/components/VoiceRecorder"
 import AppTabs from "@/components/AppTabs"
 import VilleCombobox from "@/components/VilleCombobox"
-import type { DevisPDFProps, DevisLineData, EmetteurData, ClientData, DevisData } from "@/components/DevisPDF"
+import type { DevisPDFProps, DevisLineData, ClientData, DevisData } from "@/components/DevisPDF"
+import { LTDB_EMETTEUR } from "@/lib/emetteur"
+import { fmtDateISOtoFR } from "@/lib/format"
 
 const DevisDownloadButton = dynamic(() => import("@/components/DevisPDF"), { ssr: false })
 const SaveDocumentButton = dynamic(() => import("@/components/SaveDocumentButton"), { ssr: false })
 
 type Step = 'capture' | 'extracting' | 'generating' | 'preview'
-
-const EMETTEUR_DEFAULT: EmetteurData = {
-  raisonSociale: 'LTDB — Les Techniciens du Débouchage',
-  adresseLignes: ['700 Avenue du 15ème Corps', '83000 Toulon'],
-  telephone: '07 83 63 68 35',
-  email: 'contact@lestechniciensdudebouchage.fr',
-  rcs: '',
-  capital: '',
-  siret: '',
-}
-
-function fmtDateISOtoFR(iso: string) {
-  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso)
-  return m ? `${m[3]}/${m[2]}/${m[1]}` : iso
-}
 
 export default function DevisPage() {
   useSession()
@@ -76,10 +63,10 @@ export default function DevisPage() {
       ])
       const pdfBase64 = await pdfDocumentToBase64(
         React.createElement(DevisDocument, {
-          emetteur: EMETTEUR_DEFAULT,
+          emetteur: LTDB_EMETTEUR,
           client,
           devis,
-          phone: EMETTEUR_DEFAULT.telephone,
+          phone: LTDB_EMETTEUR.telephone,
         })
       )
       const filename = `devis-${devis.numero || 'sans-numero'}.pdf`.replace(/\s+/g, '-')
@@ -262,10 +249,10 @@ export default function DevisPage() {
       adresseChantier: adresseChantier || undefined,
     }
     const pdfProps: DevisPDFProps = {
-      emetteur: EMETTEUR_DEFAULT,
+      emetteur: LTDB_EMETTEUR,
       client,
       devis,
-      phone: EMETTEUR_DEFAULT.telephone,
+      phone: LTDB_EMETTEUR.telephone,
     }
 
     return (

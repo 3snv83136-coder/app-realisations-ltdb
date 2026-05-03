@@ -4,6 +4,7 @@ import Link from "next/link"
 import AppTabs from "@/components/AppTabs"
 import VilleCombobox from "@/components/VilleCombobox"
 import { AGENCES } from "@/lib/agences"
+import { fmtDateFR, fmtEUR } from "@/lib/format"
 
 type Statut = 'planifiee' | 'en_cours' | 'terminee' | 'annulee'
 
@@ -81,20 +82,9 @@ const STATUT_BADGE: Record<Statut, string> = {
   annulee: 'bg-slate-200 text-slate-600',
 }
 
-function fmtDateFR(iso: string | null): string {
-  if (!iso) return '—'
-  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso)
-  return m ? `${m[3]}/${m[2]}/${m[1]}` : iso
-}
-
 function fmtHeure(t: string | null): string {
   if (!t) return ''
   return t.slice(0, 5)
-}
-
-function fmtEUR(n: number | null): string {
-  if (typeof n !== 'number' || !Number.isFinite(n)) return '—'
-  return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(n)
 }
 
 function startOfWeekISO(d: Date): string {

@@ -1,6 +1,7 @@
 'use client'
 import React, { useState } from "react"
 import { pdfElementToBlob } from "@/lib/pdfToBase64"
+import { safeFilename } from "@/lib/filename"
 import { RealisationDocument, type RapportData } from "./RealisationPDF"
 
 export interface HistoriqueIntervention {
@@ -19,13 +20,6 @@ export interface HistoriqueIntervention {
   client_code_postal: string | null
   client_ville: string | null
   technicien_nom: string | null
-}
-
-function safeFilename(prefix: string, suffix: string) {
-  return `${prefix}-${suffix || 'rapport'}.pdf`
-    .toLowerCase()
-    .replace(/[^a-z0-9.-]+/gi, '-')
-    .replace(/-+/g, '-')
 }
 
 async function buildPdfBlob(i: HistoriqueIntervention): Promise<{ blob: Blob; filename: string } | null> {

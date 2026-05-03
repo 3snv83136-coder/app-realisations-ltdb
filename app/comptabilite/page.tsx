@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useState } from "react"
 import AppTabs from "@/components/AppTabs"
 import { AGENCES } from "@/lib/agences"
+import { fmtDateFR, fmtEUR } from "@/lib/format"
 
 // =====================================================================
 // Types
@@ -98,15 +99,6 @@ function presetThisYear(): { from: string; to: string } {
   return { from: `${now.getFullYear()}-01-01`, to: `${now.getFullYear()}-12-31` }
 }
 
-function fmtDate(iso: string | null | undefined): string {
-  if (!iso) return '—'
-  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso)
-  return m ? `${m[3]}/${m[2]}/${m[1]}` : iso
-}
-function fmtEUR(n: number | null | undefined): string {
-  if (typeof n !== 'number' || !Number.isFinite(n)) return '—'
-  return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(n)
-}
 function fmtPct(n: number): string {
   if (!Number.isFinite(n)) return '—'
   return `${n.toFixed(1).replace('.', ',')} %`
@@ -618,7 +610,7 @@ function RecettesTab({
                 const tva = (r.montant_ttc || 0) - (r.montant_ht || 0)
                 return (
                   <tr key={r.id} className="border-t border-slate-100 hover:bg-slate-50">
-                    <td className="px-4 py-3 text-slate-600">{fmtDate(r.date_emission)}</td>
+                    <td className="px-4 py-3 text-slate-600">{fmtDateFR(r.date_emission)}</td>
                     <td className="px-4 py-3 font-mono text-xs text-slate-700">{r.numero || '—'}</td>
                     <td className="px-4 py-3 font-semibold text-slate-700">{r.client_nom || '—'}</td>
                     <td className="px-4 py-3 text-slate-600 text-xs">{r.agence || '—'}</td>
@@ -728,7 +720,7 @@ function DepensesTab({
               )}
               {!loading && depenses.map(d => (
                 <tr key={d.id} className="border-t border-slate-100 hover:bg-slate-50">
-                  <td className="px-4 py-3 text-slate-600">{fmtDate(d.date_facture)}</td>
+                  <td className="px-4 py-3 text-slate-600">{fmtDateFR(d.date_facture)}</td>
                   <td className="px-4 py-3 font-semibold text-slate-700">{d.fournisseur}</td>
                   <td className="px-4 py-3 font-mono text-xs text-slate-700">{d.numero || '—'}</td>
                   <td className="px-4 py-3 text-xs">

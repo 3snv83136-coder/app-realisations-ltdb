@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useState } from "react"
 import dynamic from "next/dynamic"
 import AppTabs from "@/components/AppTabs"
+import { fmtDateFR, fmtEUR } from "@/lib/format"
 
 const DocumentDownloadButton = dynamic(() => import("@/components/DocumentDownloadButton"), { ssr: false })
 const InterventionRapportDownloadButton = dynamic(() => import("@/components/InterventionRapportDownloadButton"), { ssr: false })
@@ -81,17 +82,6 @@ const TYPE_ICON: Record<string, string> = {
   facture: '🧾',
   devis: '📝',
   attestation: '✅',
-}
-
-function fmtDate(iso: string | null): string {
-  if (!iso) return '—'
-  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso)
-  return m ? `${m[3]}/${m[2]}/${m[1]}` : iso
-}
-
-function fmtEUR(n: number | null): string {
-  if (typeof n !== 'number' || !Number.isFinite(n)) return '—'
-  return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(n)
 }
 
 export default function HistoriquePage() {
@@ -245,7 +235,7 @@ export default function HistoriquePage() {
                 <tbody>
                   {interventions.map(i => (
                     <tr key={i.id} className="border-t border-slate-100 hover:bg-slate-50">
-                      <td className="px-4 py-3 text-slate-600">{fmtDate(i.date_realisee || i.date_prevue || i.created_at)}</td>
+                      <td className="px-4 py-3 text-slate-600">{fmtDateFR(i.date_realisee || i.date_prevue || i.created_at)}</td>
                       <td className="px-4 py-3 font-mono text-xs text-[#0e2a52] font-bold">{i.reference || '—'}</td>
                       <td className="px-4 py-3 font-semibold text-slate-700">{i.client_nom || '—'}</td>
                       <td className="px-4 py-3 text-slate-600">{i.ville || '—'} {i.code_postal ? `(${i.code_postal})` : ''}</td>
@@ -329,7 +319,7 @@ export default function HistoriquePage() {
                         <span className="text-xs font-bold text-[#0e2a52] uppercase">{d.type}</span>
                       </td>
                       <td className="px-4 py-3 font-mono text-xs text-slate-700">{d.numero || '—'}</td>
-                      <td className="px-4 py-3 text-slate-600">{fmtDate(d.date_emission)}</td>
+                      <td className="px-4 py-3 text-slate-600">{fmtDateFR(d.date_emission)}</td>
                       <td className="px-4 py-3 font-semibold text-slate-700">{d.client_nom || '—'}</td>
                       <td className="px-4 py-3 text-slate-600 text-xs">{d.agence || '—'}</td>
                       <td className="px-4 py-3 text-right text-slate-600 tabular-nums">{fmtEUR(d.montant_ht)}</td>

@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation"
 import Link from "next/link"
 import dynamic from "next/dynamic"
 import AppTabs from "@/components/AppTabs"
+import { fmtDateFR, fmtEUR } from "@/lib/format"
 
 const InterventionMap = dynamic(() => import('@/components/InterventionMap'), { ssr: false })
 const InterventionRapportDownloadButton = dynamic(
@@ -72,17 +73,6 @@ const STATUT_BADGE: Record<Statut, string> = {
   en_cours: 'bg-amber-100 text-amber-700',
   terminee: 'bg-emerald-100 text-emerald-700',
   annulee: 'bg-slate-200 text-slate-600',
-}
-
-function fmtDateFR(iso: string | null): string {
-  if (!iso) return '—'
-  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso)
-  return m ? `${m[3]}/${m[2]}/${m[1]}` : iso
-}
-
-function fmtEUR(n: number | null): string {
-  if (typeof n !== 'number' || !Number.isFinite(n)) return '—'
-  return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(n)
 }
 
 export default function InterventionDetailPage({ params }: { params: { id: string } }) {
