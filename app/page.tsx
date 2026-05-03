@@ -35,6 +35,7 @@ const TOOLS = [
   { href: '/facture',      icon: '🧾', label: 'Facture',     color: 'from-emerald-500 to-emerald-700', desc: 'Facturer le client' },
   { href: '/attestation',  icon: '✅', label: 'Attestation', color: 'from-[#a78346] to-[#7d6233]',   desc: 'Raccordement / SPANC' },
   { href: '/historique',   icon: '📚', label: 'Historique',  color: 'from-slate-500 to-slate-700',   desc: 'Tout retrouver' },
+  { href: '/statistiques', icon: '📊', label: 'Stats',       color: 'from-pink-500 to-rose-700',     desc: 'Canaux d\'acquisition' },
   { href: '/comptabilite', icon: '💼', label: 'Compta',      color: 'from-purple-500 to-purple-800', desc: 'Bilan, FEC, exports' },
 ]
 
@@ -168,7 +169,7 @@ export default function Home() {
 
         {/* Tools grid */}
         <div className={`px-4 sm:px-6 ${skipAnimation ? '' : 'buttons-reveal'}`}>
-          <div className="max-w-6xl mx-auto grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-3">
+          <div className="max-w-6xl mx-auto grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-4 xl:grid-cols-8 gap-3">
             {TOOLS.map(t => (
               <Link
                 key={t.href}
