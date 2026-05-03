@@ -9,6 +9,7 @@ import VilleCombobox from "@/components/VilleCombobox"
 import type { DevisPDFProps, DevisLineData, EmetteurData, ClientData, DevisData } from "@/components/DevisPDF"
 
 const DevisDownloadButton = dynamic(() => import("@/components/DevisPDF"), { ssr: false })
+const SaveDocumentButton = dynamic(() => import("@/components/SaveDocumentButton"), { ssr: false })
 
 type Step = 'capture' | 'extracting' | 'generating' | 'preview'
 
@@ -296,6 +297,23 @@ export default function DevisPage() {
               >
                 💶 Transformer en facture
               </button>
+              <SaveDocumentButton
+                endpoint="/api/save-devis"
+                className="bg-amber-500 text-white px-4 py-2 rounded-lg font-semibold text-sm hover:bg-amber-600 disabled:opacity-50 transition"
+                body={() => ({
+                  devis,
+                  clientNom,
+                  clientEmail,
+                  clientAdresse,
+                  clientCP,
+                  ville: clientVille,
+                  numero: devis.numero,
+                  totalHT: total,
+                  totalTTC: ttc,
+                  tvaTaux,
+                  validiteJours: devis.validite_jours,
+                })}
+              />
               <DevisDownloadButton {...pdfProps} />
             </div>
           </div>

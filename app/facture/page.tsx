@@ -15,6 +15,7 @@ import type {
 import type { ClientData } from "@/components/DevisPDF"
 
 const FactureDownloadButton = dynamic(() => import("@/components/FacturePDF"), { ssr: false })
+const SaveDocumentButton = dynamic(() => import("@/components/SaveDocumentButton"), { ssr: false })
 
 type Step = 'capture' | 'extracting' | 'generating' | 'preview'
 
@@ -301,6 +302,24 @@ export default function FacturePage() {
               >
                 ← Modifier la dictée
               </button>
+              <SaveDocumentButton
+                endpoint="/api/save-facture"
+                className="bg-amber-500 text-white px-4 py-2 rounded-lg font-semibold text-sm hover:bg-amber-600 disabled:opacity-50 transition"
+                body={() => ({
+                  facture,
+                  clientNom,
+                  clientEmail,
+                  clientAdresse,
+                  clientCP,
+                  ville: clientVille,
+                  agence,
+                  numero: facture.numero,
+                  totalHT,
+                  totalTTC: ttc,
+                  tvaTaux,
+                  echeance: facture.echeance,
+                })}
+              />
               <FactureDownloadButton {...pdfProps} />
             </div>
           </div>
