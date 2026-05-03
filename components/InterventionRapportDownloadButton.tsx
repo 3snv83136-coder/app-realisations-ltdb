@@ -1,6 +1,6 @@
 'use client'
 import React, { useState } from "react"
-import { pdf } from "@react-pdf/renderer"
+import { pdfElementToBlob } from "@/lib/pdfToBase64"
 import { RealisationDocument, type RapportData } from "./RealisationPDF"
 
 export interface HistoriqueIntervention {
@@ -53,7 +53,7 @@ async function buildPdfBlob(i: HistoriqueIntervention): Promise<{ blob: Blob; fi
     reference: i.reference || rapport.reference || undefined,
   })
 
-  const blob = await pdf(element).toBlob()
+  const blob = await pdfElementToBlob(element)
   return { blob, filename: safeFilename('rapport', i.reference || ville || i.id) }
 }
 

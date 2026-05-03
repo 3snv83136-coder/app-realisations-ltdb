@@ -1,6 +1,6 @@
 'use client'
 import React, { useState } from "react"
-import { pdf } from "@react-pdf/renderer"
+import { pdfElementToBlob } from "@/lib/pdfToBase64"
 import { FactureDocument, type FactureData, type FactureEmetteurData } from "./FacturePDF"
 import { DevisDocument, type DevisData, type EmetteurData, type ClientData } from "./DevisPDF"
 import { AttestationDocument, type AttestationData } from "./AttestationPDF"
@@ -61,7 +61,7 @@ async function buildPdfBlob(doc: HistoriqueDocument): Promise<{ blob: Blob; file
       facture,
       phone: emetteur.telephone,
     })
-    const blob = await pdf(element).toBlob()
+    const blob = await pdfElementToBlob(element)
     return { blob, filename: safeFilename('facture', facture.numero || doc.numero || doc.id) }
   }
 
@@ -74,7 +74,7 @@ async function buildPdfBlob(doc: HistoriqueDocument): Promise<{ blob: Blob; file
       devis,
       phone: EMETTEUR_BASE.telephone,
     })
-    const blob = await pdf(element).toBlob()
+    const blob = await pdfElementToBlob(element)
     return { blob, filename: safeFilename('devis', devis.numero || doc.numero || doc.id) }
   }
 
@@ -92,7 +92,7 @@ async function buildPdfBlob(doc: HistoriqueDocument): Promise<{ blob: Blob; file
       conclusion: data.conclusion || '',
     }
     const element = React.createElement(AttestationDocument, { data: safe, photos: [] })
-    const blob = await pdf(element).toBlob()
+    const blob = await pdfElementToBlob(element)
     return { blob, filename: safeFilename('attestation', safe.numero || doc.id) }
   }
 
