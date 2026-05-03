@@ -6,6 +6,10 @@ import dynamic from "next/dynamic"
 import AppTabs from "@/components/AppTabs"
 
 const InterventionMap = dynamic(() => import('@/components/InterventionMap'), { ssr: false })
+const InterventionRapportDownloadButton = dynamic(
+  () => import('@/components/InterventionRapportDownloadButton'),
+  { ssr: false },
+)
 
 type Statut = 'planifiee' | 'en_cours' | 'terminee' | 'annulee'
 
@@ -28,6 +32,8 @@ type InterventionDetail = {
   prix_prevu: number | null
   notes_internes: string | null
   publie_slug: string | null
+  rapport_json: any
+  photos_urls: string[] | null
   created_at: string
   updated_at: string
 }
@@ -278,6 +284,33 @@ export default function InterventionDetailPage({ params }: { params: { id: strin
               </button>
             </div>
           </div>
+          {intervention.rapport_json && Object.keys(intervention.rapport_json || {}).length > 0 && (
+            <div className="pt-2 border-t border-slate-100 flex items-center justify-between flex-wrap gap-2">
+              <div>
+                <div className="text-xs uppercase tracking-wider text-slate-500 font-bold mb-0.5">Rapport d&apos;intervention</div>
+                <div className="text-sm text-slate-700">PDF disponible — visualiser ou télécharger.</div>
+              </div>
+              <InterventionRapportDownloadButton
+                intervention={{
+                  id: intervention.id,
+                  reference: intervention.reference,
+                  type_intervention: intervention.type_intervention,
+                  adresse_chantier: intervention.adresse_chantier,
+                  ville: intervention.ville,
+                  code_postal: intervention.code_postal,
+                  date_realisee: intervention.date_realisee,
+                  date_prevue: intervention.date_prevue,
+                  rapport_json: intervention.rapport_json,
+                  photos_urls: intervention.photos_urls,
+                  client_nom: client?.nom || null,
+                  client_adresse: client?.adresse || null,
+                  client_code_postal: client?.code_postal || null,
+                  client_ville: client?.ville || null,
+                  technicien_nom: technicien?.nom || null,
+                }}
+              />
+            </div>
+          )}
         </section>
 
         {/* Date / heure / type */}

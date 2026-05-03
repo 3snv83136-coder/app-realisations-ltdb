@@ -1,11 +1,16 @@
 'use client'
 import { useEffect, useMemo, useState } from "react"
+import dynamic from "next/dynamic"
 import AppTabs from "@/components/AppTabs"
+
+const DocumentDownloadButton = dynamic(() => import("@/components/DocumentDownloadButton"), { ssr: false })
+const InterventionRapportDownloadButton = dynamic(() => import("@/components/InterventionRapportDownloadButton"), { ssr: false })
 
 type Intervention = {
   id: string
   reference: string | null
   type_intervention: string | null
+  adresse_chantier: string | null
   ville: string | null
   code_postal: string | null
   date_realisee: string | null
@@ -17,6 +22,13 @@ type Intervention = {
   client_id: string | null
   client_nom: string | null
   client_email: string | null
+  client_adresse: string | null
+  client_code_postal: string | null
+  client_ville: string | null
+  technicien_nom: string | null
+  rapport_json: any
+  photos_urls: string[] | null
+  has_rapport: boolean
 }
 
 type Document = {
@@ -33,6 +45,11 @@ type Document = {
   intervention_id: string | null
   client_id: string | null
   client_nom: string | null
+  client_adresse: string | null
+  client_code_postal: string | null
+  client_ville: string | null
+  payload: any
+  pdf_url: string | null
   created_at: string
 }
 
@@ -221,6 +238,7 @@ export default function HistoriquePage() {
                     <th className="px-4 py-2 text-left">Type</th>
                     <th className="px-4 py-2 text-left">Statut</th>
                     <th className="px-4 py-2 text-left">Page</th>
+                    <th className="px-4 py-2 text-right">Rapport</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -241,6 +259,13 @@ export default function HistoriquePage() {
                           <a href={`https://lestechniciensdudebouchage.fr/nos-realisations/${i.publie_slug}`} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline font-semibold text-xs">
                             voir →
                           </a>
+                        ) : (
+                          <span className="text-slate-400 text-xs">—</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        {i.has_rapport ? (
+                          <InterventionRapportDownloadButton intervention={i} />
                         ) : (
                           <span className="text-slate-400 text-xs">—</span>
                         )}
@@ -274,6 +299,7 @@ export default function HistoriquePage() {
                     <th className="px-4 py-2 text-right">TTC</th>
                     <th className="px-4 py-2 text-left">Statut</th>
                     <th className="px-4 py-2 text-left">Envoyé à</th>
+                    <th className="px-4 py-2 text-right">Document</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -295,6 +321,23 @@ export default function HistoriquePage() {
                         </span>
                       </td>
                       <td className="px-4 py-3 text-xs text-slate-500">{d.envoye_email || '—'}</td>
+                      <td className="px-4 py-3 text-right">
+                        {d.pdf_url ? (
+                          <a
+                            href={d.pdf_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition"
+                            title="Ouvrir le PDF stocké"
+                          >
+                            ⬇ PDF
+                          </a>
+                        ) : d.payload ? (
+                          <DocumentDownloadButton doc={d} />
+                        ) : (
+                          <span className="text-slate-400 text-xs">—</span>
+                        )}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
