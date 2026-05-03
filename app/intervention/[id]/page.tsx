@@ -10,6 +10,10 @@ const InterventionRapportDownloadButton = dynamic(
   () => import('@/components/InterventionRapportDownloadButton'),
   { ssr: false },
 )
+const CreateFactureFromRapportButton = dynamic(
+  () => import('@/components/CreateFactureFromRapportButton'),
+  { ssr: false },
+)
 
 type Statut = 'planifiee' | 'en_cours' | 'terminee' | 'annulee'
 
@@ -288,27 +292,43 @@ export default function InterventionDetailPage({ params }: { params: { id: strin
             <div className="pt-2 border-t border-slate-100 flex items-center justify-between flex-wrap gap-2">
               <div>
                 <div className="text-xs uppercase tracking-wider text-slate-500 font-bold mb-0.5">Rapport d&apos;intervention</div>
-                <div className="text-sm text-slate-700">PDF disponible — visualiser ou télécharger.</div>
+                <div className="text-sm text-slate-700">PDF disponible — télécharger ou facturer.</div>
               </div>
-              <InterventionRapportDownloadButton
-                intervention={{
-                  id: intervention.id,
-                  reference: intervention.reference,
-                  type_intervention: intervention.type_intervention,
-                  adresse_chantier: intervention.adresse_chantier,
-                  ville: intervention.ville,
-                  code_postal: intervention.code_postal,
-                  date_realisee: intervention.date_realisee,
-                  date_prevue: intervention.date_prevue,
-                  rapport_json: intervention.rapport_json,
-                  photos_urls: intervention.photos_urls,
-                  client_nom: client?.nom || null,
-                  client_adresse: client?.adresse || null,
-                  client_code_postal: client?.code_postal || null,
-                  client_ville: client?.ville || null,
-                  technicien_nom: technicien?.nom || null,
-                }}
-              />
+              <div className="flex flex-wrap items-end gap-2">
+                <CreateFactureFromRapportButton
+                  source={{
+                    rapport: intervention.rapport_json,
+                    client_nom: client?.nom || null,
+                    client_email: client?.email || null,
+                    client_adresse: client?.adresse || null,
+                    client_code_postal: client?.code_postal || null,
+                    client_ville: client?.ville || null,
+                    adresse_chantier: intervention.adresse_chantier || null,
+                    type_intervention: intervention.type_intervention || null,
+                    date_intervention: intervention.date_realisee || intervention.date_prevue || null,
+                    reference: intervention.reference || null,
+                  }}
+                />
+                <InterventionRapportDownloadButton
+                  intervention={{
+                    id: intervention.id,
+                    reference: intervention.reference,
+                    type_intervention: intervention.type_intervention,
+                    adresse_chantier: intervention.adresse_chantier,
+                    ville: intervention.ville,
+                    code_postal: intervention.code_postal,
+                    date_realisee: intervention.date_realisee,
+                    date_prevue: intervention.date_prevue,
+                    rapport_json: intervention.rapport_json,
+                    photos_urls: intervention.photos_urls,
+                    client_nom: client?.nom || null,
+                    client_adresse: client?.adresse || null,
+                    client_code_postal: client?.code_postal || null,
+                    client_ville: client?.ville || null,
+                    technicien_nom: technicien?.nom || null,
+                  }}
+                />
+              </div>
             </div>
           )}
         </section>

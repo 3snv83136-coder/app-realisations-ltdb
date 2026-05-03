@@ -5,6 +5,7 @@ import AppTabs from "@/components/AppTabs"
 
 const DocumentDownloadButton = dynamic(() => import("@/components/DocumentDownloadButton"), { ssr: false })
 const InterventionRapportDownloadButton = dynamic(() => import("@/components/InterventionRapportDownloadButton"), { ssr: false })
+const CreateFactureFromRapportButton = dynamic(() => import("@/components/CreateFactureFromRapportButton"), { ssr: false })
 
 type Intervention = {
   id: string
@@ -265,7 +266,25 @@ export default function HistoriquePage() {
                       </td>
                       <td className="px-4 py-3 text-right">
                         {i.has_rapport ? (
-                          <InterventionRapportDownloadButton intervention={i} />
+                          <div className="inline-flex flex-col items-end gap-1">
+                            <InterventionRapportDownloadButton intervention={i} />
+                            <CreateFactureFromRapportButton
+                              size="sm"
+                              label="Facturer"
+                              source={{
+                                rapport: i.rapport_json,
+                                client_nom: i.client_nom,
+                                client_email: i.client_email,
+                                client_adresse: i.client_adresse,
+                                client_code_postal: i.client_code_postal,
+                                client_ville: i.client_ville,
+                                adresse_chantier: i.adresse_chantier,
+                                type_intervention: i.type_intervention,
+                                date_intervention: i.date_realisee || i.date_prevue,
+                                reference: i.reference,
+                              }}
+                            />
+                          </div>
                         ) : (
                           <span className="text-slate-400 text-xs">—</span>
                         )}
