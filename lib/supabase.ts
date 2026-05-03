@@ -88,6 +88,7 @@ export interface Intervention {
   photos_urls: string[] | null
   pdf_rapport_url: string | null
   publie_slug: string | null
+  canal_acquisition: string | null
   created_at: string
   updated_at: string
 }

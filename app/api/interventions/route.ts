@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getSupabaseOrNull, upsertClient } from "@/lib/supabase"
+import { isCanalAcquisition } from "@/lib/canaux"
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 30
@@ -28,6 +29,7 @@ type CreateInterventionBody = {
   urgence?: boolean
   prix_prevu?: number | null
   notes_internes?: string | null
+  canal_acquisition?: string | null
 }
 
 function buildReference(date_prevue?: string | null, heure_prevue?: string | null): string {
@@ -74,7 +76,7 @@ export async function GET(req: NextRequest) {
 
   let query = sb
     .from('interventions')
-    .select('id, reference, client_id, technicien_id, agence, type_intervention, adresse_chantier, ville, code_postal, date_prevue, heure_prevue, duree_estimee_min, date_realisee, urgence, statut, prix_prevu, notes_internes, publie_slug, created_at, updated_at')
+    .select('id, reference, client_id, technicien_id, agence, type_intervention, adresse_chantier, ville, code_postal, date_prevue, heure_prevue, duree_estimee_min, date_realisee, urgence, statut, prix_prevu, notes_internes, publie_slug, canal_acquisition, created_at, updated_at')
     .order('date_prevue', { ascending: true, nullsFirst: false })
     .order('heure_prevue', { ascending: true, nullsFirst: false })
     .limit(limit)
@@ -176,6 +178,8 @@ export async function POST(req: NextRequest) {
     ? body.heure_prevue.slice(0, 5)
     : null
 
+  const canalClean = isCanalAcquisition(body.canal_acquisition) ? body.canal_acquisition : null
+
   const baseRow = {
     client_id: clientId,
     technicien_id: body.technicien_id || null,
@@ -191,6 +195,7 @@ export async function POST(req: NextRequest) {
     statut: 'planifiee',
     prix_prevu: typeof body.prix_prevu === 'number' ? body.prix_prevu : null,
     notes_internes: body.notes_internes || null,
+    canal_acquisition: canalClean,
   }
 
   let inserted: any = null

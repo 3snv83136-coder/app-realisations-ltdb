@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getSupabaseOrNull } from "@/lib/supabase"
+import { isCanalAcquisition } from "@/lib/canaux"
 
 export const dynamic = 'force-dynamic'
 
@@ -20,6 +21,7 @@ const UPDATABLE = new Set([
   'prix_prevu',
   'notes_internes',
   'date_realisee',
+  'canal_acquisition',
 ])
 
 const ALLOWED_STATUTS = new Set(['planifiee', 'en_cours', 'terminee', 'annulee'])
@@ -88,6 +90,11 @@ export async function PUT(req: NextRequest, { params }: Params) {
 
   if (typeof update.statut === 'string' && !ALLOWED_STATUTS.has(update.statut)) {
     return NextResponse.json({ error: 'Statut invalide' }, { status: 400 })
+  }
+
+  if ('canal_acquisition' in update) {
+    const v = update.canal_acquisition
+    update.canal_acquisition = (v === null || v === '') ? null : (isCanalAcquisition(v) ? v : null)
   }
 
   // Auto-set date_realisee when moving to terminee

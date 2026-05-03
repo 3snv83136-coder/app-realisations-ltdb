@@ -76,6 +76,9 @@ create table if not exists interventions (
   pdf_rapport_url text,
   publie_slug text,
 
+  -- Canal d'acquisition : pages_jaunes / site_internet / google_adwords / bouche_oreille / prescription
+  canal_acquisition text,
+
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -86,6 +89,12 @@ create index if not exists interventions_technicien_idx on interventions (techni
 create index if not exists interventions_ville_idx on interventions (ville);
 create index if not exists interventions_agence_idx on interventions (agence);
 create index if not exists interventions_reference_idx on interventions (reference);
+create index if not exists interventions_canal_idx on interventions (canal_acquisition);
+
+-- Migration en place : ajoute la colonne si elle n'existe pas (idempotent)
+alter table interventions
+  add column if not exists canal_acquisition text;
+create index if not exists interventions_canal_idx on interventions (canal_acquisition);
 
 -- =====================================================================
 -- DOCUMENTS — factures, devis, attestations émis aux clients
