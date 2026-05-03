@@ -1,26 +1,18 @@
 import { NextRequest, NextResponse } from "next/server"
 import { Resend } from "resend"
+import { EMAIL_RE, escapeHtml, getResendFromEmail, getResendRecipient } from "@/lib/email-utils"
 
 export const maxDuration = 30
 
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/
-
-function escapeHtml(s: unknown): string {
-  return String(s ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;')
-}
-
-function fmtDateFR(iso?: string | null): string {
+// Helpers locaux : on retourne `''` (pas `'—'`) car ces valeurs alimentent
+// directement des templates HTML où une chaîne vide est plus propre.
+function fmtDateFREmpty(iso?: string | null): string {
   if (!iso) return ''
   const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso)
   return m ? `${m[3]}/${m[2]}/${m[1]}` : iso
 }
 
-function fmtEUR(n: number) {
+function fmtEUREmpty(n: number) {
   if (!Number.isFinite(n)) return ''
   return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(n)
 }
@@ -67,9 +59,6 @@ export async function POST(req: NextRequest) {
   }
 
   const resendKey = process.env.RESEND_API_KEY
-  const fromEmail = process.env.RESEND_FROM_EMAIL
-    || (process.env.RESEND_TEST_EMAIL ? 'onboarding@resend.dev' : 'contact@lestechniciensdudebouchage.fr')
-
   if (!resendKey) {
     return NextResponse.json({ error: 'RESEND_API_KEY manquante' }, { status: 500 })
   }
@@ -79,10 +68,11 @@ export async function POST(req: NextRequest) {
     || 'https://app-realisations.vercel.app'
   const lien = `${baseUrl.replace(/\/+$/, '')}/intervention/${intervention_id}`
 
-  const recipient = process.env.RESEND_TEST_EMAIL || technicien_email
+  const fromEmail = getResendFromEmail()
+  const recipient = getResendRecipient(technicien_email)
   const resend = new Resend(resendKey)
 
-  const subject = `${urgence ? '🚨 URGENT — ' : ''}Nouvelle intervention${ville ? ` à ${ville}` : ''}${date_prevue ? ` (${fmtDateFR(date_prevue)})` : ''}`
+  const subject = `${urgence ? '🚨 URGENT — ' : ''}Nouvelle intervention${ville ? ` à ${ville}` : ''}${date_prevue ? ` (${fmtDateFREmpty(date_prevue)})` : ''}`
 
   const result = await resend.emails.send({
     from: `Les Techniciens du Débouchage <${fromEmail}>`,
@@ -141,10 +131,10 @@ function emailTechHtml(p: {
   const adr = escapeHtml(p.adresseChantier || '')
   const v = escapeHtml(p.ville || '')
   const cp = escapeHtml(p.codePostal || '')
-  const dp = escapeHtml(fmtDateFR(p.datePrevue))
+  const dp = escapeHtml(fmtDateFREmpty(p.datePrevue))
   const hp = escapeHtml(p.heurePrevue ? p.heurePrevue.slice(0, 5) : '')
   const ti = escapeHtml(p.typeIntervention || 'Intervention')
-  const prix = typeof p.prixPrevu === 'number' ? fmtEUR(p.prixPrevu) : ''
+  const prix = typeof p.prixPrevu === 'number' ? fmtEUREmpty(p.prixPrevu) : ''
   const notes = escapeHtml(p.notesInternes || '')
   const urgenceBanner = p.urgence
     ? `<div style="background:#fee2e2;color:#b91c1c;padding:14px 20px;font-weight:bold;text-align:center;letter-spacing:1px;text-transform:uppercase;font-size:13px">🚨 URGENT — À traiter en priorité</div>`

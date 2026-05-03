@@ -4,6 +4,8 @@ import Link from "next/link"
 import AppTabs from "@/components/AppTabs"
 import VilleCombobox from "@/components/VilleCombobox"
 import { AGENCES } from "@/lib/agences"
+import { CANAUX_ACQUISITION } from "@/lib/canaux"
+import { fmtDateFR, fmtEUR } from "@/lib/format"
 
 type Statut = 'planifiee' | 'en_cours' | 'terminee' | 'annulee'
 
@@ -81,20 +83,9 @@ const STATUT_BADGE: Record<Statut, string> = {
   annulee: 'bg-slate-200 text-slate-600',
 }
 
-function fmtDateFR(iso: string | null): string {
-  if (!iso) return '—'
-  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso)
-  return m ? `${m[3]}/${m[2]}/${m[1]}` : iso
-}
-
 function fmtHeure(t: string | null): string {
   if (!t) return ''
   return t.slice(0, 5)
-}
-
-function fmtEUR(n: number | null): string {
-  if (typeof n !== 'number' || !Number.isFinite(n)) return '—'
-  return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(n)
 }
 
 function startOfWeekISO(d: Date): string {
@@ -417,6 +408,7 @@ function NouvelleInterventionModal({
   const [prixPrevu, setPrixPrevu] = useState<string>('')
   const [agence, setAgence] = useState<string>(AGENCES[0])
   const [technicienId, setTechnicienId] = useState<string>('')
+  const [canalAcquisition, setCanalAcquisition] = useState<string>('')
   const [notes, setNotes] = useState('')
 
   async function handleSubmit() {
@@ -453,6 +445,7 @@ function NouvelleInterventionModal({
           duree_estimee_min: dureeMin ? Number(dureeMin) : null,
           urgence,
           prix_prevu: prixPrevu ? Number(prixPrevu) : null,
+          canal_acquisition: canalAcquisition || null,
           notes_internes: notes || null,
         }),
       })
@@ -602,6 +595,21 @@ function NouvelleInterventionModal({
                 </select>
               </label>
             </div>
+
+            <label className="block text-sm">
+              <span className="text-xs uppercase tracking-wide text-slate-500 font-semibold">Canal d&apos;acquisition</span>
+              <select
+                value={canalAcquisition}
+                onChange={e => setCanalAcquisition(e.target.value)}
+                className="w-full border-2 border-slate-200 focus:border-blue-500 outline-none rounded-lg px-3 py-2 mt-1 bg-white"
+              >
+                <option value="">— non précisé —</option>
+                {CANAUX_ACQUISITION.map(c => (
+                  <option key={c.key} value={c.key}>{c.icon} {c.label}</option>
+                ))}
+              </select>
+              <span className="text-[11px] text-slate-400 mt-1 block">D&apos;où vient le client ? Sert à mesurer l&apos;efficacité des canaux de communication.</span>
+            </label>
 
             <label className="block text-sm">
               <span className="text-xs uppercase tracking-wide text-slate-500 font-semibold">Notes internes</span>

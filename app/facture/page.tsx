@@ -6,27 +6,19 @@ import VoiceRecorder from "@/components/VoiceRecorder"
 import AppTabs from "@/components/AppTabs"
 import VilleCombobox from "@/components/VilleCombobox"
 import { AGENCES, type Agence } from "@/lib/agences"
+import { LTDB_EMETTEUR, ltdbFactureEmetteur } from "@/lib/emetteur"
+import { fmtDateISOtoFR } from "@/lib/format"
 import type {
   FacturePDFProps,
   FactureLineData,
-  FactureEmetteurData,
   FactureData,
 } from "@/components/FacturePDF"
 import type { ClientData } from "@/components/DevisPDF"
 
 const FactureDownloadButton = dynamic(() => import("@/components/FacturePDF"), { ssr: false })
+const SaveDocumentButton = dynamic(() => import("@/components/SaveDocumentButton"), { ssr: false })
 
 type Step = 'capture' | 'extracting' | 'generating' | 'preview'
-
-const EMETTEUR_BASE = {
-  raisonSociale: 'LTDB — Les Techniciens du Débouchage',
-  adresseLignes: ['700 Avenue du 15ème Corps', '83000 Toulon'],
-  telephone: '07 83 63 68 35',
-  email: 'contact@lestechniciensdudebouchage.fr',
-  rcs: '',
-  capital: '',
-  siret: '',
-}
 
 const ECHEANCES_PRESETS = [
   'Réglée',
@@ -36,11 +28,6 @@ const ECHEANCES_PRESETS = [
   '45 jours fin de mois',
   '60 jours fin de mois',
 ] as const
-
-function fmtDateISOtoFR(iso: string) {
-  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso)
-  return m ? `${m[3]}/${m[2]}/${m[1]}` : iso
-}
 
 export default function FacturePage() {
   useSession()
@@ -111,7 +98,7 @@ export default function FacturePage() {
         ].filter(Boolean),
         adresseChantier: adresseChantier || undefined,
       }
-      const emetteur: FactureEmetteurData = { ...EMETTEUR_BASE, agence }
+      const emetteur = ltdbFactureEmetteur(agence)
       const [{ FactureDocument }, { pdfDocumentToBase64 }, React] = await Promise.all([
         import('@/components/FacturePDF'),
         import('@/lib/pdfToBase64'),
@@ -269,7 +256,7 @@ export default function FacturePage() {
       ].filter(Boolean),
       adresseChantier: adresseChantier || undefined,
     }
-    const emetteur: FactureEmetteurData = { ...EMETTEUR_BASE, agence }
+    const emetteur = ltdbFactureEmetteur(agence)
     const pdfProps: FacturePDFProps = {
       emetteur,
       client,
@@ -301,6 +288,24 @@ export default function FacturePage() {
               >
                 ← Modifier la dictée
               </button>
+              <SaveDocumentButton
+                endpoint="/api/save-facture"
+                className="bg-amber-500 text-white px-4 py-2 rounded-lg font-semibold text-sm hover:bg-amber-600 disabled:opacity-50 transition"
+                body={() => ({
+                  facture,
+                  clientNom,
+                  clientEmail,
+                  clientAdresse,
+                  clientCP,
+                  ville: clientVille,
+                  agence,
+                  numero: facture.numero,
+                  totalHT,
+                  totalTTC: ttc,
+                  tvaTaux,
+                  echeance: facture.echeance,
+                })}
+              />
               <FactureDownloadButton {...pdfProps} />
             </div>
           </div>

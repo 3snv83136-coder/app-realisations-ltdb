@@ -10,6 +10,7 @@ const TABS = [
   { href: '/facture',      label: 'Facture',     icon: '🧾' },
   { href: '/attestation',  label: 'Attestation', icon: '✅' },
   { href: '/historique',   label: 'Historique',  icon: '📚' },
+  { href: '/statistiques', label: 'Stats',       icon: '📊' },
   { href: '/comptabilite', label: 'Compta',      icon: '💼' },
 ]
 

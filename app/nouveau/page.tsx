@@ -11,6 +11,7 @@ import VilleCombobox from "@/components/VilleCombobox"
 const PDFDownloadButton = dynamic(() => import("@/components/RealisationPDF"), { ssr: false })
 const PDFPreviewModal = dynamic(() => import("@/components/PDFPreviewModal"), { ssr: false })
 const DriveSaveButton = dynamic(() => import("@/components/DriveSaveButton"), { ssr: false })
+const SaveDocumentButton = dynamic(() => import("@/components/SaveDocumentButton"), { ssr: false })
 import SitePreviewModal from "@/components/SitePreviewModal"
 import CatLoader from "@/components/CatLoader"
 
@@ -699,6 +700,24 @@ export default function NouveauPage() {
                       {step === 'publishing' ? 'Publication…' : '🌐 Publier sur le site'}
                     </button>
                   </div>
+
+                  <SaveDocumentButton
+                    endpoint="/api/save-rapport"
+                    body={() => ({
+                      interventionId,
+                      clientNom,
+                      clientEmail,
+                      clientAdresse: adresse,
+                      ville,
+                      codePostal,
+                      typeIntervention,
+                      dateIntervention,
+                      transcription,
+                      rapport,
+                      seo,
+                      technicienNom: technicienNom || session?.user?.name || '',
+                    })}
+                  />
 
                   <PDFPreviewModal open={showPdfPreview} onClose={() => setShowPdfPreview(false)} pdfProps={pdfProps} />
                   <SitePreviewModal open={showSitePreview} onClose={() => setShowSitePreview(false)} seo={seo} ville={ville} photos={photos.map(p => ({ dataUrl: p.dataUrl, legende: p.legende }))} />

@@ -1,11 +1,18 @@
 'use client'
 import { useEffect, useMemo, useState } from "react"
+import dynamic from "next/dynamic"
 import AppTabs from "@/components/AppTabs"
+import { fmtDateFR, fmtEUR } from "@/lib/format"
+
+const DocumentDownloadButton = dynamic(() => import("@/components/DocumentDownloadButton"), { ssr: false })
+const InterventionRapportDownloadButton = dynamic(() => import("@/components/InterventionRapportDownloadButton"), { ssr: false })
+const CreateFactureFromRapportButton = dynamic(() => import("@/components/CreateFactureFromRapportButton"), { ssr: false })
 
 type Intervention = {
   id: string
   reference: string | null
   type_intervention: string | null
+  adresse_chantier: string | null
   ville: string | null
   code_postal: string | null
   date_realisee: string | null
@@ -17,6 +24,13 @@ type Intervention = {
   client_id: string | null
   client_nom: string | null
   client_email: string | null
+  client_adresse: string | null
+  client_code_postal: string | null
+  client_ville: string | null
+  technicien_nom: string | null
+  rapport_json: any
+  photos_urls: string[] | null
+  has_rapport: boolean
 }
 
 type Document = {
@@ -33,6 +47,11 @@ type Document = {
   intervention_id: string | null
   client_id: string | null
   client_nom: string | null
+  client_adresse: string | null
+  client_code_postal: string | null
+  client_ville: string | null
+  payload: any
+  pdf_url: string | null
   created_at: string
 }
 
@@ -63,17 +82,6 @@ const TYPE_ICON: Record<string, string> = {
   facture: '🧾',
   devis: '📝',
   attestation: '✅',
-}
-
-function fmtDate(iso: string | null): string {
-  if (!iso) return '—'
-  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso)
-  return m ? `${m[3]}/${m[2]}/${m[1]}` : iso
-}
-
-function fmtEUR(n: number | null): string {
-  if (typeof n !== 'number' || !Number.isFinite(n)) return '—'
-  return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(n)
 }
 
 export default function HistoriquePage() {
@@ -221,12 +229,13 @@ export default function HistoriquePage() {
                     <th className="px-4 py-2 text-left">Type</th>
                     <th className="px-4 py-2 text-left">Statut</th>
                     <th className="px-4 py-2 text-left">Page</th>
+                    <th className="px-4 py-2 text-right">Rapport</th>
                   </tr>
                 </thead>
                 <tbody>
                   {interventions.map(i => (
                     <tr key={i.id} className="border-t border-slate-100 hover:bg-slate-50">
-                      <td className="px-4 py-3 text-slate-600">{fmtDate(i.date_realisee || i.date_prevue || i.created_at)}</td>
+                      <td className="px-4 py-3 text-slate-600">{fmtDateFR(i.date_realisee || i.date_prevue || i.created_at)}</td>
                       <td className="px-4 py-3 font-mono text-xs text-[#0e2a52] font-bold">{i.reference || '—'}</td>
                       <td className="px-4 py-3 font-semibold text-slate-700">{i.client_nom || '—'}</td>
                       <td className="px-4 py-3 text-slate-600">{i.ville || '—'} {i.code_postal ? `(${i.code_postal})` : ''}</td>
@@ -241,6 +250,31 @@ export default function HistoriquePage() {
                           <a href={`https://lestechniciensdudebouchage.fr/nos-realisations/${i.publie_slug}`} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline font-semibold text-xs">
                             voir →
                           </a>
+                        ) : (
+                          <span className="text-slate-400 text-xs">—</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        {i.has_rapport ? (
+                          <div className="inline-flex flex-col items-end gap-1">
+                            <InterventionRapportDownloadButton intervention={i} />
+                            <CreateFactureFromRapportButton
+                              size="sm"
+                              label="Facturer"
+                              source={{
+                                rapport: i.rapport_json,
+                                client_nom: i.client_nom,
+                                client_email: i.client_email,
+                                client_adresse: i.client_adresse,
+                                client_code_postal: i.client_code_postal,
+                                client_ville: i.client_ville,
+                                adresse_chantier: i.adresse_chantier,
+                                type_intervention: i.type_intervention,
+                                date_intervention: i.date_realisee || i.date_prevue,
+                                reference: i.reference,
+                              }}
+                            />
+                          </div>
                         ) : (
                           <span className="text-slate-400 text-xs">—</span>
                         )}
@@ -274,6 +308,7 @@ export default function HistoriquePage() {
                     <th className="px-4 py-2 text-right">TTC</th>
                     <th className="px-4 py-2 text-left">Statut</th>
                     <th className="px-4 py-2 text-left">Envoyé à</th>
+                    <th className="px-4 py-2 text-right">Document</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -284,7 +319,7 @@ export default function HistoriquePage() {
                         <span className="text-xs font-bold text-[#0e2a52] uppercase">{d.type}</span>
                       </td>
                       <td className="px-4 py-3 font-mono text-xs text-slate-700">{d.numero || '—'}</td>
-                      <td className="px-4 py-3 text-slate-600">{fmtDate(d.date_emission)}</td>
+                      <td className="px-4 py-3 text-slate-600">{fmtDateFR(d.date_emission)}</td>
                       <td className="px-4 py-3 font-semibold text-slate-700">{d.client_nom || '—'}</td>
                       <td className="px-4 py-3 text-slate-600 text-xs">{d.agence || '—'}</td>
                       <td className="px-4 py-3 text-right text-slate-600 tabular-nums">{fmtEUR(d.montant_ht)}</td>
@@ -295,6 +330,23 @@ export default function HistoriquePage() {
                         </span>
                       </td>
                       <td className="px-4 py-3 text-xs text-slate-500">{d.envoye_email || '—'}</td>
+                      <td className="px-4 py-3 text-right">
+                        {d.pdf_url ? (
+                          <a
+                            href={d.pdf_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition"
+                            title="Ouvrir le PDF stocké"
+                          >
+                            ⬇ PDF
+                          </a>
+                        ) : d.payload ? (
+                          <DocumentDownloadButton doc={d} />
+                        ) : (
+                          <span className="text-slate-400 text-xs">—</span>
+                        )}
+                      </td>
                     </tr>
                   ))}
                 </tbody>

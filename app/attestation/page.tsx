@@ -8,6 +8,7 @@ import VilleCombobox from "@/components/VilleCombobox"
 import type { AttestationData, AttestationObservation, Variante } from "@/components/AttestationPDF"
 
 const AttestationDownloadButton = dynamic(() => import("@/components/AttestationPDF"), { ssr: false })
+const SaveDocumentButton = dynamic(() => import("@/components/SaveDocumentButton"), { ssr: false })
 
 type Step = 'capture' | 'generating' | 'preview'
 type PhotoItem = { file: File; dataUrl: string; preview: string; legende: string }
@@ -243,8 +244,23 @@ export default function AttestationPage() {
               <h1 className="text-xl font-black text-[#0f2e5c]">{data.numero}</h1>
               <p className="text-sm text-slate-500">Variante : <span className="font-semibold text-[#0f2e5c]">{variantLabel}</span> · {data.date}</p>
             </div>
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               <button onClick={() => setStep('capture')} className="px-4 py-2 rounded-lg border border-slate-300 text-slate-700 text-sm font-semibold hover:bg-slate-50">← Modifier</button>
+              <SaveDocumentButton
+                endpoint="/api/save-attestation"
+                className="bg-amber-500 text-white px-4 py-2 rounded-lg font-semibold text-sm hover:bg-amber-600 disabled:opacity-50 transition"
+                body={() => ({
+                  attestation: data,
+                  clientNom: `${data.prenom || ''} ${data.nom || ''}`.trim(),
+                  clientEmail,
+                  clientAdresse: data.adresse,
+                  clientCP: data.codePostal,
+                  ville: data.ville,
+                  numero: data.numero,
+                  variante: data.variante,
+                  dateAttestation: data.date,
+                })}
+              />
               <AttestationDownloadButton data={data} photos={photosForPdf} />
             </div>
           </div>

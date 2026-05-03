@@ -4,8 +4,18 @@ import { useRouter } from "next/navigation"
 import Link from "next/link"
 import dynamic from "next/dynamic"
 import AppTabs from "@/components/AppTabs"
+import { fmtDateFR, fmtEUR } from "@/lib/format"
+import { CANAUX_ACQUISITION, canalIcon, canalLabel } from "@/lib/canaux"
 
 const InterventionMap = dynamic(() => import('@/components/InterventionMap'), { ssr: false })
+const InterventionRapportDownloadButton = dynamic(
+  () => import('@/components/InterventionRapportDownloadButton'),
+  { ssr: false },
+)
+const CreateFactureFromRapportButton = dynamic(
+  () => import('@/components/CreateFactureFromRapportButton'),
+  { ssr: false },
+)
 
 type Statut = 'planifiee' | 'en_cours' | 'terminee' | 'annulee'
 
@@ -28,6 +38,9 @@ type InterventionDetail = {
   prix_prevu: number | null
   notes_internes: string | null
   publie_slug: string | null
+  rapport_json: any
+  photos_urls: string[] | null
+  canal_acquisition: string | null
   created_at: string
   updated_at: string
 }
@@ -62,17 +75,6 @@ const STATUT_BADGE: Record<Statut, string> = {
   en_cours: 'bg-amber-100 text-amber-700',
   terminee: 'bg-emerald-100 text-emerald-700',
   annulee: 'bg-slate-200 text-slate-600',
-}
-
-function fmtDateFR(iso: string | null): string {
-  if (!iso) return '—'
-  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso)
-  return m ? `${m[3]}/${m[2]}/${m[1]}` : iso
-}
-
-function fmtEUR(n: number | null): string {
-  if (typeof n !== 'number' || !Number.isFinite(n)) return '—'
-  return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(n)
 }
 
 export default function InterventionDetailPage({ params }: { params: { id: string } }) {
@@ -278,6 +280,49 @@ export default function InterventionDetailPage({ params }: { params: { id: strin
               </button>
             </div>
           </div>
+          {intervention.rapport_json && Object.keys(intervention.rapport_json || {}).length > 0 && (
+            <div className="pt-2 border-t border-slate-100 flex items-center justify-between flex-wrap gap-2">
+              <div>
+                <div className="text-xs uppercase tracking-wider text-slate-500 font-bold mb-0.5">Rapport d&apos;intervention</div>
+                <div className="text-sm text-slate-700">PDF disponible — télécharger ou facturer.</div>
+              </div>
+              <div className="flex flex-wrap items-end gap-2">
+                <CreateFactureFromRapportButton
+                  source={{
+                    rapport: intervention.rapport_json,
+                    client_nom: client?.nom || null,
+                    client_email: client?.email || null,
+                    client_adresse: client?.adresse || null,
+                    client_code_postal: client?.code_postal || null,
+                    client_ville: client?.ville || null,
+                    adresse_chantier: intervention.adresse_chantier || null,
+                    type_intervention: intervention.type_intervention || null,
+                    date_intervention: intervention.date_realisee || intervention.date_prevue || null,
+                    reference: intervention.reference || null,
+                  }}
+                />
+                <InterventionRapportDownloadButton
+                  intervention={{
+                    id: intervention.id,
+                    reference: intervention.reference,
+                    type_intervention: intervention.type_intervention,
+                    adresse_chantier: intervention.adresse_chantier,
+                    ville: intervention.ville,
+                    code_postal: intervention.code_postal,
+                    date_realisee: intervention.date_realisee,
+                    date_prevue: intervention.date_prevue,
+                    rapport_json: intervention.rapport_json,
+                    photos_urls: intervention.photos_urls,
+                    client_nom: client?.nom || null,
+                    client_adresse: client?.adresse || null,
+                    client_code_postal: client?.code_postal || null,
+                    client_ville: client?.ville || null,
+                    technicien_nom: technicien?.nom || null,
+                  }}
+                />
+              </div>
+            </div>
+          )}
         </section>
 
         {/* Date / heure / type */}
@@ -288,6 +333,43 @@ export default function InterventionDetailPage({ params }: { params: { id: strin
           <InfoCell label="Type" value={intervention.type_intervention || '—'} />
           <InfoCell label="Urgence" value={intervention.urgence ? '🚨 Oui' : 'Non'} />
           <InfoCell label="Prix prévu" value={fmtEUR(intervention.prix_prevu)} />
+        </section>
+
+        {/* Canal d'acquisition (éditable) */}
+        <section className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 space-y-2">
+          <div className="flex items-center justify-between gap-2">
+            <h2 className="text-sm font-bold uppercase tracking-wider text-slate-500">Canal d&apos;acquisition</h2>
+            <span className="text-base">
+              {canalIcon(intervention.canal_acquisition)} {canalLabel(intervention.canal_acquisition)}
+            </span>
+          </div>
+          <select
+            value={intervention.canal_acquisition || ''}
+            onChange={async (e) => {
+              const value = e.target.value || null
+              try {
+                const res = await fetch(`/api/interventions/${intervention.id}`, {
+                  method: 'PUT',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ canal_acquisition: value }),
+                })
+                const data = await res.json()
+                if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`)
+                setIntervention(data.intervention)
+                setActionMsg('Canal d\'acquisition mis à jour')
+              } catch (err) {
+                setError(err instanceof Error ? err.message : String(err))
+              }
+            }}
+            disabled={actionInProgress}
+            className="w-full border-2 border-slate-200 focus:border-blue-500 outline-none rounded-lg px-3 py-2 text-sm bg-white"
+          >
+            <option value="">— non précisé —</option>
+            {CANAUX_ACQUISITION.map(c => (
+              <option key={c.key} value={c.key}>{c.icon} {c.label}</option>
+            ))}
+          </select>
+          <p className="text-[11px] text-slate-400">Modifie l&apos;origine de la prise de rendez-vous. Visible dans 📊 Stats.</p>
         </section>
 
         {/* Client */}
