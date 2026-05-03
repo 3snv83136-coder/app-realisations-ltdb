@@ -1,5 +1,6 @@
 import type { RapportData } from "@/components/RealisationPDF"
 import type { FactureData, FactureLineData } from "@/components/FacturePDF"
+import { detectTypeIntervention } from "@/lib/types-intervention"
 
 export interface RapportToFactureSource {
   rapport: RapportData
@@ -38,17 +39,28 @@ function nextNumero(): string {
   return `FA-${y}${m}${day}-${seq}`
 }
 
-function buildLignesFromRapport(rapport: RapportData): FactureLineData[] {
+/**
+ * Pour la facture, on veut une désignation COURTE et standardisée
+ * (ex: "Débouchage canalisation"), PAS le contenu détaillé du rapport.
+ * Le technicien complétera le prix manuellement ; le détail technique reste
+ * dans le rapport d'intervention si besoin.
+ */
+function buildLignesFromRapport(rapport: RapportData, fallbackType: string): FactureLineData[] {
   const lignes: FactureLineData[] = []
 
-  // 1) Lignes issues du devis du rapport (le plus précis : le technicien a chiffré).
+  // 1) Lignes issues du devis du rapport (le technicien a chiffré).
+  //    On garde les prix mais on remplace la désignation par le type d'intervention
+  //    standardisé pour rester court et propre sur la facture.
   const devisLignes = rapport.devis?.lignes
   if (Array.isArray(devisLignes) && devisLignes.length > 0) {
     for (const l of devisLignes) {
       if (!l?.designation) continue
+      // Détection prioritaire du type sur l'item lui-même, sinon fallback global
+      const detected = detectTypeIntervention(l.designation) || detectTypeIntervention(fallbackType)
+      const designation = detected || fallbackType || 'Intervention'
       lignes.push({
-        designation: l.section ? `${l.section} — ${l.designation}` : l.designation,
-        description: l.description || '',
+        designation,
+        description: '',
         qte: Number.isFinite(Number(l.qte)) ? Number(l.qte) : 1,
         unite: 'forfait',
         pu_ht: Number.isFinite(Number(l.pu_ht)) ? Number(l.pu_ht) : 0,
@@ -57,15 +69,14 @@ function buildLignesFromRapport(rapport: RapportData): FactureLineData[] {
     }
   }
 
-  // 2) À défaut : une ligne unique reprenant les travaux réalisés.
+  // 2) À défaut : une ligne unique avec le libellé court du type d'intervention.
   if (lignes.length === 0) {
-    const designation = rapport.objet
-      || rapport.travaux_realises
-      || rapport.diagnostic
-      || 'Intervention'
+    const detected = detectTypeIntervention(rapport.objet)
+      || detectTypeIntervention(rapport.travaux_realises)
+      || detectTypeIntervention(fallbackType)
     lignes.push({
-      designation: designation.split('\n')[0].slice(0, 120),
-      description: rapport.travaux_realises || '',
+      designation: detected || fallbackType || 'Intervention',
+      description: '',
       qte: 1,
       unite: 'forfait',
       pu_ht: 0,
@@ -104,9 +115,13 @@ export function buildFactureFromRapport(src: RapportToFactureSource): RapportToF
   const numero = nextNumero()
   const date = src.date_intervention || todayISO()
 
-  const objet = (rapport.objet || rapport.travaux_realises || src.type_intervention || 'Intervention')
-    .split('\n')[0]
-    .slice(0, 200)
+  // Libellé court : on essaie d'inférer un type d'intervention standardisé
+  // (ex: "Débouchage canalisation") plutôt que de recopier le rapport.
+  const objet = detectTypeIntervention(src.type_intervention)
+    || detectTypeIntervention(rapport.objet)
+    || detectTypeIntervention(rapport.travaux_realises)
+    || src.type_intervention
+    || 'Intervention'
 
   const refLabel = src.reference || rapport.reference || ''
   const reference_dossier = refLabel
@@ -119,7 +134,7 @@ export function buildFactureFromRapport(src: RapportToFactureSource): RapportToF
     echeance: 'À réception',
     objet,
     reference_dossier,
-    lignes: buildLignesFromRapport(rapport),
+    lignes: buildLignesFromRapport(rapport, objet),
     tva_taux: 10,
     mode_reglement: '',
     observations: buildObservations(rapport),

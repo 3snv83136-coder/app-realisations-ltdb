@@ -9,6 +9,7 @@ import VilleCombobox from "@/components/VilleCombobox"
 import type { DevisPDFProps, DevisLineData, ClientData, DevisData } from "@/components/DevisPDF"
 import { LTDB_EMETTEUR } from "@/lib/emetteur"
 import { fmtDateISOtoFR } from "@/lib/format"
+import { detectTypeIntervention } from "@/lib/types-intervention"
 
 const DevisDownloadButton = dynamic(() => import("@/components/DevisPDF"), { ssr: false })
 const SaveDocumentButton = dynamic(() => import("@/components/SaveDocumentButton"), { ssr: false })
@@ -197,25 +198,35 @@ export default function DevisPage() {
       adresse_chantier: adresseChantier,
       reference_dossier: `Devis ${devis.numero}`,
       client_email: clientEmail,
-      facture: {
-        numero: numeroFA,
-        date_facture: today.toISOString().split('T')[0],
-        echeance: 'À réception',
-        objet: devis.objet,
-        reference_dossier: `Devis ${devis.numero}`,
-        lignes: devis.lignes.map(l => ({
-          designation: l.designation,
-          description: l.description || '',
-          qte: l.qte,
-          unite: l.unite || 'forfait',
-          pu_ht: l.pu_ht,
-          inclus: false,
-        })),
-        tva_taux: devis.tva_taux ?? 10,
-        mode_reglement: '',
-        observations: '',
-        recommandation: '',
-      },
+      // Libellé court inféré (ex: "Débouchage canalisation") pour rester
+      // propre sur la facture — pas la longue description du devis.
+      facture: (() => {
+        const objetCourt = detectTypeIntervention(devis.objet)
+          || detectTypeIntervention(devis.lignes.map(l => l.designation).join(' '))
+          || 'Intervention'
+        return {
+          numero: numeroFA,
+          date_facture: today.toISOString().split('T')[0],
+          echeance: 'À réception',
+          objet: objetCourt,
+          reference_dossier: `Devis ${devis.numero}`,
+          lignes: devis.lignes.map(l => ({
+            // Idem : on simplifie chaque ligne en un libellé standardisé
+            designation: detectTypeIntervention(l.designation)
+              || detectTypeIntervention(l.section || '')
+              || objetCourt,
+            description: '',
+            qte: l.qte,
+            unite: l.unite || 'forfait',
+            pu_ht: l.pu_ht,
+            inclus: false,
+          })),
+          tva_taux: devis.tva_taux ?? 10,
+          mode_reglement: '',
+          observations: '',
+          recommandation: '',
+        }
+      })(),
     }
     sessionStorage.setItem('ltdb_devis_to_facture', JSON.stringify(payload))
     router.push('/facture')
