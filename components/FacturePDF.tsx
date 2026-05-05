@@ -186,6 +186,23 @@ const s = StyleSheet.create({
   obsText: { color: C.text, fontSize: 9.5, lineHeight: 1.55, marginBottom: 6 },
   obsStrong: { fontFamily: 'Helvetica-Bold' },
 
+  /* Coordonnées bancaires (bleu) */
+  ribBox: {
+    backgroundColor: '#eef4fc',
+    borderWidth: 1, borderColor: '#b9cce8',
+    borderLeftWidth: 4, borderLeftColor: C.navy,
+    paddingVertical: 12, paddingHorizontal: 14,
+    marginBottom: 12,
+  },
+  ribTitle: {
+    color: C.navy, fontFamily: 'Helvetica-Bold', fontSize: 9.5,
+    textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6,
+  },
+  ribRow: { flexDirection: 'row', marginBottom: 2 },
+  ribLbl: { color: C.muted, fontSize: 9, width: 50 },
+  ribVal: { color: C.text, fontFamily: 'Helvetica-Bold', fontSize: 9.5, letterSpacing: 0.5 },
+  ribNote: { color: C.muted, fontSize: 8.5, marginTop: 4, fontStyle: 'italic' },
+
   /* Footer */
   footer: {
     paddingHorizontal: 40, paddingTop: 10, paddingBottom: 14,
@@ -413,6 +430,24 @@ export function FactureDocument({ emetteur, client, facture, phone }: FacturePDF
             <View style={s.reglementBox} wrap={false}>
               <Text style={s.reglementTitle}>Mode de règlement</Text>
               <Text style={s.reglementText}>{facture.mode_reglement}</Text>
+            </View>
+          ) : null}
+
+          {/* ===== Coordonnées bancaires (bleu) ===== */}
+          {!isRegle ? (
+            <View style={s.ribBox} wrap={false}>
+              <Text style={s.ribTitle}>Coordonnées bancaires — virement</Text>
+              <View style={s.ribRow}>
+                <Text style={s.ribLbl}>IBAN</Text>
+                <Text style={s.ribVal}>FR76 1695 8000 0152 7256 3725 930</Text>
+              </View>
+              <View style={s.ribRow}>
+                <Text style={s.ribLbl}>BIC</Text>
+                <Text style={s.ribVal}>QNTOFRP1XXX</Text>
+              </View>
+              <Text style={s.ribNote}>
+                Merci d&apos;indiquer le numéro de facture {facture.numero} en référence du virement.
+              </Text>
             </View>
           ) : null}
 

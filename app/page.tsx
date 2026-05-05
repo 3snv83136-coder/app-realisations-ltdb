@@ -31,6 +31,7 @@ type Stats = {
 const TOOLS = [
   { href: '/planning',     icon: '📅', label: 'Planning',    color: 'from-blue-500 to-blue-700',     desc: 'Prendre RDV, dispatcher' },
   { href: '/nouveau',      icon: '📄', label: 'Rapport',     color: 'from-[#0e2a52] to-[#1a3a6b]',   desc: 'Rédiger sur place' },
+  { href: '/inspection',   icon: '📷', label: 'Caméra',      color: 'from-cyan-600 to-sky-800',      desc: 'Rapport ITV NF EN 13508-2' },
   { href: '/devis',        icon: '📝', label: 'Devis',       color: 'from-amber-500 to-orange-600',  desc: 'Établir un devis' },
   { href: '/facture',      icon: '🧾', label: 'Facture',     color: 'from-emerald-500 to-emerald-700', desc: 'Facturer le client' },
   { href: '/attestation',  icon: '✅', label: 'Attestation', color: 'from-[#a78346] to-[#7d6233]',   desc: 'Raccordement / SPANC' },
@@ -62,20 +63,41 @@ function fmtEUR(n: number): string {
   return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(n)
 }
 
+const DASHBOARD_CODE = '1004'
+
 export default function Home() {
   const [interventions, setInterventions] = useState<Intervention[]>([])
   const [documents, setDocuments] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [skipAnimation, setSkipAnimation] = useState(false)
+  const [unlocked, setUnlocked] = useState(false)
+  const [codeChecked, setCodeChecked] = useState(false)
+  const [codeInput, setCodeInput] = useState('')
+  const [codeError, setCodeError] = useState('')
 
   useEffect(() => {
     if (typeof window === 'undefined') return
+    if (sessionStorage.getItem('ltdb_dashboard_unlocked') === '1') {
+      setUnlocked(true)
+    }
+    setCodeChecked(true)
     if (sessionStorage.getItem('ltdb_seen_intro') === '1') {
       setSkipAnimation(true)
     } else {
       sessionStorage.setItem('ltdb_seen_intro', '1')
     }
   }, [])
+
+  function handleCodeSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault()
+    if (codeInput.trim() === DASHBOARD_CODE) {
+      sessionStorage.setItem('ltdb_dashboard_unlocked', '1')
+      setUnlocked(true); setCodeError('')
+    } else {
+      setCodeError('Code incorrect.')
+      setCodeInput('')
+    }
+  }
 
   useEffect(() => {
     Promise.all([
@@ -116,6 +138,39 @@ export default function Home() {
       const daysAgo = Math.floor((Date.now() - new Date(d).getTime()) / (1000 * 60 * 60 * 24))
       return daysAgo >= 0 && daysAgo <= 7
     }).length,
+  }
+
+  if (codeChecked && !unlocked) {
+    return (
+      <main className="relative min-h-screen flex items-center justify-center overflow-hidden bg-[#0a1a3d] text-white px-4">
+        <div className="absolute inset-0 bg-gradient-to-br from-[#0a1a3d] via-[#0e2a52] to-[#071026]" />
+        <div className="relative z-10 w-full max-w-sm bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl p-7 shadow-2xl">
+          <div className="text-center mb-5">
+            <div className="text-3xl mb-2">🔒</div>
+            <h1 className="text-2xl font-black tracking-tight">Tableau de bord</h1>
+            <p className="text-xs uppercase tracking-[0.25em] text-orange-300/80 mt-1 font-bold">Code d&apos;accès requis</p>
+          </div>
+          <form onSubmit={handleCodeSubmit} className="space-y-3" autoComplete="off">
+            <input
+              type="password"
+              inputMode="numeric"
+              autoFocus
+              value={codeInput}
+              onChange={e => { setCodeInput(e.target.value); if (codeError) setCodeError('') }}
+              placeholder="••••"
+              className="w-full text-center text-2xl font-black tracking-[0.6em] bg-white/95 text-[#0e2a52] rounded-xl px-4 py-4 outline-none focus:ring-4 focus:ring-orange-400/50 placeholder:text-slate-300"
+            />
+            {codeError && <p className="text-orange-300 text-sm text-center font-semibold">{codeError}</p>}
+            <button
+              type="submit"
+              className="w-full bg-orange-500 hover:bg-orange-600 active:scale-[0.98] transition-all text-white font-black py-3 rounded-xl shadow-lg"
+            >
+              Déverrouiller →
+            </button>
+          </form>
+        </div>
+      </main>
+    )
   }
 
   return (

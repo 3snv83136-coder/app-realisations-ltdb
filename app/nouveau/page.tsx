@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect, useRef } from "react"
 import { useSession } from "next-auth/react"
+import { useRouter } from "next/navigation"
 import VoiceRecorder from "@/components/VoiceRecorder"
 import GenerationPreview from "@/components/GenerationPreview"
 import AppTabs from "@/components/AppTabs"
@@ -58,6 +59,7 @@ function getStepperIndex(step: Step): number {
 
 export default function NouveauPage() {
   const { data: session } = useSession()
+  const router = useRouter()
   const [step, setStep] = useState<Step>('capture')
   const [error, setError] = useState('')
 
@@ -324,6 +326,50 @@ export default function NouveauPage() {
     } finally {
       setEmailSending(false)
     }
+  }
+
+  function handleCreateFacture() {
+    const today = new Date()
+    const seq = String(today.getHours()).padStart(2, '0') + String(today.getMinutes()).padStart(2, '0')
+    const numeroFA = `FA-${today.getFullYear()}${String(today.getMonth() + 1).padStart(2, '0')}${String(today.getDate()).padStart(2, '0')}-${seq}`
+    const objet = ville
+      ? `${typeIntervention} — ${ville}`
+      : typeIntervention
+    const observations = (rapport && typeof rapport.synthese === 'string')
+      ? rapport.synthese
+      : ''
+    const payload = {
+      client_nom: clientNom,
+      client_adresse: adresse,
+      client_cp: codePostal,
+      client_ville: ville,
+      adresse_chantier: 'idem',
+      reference_dossier: interventionId ? `Intervention ${interventionId}` : '',
+      client_email: clientEmail,
+      facture: {
+        numero: numeroFA,
+        date_facture: dateIntervention || today.toISOString().split('T')[0],
+        echeance: 'Réglée',
+        objet,
+        reference_dossier: interventionId ? `Intervention ${interventionId}` : '',
+        lignes: [
+          {
+            designation: typeIntervention,
+            description: '',
+            qte: 1,
+            unite: 'forfait',
+            pu_ht: 0,
+            inclus: false,
+          },
+        ],
+        tva_taux: 10,
+        mode_reglement: '',
+        observations,
+        recommandation: '',
+      },
+    }
+    sessionStorage.setItem('ltdb_devis_to_facture', JSON.stringify(payload))
+    router.push('/facture')
   }
 
   async function handlePublish() {
@@ -718,6 +764,13 @@ export default function NouveauPage() {
                       technicienNom: technicienNom || session?.user?.name || '',
                     })}
                   />
+
+                  <button
+                    onClick={handleCreateFacture}
+                    className="w-full bg-amber-500 text-white px-4 py-3.5 rounded-xl font-bold hover:bg-amber-600 active:scale-95 transition-all"
+                  >
+                    🧾 Créer la facture →
+                  </button>
 
                   <PDFPreviewModal open={showPdfPreview} onClose={() => setShowPdfPreview(false)} pdfProps={pdfProps} />
                   <SitePreviewModal open={showSitePreview} onClose={() => setShowSitePreview(false)} seo={seo} ville={ville} photos={photos.map(p => ({ dataUrl: p.dataUrl, legende: p.legende }))} />

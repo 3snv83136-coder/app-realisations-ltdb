@@ -5,6 +5,7 @@ import dynamic from "next/dynamic"
 import VoiceRecorder from "@/components/VoiceRecorder"
 import AppTabs from "@/components/AppTabs"
 import VilleCombobox from "@/components/VilleCombobox"
+import PrestationsCombobox from "@/components/PrestationsCombobox"
 import { AGENCES, type Agence } from "@/lib/agences"
 import { LTDB_EMETTEUR, ltdbFactureEmetteur } from "@/lib/emetteur"
 import { fmtDateISOtoFR } from "@/lib/format"
@@ -438,10 +439,10 @@ export default function FacturePage() {
                   {facture.lignes.map((l, i) => (
                     <tr key={i} className="border-b border-slate-100 align-top">
                       <td className="py-1 pr-2">
-                        <input
-                          value={l.designation}
-                          onChange={e => updateLine(i, { designation: e.target.value })}
-                          className="w-full border border-slate-200 rounded px-2 py-1 mb-1"
+                        <PrestationsCombobox
+                          designation={l.designation}
+                          onChange={(patch) => updateLine(i, patch)}
+                          className="mb-1"
                         />
                         <input
                           value={l.description || ''}

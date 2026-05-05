@@ -111,6 +111,23 @@ export default function HistoriquePage() {
 
   useEffect(() => { load() }, [])
 
+  async function handleDeleteDoc(d: Document) {
+    const label = d.type === 'facture' ? 'cette facture' : `ce ${d.type}`
+    const ref = d.numero ? ` ${d.numero}` : ''
+    if (!confirm(`Supprimer ${label}${ref} ? Cette action est irréversible.`)) return
+    setDocuments(prev => prev.filter(x => x.id !== d.id))
+    try {
+      const res = await fetch(`/api/historique/${d.id}`, { method: 'DELETE' })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        throw new Error(data.error || `HTTP ${res.status}`)
+      }
+    } catch (e: any) {
+      setError(`Erreur suppression : ${e.message}`)
+      load()
+    }
+  }
+
   // Recherche debouncée
   useEffect(() => {
     const t = setTimeout(() => { load() }, 300)
@@ -309,6 +326,7 @@ export default function HistoriquePage() {
                     <th className="px-4 py-2 text-left">Statut</th>
                     <th className="px-4 py-2 text-left">Envoyé à</th>
                     <th className="px-4 py-2 text-right">Document</th>
+                    <th className="px-4 py-2 w-10"></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -346,6 +364,15 @@ export default function HistoriquePage() {
                         ) : (
                           <span className="text-slate-400 text-xs">—</span>
                         )}
+                      </td>
+                      <td className="px-2 py-3 text-center">
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteDoc(d)}
+                          className="text-slate-400 hover:text-red-600 text-lg leading-none px-1"
+                          aria-label={`Supprimer ${d.type} ${d.numero || ''}`}
+                          title="Supprimer"
+                        >×</button>
                       </td>
                     </tr>
                   ))}

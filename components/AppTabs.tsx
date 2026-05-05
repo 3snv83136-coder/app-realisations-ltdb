@@ -6,6 +6,7 @@ const TABS = [
   { href: '/',             label: 'Dashboard',   icon: '🏠' },
   { href: '/planning',     label: 'Planning',    icon: '📅' },
   { href: '/nouveau',      label: 'Rapport',     icon: '📄' },
+  { href: '/inspection',   label: 'Caméra',      icon: '📷' },
   { href: '/devis',        label: 'Devis',       icon: '📝' },
   { href: '/facture',      label: 'Facture',     icon: '🧾' },
   { href: '/attestation',  label: 'Attestation', icon: '✅' },
