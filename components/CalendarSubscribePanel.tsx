@@ -10,7 +10,7 @@ type CalendarInfo = {
 }
 
 export default function CalendarSubscribePanel() {
-  const [open, setOpen] = useState(false)
+  const [open, setOpen] = useState(true)
   const [info, setInfo] = useState<CalendarInfo | null>(null)
   const [loading, setLoading] = useState(false)
   const [copied, setCopied] = useState<'ics' | 'webcal' | null>(null)
