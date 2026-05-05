@@ -4,8 +4,10 @@ import { useRouter } from "next/navigation"
 import Link from "next/link"
 import dynamic from "next/dynamic"
 import AppTabs from "@/components/AppTabs"
+import VilleCombobox from "@/components/VilleCombobox"
 import { fmtDateFR, fmtEUR } from "@/lib/format"
 import { CANAUX_ACQUISITION, canalIcon, canalLabel } from "@/lib/canaux"
+import { TYPES_INTERVENTION } from "@/lib/types-intervention"
 
 const InterventionMap = dynamic(() => import('@/components/InterventionMap'), { ssr: false })
 const InterventionRapportDownloadButton = dynamic(
@@ -86,6 +88,69 @@ export default function InterventionDetailPage({ params }: { params: { id: strin
   const [error, setError] = useState('')
   const [actionInProgress, setActionInProgress] = useState(false)
   const [actionMsg, setActionMsg] = useState('')
+
+  // Mode édition
+  const [editing, setEditing] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [techniciens, setTechniciens] = useState<TechnicienDetail[]>([])
+  const [form, setForm] = useState<Partial<InterventionDetail>>({})
+
+  function startEdit() {
+    if (!intervention) return
+    setForm({
+      type_intervention: intervention.type_intervention,
+      date_prevue: intervention.date_prevue,
+      heure_prevue: intervention.heure_prevue ? intervention.heure_prevue.slice(0, 5) : null,
+      duree_estimee_min: intervention.duree_estimee_min,
+      urgence: intervention.urgence,
+      prix_prevu: intervention.prix_prevu,
+      adresse_chantier: intervention.adresse_chantier,
+      ville: intervention.ville,
+      code_postal: intervention.code_postal,
+      technicien_id: intervention.technicien_id,
+      agence: intervention.agence,
+      notes_internes: intervention.notes_internes,
+    })
+    setActionMsg(''); setError('')
+    setEditing(true)
+    if (techniciens.length === 0) {
+      fetch('/api/techniciens?all=1', { cache: 'no-store' })
+        .then(r => r.json()).then(d => setTechniciens(d.techniciens || []))
+        .catch(() => {})
+    }
+  }
+
+  function cancelEdit() { setEditing(false); setForm({}) }
+
+  async function saveEdit() {
+    if (!intervention) return
+    setSaving(true); setError(''); setActionMsg('')
+    try {
+      const payload: Record<string, unknown> = {}
+      const original: any = intervention
+      for (const [k, v] of Object.entries(form)) {
+        const orig = k === 'heure_prevue' ? (original[k] ? String(original[k]).slice(0, 5) : null) : original[k]
+        if (v !== orig) payload[k] = v === '' ? null : v
+      }
+      if (Object.keys(payload).length === 0) { setEditing(false); setSaving(false); return }
+      const res = await fetch(`/api/interventions/${intervention.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`)
+      setIntervention(data.intervention)
+      setActionMsg('Modifications enregistrées')
+      setEditing(false)
+      // recharge le client/technicien si technicien changé
+      if ('technicien_id' in payload) await load()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setSaving(false)
+    }
+  }
 
   async function load() {
     setLoading(true); setError('')
@@ -259,6 +324,16 @@ export default function InterventionDetailPage({ params }: { params: { id: strin
                   </button>
                 </>
               )}
+              {!editing && (
+                <button
+                  onClick={startEdit}
+                  disabled={actionInProgress}
+                  className="bg-white border-2 border-blue-300 text-blue-700 hover:bg-blue-50 px-4 py-2.5 rounded-xl font-bold text-sm disabled:opacity-50 transition"
+                  title="Modifier les informations de l'intervention"
+                >
+                  ✏ Modifier
+                </button>
+              )}
               {intervention.statut !== 'annulee' && intervention.statut !== 'terminee' && (
                 <button
                   onClick={() => {
@@ -326,14 +401,43 @@ export default function InterventionDetailPage({ params }: { params: { id: strin
         </section>
 
         {/* Date / heure / type */}
-        <section className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <InfoCell label="Date prévue" value={fmtDateFR(intervention.date_prevue)} />
-          <InfoCell label="Heure" value={intervention.heure_prevue ? intervention.heure_prevue.slice(0, 5) : '—'} />
-          <InfoCell label="Durée estimée" value={intervention.duree_estimee_min ? `${intervention.duree_estimee_min} min` : '—'} />
-          <InfoCell label="Type" value={intervention.type_intervention || '—'} />
-          <InfoCell label="Urgence" value={intervention.urgence ? '🚨 Oui' : 'Non'} />
-          <InfoCell label="Prix prévu" value={fmtEUR(intervention.prix_prevu)} />
-        </section>
+        {editing ? (
+          <section className="bg-blue-50 rounded-2xl shadow-sm border border-blue-200 p-5 grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <EditField label="Date prévue">
+              <input type="date" value={form.date_prevue || ''} onChange={e => setForm(f => ({ ...f, date_prevue: e.target.value || null }))} className={editInputCls} />
+            </EditField>
+            <EditField label="Heure">
+              <input type="time" value={form.heure_prevue || ''} onChange={e => setForm(f => ({ ...f, heure_prevue: e.target.value || null }))} className={editInputCls} />
+            </EditField>
+            <EditField label="Durée (min)">
+              <input type="number" min="0" step="15" value={form.duree_estimee_min ?? ''} onChange={e => setForm(f => ({ ...f, duree_estimee_min: e.target.value ? Number(e.target.value) : null }))} className={editInputCls} />
+            </EditField>
+            <EditField label="Type">
+              <select value={form.type_intervention || ''} onChange={e => setForm(f => ({ ...f, type_intervention: e.target.value || null }))} className={editInputCls}>
+                <option value="">—</option>
+                {TYPES_INTERVENTION.map(t => <option key={t} value={t}>{t}</option>)}
+              </select>
+            </EditField>
+            <EditField label="Urgence">
+              <label className="inline-flex items-center gap-2 mt-1">
+                <input type="checkbox" checked={!!form.urgence} onChange={e => setForm(f => ({ ...f, urgence: e.target.checked }))} className="w-5 h-5 accent-red-500" />
+                <span className="text-sm font-bold">{form.urgence ? '🚨 Urgente' : 'Non urgente'}</span>
+              </label>
+            </EditField>
+            <EditField label="Prix prévu (€)">
+              <input type="number" min="0" step="0.01" value={form.prix_prevu ?? ''} onChange={e => setForm(f => ({ ...f, prix_prevu: e.target.value ? Number(e.target.value) : null }))} className={editInputCls} />
+            </EditField>
+          </section>
+        ) : (
+          <section className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <InfoCell label="Date prévue" value={fmtDateFR(intervention.date_prevue)} />
+            <InfoCell label="Heure" value={intervention.heure_prevue ? intervention.heure_prevue.slice(0, 5) : '—'} />
+            <InfoCell label="Durée estimée" value={intervention.duree_estimee_min ? `${intervention.duree_estimee_min} min` : '—'} />
+            <InfoCell label="Type" value={intervention.type_intervention || '—'} />
+            <InfoCell label="Urgence" value={intervention.urgence ? '🚨 Oui' : 'Non'} />
+            <InfoCell label="Prix prévu" value={fmtEUR(intervention.prix_prevu)} />
+          </section>
+        )}
 
         {/* Canal d'acquisition (éditable) */}
         <section className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 space-y-2">
@@ -405,10 +509,28 @@ export default function InterventionDetailPage({ params }: { params: { id: strin
               </a>
             )}
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <InfoCell label="Adresse" value={intervention.adresse_chantier || '—'} />
-            <InfoCell label="Ville" value={[intervention.code_postal, intervention.ville].filter(Boolean).join(' ') || '—'} />
-          </div>
+          {editing ? (
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-blue-50 rounded-xl p-3 border border-blue-200">
+              <EditField label="Adresse">
+                <input value={form.adresse_chantier || ''} onChange={e => setForm(f => ({ ...f, adresse_chantier: e.target.value || null }))} className={editInputCls} />
+              </EditField>
+              <EditField label="Code postal">
+                <input value={form.code_postal || ''} onChange={e => setForm(f => ({ ...f, code_postal: e.target.value || null }))} className={editInputCls} />
+              </EditField>
+              <EditField label="Ville">
+                <VilleCombobox
+                  value={form.ville || ''}
+                  onChange={(nom) => setForm(f => ({ ...f, ville: nom || null }))}
+                  onSelect={(v) => setForm(f => ({ ...f, ville: v.nom, code_postal: v.cp || f.code_postal }))}
+                />
+              </EditField>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <InfoCell label="Adresse" value={intervention.adresse_chantier || '—'} />
+              <InfoCell label="Ville" value={[intervention.code_postal, intervention.ville].filter(Boolean).join(' ') || '—'} />
+            </div>
+          )}
           <InterventionMap
             adresse={intervention.adresse_chantier ?? undefined}
             ville={intervention.ville ?? undefined}
@@ -421,7 +543,20 @@ export default function InterventionDetailPage({ params }: { params: { id: strin
         {/* Technicien */}
         <section className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 space-y-3">
           <h2 className="text-sm font-bold uppercase tracking-wider text-slate-500">Technicien assigné</h2>
-          {technicien ? (
+          {editing ? (
+            <select
+              value={form.technicien_id || ''}
+              onChange={e => setForm(f => ({ ...f, technicien_id: e.target.value || null }))}
+              className={editInputCls + ' bg-blue-50 border-blue-200'}
+            >
+              <option value="">— non assigné —</option>
+              {techniciens.map(t => (
+                <option key={t.id} value={t.id}>
+                  {t.nom}{t.agence ? ` · ${t.agence}` : ''}
+                </option>
+              ))}
+            </select>
+          ) : technicien ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
               <InfoCell label="Nom" value={technicien.nom} />
               <InfoCell label="Agence" value={technicien.agence || '—'} />
@@ -434,14 +569,57 @@ export default function InterventionDetailPage({ params }: { params: { id: strin
         </section>
 
         {/* Notes */}
-        {intervention.notes_internes && (
+        {editing ? (
+          <section className="bg-amber-50 rounded-2xl border border-amber-200 p-5 space-y-2">
+            <h2 className="text-sm font-bold uppercase tracking-wider text-amber-800">Notes internes</h2>
+            <textarea
+              value={form.notes_internes || ''}
+              onChange={e => setForm(f => ({ ...f, notes_internes: e.target.value || null }))}
+              rows={4}
+              className={editInputCls + ' resize-y bg-white'}
+              placeholder="Notes visibles uniquement en interne…"
+            />
+          </section>
+        ) : intervention.notes_internes ? (
           <section className="bg-amber-50 rounded-2xl border border-amber-200 p-5 space-y-2">
             <h2 className="text-sm font-bold uppercase tracking-wider text-amber-800">Notes internes</h2>
             <p className="text-sm text-amber-900 whitespace-pre-wrap">{intervention.notes_internes}</p>
           </section>
-        )}
+        ) : null}
       </main>
+
+      {editing && (
+        <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 shadow-[0_-4px_20px_rgba(0,0,0,0.08)] p-3 z-30">
+          <div className="max-w-4xl mx-auto flex gap-3">
+            <button
+              onClick={cancelEdit}
+              disabled={saving}
+              className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 py-3.5 rounded-xl font-bold text-sm disabled:opacity-50 transition"
+            >
+              Annuler
+            </button>
+            <button
+              onClick={saveEdit}
+              disabled={saving}
+              className="flex-[2] bg-emerald-600 hover:bg-emerald-700 text-white py-3.5 rounded-xl font-bold text-sm shadow-lg disabled:opacity-60 transition"
+            >
+              {saving ? 'Enregistrement…' : '💾 Enregistrer les modifications'}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
+  )
+}
+
+const editInputCls = "w-full border-2 border-slate-200 focus:border-blue-500 outline-none rounded-lg px-3 py-2 text-sm bg-white transition-colors"
+
+function EditField({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <label className="block">
+      <span className="text-[11px] uppercase tracking-wider text-slate-500 font-bold">{label}</span>
+      <div className="mt-1">{children}</div>
+    </label>
   )
 }
 
