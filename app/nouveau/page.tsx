@@ -369,7 +369,7 @@ export default function NouveauPage() {
       },
     }
     sessionStorage.setItem('ltdb_devis_to_facture', JSON.stringify(payload))
-    router.push('/facture')
+    router.push('/facture/nouvelle')
   }
 
   async function handlePublish() {

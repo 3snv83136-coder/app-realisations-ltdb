@@ -91,6 +91,7 @@ export default function HistoriquePage() {
   const [error, setError] = useState('')
   const [interventions, setInterventions] = useState<Intervention[]>([])
   const [documents, setDocuments] = useState<Document[]>([])
+  const [deletingId, setDeletingId] = useState<string | null>(null)
 
   async function load() {
     setLoading(true); setError('')
@@ -115,16 +116,33 @@ export default function HistoriquePage() {
     const label = d.type === 'facture' ? 'cette facture' : `ce ${d.type}`
     const ref = d.numero ? ` ${d.numero}` : ''
     if (!confirm(`Supprimer ${label}${ref} ? Cette action est irréversible.`)) return
-    setDocuments(prev => prev.filter(x => x.id !== d.id))
+    setDeletingId(d.id); setError('')
     try {
       const res = await fetch(`/api/historique/${d.id}`, { method: 'DELETE' })
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}))
-        throw new Error(data.error || `HTTP ${res.status}`)
-      }
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`)
+      // Suppression confirmée par le serveur → on retire la ligne de l'UI
+      setDocuments(prev => prev.filter(x => x.id !== d.id))
     } catch (e: any) {
       setError(`Erreur suppression : ${e.message}`)
-      load()
+    } finally {
+      setDeletingId(null)
+    }
+  }
+
+  async function handleDeleteIntervention(i: Intervention) {
+    const label = i.reference ? `l'intervention ${i.reference}` : 'cette intervention'
+    if (!confirm(`Supprimer ${label} ? Cette action est irréversible et supprime aussi le rapport associé.`)) return
+    setDeletingId(i.id); setError('')
+    try {
+      const res = await fetch(`/api/interventions/${i.id}?hard=1`, { method: 'DELETE' })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`)
+      setInterventions(prev => prev.filter(x => x.id !== i.id))
+    } catch (e: any) {
+      setError(`Erreur suppression intervention : ${e.message}`)
+    } finally {
+      setDeletingId(null)
     }
   }
 
@@ -247,11 +265,12 @@ export default function HistoriquePage() {
                     <th className="px-4 py-2 text-left">Statut</th>
                     <th className="px-4 py-2 text-left">Page</th>
                     <th className="px-4 py-2 text-right">Rapport</th>
+                    <th className="px-4 py-2 w-10"></th>
                   </tr>
                 </thead>
                 <tbody>
                   {interventions.map(i => (
-                    <tr key={i.id} className="border-t border-slate-100 hover:bg-slate-50">
+                    <tr key={i.id} className={`border-t border-slate-100 hover:bg-slate-50 ${deletingId === i.id ? 'opacity-50' : ''}`}>
                       <td className="px-4 py-3 text-slate-600">{fmtDateFR(i.date_realisee || i.date_prevue || i.created_at)}</td>
                       <td className="px-4 py-3 font-mono text-xs text-[#0e2a52] font-bold">{i.reference || '—'}</td>
                       <td className="px-4 py-3 font-semibold text-slate-700">{i.client_nom || '—'}</td>
@@ -296,6 +315,16 @@ export default function HistoriquePage() {
                           <span className="text-slate-400 text-xs">—</span>
                         )}
                       </td>
+                      <td className="px-2 py-3 text-center">
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteIntervention(i)}
+                          disabled={deletingId === i.id}
+                          className="text-slate-400 hover:text-red-600 text-lg leading-none px-1 disabled:opacity-30 disabled:cursor-wait"
+                          aria-label={`Supprimer intervention ${i.reference || ''}`}
+                          title="Supprimer l'intervention"
+                        >{deletingId === i.id ? '…' : '×'}</button>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -331,7 +360,7 @@ export default function HistoriquePage() {
                 </thead>
                 <tbody>
                   {filteredDocuments.map(d => (
-                    <tr key={d.id} className="border-t border-slate-100 hover:bg-slate-50">
+                    <tr key={d.id} className={`border-t border-slate-100 hover:bg-slate-50 ${deletingId === d.id ? 'opacity-50' : ''}`}>
                       <td className="px-4 py-3">
                         <span className="text-base mr-1">{TYPE_ICON[d.type] || '📄'}</span>
                         <span className="text-xs font-bold text-[#0e2a52] uppercase">{d.type}</span>
@@ -369,10 +398,11 @@ export default function HistoriquePage() {
                         <button
                           type="button"
                           onClick={() => handleDeleteDoc(d)}
-                          className="text-slate-400 hover:text-red-600 text-lg leading-none px-1"
+                          disabled={deletingId === d.id}
+                          className="text-slate-400 hover:text-red-600 text-lg leading-none px-1 disabled:opacity-30 disabled:cursor-wait"
                           aria-label={`Supprimer ${d.type} ${d.numero || ''}`}
                           title="Supprimer"
-                        >×</button>
+                        >{deletingId === d.id ? '…' : '×'}</button>
                       </td>
                     </tr>
                   ))}

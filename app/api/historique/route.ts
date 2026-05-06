@@ -21,11 +21,13 @@ export async function GET(req: NextRequest) {
     sb
       .from('interventions')
       .select('id, reference, type_intervention, adresse_chantier, ville, code_postal, date_realisee, date_prevue, statut, agence, publie_slug, created_at, client_id, technicien_id, rapport_json, photos_urls, pdf_rapport_url')
+      .neq('statut', 'annulee')
       .order('created_at', { ascending: false })
       .limit(limit),
     sb
       .from('documents')
       .select('id, type, numero, agence, date_emission, echeance, statut, montant_ht, montant_ttc, tva_taux, payload, pdf_url, envoye_email, envoye_at, intervention_id, client_id, created_at')
+      .neq('statut', 'annule')
       .order('created_at', { ascending: false })
       .limit(limit),
   ])

@@ -145,7 +145,7 @@ export type PersistRapportResult =
  */
 export async function persistRapport(p: PersistRapportInput): Promise<PersistRapportResult> {
   const sb = getSupabaseOrNull()
-  if (!sb) return { ok: false, error: 'Supabase non configuré' }
+  if (!sb) return { ok: false, error: 'Supabase non configuré (SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY manquants côté serveur)' }
 
   const clientId = await upsertClient({
     nom: p.clientNom ?? undefined,
@@ -155,13 +155,21 @@ export async function persistRapport(p: PersistRapportInput): Promise<PersistRap
     code_postal: p.codePostal ?? undefined,
   })
 
+  // Postgres `date` exige YYYY-MM-DD strict. Toute autre forme (ex: "5 mai 2026")
+  // doit être convertie en null pour ne pas faire échouer l'insert.
+  const dateIso = (() => {
+    const raw = (p.dateIntervention || '').trim()
+    if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw
+    return null
+  })()
+
   const baseRow = {
     client_id: clientId,
     type_intervention: p.typeIntervention || null,
     adresse_chantier: p.clientAdresse || null,
     ville: p.ville || null,
     code_postal: p.codePostal || null,
-    date_realisee: p.dateIntervention || null,
+    date_realisee: dateIso,
     statut: 'terminee',
     transcription: p.transcription || null,
     rapport_json: p.rapport,
@@ -171,7 +179,10 @@ export async function persistRapport(p: PersistRapportInput): Promise<PersistRap
 
   if (p.interventionId) {
     const { error } = await sb.from('interventions').update(baseRow).eq('id', p.interventionId)
-    if (error) return { ok: false, error: error.message }
+    if (error) {
+      console.error('[persistRapport:update]', error)
+      return { ok: false, error: `Update intervention ${p.interventionId} : ${error.message}` }
+    }
     return { ok: true, id: p.interventionId, mode: 'update' }
   }
 
@@ -188,7 +199,8 @@ export async function persistRapport(p: PersistRapportInput): Promise<PersistRap
       currentRef = `${baseRef}-${suffix}`
       continue
     }
-    return { ok: false, error: error?.message || 'Erreur insertion' }
+    console.error('[persistRapport:insert]', error)
+    return { ok: false, error: error?.message || 'Erreur insertion intervention' }
   }
   return { ok: false, error: 'Référence en collision après 5 tentatives' }
 }

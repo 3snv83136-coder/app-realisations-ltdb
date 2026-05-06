@@ -1,6 +1,11 @@
 'use client'
-import { useEffect, useState } from "react"
+import { useEffect, useState, type ComponentType } from "react"
 import Link from "next/link"
+import {
+  CalendarIcon, DocumentIcon, CameraIcon, ClipboardIcon, ReceiptIcon,
+  CheckBadgeIcon, ArchiveIcon, ChartBarIcon, BriefcaseIcon,
+  ClockIcon, MapPinIcon, ExclamationIcon,
+} from "@/components/Icons"
 
 type Intervention = {
   id: string
@@ -28,16 +33,25 @@ type Stats = {
   interventions_semaine: number
 }
 
-const TOOLS = [
-  { href: '/planning',     icon: '📅', label: 'Planning',    color: 'from-blue-500 to-blue-700',     desc: 'Prendre RDV, dispatcher' },
-  { href: '/nouveau',      icon: '📄', label: 'Rapport',     color: 'from-[#0e2a52] to-[#1a3a6b]',   desc: 'Rédiger sur place' },
-  { href: '/inspection',   icon: '📷', label: 'Caméra',      color: 'from-cyan-600 to-sky-800',      desc: 'Rapport ITV NF EN 13508-2' },
-  { href: '/devis',        icon: '📝', label: 'Devis',       color: 'from-amber-500 to-orange-600',  desc: 'Établir un devis' },
-  { href: '/facture',      icon: '🧾', label: 'Facture',     color: 'from-emerald-500 to-emerald-700', desc: 'Facturer le client' },
-  { href: '/attestation',  icon: '✅', label: 'Attestation', color: 'from-[#a78346] to-[#7d6233]',   desc: 'Raccordement / SPANC' },
-  { href: '/historique',   icon: '📚', label: 'Historique',  color: 'from-slate-500 to-slate-700',   desc: 'Tout retrouver' },
-  { href: '/statistiques', icon: '📊', label: 'Stats',       color: 'from-pink-500 to-rose-700',     desc: 'Canaux d\'acquisition' },
-  { href: '/comptabilite', icon: '💼', label: 'Compta',      color: 'from-purple-500 to-purple-800', desc: 'Bilan, FEC, exports' },
+type Tool = {
+  href: string
+  Icon: ComponentType<{ className?: string; strokeWidth?: number }>
+  label: string
+  /** classes Tailwind : fond + texte de la pastille icône (palette douce) */
+  tone: string
+  desc: string
+}
+
+const TOOLS: Tool[] = [
+  { href: '/planning',     Icon: CalendarIcon,    label: 'Planning',     tone: 'bg-blue-50 text-blue-600',       desc: 'Prendre RDV, dispatcher' },
+  { href: '/nouveau',      Icon: DocumentIcon,    label: 'Rapport',      tone: 'bg-slate-100 text-slate-700',    desc: 'Rédiger sur place' },
+  { href: '/inspection',   Icon: CameraIcon,      label: 'Caméra',       tone: 'bg-sky-50 text-sky-600',         desc: 'Inspection NF EN 13508-2' },
+  { href: '/devis',        Icon: ClipboardIcon,   label: 'Devis',        tone: 'bg-amber-50 text-amber-600',     desc: 'Établir un devis' },
+  { href: '/facture',      Icon: ReceiptIcon,     label: 'Facturation',  tone: 'bg-emerald-50 text-emerald-600', desc: 'Suivi, paiements & relances' },
+  { href: '/attestation',  Icon: CheckBadgeIcon,  label: 'Attestation',  tone: 'bg-[#f5efe2] text-[#8a6d3b]',    desc: 'Raccordement / SPANC' },
+  { href: '/historique',   Icon: ArchiveIcon,     label: 'Historique',   tone: 'bg-slate-100 text-slate-600',    desc: 'Tout retrouver' },
+  { href: '/statistiques', Icon: ChartBarIcon,    label: 'Statistiques', tone: 'bg-rose-50 text-rose-600',       desc: 'Canaux d’acquisition' },
+  { href: '/comptabilite', Icon: BriefcaseIcon,   label: 'Comptabilité', tone: 'bg-violet-50 text-violet-600',   desc: 'Bilan, FEC, exports' },
 ]
 
 const STATUT_LABEL: Record<string, string> = {
@@ -142,13 +156,14 @@ export default function Home() {
 
   if (codeChecked && !unlocked) {
     return (
-      <main className="relative min-h-screen flex items-center justify-center overflow-hidden bg-[#0a1a3d] text-white px-4">
-        <div className="absolute inset-0 bg-gradient-to-br from-[#0a1a3d] via-[#0e2a52] to-[#071026]" />
-        <div className="relative z-10 w-full max-w-sm bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl p-7 shadow-2xl">
+      <main className="relative min-h-screen flex items-center justify-center bg-slate-50 text-slate-900 px-4">
+        <div className="relative z-10 w-full max-w-sm bg-white border border-slate-200 rounded-2xl p-7 shadow-sm">
           <div className="text-center mb-5">
-            <div className="text-3xl mb-2">🔒</div>
-            <h1 className="text-2xl font-black tracking-tight">Tableau de bord</h1>
-            <p className="text-xs uppercase tracking-[0.25em] text-orange-300/80 mt-1 font-bold">Code d&apos;accès requis</p>
+            <div className="mx-auto w-12 h-12 rounded-2xl bg-slate-100 flex items-center justify-center mb-3">
+              <svg className="w-6 h-6 text-slate-600" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z" /></svg>
+            </div>
+            <h1 className="text-xl font-bold tracking-tight">Tableau de bord</h1>
+            <p className="text-[11px] uppercase tracking-[0.2em] text-slate-500 mt-1 font-semibold">Code d&apos;accès requis</p>
           </div>
           <form onSubmit={handleCodeSubmit} className="space-y-3" autoComplete="off">
             <input
@@ -158,14 +173,14 @@ export default function Home() {
               value={codeInput}
               onChange={e => { setCodeInput(e.target.value); if (codeError) setCodeError('') }}
               placeholder="••••"
-              className="w-full text-center text-2xl font-black tracking-[0.6em] bg-white/95 text-[#0e2a52] rounded-xl px-4 py-4 outline-none focus:ring-4 focus:ring-orange-400/50 placeholder:text-slate-300"
+              className="w-full text-center text-2xl font-bold tracking-[0.6em] bg-slate-50 text-slate-900 rounded-xl px-4 py-4 outline-none border border-slate-200 focus:border-[#0e2a52] focus:ring-4 focus:ring-[#0e2a52]/10 placeholder:text-slate-300"
             />
-            {codeError && <p className="text-orange-300 text-sm text-center font-semibold">{codeError}</p>}
+            {codeError && <p className="text-red-600 text-sm text-center font-medium">{codeError}</p>}
             <button
               type="submit"
-              className="w-full bg-orange-500 hover:bg-orange-600 active:scale-[0.98] transition-all text-white font-black py-3 rounded-xl shadow-lg"
+              className="w-full bg-[#0e2a52] hover:bg-[#0a1f3d] active:scale-[0.98] transition-all text-white font-semibold py-3 rounded-xl"
             >
-              Déverrouiller →
+              Déverrouiller
             </button>
           </form>
         </div>
@@ -174,243 +189,161 @@ export default function Home() {
   }
 
   return (
-    <main className="relative min-h-screen overflow-hidden bg-[#0a1a3d] text-white">
-      {/* Background gradient */}
-      <div className="absolute inset-0 bg-gradient-to-br from-[#0a1a3d] via-[#0e2a52] to-[#071026]" />
-
-      {/* Shatter cracks */}
-      {!skipAnimation && (
-        <svg
-          className="pointer-events-none absolute inset-0 w-full h-full opacity-0 cracks-fade-in"
-          viewBox="0 0 800 1000"
-          preserveAspectRatio="xMidYMid slice"
-          aria-hidden
-        >
-          <g stroke="#1a3a6b" strokeWidth="1.5" fill="none" strokeLinecap="round">
-            <path d="M400 420 L200 100" />
-            <path d="M400 420 L120 200" />
-            <path d="M400 420 L600 80" />
-            <path d="M400 420 L720 180" />
-            <path d="M400 420 L50 500" />
-            <path d="M400 420 L750 500" />
-            <path d="M400 420 L180 900" />
-            <path d="M400 420 L320 980" />
-            <path d="M400 420 L500 980" />
-            <path d="M400 420 L680 900" />
-            <path d="M400 420 L280 300" />
-            <path d="M400 420 L520 320" />
-            <path d="M400 420 L250 620" />
-            <path d="M400 420 L580 630" />
-          </g>
-        </svg>
-      )}
-
-      {!skipAnimation && (
-        <div className="pointer-events-none absolute left-1/2 top-[28%] -translate-x-1/2 -translate-y-1/2 rounded-full border-4 border-orange-400 shockwave-ring" />
-      )}
-
-      <div className={`relative z-10 ${skipAnimation ? '' : 'shake-on-impact'}`}>
-        {/* Header avec logo */}
-        <div className="px-4 sm:px-6 py-6 sm:py-10">
-          <div className={`text-center ${skipAnimation ? '' : 'ltdb-drop'}`}>
-            <h1 className="text-[14vw] sm:text-[8vw] md:text-7xl lg:text-8xl font-black leading-none tracking-tight text-white drop-shadow-[0_4px_20px_rgba(229,115,22,0.4)]">
-              LTDB
-            </h1>
-            <div className="mt-1 text-[9px] sm:text-[11px] md:text-xs uppercase tracking-[0.35em] text-orange-300/80 font-bold">
+    <main className="relative min-h-screen bg-slate-50 text-slate-900">
+      {/* Header — bleu marine sobre */}
+      <header className="bg-[#0e2a52] text-white">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-5 sm:py-6 flex items-center justify-between gap-4">
+          <div className={`flex items-baseline gap-3 ${skipAnimation ? '' : 'ltdb-drop'}`}>
+            <h1 className="text-2xl sm:text-3xl font-black tracking-tight leading-none">LTDB</h1>
+            <div className="hidden sm:block text-[10px] uppercase tracking-[0.25em] text-white/60 font-semibold">
               Les Techniciens du Débouchage · CRM
             </div>
           </div>
+          <div className="text-[11px] text-white/70">
+            {new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}
+          </div>
         </div>
+      </header>
 
-        {/* Tools grid */}
-        <div className={`px-4 sm:px-6 ${skipAnimation ? '' : 'buttons-reveal'}`}>
-          <div className="max-w-6xl mx-auto grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-4 xl:grid-cols-8 gap-3">
-            {TOOLS.map(t => (
-              <Link
-                key={t.href}
-                href={t.href}
-                className="group relative bg-white/95 hover:bg-white text-[#0e2a52] rounded-2xl p-3 sm:p-4 text-left shadow-xl hover:shadow-2xl transition-all active:scale-[0.97] hover:-translate-y-0.5"
-              >
-                <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${t.color} text-white flex items-center justify-center text-xl mb-2 shadow-md`}>
-                  {t.icon}
-                </div>
-                <div className="text-sm sm:text-base font-black leading-tight">{t.label}</div>
-                <div className="text-[10px] sm:text-xs text-slate-500 mt-0.5">{t.desc}</div>
-              </Link>
-            ))}
+      <div className="relative z-10">
+
+        {/* Tools grid — style logiciel pro, cards blanches plates */}
+        <div className={`px-4 sm:px-6 pt-6 sm:pt-8 ${skipAnimation ? '' : 'buttons-reveal'}`}>
+          <div className="max-w-7xl mx-auto">
+            <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500 font-semibold mb-3 px-1">Modules</div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5">
+              {TOOLS.map(t => {
+                const Icon = t.Icon
+                return (
+                  <Link
+                    key={t.href}
+                    href={t.href}
+                    className="group bg-white rounded-2xl p-4 text-left border border-slate-200/70 hover:border-slate-300 hover:shadow-sm transition-all duration-200 flex items-center gap-3"
+                  >
+                    <div className={`w-10 h-10 rounded-xl ${t.tone} flex items-center justify-center flex-shrink-0 transition-transform group-hover:scale-105`}>
+                      <Icon className="w-5 h-5" strokeWidth={1.75} />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="text-sm font-semibold text-slate-900 leading-tight tracking-tight">{t.label}</div>
+                      <div className="text-[11px] text-slate-500 mt-0.5 leading-snug truncate">{t.desc}</div>
+                    </div>
+                  </Link>
+                )
+              })}
+            </div>
           </div>
         </div>
 
         {/* Dashboard interventions */}
-        <div className={`px-4 sm:px-6 mt-8 sm:mt-12 pb-12 ${skipAnimation ? '' : 'dashboard-reveal'}`}>
-          <div className="max-w-6xl mx-auto space-y-6">
+        <div className={`px-4 sm:px-6 mt-8 pb-12 ${skipAnimation ? '' : 'dashboard-reveal'}`}>
+          <div className="max-w-7xl mx-auto space-y-6">
             {/* Stats row */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              <StatCard label="CA mois" value={fmtEUR(stats.ca_mois)} icon="💶" />
-              <StatCard label="CA année" value={fmtEUR(stats.ca_annee)} icon="📈" />
-              <StatCard label="Factures mois" value={String(stats.factures_mois)} icon="🧾" />
-              <StatCard label="Inter. semaine" value={String(stats.interventions_semaine)} icon="🔧" />
+            <div>
+              <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500 font-semibold mb-3 px-1">Indicateurs</div>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                <StatCard label="CA mois"        value={fmtEUR(stats.ca_mois)} />
+                <StatCard label="CA année"       value={fmtEUR(stats.ca_annee)} />
+                <StatCard label="Factures mois"  value={String(stats.factures_mois)} />
+                <StatCard label="Inter. semaine" value={String(stats.interventions_semaine)} />
+              </div>
             </div>
 
             {/* Kanban interventions */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-              <Column
-                title="À venir"
-                count={aVenir.length}
-                accent="border-blue-400 text-blue-100"
-                icon="📅"
-                interventions={aVenir.slice(0, 8)}
-                emptyMessage="Aucune intervention planifiée."
-                emptyAction={{ label: '+ Planifier', href: '/planning' }}
-              />
-              <Column
-                title="En cours"
-                count={enCours.length}
-                accent="border-amber-400 text-amber-100"
-                icon="⚙"
-                interventions={enCours}
-                emptyMessage="Aucune intervention en cours."
-                pulse
-              />
-              <Column
-                title="Terminées récentes"
-                count={terminees.length}
-                accent="border-emerald-400 text-emerald-100"
-                icon="✅"
-                interventions={terminees.slice(0, 8)}
-                emptyMessage="Pas encore de réalisations."
-              />
+            <div>
+              <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500 font-semibold mb-3 px-1">Interventions</div>
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+                <Column
+                  title="À venir"
+                  count={aVenir.length}
+                  dotClass="bg-blue-500"
+                  interventions={aVenir.slice(0, 8)}
+                  emptyMessage="Aucune intervention planifiée."
+                  emptyAction={{ label: 'Planifier', href: '/planning' }}
+                />
+                <Column
+                  title="En cours"
+                  count={enCours.length}
+                  dotClass="bg-amber-500"
+                  interventions={enCours}
+                  emptyMessage="Aucune intervention en cours."
+                  pulse
+                />
+                <Column
+                  title="Terminées récentes"
+                  count={terminees.length}
+                  dotClass="bg-emerald-500"
+                  interventions={terminees.slice(0, 8)}
+                  emptyMessage="Pas encore de réalisations."
+                />
+              </div>
             </div>
 
             {loading && (
-              <div className="text-center text-white/60 text-sm">Chargement…</div>
+              <div className="text-center text-slate-400 text-sm">Chargement…</div>
             )}
           </div>
         </div>
       </div>
 
       <style jsx>{`
-        /* ===== LTDB drop animation ===== */
-        @keyframes ltdbDrop {
-          0%   { opacity: 0; transform: translateY(-120vh) rotate(-8deg) scale(1.5); }
-          30%  { opacity: 0; transform: translateY(-120vh) rotate(-8deg) scale(1.5); }
-          75%  { opacity: 1; transform: translateY(8px) rotate(2deg) scale(1.02); }
-          85%  { transform: translateY(-4px) rotate(-1deg) scale(1); }
-          100% { opacity: 1; transform: translateY(0) rotate(0) scale(1); }
+        @keyframes softFadeUp {
+          from { opacity: 0; transform: translateY(8px); }
+          to   { opacity: 1; transform: translateY(0); }
         }
-        .ltdb-drop {
-          opacity: 0;
-          animation: ltdbDrop 1.4s cubic-bezier(.45,.05,.2,1) 0.2s forwards;
-          will-change: transform, opacity;
-        }
-
-        @keyframes shake {
-          0%, 100% { transform: translate(0, 0); }
-          10% { transform: translate(-3px, 2px); }
-          25% { transform: translate(3px, -2px); }
-          50% { transform: translate(-2px, 1px); }
-          75% { transform: translate(2px, -1px); }
-        }
-        .shake-on-impact {
-          animation: shake 0.5s cubic-bezier(.36,.07,.19,.97) 1.3s;
-        }
-
-        @keyframes shockwave {
-          0%   { width: 0; height: 0; opacity: 0; border-width: 8px; }
-          20%  { opacity: 0; }
-          25%  { opacity: 0.95; width: 20px; height: 20px; border-width: 8px; }
-          100% { width: 150vw; height: 150vw; opacity: 0; border-width: 0; }
-        }
-        .shockwave-ring {
-          width: 0;
-          height: 0;
-          opacity: 0;
-          animation: shockwave 1.2s ease-out 1.3s forwards;
-        }
-
-        @keyframes cracksFade {
-          0%, 70% { opacity: 0; }
-          100%    { opacity: 0.55; }
-        }
-        .cracks-fade-in {
-          animation: cracksFade 1s ease-out 1.3s forwards;
-        }
-
-        @keyframes buttonsUp {
-          0%, 70% { opacity: 0; transform: translateY(40px); pointer-events: none; }
-          100%    { opacity: 1; transform: translateY(0); pointer-events: auto; }
-        }
-        .buttons-reveal {
-          opacity: 0;
-          transform: translateY(40px);
-          pointer-events: none;
-          animation: buttonsUp 0.6s ease-out 1.55s forwards;
-        }
-
-        @keyframes dashboardUp {
-          0%, 80% { opacity: 0; transform: translateY(20px); }
-          100%    { opacity: 1; transform: translateY(0); }
-        }
-        .dashboard-reveal {
-          opacity: 0;
-          animation: dashboardUp 0.6s ease-out 1.85s forwards;
-        }
+        .ltdb-drop      { opacity: 0; animation: softFadeUp 0.4s ease-out 0.05s forwards; }
+        .buttons-reveal { opacity: 0; animation: softFadeUp 0.4s ease-out 0.15s forwards; }
+        .dashboard-reveal { opacity: 0; animation: softFadeUp 0.4s ease-out 0.25s forwards; }
 
         @media (prefers-reduced-motion: reduce) {
-          .ltdb-drop, .shake-on-impact, .shockwave-ring, .cracks-fade-in, .buttons-reveal, .dashboard-reveal {
+          .ltdb-drop, .buttons-reveal, .dashboard-reveal {
             animation: none !important;
             opacity: 1 !important;
             transform: none !important;
-            pointer-events: auto !important;
           }
-          .cracks-fade-in { opacity: 0.5 !important; }
         }
       `}</style>
     </main>
   )
 }
 
-function StatCard({ label, value, icon }: { label: string; value: string; icon: string }) {
+function StatCard({ label, value }: { label: string; value: string }) {
   return (
-    <div className="bg-white/10 backdrop-blur-sm border border-white/15 rounded-2xl p-4">
-      <div className="flex items-center justify-between text-white/70 text-[11px] uppercase tracking-wider font-bold">
-        <span>{label}</span>
-        <span className="text-base">{icon}</span>
-      </div>
-      <div className="mt-1 text-xl sm:text-2xl font-black text-white">{value}</div>
+    <div className="bg-white border border-slate-200/70 rounded-2xl p-4 hover:border-slate-300 transition-colors">
+      <div className="text-slate-500 text-[10px] uppercase tracking-[0.18em] font-semibold">{label}</div>
+      <div className="mt-1.5 text-xl sm:text-2xl font-bold text-slate-900 tabular-nums tracking-tight">{value}</div>
     </div>
   )
 }
 
-function Column({ title, count, accent, icon, interventions, emptyMessage, emptyAction, pulse }: {
+function Column({ title, count, dotClass, interventions, emptyMessage, emptyAction, pulse }: {
   title: string
   count: number
-  accent: string
-  icon: string
+  dotClass: string
   interventions: Intervention[]
   emptyMessage: string
   emptyAction?: { label: string; href: string }
   pulse?: boolean
 }) {
   return (
-    <div className="bg-white/8 backdrop-blur-sm border border-white/10 rounded-2xl p-4 min-h-[200px]">
-      <div className={`flex items-center justify-between pb-3 mb-3 border-b ${accent}`}>
-        <h3 className="font-black text-white flex items-center gap-2">
-          <span className={pulse ? 'inline-block animate-pulse' : ''}>{icon}</span>
+    <div className="bg-white border border-slate-200/70 rounded-2xl p-4 min-h-[220px]">
+      <div className="flex items-center justify-between pb-3 mb-3 border-b border-slate-100">
+        <h3 className="font-semibold text-slate-900 flex items-center gap-2 tracking-tight text-sm">
+          <span className={`inline-block w-2 h-2 rounded-full ${dotClass} ${pulse ? 'animate-pulse' : ''}`} aria-hidden />
           <span>{title}</span>
         </h3>
-        <span className="bg-white/15 text-white text-xs font-bold w-7 h-7 rounded-full flex items-center justify-center">
+        <span className="bg-slate-100 text-slate-600 text-xs font-semibold px-2 py-0.5 rounded-full tabular-nums">
           {count}
         </span>
       </div>
       {interventions.length === 0 ? (
-        <div className="text-center text-white/50 text-sm py-8 space-y-3">
+        <div className="text-center text-slate-400 text-sm py-10 space-y-3">
           <div>{emptyMessage}</div>
           {emptyAction && (
             <Link
               href={emptyAction.href}
-              className="inline-block bg-white/15 hover:bg-white/25 text-white px-4 py-2 rounded-lg text-xs font-bold transition"
+              className="inline-flex items-center gap-1.5 bg-slate-50 hover:bg-slate-100 text-slate-700 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition border border-slate-200"
             >
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
               {emptyAction.label}
             </Link>
           )}
@@ -432,31 +365,40 @@ function InterventionCard({ i }: { i: Intervention }) {
     ? fmtDate(i.date_realisee)
     : `${fmtDate(i.date_prevue)} ${fmtTime(i.heure_prevue)}`.trim()
 
-  const target = i.statut === 'terminee' && i.publie_slug
-    ? `/intervention/${i.id}`
-    : `/intervention/${i.id}`
-
   return (
     <Link
-      href={target}
-      className={`block bg-white/95 hover:bg-white text-[#0e2a52] rounded-xl p-3 transition-all hover:-translate-y-0.5 hover:shadow-xl ${isUrgent ? 'ring-2 ring-red-400' : ''}`}
+      href={`/intervention/${i.id}`}
+      className={`block bg-slate-50/60 hover:bg-white text-slate-900 rounded-xl p-3 transition-all border ${
+        isUrgent ? 'border-red-200 bg-red-50/30 hover:bg-red-50/50' : 'border-slate-200/60 hover:border-slate-300'
+      }`}
     >
       <div className="flex items-start justify-between gap-2">
         <div className="flex-1 min-w-0">
-          <div className="text-sm font-black truncate">
-            {i.client_nom || '—'}
-            {isUrgent && <span className="ml-2 text-[10px] bg-red-100 text-red-700 px-1.5 py-0.5 rounded font-black">URGENT</span>}
+          <div className="text-sm font-semibold truncate flex items-center gap-2">
+            <span className="truncate">{i.client_nom || '—'}</span>
+            {isUrgent && (
+              <span className="inline-flex items-center gap-1 text-[10px] bg-red-100 text-red-700 px-1.5 py-0.5 rounded font-semibold">
+                <ExclamationIcon className="w-3 h-3" strokeWidth={2.5} />
+                URGENT
+              </span>
+            )}
           </div>
           <div className="text-xs text-slate-600 truncate mt-0.5">
             {i.type_intervention || 'Intervention'}
           </div>
-          <div className="text-[11px] text-slate-500 mt-1 flex items-center gap-2">
-            <span>📍 {i.ville || '—'}</span>
-            <span>•</span>
-            <span>🗓 {dateLabel || '—'}</span>
+          <div className="text-[11px] text-slate-500 mt-1.5 flex items-center gap-1.5 flex-wrap">
+            <span className="inline-flex items-center gap-1">
+              <MapPinIcon className="w-3 h-3" />
+              {i.ville || '—'}
+            </span>
+            <span className="text-slate-300">•</span>
+            <span className="inline-flex items-center gap-1">
+              <ClockIcon className="w-3 h-3" />
+              {dateLabel || '—'}
+            </span>
           </div>
           {i.technicien_nom && (
-            <div className="text-[11px] text-slate-500 mt-0.5">👷 {i.technicien_nom}</div>
+            <div className="text-[11px] text-slate-500 mt-1">{i.technicien_nom}</div>
           )}
         </div>
       </div>

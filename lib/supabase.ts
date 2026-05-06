@@ -156,29 +156,52 @@ export async function saveDocument(input: {
 }): Promise<string | null> {
   const sb = getSupabaseOrNull()
   if (!sb) return null
+  const row = {
+    type: input.type,
+    numero: input.numero || null,
+    agence: input.agence || null,
+    date_emission: input.date_emission || new Date().toISOString().slice(0, 10),
+    echeance: input.echeance || null,
+    statut: input.statut || 'envoye',
+    montant_ht: input.montant_ht ?? null,
+    montant_ttc: input.montant_ttc ?? null,
+    tva_taux: input.tva_taux ?? null,
+    payload: input.payload || {},
+    intervention_id: input.intervention_id || null,
+    client_id: input.client_id || null,
+    pdf_url: input.pdf_url || null,
+    envoye_email: input.envoye_email || null,
+    envoye_at: input.envoye_at || null,
+  }
+
+  // Idempotence : si un document du même (type, numero) existe déjà, on UPDATE
+  // au lieu d'INSERT — évite les doublons quand l'utilisateur clique "Enregistrer"
+  // puis "Envoyer", ou recharge la page entre deux clics.
+  if (row.numero) {
+    const { data: existing } = await sb
+      .from('documents')
+      .select('id')
+      .eq('type', row.type)
+      .eq('numero', row.numero)
+      .limit(1)
+      .maybeSingle()
+    if (existing?.id) {
+      const { error } = await sb.from('documents').update(row).eq('id', existing.id)
+      if (error) {
+        console.error('[saveDocument:update]', error)
+        return null
+      }
+      return existing.id
+    }
+  }
+
   const { data, error } = await sb
     .from('documents')
-    .insert({
-      type: input.type,
-      numero: input.numero || null,
-      agence: input.agence || null,
-      date_emission: input.date_emission || new Date().toISOString().slice(0, 10),
-      echeance: input.echeance || null,
-      statut: input.statut || 'envoye',
-      montant_ht: input.montant_ht ?? null,
-      montant_ttc: input.montant_ttc ?? null,
-      tva_taux: input.tva_taux ?? null,
-      payload: input.payload || {},
-      intervention_id: input.intervention_id || null,
-      client_id: input.client_id || null,
-      pdf_url: input.pdf_url || null,
-      envoye_email: input.envoye_email || null,
-      envoye_at: input.envoye_at || null,
-    })
+    .insert(row)
     .select('id')
     .single()
   if (error) {
-    console.error('[saveDocument]', error)
+    console.error('[saveDocument:insert]', error)
     return null
   }
   return data?.id || null

@@ -1,711 +1,641 @@
 'use client'
-import { useState, useEffect } from "react"
-import { useSession } from "next-auth/react"
+import { useEffect, useMemo, useState } from "react"
+import Link from "next/link"
 import dynamic from "next/dynamic"
-import VoiceRecorder from "@/components/VoiceRecorder"
 import AppTabs from "@/components/AppTabs"
-import VilleCombobox from "@/components/VilleCombobox"
-import PrestationsCombobox from "@/components/PrestationsCombobox"
-import { AGENCES, type Agence } from "@/lib/agences"
-import { LTDB_EMETTEUR, ltdbFactureEmetteur } from "@/lib/emetteur"
-import { fmtDateISOtoFR } from "@/lib/format"
-import type {
-  FacturePDFProps,
-  FactureLineData,
-  FactureData,
-} from "@/components/FacturePDF"
-import type { ClientData } from "@/components/DevisPDF"
+import { fmtDateFR, fmtEUR, fmtDateISOtoFR } from "@/lib/format"
+import { parseEcheance } from "@/lib/echeance"
+import { AGENCES } from "@/lib/agences"
+import { ltdbFactureEmetteur } from "@/lib/emetteur"
+import type { FactureData } from "@/components/FacturePDF"
+import {
+  PlusIcon, CheckIcon, EnvelopeIcon, ArrowDownTrayIcon, NoSymbolIcon,
+  TrashIcon, ArrowRefreshIcon, CalendarIcon, ReceiptIcon, ClockIcon,
+  ExclamationIcon,
+} from "@/components/Icons"
 
-const FactureDownloadButton = dynamic(() => import("@/components/FacturePDF"), { ssr: false })
-const SaveDocumentButton = dynamic(() => import("@/components/SaveDocumentButton"), { ssr: false })
+const DocumentDownloadButton = dynamic(() => import("@/components/DocumentDownloadButton"), { ssr: false })
 
-type Step = 'capture' | 'extracting' | 'generating' | 'preview'
+type FactureRow = {
+  id: string
+  type: 'facture'
+  numero: string | null
+  agence: string | null
+  date_emission: string
+  echeance: string | null
+  statut: string
+  montant_ht: number | null
+  montant_ttc: number | null
+  tva_taux: number | null
+  envoye_email: string | null
+  envoye_at: string | null
+  pdf_url: string | null
+  payload: any
+  client_id: string | null
+  client_nom: string | null
+  client_email: string | null
+  client_adresse: string | null
+  client_code_postal: string | null
+  client_ville: string | null
+  created_at: string
+}
 
-const ECHEANCES_PRESETS = [
-  'Réglée',
-  'À réception',
-  '15 jours fin de mois',
-  '30 jours fin de mois',
-  '45 jours fin de mois',
-  '60 jours fin de mois',
-] as const
+type StatutFiltre = 'all' | 'brouillon' | 'envoye' | 'paye' | 'retard' | 'annule'
 
-export default function FacturePage() {
-  useSession()
-  const [step, setStep] = useState<Step>('capture')
+const STATUT_FILTRES: { key: StatutFiltre; label: string }[] = [
+  { key: 'all',       label: 'Toutes' },
+  { key: 'retard',    label: 'En retard' },
+  { key: 'envoye',    label: 'En attente' },
+  { key: 'brouillon', label: 'Brouillons' },
+  { key: 'paye',      label: 'Payées' },
+  { key: 'annule',    label: 'Annulées' },
+]
+
+const STATUT_LABEL: Record<string, string> = {
+  brouillon: 'Brouillon',
+  envoye: 'Envoyée',
+  paye: 'Payée',
+  annule: 'Annulée',
+}
+
+function pad2(n: number): string { return n < 10 ? `0${n}` : String(n) }
+function ymd(d: Date): string {
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`
+}
+function presetThisMonth(): { from: string; to: string } {
+  const now = new Date()
+  const from = new Date(now.getFullYear(), now.getMonth(), 1)
+  const to = new Date(now.getFullYear(), now.getMonth() + 1, 0)
+  return { from: ymd(from), to: ymd(to) }
+}
+
+export default function FactureConsolePage() {
+  const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [info, setInfo] = useState('')
+  const [factures, setFactures] = useState<FactureRow[]>([])
+  const [statutFiltre, setStatutFiltre] = useState<StatutFiltre>('all')
+  const [agence, setAgence] = useState<string>('')
+  const [search, setSearch] = useState('')
+  const initial = presetThisMonth()
+  const [from, setFrom] = useState(initial.from)
+  const [to, setTo] = useState(initial.to)
+  const [periodeOuverte, setPeriodeOuverte] = useState(false)
+  const [pendingId, setPendingId] = useState<string | null>(null)
 
-  // Capture
-  const [transcription, setTranscription] = useState('')
-  const [clientNom, setClientNom] = useState('')
-  const [clientAdresse, setClientAdresse] = useState('')
-  const [clientCP, setClientCP] = useState('')
-  const [clientVille, setClientVille] = useState('')
-  const [adresseChantier, setAdresseChantier] = useState('idem')
-  const [dateFacture, setDateFacture] = useState(new Date().toISOString().split('T')[0])
-  const [referenceDossier, setReferenceDossier] = useState('')
-  const [agence, setAgence] = useState<Agence>(AGENCES[0])
-
-  // Résultat IA (éditable)
-  const [facture, setFacture] = useState<FactureData | null>(null)
-
-  // Envoi email
-  const [clientEmail, setClientEmail] = useState('')
-  const [emailSending, setEmailSending] = useState(false)
-  const [emailSent, setEmailSent] = useState(false)
-  const [emailError, setEmailError] = useState('')
-
-  // Pré-remplissage depuis un devis transformé
-  useEffect(() => {
-    if (typeof window === 'undefined') return
-    const raw = sessionStorage.getItem('ltdb_devis_to_facture')
-    if (!raw) return
+  async function load() {
+    setLoading(true); setError(''); setInfo('')
     try {
-      const payload = JSON.parse(raw)
-      sessionStorage.removeItem('ltdb_devis_to_facture')
-      if (payload.client_nom) setClientNom(payload.client_nom)
-      if (payload.client_adresse) setClientAdresse(payload.client_adresse)
-      if (payload.client_cp) setClientCP(payload.client_cp)
-      if (payload.client_ville) setClientVille(payload.client_ville)
-      if (payload.adresse_chantier) setAdresseChantier(payload.adresse_chantier)
-      if (payload.reference_dossier) setReferenceDossier(payload.reference_dossier)
-      if (payload.client_email) setClientEmail(payload.client_email)
-
-      if (payload.facture) {
-        setFacture(payload.facture)
-        setStep('preview')
-      }
-    } catch {
-      // ignore
+      const params = new URLSearchParams()
+      if (search.trim()) params.set('q', search.trim())
+      params.set('limit', '500')
+      const res = await fetch(`/api/historique?${params}`, { cache: 'no-store' })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`)
+      const onlyFactures: FactureRow[] = (data.documents || [])
+        .filter((d: any) => d.type === 'facture')
+      setFactures(onlyFactures)
+    } catch (e: any) {
+      setError(e.message || 'Erreur de chargement')
+    } finally {
+      setLoading(false)
     }
-  }, [])
+  }
 
-  async function handleSendToClient() {
-    if (!facture) return
-    if (!clientEmail) { setEmailError("Renseigne l'email du client."); return }
-    setEmailSending(true); setEmailError(''); setEmailSent(false)
+  useEffect(() => { load() }, [])
+  useEffect(() => {
+    const t = setTimeout(() => { load() }, 300)
+    return () => clearTimeout(t)
+  }, [search])
+
+  // Décoration : calcule échéance + retard pour chaque facture
+  const decorated = useMemo(() => {
+    return factures.map(f => {
+      const eche = parseEcheance(f.echeance, f.date_emission)
+      const inPeriod = (!from || f.date_emission >= from) && (!to || f.date_emission <= to)
+      const matchAgence = !agence || f.agence === agence
+      const isOverdue = f.statut === 'envoye' && (eche.daysOverdue ?? 0) > 0
+      return { ...f, _eche: eche, _inPeriod: inPeriod, _matchAgence: matchAgence, _isOverdue: isOverdue }
+    })
+  }, [factures, from, to, agence])
+
+  // Filtrage final
+  const filtered = useMemo(() => {
+    return decorated.filter(f => {
+      if (!f._inPeriod || !f._matchAgence) return false
+      if (statutFiltre === 'all') return true
+      if (statutFiltre === 'retard') return f._isOverdue
+      return f.statut === statutFiltre
+    })
+  }, [decorated, statutFiltre])
+
+  // KPI : on agrège sur la période/agence (tous statuts), pas sur le filtre statut
+  const kpi = useMemo(() => {
+    const inScope = decorated.filter(f => f._inPeriod && f._matchAgence)
+    const sum = (rows: typeof inScope) => rows.reduce((s, r) => s + (r.montant_ttc || 0), 0)
+    const facturesActives = inScope.filter(f => f.statut !== 'annule')
+    return {
+      total: sum(facturesActives),
+      totalCount: facturesActives.length,
+      paye: sum(facturesActives.filter(f => f.statut === 'paye')),
+      attente: sum(facturesActives.filter(f => f.statut === 'envoye' && !f._isOverdue)),
+      retard: sum(facturesActives.filter(f => f._isOverdue)),
+      retardCount: facturesActives.filter(f => f._isOverdue).length,
+      brouillon: sum(facturesActives.filter(f => f.statut === 'brouillon')),
+    }
+  }, [decorated])
+
+  async function handleMarquerPaye(f: FactureRow) {
+    if (!confirm(`Marquer la facture ${f.numero || ''} comme payée ?`)) return
+    setPendingId(f.id); setError(''); setInfo('')
     try {
-      const totalHT = facture.lignes.reduce((sum, l) => {
-        if (l.inclus) return sum
-        return sum + (Number(l.pu_ht) || 0) * (Number(l.qte) || 0)
-      }, 0)
-      const totalTTC = totalHT * (1 + ((facture.tva_taux ?? 10) / 100))
-      const technicienNom = typeof window !== 'undefined' ? (localStorage.getItem('ltdb_technicien') || '') : ''
-      const client: ClientData = {
-        nom: clientNom || '—',
-        adresseLignes: [
-          clientAdresse || '',
-          [clientCP, clientVille].filter(Boolean).join(' '),
-        ].filter(Boolean),
-        adresseChantier: adresseChantier || undefined,
+      const res = await fetch(`/api/historique/${f.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ statut: 'paye' }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`)
+      setFactures(prev => prev.map(x => x.id === f.id ? { ...x, statut: 'paye' } : x))
+      setInfo(`Facture ${f.numero || ''} marquée comme payée.`)
+    } catch (e: any) {
+      setError(`Erreur : ${e.message}`)
+    } finally {
+      setPendingId(null)
+    }
+  }
+
+  async function handleAnnuler(f: FactureRow) {
+    if (!confirm(`Annuler la facture ${f.numero || ''} ? (elle ne sera plus comptabilisée mais reste consultable dans l'historique)`)) return
+    setPendingId(f.id); setError(''); setInfo('')
+    try {
+      const res = await fetch(`/api/historique/${f.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ statut: 'annule' }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`)
+      setFactures(prev => prev.map(x => x.id === f.id ? { ...x, statut: 'annule' } : x))
+      setInfo(`Facture ${f.numero || ''} annulée.`)
+    } catch (e: any) {
+      setError(`Erreur : ${e.message}`)
+    } finally {
+      setPendingId(null)
+    }
+  }
+
+  async function handleSupprimer(f: FactureRow) {
+    if (!confirm(`Supprimer définitivement la facture ${f.numero || ''} ? Cette action est irréversible.`)) return
+    setPendingId(f.id); setError(''); setInfo('')
+    try {
+      const res = await fetch(`/api/historique/${f.id}`, { method: 'DELETE' })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`)
+      setFactures(prev => prev.filter(x => x.id !== f.id))
+    } catch (e: any) {
+      setError(`Erreur suppression : ${e.message}`)
+    } finally {
+      setPendingId(null)
+    }
+  }
+
+  async function handleRelancer(f: FactureRow) {
+    const email = f.client_email || prompt(`Email du client pour la relance ?`)
+    if (!email) return
+    if (!confirm(`Envoyer une relance à ${email} pour la facture ${f.numero || ''} ?`)) return
+    setPendingId(f.id); setError(''); setInfo('')
+    try {
+      const eche = parseEcheance(f.echeance, f.date_emission)
+      const facturePayload = (f.payload || {}) as FactureData
+      if (!facturePayload || !Array.isArray(facturePayload.lignes)) {
+        throw new Error("Données facture incomplètes (payload manquant ou invalide)")
       }
-      const emetteur = ltdbFactureEmetteur(agence)
+      // Régénération du PDF côté client (même logique que le wizard /facture/nouvelle)
       const [{ FactureDocument }, { pdfDocumentToBase64 }, React] = await Promise.all([
         import('@/components/FacturePDF'),
         import('@/lib/pdfToBase64'),
         import('react'),
       ])
+      const emetteur = ltdbFactureEmetteur(f.agence || undefined)
+      const client = {
+        nom: f.client_nom || '—',
+        adresseLignes: [
+          f.client_adresse || '',
+          [f.client_code_postal, f.client_ville].filter(Boolean).join(' '),
+        ].filter(Boolean),
+      }
       const pdfBase64 = await pdfDocumentToBase64(
         React.createElement(FactureDocument, {
           emetteur,
           client,
-          facture,
+          facture: facturePayload,
           phone: emetteur.telephone,
         })
       )
-      const filename = `facture-${facture.numero || 'sans-numero'}.pdf`.replace(/\s+/g, '-')
-      const res = await fetch('/api/notify-facture', {
+      const filename = `facture-${f.numero || 'sans-numero'}.pdf`.replace(/\s+/g, '-')
+      const technicienNom = typeof window !== 'undefined' ? (localStorage.getItem('ltdb_technicien') || '') : ''
+
+      const res = await fetch('/api/notify-facture/relance', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          clientEmail,
-          clientNom,
+          documentId: f.id,
+          clientEmail: email,
+          clientNom: f.client_nom,
           technicienNom,
-          ville: clientVille,
-          dateFacture: fmtDateISOtoFR(facture.date_facture),
-          numero: facture.numero,
-          totalTTC,
-          echeance: facture.echeance,
-          agence,
+          ville: f.client_ville,
+          dateFacture: fmtDateISOtoFR(f.date_emission),
+          numero: f.numero,
+          totalTTC: f.montant_ttc,
+          echeance: f.echeance,
+          agence: f.agence,
           pdfBase64,
           pdfFilename: filename,
-          // Champs persistance DB
-          facture,
-          totalHT,
-          tvaTaux: facture.tva_taux ?? 10,
-          clientAdresse,
-          clientCP,
+          daysOverdue: eche.daysOverdue,
+          dueDate: eche.dueDate,
         }),
       })
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}))
-        throw new Error(err.error || `HTTP ${res.status}`)
-      }
-      setEmailSent(true)
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`)
+      setFactures(prev => prev.map(x => x.id === f.id ? { ...x, envoye_at: new Date().toISOString(), envoye_email: email } : x))
+      setInfo(`Relance envoyée à ${email}.`)
     } catch (e: any) {
-      setEmailError(`Erreur envoi : ${e.message || e}`)
+      setError(`Erreur relance : ${e.message}`)
     } finally {
-      setEmailSending(false)
+      setPendingId(null)
     }
   }
 
-  async function handleExtractClient() {
-    if (!transcription || transcription.trim().length < 10) return
-    setStep('extracting'); setError('')
-    try {
-      const res = await fetch('/api/extract', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ transcription }),
-      })
-      const data = await res.json()
-      if (data.client_nom && !clientNom) setClientNom(data.client_nom)
-      if (data.adresse && !clientAdresse) setClientAdresse(data.adresse)
-      if (data.ville && !clientVille) setClientVille(data.ville)
-      if (data.code_postal && !clientCP) setClientCP(data.code_postal)
-      setStep('capture')
-    } catch {
-      setStep('capture')
-    }
-  }
-
-  async function handleGenerate() {
-    if (!transcription || transcription.trim().length < 20) {
-      setError("Dicte au moins quelques phrases sur l'intervention, les prestations, les prix et le mode de règlement.")
-      return
-    }
-    setError(''); setStep('generating')
-    try {
-      const res = await fetch('/api/generate-facture', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          transcription,
-          client_nom: clientNom,
-          client_adresse: clientAdresse,
-          client_ville: clientVille,
-          client_code_postal: clientCP,
-          date_facture: dateFacture,
-          reference_dossier: referenceDossier,
-          agence,
-        }),
-      })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error || 'Génération échouée')
-
-      if (!clientNom && data.facture?.client_nom_detecte) setClientNom(data.facture.client_nom_detecte)
-      if (!clientAdresse && data.facture?.client_adresse_detectee) setClientAdresse(data.facture.client_adresse_detectee)
-
-      setFacture(data.facture)
-      setStep('preview')
-    } catch (e: any) {
-      setError(`Erreur IA : ${e.message}`)
-      setStep('capture')
-    }
-  }
-
-  function updateLine(index: number, patch: Partial<FactureLineData>) {
-    if (!facture) return
-    const lignes = [...facture.lignes]
-    lignes[index] = { ...lignes[index], ...patch }
-    setFacture({ ...facture, lignes })
-  }
-
-  function removeLine(index: number) {
-    if (!facture) return
-    setFacture({ ...facture, lignes: facture.lignes.filter((_, i) => i !== index) })
-  }
-
-  function addLine() {
-    if (!facture) return
-    setFacture({
-      ...facture,
-      lignes: [
-        ...facture.lignes,
-        { designation: '', description: '', qte: 1, unite: 'forfait', pu_ht: 0, inclus: false },
-      ],
-    })
-  }
-
-  const totalHT = facture?.lignes.reduce((s, l) => {
-    if (l.inclus) return s
-    return s + (Number(l.pu_ht) || 0) * (Number(l.qte) || 0)
-  }, 0) || 0
-  const tvaTaux = facture?.tva_taux ?? 10
-  const tva = totalHT * tvaTaux / 100
-  const ttc = totalHT + tva
-
-  /* =================== RENDER =================== */
-  if (step === 'generating') {
-    return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6">
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-8 max-w-md w-full text-center">
-          <div className="inline-block animate-spin rounded-full h-12 w-12 border-4 border-blue-200 border-t-[#0e2a52] mb-4" />
-          <h2 className="text-xl font-black text-[#0e2a52]">Analyse de la dictée…</h2>
-          <p className="text-sm text-slate-500 mt-2">L&apos;IA structure la facture (objet, lignes, observations, mode de règlement).</p>
-        </div>
-      </div>
-    )
-  }
-
-  if (step === 'preview' && facture) {
-    const client: ClientData = {
-      nom: clientNom || '—',
-      adresseLignes: [
-        clientAdresse || '',
-        [clientCP, clientVille].filter(Boolean).join(' '),
-      ].filter(Boolean),
-      adresseChantier: adresseChantier || undefined,
-    }
-    const emetteur = ltdbFactureEmetteur(agence)
-    const pdfProps: FacturePDFProps = {
-      emetteur,
-      client,
-      facture,
-      phone: emetteur.telephone,
-    }
-
-    return (
-      <div className="min-h-screen bg-slate-50">
-        <header className="bg-white border-b border-slate-200 sticky top-0 z-10">
-          <div className="max-w-4xl mx-auto px-4 py-3">
-            <AppTabs />
-          </div>
-        </header>
-
-        <main className="max-w-4xl mx-auto px-4 py-6 space-y-4">
-          {/* Header preview */}
-          <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-            <div>
-              <h1 className="text-xl font-black text-[#0e2a52]">Facture N° {facture.numero}</h1>
-              <p className="text-sm text-slate-500">
-                Établie le {fmtDateISOtoFR(facture.date_facture)} · Échéance : <strong className={/^r[ée]gl[ée]e?$/i.test(facture.echeance) ? 'text-emerald-700' : ''}>{facture.echeance}</strong> · {agence}
-              </p>
-            </div>
-            <div className="flex gap-2">
-              <button
-                onClick={() => setStep('capture')}
-                className="px-4 py-2 rounded-lg border border-slate-300 text-slate-700 text-sm font-semibold hover:bg-slate-50"
-              >
-                ← Modifier la dictée
-              </button>
-              <SaveDocumentButton
-                endpoint="/api/save-facture"
-                className="bg-amber-500 text-white px-4 py-2 rounded-lg font-semibold text-sm hover:bg-amber-600 disabled:opacity-50 transition"
-                body={() => ({
-                  facture,
-                  clientNom,
-                  clientEmail,
-                  clientAdresse,
-                  clientCP,
-                  ville: clientVille,
-                  agence,
-                  numero: facture.numero,
-                  totalHT,
-                  totalTTC: ttc,
-                  tvaTaux,
-                  echeance: facture.echeance,
-                })}
-              />
-              <FactureDownloadButton {...pdfProps} />
-            </div>
-          </div>
-
-          {/* Envoi au client */}
-          <section className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 space-y-3">
-            <h2 className="font-bold text-[#0e2a52]">Envoyer la facture au client</h2>
-            <p className="text-xs text-slate-500">Le PDF sera joint à un email récapitulant le montant et l&apos;échéance.</p>
-            <div className="flex flex-col sm:flex-row gap-2">
-              <input
-                type="email"
-                inputMode="email"
-                autoComplete="email"
-                value={clientEmail}
-                onChange={e => setClientEmail(e.target.value)}
-                placeholder="email@client.com"
-                className="flex-1 border-2 border-slate-200 focus:border-[#0e2a52] outline-none rounded-lg px-3 py-2 text-sm"
-                disabled={emailSending}
-              />
-              <button
-                onClick={handleSendToClient}
-                disabled={emailSending || !clientEmail}
-                className="bg-[#0e2a52] text-white font-semibold rounded-lg px-4 py-2 text-sm hover:bg-[#0a2047] disabled:opacity-50 disabled:cursor-not-allowed transition"
-              >
-                {emailSending ? 'Envoi…' : '✉ Envoyer le PDF'}
-              </button>
-            </div>
-            {emailSent && <p className="text-sm text-emerald-700">✓ Facture envoyée à <strong>{clientEmail}</strong></p>}
-            {emailError && <p className="text-sm text-red-600">{emailError}</p>}
-          </section>
-
-          {/* Émetteur (agence) */}
-          <section className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 space-y-3">
-            <h2 className="font-bold text-[#0e2a52]">Émetteur — agence rattachée</h2>
-            <select
-              value={agence}
-              onChange={e => setAgence(e.target.value as Agence)}
-              className="w-full border-2 border-slate-200 focus:border-[#0e2a52] outline-none rounded-lg px-3 py-2 text-sm"
-            >
-              {AGENCES.map(a => (
-                <option key={a} value={a}>{a}</option>
-              ))}
-            </select>
-          </section>
-
-          {/* Échéance */}
-          <section className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 space-y-3">
-            <h2 className="font-bold text-[#0e2a52]">Échéance &amp; numéro</h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <Field label="Numéro de facture" value={facture.numero} onChange={v => setFacture({ ...facture, numero: v })} />
-              <label className="block text-sm">
-                <span className="text-xs uppercase tracking-wide text-slate-500">Échéance</span>
-                <select
-                  value={ECHEANCES_PRESETS.includes(facture.echeance as any) ? facture.echeance : '__custom__'}
-                  onChange={e => {
-                    if (e.target.value === '__custom__') return
-                    setFacture({ ...facture, echeance: e.target.value })
-                  }}
-                  className="w-full border border-slate-200 rounded px-2 py-1.5 mt-1"
-                >
-                  {ECHEANCES_PRESETS.map(p => <option key={p} value={p}>{p}</option>)}
-                  <option value="__custom__">Autre (saisie libre ↓)</option>
-                </select>
-                <input
-                  value={facture.echeance}
-                  onChange={e => setFacture({ ...facture, echeance: e.target.value })}
-                  placeholder="ex: 30/05/2026"
-                  className="w-full border border-slate-200 rounded px-2 py-1.5 mt-2 text-sm"
-                />
-              </label>
-            </div>
-          </section>
-
-          {/* Client */}
-          <section className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 space-y-3">
-            <h2 className="font-bold text-[#0e2a52]">Client &amp; chantier</h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <Field label="Nom du client" value={clientNom} onChange={setClientNom} placeholder="M. Dupont / Mme Jules…" />
-              <Field label="Adresse client" value={clientAdresse} onChange={setClientAdresse} />
-              <Field label="Code postal" value={clientCP} onChange={setClientCP} />
-              <label className="block text-sm">
-                <span className="text-xs uppercase tracking-wide text-slate-500">Ville</span>
-                <div className="mt-1">
-                  <VilleCombobox
-                    value={clientVille}
-                    onChange={setClientVille}
-                    onSelect={v => { setClientVille(v.nom); setClientCP(v.cp) }}
-                  />
-                </div>
-              </label>
-              <Field label="Adresse du chantier" value={adresseChantier} onChange={setAdresseChantier} placeholder="idem ou adresse différente" />
-              <Field label="Référence dossier (optionnel)"
-                value={facture.reference_dossier || ''}
-                onChange={v => setFacture({ ...facture, reference_dossier: v })}
-                placeholder="ex: Devis DV-..." />
-            </div>
-          </section>
-
-          {/* Objet */}
-          <section className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 space-y-2">
-            <h2 className="font-bold text-[#0e2a52]">Objet de la facture</h2>
-            <textarea
-              value={facture.objet}
-              onChange={e => setFacture({ ...facture, objet: e.target.value })}
-              rows={2}
-              className="w-full border-2 border-slate-200 focus:border-blue-500 outline-none rounded-lg px-3 py-2 text-sm transition-colors"
-            />
-          </section>
-
-          {/* Lignes */}
-          <section className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 space-y-3">
-            <div className="flex items-center justify-between">
-              <h2 className="font-bold text-[#0e2a52]">Prestations</h2>
-              <button onClick={addLine} className="text-sm font-semibold text-blue-700 hover:text-blue-900">+ Ajouter une ligne</button>
-            </div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="text-left text-xs uppercase tracking-wide text-slate-500 border-b border-slate-200">
-                    <th className="py-2 pr-2">Désignation</th>
-                    <th className="py-2 pr-2 w-16">Qté</th>
-                    <th className="py-2 pr-2 w-24">Unité</th>
-                    <th className="py-2 pr-2 w-28 text-right">P.U. HT €</th>
-                    <th className="py-2 pr-2 w-20 text-center">Inclus</th>
-                    <th className="py-2 pr-2 w-28 text-right">Total HT</th>
-                    <th className="py-2 w-8"></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {facture.lignes.map((l, i) => (
-                    <tr key={i} className="border-b border-slate-100 align-top">
-                      <td className="py-1 pr-2">
-                        <PrestationsCombobox
-                          designation={l.designation}
-                          onChange={(patch) => updateLine(i, patch)}
-                          className="mb-1"
-                        />
-                        <input
-                          value={l.description || ''}
-                          onChange={e => updateLine(i, { description: e.target.value })}
-                          placeholder="précisions (optionnel)"
-                          className="w-full border border-slate-200 rounded px-2 py-1 text-xs text-slate-500"
-                        />
-                      </td>
-                      <td className="py-1 pr-2">
-                        <input
-                          type="number" step="0.01" min="0"
-                          value={l.qte}
-                          onChange={e => updateLine(i, { qte: Number(e.target.value) })}
-                          className="w-full border border-slate-200 rounded px-2 py-1"
-                        />
-                      </td>
-                      <td className="py-1 pr-2">
-                        <input
-                          value={l.unite || ''}
-                          onChange={e => updateLine(i, { unite: e.target.value })}
-                          className="w-full border border-slate-200 rounded px-2 py-1"
-                        />
-                      </td>
-                      <td className="py-1 pr-2">
-                        <input
-                          type="number" step="0.01" min="0"
-                          value={l.pu_ht}
-                          onChange={e => updateLine(i, { pu_ht: Number(e.target.value) })}
-                          disabled={!!l.inclus}
-                          className="w-full border border-slate-200 rounded px-2 py-1 text-right disabled:bg-slate-50 disabled:text-slate-400"
-                        />
-                      </td>
-                      <td className="py-1 pr-2 text-center">
-                        <input
-                          type="checkbox"
-                          checked={!!l.inclus}
-                          onChange={e => updateLine(i, { inclus: e.target.checked })}
-                          aria-label="Inclus"
-                        />
-                      </td>
-                      <td className="py-1 pr-2 text-right font-semibold text-[#0e2a52]">
-                        {l.inclus
-                          ? <span className="text-slate-400 italic font-normal">inclus</span>
-                          : `${(l.qte * l.pu_ht).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`}
-                      </td>
-                      <td className="py-1">
-                        <button
-                          onClick={() => removeLine(i)}
-                          className="text-red-500 hover:text-red-700 text-lg leading-none"
-                          aria-label="Supprimer la ligne"
-                        >×</button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            <div className="flex justify-end mt-2">
-              <div className="w-full sm:w-80 space-y-1 text-sm">
-                <div className="flex justify-between py-1 border-b border-slate-100">
-                  <span className="text-slate-600">Total HT</span>
-                  <span className="font-semibold">{totalHT.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €</span>
-                </div>
-                <div className="flex justify-between py-1 border-b border-slate-100 items-center">
-                  <span className="text-slate-600">TVA</span>
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="number" min="0" max="30" step="0.1"
-                      value={tvaTaux}
-                      onChange={e => setFacture({ ...facture, tva_taux: Number(e.target.value) })}
-                      className="w-16 border border-slate-200 rounded px-2 py-1 text-right"
-                    />
-                    <span>%</span>
-                    <span className="font-semibold ml-2">{tva.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €</span>
-                  </div>
-                </div>
-                <div className="flex justify-between py-2 bg-[#0e2a52] text-white px-3 rounded-lg">
-                  <span className="font-bold">Montant TTC</span>
-                  <span className="font-bold">{ttc.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €</span>
-                </div>
-              </div>
-            </div>
-          </section>
-
-          {/* Mode de règlement */}
-          <section className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 space-y-2">
-            <h2 className="font-bold text-[#0e2a52]">Mode de règlement</h2>
-            <p className="text-xs text-slate-500">Affiché dans l&apos;encadré vert. Vide = pas d&apos;encadré sur le PDF.</p>
-            <textarea
-              value={facture.mode_reglement || ''}
-              onChange={e => setFacture({ ...facture, mode_reglement: e.target.value })}
-              rows={2}
-              placeholder="ex: Intervention réglée par carte bancaire le 29/04/2026. Aucun solde restant dû."
-              className="w-full border-2 border-slate-200 focus:border-emerald-500 outline-none rounded-lg px-3 py-2 text-sm transition-colors"
-            />
-          </section>
-
-          {/* Observations technicien */}
-          <section className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 space-y-3">
-            <h2 className="font-bold text-[#0e2a52]">Observations du technicien</h2>
-            <p className="text-xs text-slate-500">Affichées dans l&apos;encadré jaune.</p>
-            <textarea
-              value={facture.observations || ''}
-              onChange={e => setFacture({ ...facture, observations: e.target.value })}
-              rows={4}
-              placeholder="Constat technique : état de la canalisation, nature du bouchon…"
-              className="w-full border-2 border-slate-200 focus:border-amber-500 outline-none rounded-lg px-3 py-2 text-sm transition-colors"
-            />
-            <textarea
-              value={facture.recommandation || ''}
-              onChange={e => setFacture({ ...facture, recommandation: e.target.value })}
-              rows={2}
-              placeholder="Recommandation préventive (optionnel)"
-              className="w-full border-2 border-slate-200 focus:border-amber-500 outline-none rounded-lg px-3 py-2 text-sm transition-colors"
-            />
-          </section>
-
-          <div className="flex justify-end">
-            <FactureDownloadButton {...pdfProps} />
-          </div>
-        </main>
-      </div>
-    )
-  }
-
-  /* ========= CAPTURE ========= */
   return (
-    <div className="min-h-screen bg-slate-50">
-      <header className="bg-white border-b border-slate-200">
-        <div className="max-w-3xl mx-auto px-4 py-3">
+    <div className="min-h-screen bg-slate-50 pb-20">
+      <div className="bg-white border-b border-slate-200 py-2">
+        <div className="max-w-7xl mx-auto px-4">
           <AppTabs />
         </div>
-      </header>
+      </div>
 
-      <main className="max-w-3xl mx-auto px-4 py-5 space-y-4">
-        <div className="text-center">
-          <h1 className="text-2xl font-black text-[#0e2a52]">Nouvelle facture</h1>
-          <p className="text-sm text-slate-500 mt-1">Dicte l&apos;intervention réalisée, les prestations, les prix et le mode de règlement.</p>
+      <nav className="bg-white border-b border-slate-200 px-4 py-3 sm:px-6 sm:py-4">
+        <div className="max-w-7xl mx-auto flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
+              <ReceiptIcon className="w-5 h-5" strokeWidth={1.75} />
+            </div>
+            <div>
+              <div className="font-bold text-base sm:text-lg leading-tight tracking-tight text-slate-900">Facturation</div>
+              <div className="text-[11px] text-slate-500">Suivi, paiements & relances</div>
+            </div>
+          </div>
+          <Link
+            href="/facture/nouvelle"
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#0e2a52] hover:bg-[#0a1f3d] text-white font-semibold text-sm transition active:scale-[0.98]"
+          >
+            <PlusIcon className="w-4 h-4" strokeWidth={2.25} />
+            <span>Nouvelle facture</span>
+          </Link>
+        </div>
+      </nav>
+
+      <main className="max-w-7xl mx-auto px-4 py-5 space-y-4">
+        {/* KPI */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          <KpiCard
+            label="Total émis"
+            value={fmtEUR(kpi.total)}
+            sub={`${kpi.totalCount} facture${kpi.totalCount > 1 ? 's' : ''}`}
+            tone="slate"
+          />
+          <KpiCard
+            label="Encaissé"
+            value={fmtEUR(kpi.paye)}
+            sub="payées"
+            tone="emerald"
+          />
+          <KpiCard
+            label="En attente"
+            value={fmtEUR(kpi.attente)}
+            sub="à recevoir"
+            tone="blue"
+          />
+          <KpiCard
+            label="En retard"
+            value={fmtEUR(kpi.retard)}
+            sub={`${kpi.retardCount} facture${kpi.retardCount > 1 ? 's' : ''} · à relancer`}
+            tone="red"
+          />
         </div>
 
-        {/* Agence (avant génération) */}
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 sm:p-6 space-y-2">
-          <label className="block">
-            <span className="text-xs uppercase tracking-wide text-slate-500 font-bold">Agence émettrice</span>
+        {/* Filtres */}
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 space-y-3">
+          <div className="flex flex-wrap gap-2 items-center">
+            {STATUT_FILTRES.map(t => {
+              const count = t.key === 'all'
+                ? decorated.filter(f => f._inPeriod && f._matchAgence && f.statut !== 'annule').length
+                : t.key === 'retard'
+                  ? decorated.filter(f => f._inPeriod && f._matchAgence && f._isOverdue).length
+                  : decorated.filter(f => f._inPeriod && f._matchAgence && f.statut === t.key).length
+              const active = statutFiltre === t.key
+              return (
+                <button
+                  key={t.key}
+                  type="button"
+                  onClick={() => setStatutFiltre(t.key)}
+                  className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all ${
+                    active
+                      ? t.key === 'retard' ? 'bg-red-600 text-white shadow-sm' : 'bg-[#0e2a52] text-white shadow-sm'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  }`}
+                >
+                  {t.key === 'retard' && (
+                    <span className={`inline-block w-1.5 h-1.5 rounded-full ${active ? 'bg-white' : 'bg-red-500'}`} aria-hidden />
+                  )}
+                  <span>{t.label}</span>
+                  <span className={`tabular-nums ${active ? 'opacity-80' : 'opacity-50'}`}>{count}</span>
+                </button>
+              )
+            })}
+          </div>
+
+          <div className="flex flex-wrap gap-2 items-center">
+            <input
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Rechercher : N° facture, client, ville…"
+              className="flex-1 min-w-[200px] border-2 border-slate-200 focus:border-blue-500 outline-none rounded-xl px-3 py-2 text-sm transition-colors"
+            />
             <select
               value={agence}
-              onChange={e => setAgence(e.target.value as Agence)}
-              className="w-full border-2 border-slate-200 focus:border-[#0e2a52] outline-none rounded-lg px-3 py-2.5 mt-1 text-sm font-semibold"
+              onChange={e => setAgence(e.target.value)}
+              className="border-2 border-slate-200 rounded-xl px-3 py-2 text-sm bg-white"
             >
-              {AGENCES.map(a => (
-                <option key={a} value={a}>{a}</option>
-              ))}
+              <option value="">Toutes les agences</option>
+              {AGENCES.map(a => <option key={a} value={a}>{a}</option>)}
             </select>
-            <span className="text-xs text-slate-500 mt-1 block">Apparaît sous le bloc émetteur sur la facture PDF.</span>
-          </label>
-        </div>
-
-        {/* Dictée */}
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 sm:p-6 space-y-4">
-          <div>
-            <h2 className="text-xl font-black text-[#0e2a52]">Raconte l&apos;intervention</h2>
-            <p className="text-sm text-slate-500 mt-1">
-              Ex : « Facture pour Madame Jules à Trets, 250 € pour le débouchage haute pression du collecteur eaux usées, déplacement inclus, payé par carte aujourd&apos;hui. Le tuyau était plein de graisses alimentaires, j&apos;ai conseillé d&apos;arrêter de jeter de l&apos;huile dedans. »
-            </p>
-          </div>
-
-          <div className="bg-blue-50 border border-blue-200 rounded-xl p-3">
-            <VoiceRecorder onTranscription={t => setTranscription(prev => prev ? prev + ' ' + t : t)} />
-          </div>
-
-          <textarea
-            value={transcription}
-            onChange={e => setTranscription(e.target.value)}
-            rows={6}
-            placeholder="Dicte l&apos;intervention, les prestations, les prix et le mode de règlement…"
-            className="w-full border-2 border-slate-200 focus:border-blue-500 outline-none rounded-xl px-4 py-3 text-base transition-colors"
-          />
-
-          <div className="flex justify-between text-xs text-slate-400">
-            <span>{transcription.length} car.</span>
-            <span>{transcription.length < 50 ? 'Ajoute plus de détails' : '✓ OK'}</span>
-          </div>
-
-          {transcription.length > 20 && (
             <button
-              onClick={handleExtractClient}
-              disabled={step === 'extracting'}
-              className="text-sm text-blue-700 hover:text-blue-900 font-semibold disabled:opacity-50"
+              type="button"
+              onClick={() => setPeriodeOuverte(v => !v)}
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-100 text-slate-700 text-xs font-semibold hover:bg-slate-200 transition"
             >
-              {step === 'extracting' ? 'Extraction…' : '↳ Pré-remplir les champs client depuis la dictée'}
+              <CalendarIcon className="w-4 h-4" />
+              <span>{fmtDateFR(from)} → {fmtDateFR(to)}</span>
             </button>
+            <button onClick={load} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-blue-50 text-blue-700 hover:bg-blue-100 transition">
+              <ArrowRefreshIcon className="w-4 h-4" />
+              <span>Rafraîchir</span>
+            </button>
+          </div>
+
+          {periodeOuverte && (
+            <div className="flex flex-wrap gap-2 items-center pt-2 border-t border-slate-200">
+              <label className="text-xs text-slate-600 font-bold">Du</label>
+              <input type="date" value={from} onChange={e => setFrom(e.target.value)}
+                className="border-2 border-slate-200 rounded-lg px-2 py-1 text-sm" />
+              <label className="text-xs text-slate-600 font-bold">Au</label>
+              <input type="date" value={to} onChange={e => setTo(e.target.value)}
+                className="border-2 border-slate-200 rounded-lg px-2 py-1 text-sm" />
+              <button
+                type="button"
+                onClick={() => { const p = presetThisMonth(); setFrom(p.from); setTo(p.to) }}
+                className="px-2 py-1 rounded-lg text-xs bg-slate-100 hover:bg-slate-200"
+              >Ce mois</button>
+              <button
+                type="button"
+                onClick={() => {
+                  const now = new Date()
+                  setFrom(`${now.getFullYear()}-01-01`); setTo(`${now.getFullYear()}-12-31`)
+                }}
+                className="px-2 py-1 rounded-lg text-xs bg-slate-100 hover:bg-slate-200"
+              >Cette année</button>
+              <button
+                type="button"
+                onClick={() => { setFrom(''); setTo('') }}
+                className="px-2 py-1 rounded-lg text-xs bg-slate-100 hover:bg-slate-200"
+              >Tout</button>
+            </div>
           )}
         </div>
 
-        {/* Client */}
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 sm:p-6 space-y-3">
-          <h2 className="text-xl font-black text-[#0e2a52]">Client</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <Field label="Nom du client" value={clientNom} onChange={setClientNom} placeholder="M. Dupont / Mme Jules…" />
-            <Field label="Adresse" value={clientAdresse} onChange={setClientAdresse} />
-            <Field label="Code postal" value={clientCP} onChange={setClientCP} />
-            <label className="block text-sm">
-              <span className="text-xs uppercase tracking-wide text-slate-500">Ville</span>
-              <div className="mt-1">
-                <VilleCombobox
-                  value={clientVille}
-                  onChange={setClientVille}
-                  onSelect={v => { setClientVille(v.nom); setClientCP(v.cp) }}
-                />
-              </div>
-            </label>
-            <Field label="Adresse du chantier" value={adresseChantier} onChange={setAdresseChantier} placeholder="idem / autre" />
-            <label className="block text-sm">
-              <span className="text-xs uppercase tracking-wide text-slate-500">Date de la facture</span>
-              <input
-                type="date"
-                value={dateFacture}
-                onChange={e => setDateFacture(e.target.value)}
-                className="w-full border border-slate-200 rounded px-2 py-1.5 mt-1"
-              />
-            </label>
-            <Field
-              label="Référence dossier (optionnel)"
-              value={referenceDossier}
-              onChange={setReferenceDossier}
-              placeholder="ex: DV-..., rapport du …"
-            />
-          </div>
-        </div>
-
         {error && (
-          <div className="bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3 text-sm">
-            {error}
+          <div className="bg-red-50 border border-red-200 text-red-700 p-3 rounded-xl text-sm">{error}</div>
+        )}
+        {info && (
+          <div className="bg-emerald-50 border border-emerald-200 text-emerald-700 p-3 rounded-xl text-sm">{info}</div>
+        )}
+
+        {loading && !error && (
+          <div className="bg-white rounded-2xl border border-slate-200 p-10 text-center text-slate-500">
+            Chargement…
           </div>
         )}
 
-        <button
-          onClick={handleGenerate}
-          disabled={transcription.trim().length < 20}
-          className="w-full bg-[#0e2a52] hover:bg-[#13386e] disabled:bg-slate-300 text-white font-bold py-4 rounded-xl transition-colors"
-        >
-          Générer la facture →
-        </button>
+        {!loading && !error && filtered.length === 0 && (
+          <div className="bg-white rounded-2xl border border-slate-200 p-10 text-center space-y-3">
+            <div className="mx-auto w-14 h-14 rounded-2xl bg-slate-100 flex items-center justify-center">
+              <ReceiptIcon className="w-7 h-7 text-slate-400" />
+            </div>
+            <p className="text-slate-700 font-semibold">Aucune facture pour ce filtre.</p>
+            <p className="text-slate-500 text-sm">
+              {factures.length === 0
+                ? 'Crée ta première facture avec le bouton « Nouvelle facture ».'
+                : 'Élargis la période ou change le filtre.'}
+            </p>
+          </div>
+        )}
+
+        {/* Tableau */}
+        {!loading && filtered.length > 0 && (
+          <section className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-slate-50 text-slate-500 uppercase text-[10px] tracking-wider">
+                  <tr>
+                    <th className="px-3 py-2 text-left">N°</th>
+                    <th className="px-3 py-2 text-left">Émise</th>
+                    <th className="px-3 py-2 text-left">Échéance</th>
+                    <th className="px-3 py-2 text-left">Client</th>
+                    <th className="px-3 py-2 text-left">Ville</th>
+                    <th className="px-3 py-2 text-right">TTC</th>
+                    <th className="px-3 py-2 text-left">Statut</th>
+                    <th className="px-3 py-2 text-left">Dernier envoi</th>
+                    <th className="px-3 py-2 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filtered.map(f => {
+                    const isPending = pendingId === f.id
+                    const isPaid = f.statut === 'paye'
+                    const isCancelled = f.statut === 'annule'
+                    const canMarkPaid = !isPaid && !isCancelled
+                    const canCancel = !isCancelled
+                    const canRelancer = f.statut === 'envoye' && !!f.payload
+                    return (
+                      <tr key={f.id} className={`border-t border-slate-100 hover:bg-slate-50 ${isPending ? 'opacity-50' : ''}`}>
+                        <td className="px-3 py-3 font-mono text-xs text-[#0e2a52] font-bold">{f.numero || '—'}</td>
+                        <td className="px-3 py-3 text-slate-600 whitespace-nowrap">{fmtDateFR(f.date_emission)}</td>
+                        <td className="px-3 py-3 whitespace-nowrap">
+                          {f._eche.isRegleeText ? (
+                            <span className="inline-flex items-center gap-1 text-xs text-emerald-600 font-semibold">
+                              <CheckIcon className="w-3.5 h-3.5" strokeWidth={2.5} />
+                              Réglée
+                            </span>
+                          ) : f._eche.dueDate ? (
+                            <div className="flex flex-col">
+                              <span className="text-slate-700">{fmtDateFR(f._eche.dueDate)}</span>
+                              {f._isOverdue && (
+                                <span className="inline-flex items-center gap-1 text-[11px] text-red-600 font-semibold mt-0.5">
+                                  <ClockIcon className="w-3 h-3" />
+                                  +{f._eche.daysOverdue} j de retard
+                                </span>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="text-slate-400 text-xs">{f.echeance || '—'}</span>
+                          )}
+                        </td>
+                        <td className="px-3 py-3 font-semibold text-slate-700">{f.client_nom || '—'}</td>
+                        <td className="px-3 py-3 text-slate-600">
+                          {f.client_ville || '—'}
+                          {f.client_code_postal ? <span className="text-xs text-slate-400 ml-1">({f.client_code_postal})</span> : null}
+                        </td>
+                        <td className="px-3 py-3 text-right font-bold text-[#0e2a52] tabular-nums whitespace-nowrap">{fmtEUR(f.montant_ttc)}</td>
+                        <td className="px-3 py-3">
+                          <StatutBadge statut={f.statut} isOverdue={f._isOverdue} />
+                        </td>
+                        <td className="px-3 py-3 text-xs text-slate-500">
+                          {f.envoye_at
+                            ? <span title={f.envoye_email || ''}>{fmtDateFR(f.envoye_at.slice(0, 10))}</span>
+                            : <span className="text-slate-400">—</span>}
+                        </td>
+                        <td className="px-2 py-3 text-right">
+                          <div className="inline-flex flex-wrap gap-1 justify-end">
+                            {canMarkPaid && (
+                              <button
+                                type="button"
+                                onClick={() => handleMarquerPaye(f)}
+                                disabled={isPending}
+                                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-white hover:bg-emerald-50 text-emerald-700 text-[11px] font-semibold transition disabled:opacity-50 border border-slate-200 hover:border-emerald-200"
+                                title="Marquer comme payée"
+                                aria-label="Marquer comme payée"
+                              >
+                                <CheckIcon className="w-3.5 h-3.5" strokeWidth={2.25} />
+                                <span>Payée</span>
+                              </button>
+                            )}
+                            {canRelancer && (
+                              <button
+                                type="button"
+                                onClick={() => handleRelancer(f)}
+                                disabled={isPending}
+                                className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold transition disabled:opacity-50 border ${
+                                  f._isOverdue
+                                    ? 'bg-red-50 hover:bg-red-100 text-red-700 border-red-200'
+                                    : 'bg-white hover:bg-amber-50 text-amber-700 border-slate-200 hover:border-amber-200'
+                                }`}
+                                title="Envoyer une relance"
+                                aria-label="Envoyer une relance"
+                              >
+                                <EnvelopeIcon className="w-3.5 h-3.5" />
+                                <span>Relancer</span>
+                              </button>
+                            )}
+                            {f.pdf_url ? (
+                              <a
+                                href={f.pdf_url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-white hover:bg-slate-50 text-slate-700 text-[11px] font-semibold transition border border-slate-200 hover:border-slate-300"
+                                title="Ouvrir le PDF"
+                                aria-label="Ouvrir le PDF"
+                              >
+                                <ArrowDownTrayIcon className="w-3.5 h-3.5" />
+                                <span>PDF</span>
+                              </a>
+                            ) : f.payload ? (
+                              <DocumentDownloadButton doc={f as any} />
+                            ) : null}
+                            {canCancel && (
+                              <button
+                                type="button"
+                                onClick={() => handleAnnuler(f)}
+                                disabled={isPending}
+                                className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-white hover:bg-slate-50 text-slate-500 transition disabled:opacity-50 border border-slate-200 hover:border-slate-300"
+                                title="Annuler la facture"
+                                aria-label="Annuler la facture"
+                              >
+                                <NoSymbolIcon className="w-4 h-4" />
+                              </button>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => handleSupprimer(f)}
+                              disabled={isPending}
+                              className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-white hover:bg-red-50 hover:text-red-600 text-slate-400 transition disabled:opacity-50 border border-slate-200 hover:border-red-200"
+                              title="Supprimer définitivement"
+                              aria-label="Supprimer définitivement"
+                            >
+                              <TrashIcon className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+            <div className="px-4 py-2 bg-slate-50 border-t border-slate-200 text-xs text-slate-500">
+              {filtered.length} facture{filtered.length > 1 ? 's' : ''} affichée{filtered.length > 1 ? 's' : ''}
+            </div>
+          </section>
+        )}
       </main>
     </div>
   )
 }
 
-function Field({
-  label, value, onChange, placeholder,
-}: {
-  label: string; value: string; onChange: (v: string) => void; placeholder?: string
+function KpiCard({ label, value, sub, tone }: {
+  label: string; value: string; sub?: string;
+  tone: 'slate' | 'emerald' | 'blue' | 'red'
 }) {
+  const dotTones: Record<string, string> = {
+    slate: 'bg-slate-400',
+    emerald: 'bg-emerald-500',
+    blue: 'bg-blue-500',
+    red: 'bg-red-500',
+  }
+  const valueTones: Record<string, string> = {
+    slate: 'text-slate-900',
+    emerald: 'text-emerald-700',
+    blue: 'text-slate-900',
+    red: 'text-red-600',
+  }
   return (
-    <label className="block text-sm">
-      <span className="text-xs uppercase tracking-wide text-slate-500">{label}</span>
-      <input
-        value={value}
-        onChange={e => onChange(e.target.value)}
-        placeholder={placeholder}
-        className="w-full border border-slate-200 rounded px-2 py-1.5 mt-1"
-      />
-    </label>
+    <div className="bg-white rounded-2xl border border-slate-200/70 p-4 hover:border-slate-300 transition-colors">
+      <div className="flex items-center gap-1.5 text-[10px] font-semibold text-slate-500 uppercase tracking-[0.18em]">
+        <span className={`inline-block w-1.5 h-1.5 rounded-full ${dotTones[tone]}`} aria-hidden />
+        <span>{label}</span>
+      </div>
+      <div className={`text-2xl font-bold mt-1.5 tabular-nums tracking-tight ${valueTones[tone]}`}>{value}</div>
+      {sub && <div className="text-[11px] text-slate-500 mt-0.5">{sub}</div>}
+    </div>
   )
+}
+
+function StatutBadge({ statut, isOverdue }: { statut: string; isOverdue: boolean }) {
+  if (isOverdue) {
+    return (
+      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-red-100 text-red-700">
+        <span className="inline-block w-1.5 h-1.5 rounded-full bg-red-600" aria-hidden />
+        En retard
+      </span>
+    )
+  }
+  const styles: Record<string, string> = {
+    brouillon: 'bg-slate-200 text-slate-600',
+    envoye: 'bg-blue-100 text-blue-700',
+    paye: 'bg-emerald-100 text-emerald-700',
+    annule: 'bg-slate-200 text-slate-500 line-through',
+  }
+  const label = STATUT_LABEL[statut] || statut
+  return <span className={`inline-block px-2 py-0.5 rounded-full text-[11px] font-semibold ${styles[statut] || 'bg-slate-100 text-slate-600'}`}>{label}</span>
 }

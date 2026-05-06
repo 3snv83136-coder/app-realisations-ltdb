@@ -38,7 +38,7 @@ export default function CreateFactureFromRapportButton({
     if (typeof window === 'undefined') return
     const payload = buildFactureFromRapport(source)
     sessionStorage.setItem('ltdb_devis_to_facture', JSON.stringify(payload))
-    router.push('/facture')
+    router.push('/facture/nouvelle')
   }
 
   return (
