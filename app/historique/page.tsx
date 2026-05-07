@@ -5,6 +5,7 @@ import AppTabs from "@/components/AppTabs"
 import { fmtDateFR, fmtEUR } from "@/lib/format"
 
 const DocumentDownloadButton = dynamic(() => import("@/components/DocumentDownloadButton"), { ssr: false })
+const ResendEmailButton = dynamic(() => import("@/components/ResendEmailButton"), { ssr: false })
 const InterventionRapportDownloadButton = dynamic(() => import("@/components/InterventionRapportDownloadButton"), { ssr: false })
 const CreateFactureFromRapportButton = dynamic(() => import("@/components/CreateFactureFromRapportButton"), { ssr: false })
 
@@ -378,19 +379,24 @@ export default function HistoriquePage() {
                       </td>
                       <td className="px-4 py-3 text-xs text-slate-500">{d.envoye_email || '—'}</td>
                       <td className="px-4 py-3 text-right">
-                        {d.pdf_url ? (
-                          <a
-                            href={d.pdf_url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition"
-                            title="Ouvrir le PDF stocké"
-                          >
-                            ⬇ PDF
-                          </a>
-                        ) : (
-                          <DocumentDownloadButton doc={d} />
-                        )}
+                        <div className="inline-flex flex-wrap gap-1 justify-end">
+                          {d.pdf_url ? (
+                            <a
+                              href={d.pdf_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition"
+                              title="Ouvrir le PDF stocké"
+                            >
+                              ⬇ PDF
+                            </a>
+                          ) : (
+                            <DocumentDownloadButton doc={d} />
+                          )}
+                          {(d.type === 'facture' || d.type === 'devis' || d.type === 'attestation') && (
+                            <ResendEmailButton doc={d} />
+                          )}
+                        </div>
                       </td>
                       <td className="px-2 py-3 text-center">
                         <button
