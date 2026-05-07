@@ -6,6 +6,7 @@ import { fmtDateFR, fmtEUR } from "@/lib/format"
 
 const DocumentDownloadButton = dynamic(() => import("@/components/DocumentDownloadButton"), { ssr: false })
 const ResendEmailButton = dynamic(() => import("@/components/ResendEmailButton"), { ssr: false })
+const RequestReviewButton = dynamic(() => import("@/components/RequestReviewButton"), { ssr: false })
 const InterventionRapportDownloadButton = dynamic(() => import("@/components/InterventionRapportDownloadButton"), { ssr: false })
 const CreateFactureFromRapportButton = dynamic(() => import("@/components/CreateFactureFromRapportButton"), { ssr: false })
 
@@ -292,29 +293,37 @@ export default function HistoriquePage() {
                         )}
                       </td>
                       <td className="px-4 py-3 text-right">
-                        {i.has_rapport ? (
-                          <div className="inline-flex flex-col items-end gap-1">
-                            <InterventionRapportDownloadButton intervention={i} />
-                            <CreateFactureFromRapportButton
-                              size="sm"
-                              label="Facturer"
-                              source={{
-                                rapport: i.rapport_json,
-                                client_nom: i.client_nom,
-                                client_email: i.client_email,
-                                client_adresse: i.client_adresse,
-                                client_code_postal: i.client_code_postal,
-                                client_ville: i.client_ville,
-                                adresse_chantier: i.adresse_chantier,
-                                type_intervention: i.type_intervention,
-                                date_intervention: i.date_realisee || i.date_prevue,
-                                reference: i.reference,
-                              }}
-                            />
-                          </div>
-                        ) : (
-                          <span className="text-slate-400 text-xs">—</span>
-                        )}
+                        <div className="inline-flex flex-col items-end gap-1">
+                          {i.has_rapport && (
+                            <>
+                              <InterventionRapportDownloadButton intervention={i} />
+                              <CreateFactureFromRapportButton
+                                size="sm"
+                                label="Facturer"
+                                source={{
+                                  rapport: i.rapport_json,
+                                  client_nom: i.client_nom,
+                                  client_email: i.client_email,
+                                  client_adresse: i.client_adresse,
+                                  client_code_postal: i.client_code_postal,
+                                  client_ville: i.client_ville,
+                                  adresse_chantier: i.adresse_chantier,
+                                  type_intervention: i.type_intervention,
+                                  date_intervention: i.date_realisee || i.date_prevue,
+                                  reference: i.reference,
+                                }}
+                              />
+                            </>
+                          )}
+                          <RequestReviewButton
+                            clientEmail={i.client_email}
+                            clientNom={i.client_nom}
+                            ville={i.ville || i.client_ville}
+                          />
+                          {!i.has_rapport && (
+                            <span className="text-slate-400 text-xs">— pas de rapport</span>
+                          )}
+                        </div>
                       </td>
                       <td className="px-2 py-3 text-center">
                         <button
