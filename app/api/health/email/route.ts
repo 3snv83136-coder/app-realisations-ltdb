@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
+import { Resend } from "resend"
 import { initResend } from "@/lib/email-utils"
 
 export const dynamic = 'force-dynamic'
@@ -19,9 +20,25 @@ export async function GET(req: NextRequest) {
     test_redirect: process.env.RESEND_TEST_EMAIL || null,
   }
 
+  // Liste les domaines visibles par la clé API (utile pour diagnostiquer
+  // un mismatch de workspace entre la clé Vercel et le domaine vérifié sur Resend).
+  let domainsVisible: any = null
+  let domainsError: string | null = null
+  if (process.env.RESEND_API_KEY) {
+    try {
+      const r = new Resend(process.env.RESEND_API_KEY)
+      const list = await r.domains.list()
+      domainsVisible = (list as any)?.data?.data || (list as any)?.data || list
+    } catch (e: any) {
+      domainsError = e?.message || String(e)
+    }
+  }
+
   if (!to) {
     return NextResponse.json({
       config,
+      domains_visible: domainsVisible,
+      domains_error: domainsError,
       hint: 'Ajoute ?to=ton-email pour envoyer un message-test',
     })
   }
