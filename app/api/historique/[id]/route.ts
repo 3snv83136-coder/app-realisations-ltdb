@@ -7,6 +7,27 @@ const ALLOWED_STATUTS: DocumentStatut[] = [
   'brouillon', 'envoye', 'paye', 'annule', 'accepte', 'refuse', 'expire',
 ]
 
+export async function GET(
+  _req: NextRequest,
+  ctx: { params: { id: string } },
+) {
+  const sb = getSupabaseOrNull()
+  if (!sb) {
+    return NextResponse.json({ error: 'Supabase non configuré' }, { status: 500 })
+  }
+  const id = ctx.params.id
+  if (!id) return NextResponse.json({ error: 'id manquant' }, { status: 400 })
+
+  const { data, error } = await sb
+    .from('documents')
+    .select('id, type, numero, agence, date_emission, echeance, statut, montant_ht, montant_ttc, tva_taux, payload, pdf_url, envoye_email, envoye_at, intervention_id, client_id, created_at')
+    .eq('id', id)
+    .maybeSingle()
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (!data) return NextResponse.json({ error: 'Document introuvable' }, { status: 404 })
+  return NextResponse.json({ document: data })
+}
+
 export async function DELETE(
   _req: NextRequest,
   ctx: { params: { id: string } },

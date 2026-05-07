@@ -26,7 +26,7 @@ export async function GET(req: NextRequest) {
       .limit(limit),
     sb
       .from('documents')
-      .select('id, type, numero, agence, date_emission, echeance, statut, montant_ht, montant_ttc, tva_taux, payload, pdf_url, envoye_email, envoye_at, intervention_id, client_id, created_at')
+      .select('id, type, numero, agence, date_emission, echeance, statut, montant_ht, montant_ttc, tva_taux, pdf_url, envoye_email, envoye_at, intervention_id, client_id, created_at')
       .neq('statut', 'annule')
       .order('created_at', { ascending: false })
       .limit(limit),

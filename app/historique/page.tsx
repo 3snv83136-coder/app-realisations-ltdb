@@ -50,7 +50,7 @@ type Document = {
   client_adresse: string | null
   client_code_postal: string | null
   client_ville: string | null
-  payload: any
+  payload?: any
   pdf_url: string | null
   created_at: string
 }
@@ -388,10 +388,8 @@ export default function HistoriquePage() {
                           >
                             ⬇ PDF
                           </a>
-                        ) : d.payload ? (
-                          <DocumentDownloadButton doc={d} />
                         ) : (
-                          <span className="text-slate-400 text-xs">—</span>
+                          <DocumentDownloadButton doc={d} />
                         )}
                       </td>
                       <td className="px-2 py-3 text-center">

@@ -14,11 +14,18 @@ export interface HistoriqueDocument {
   type: DocType
   numero: string | null
   agence: string | null
-  payload: any
+  payload?: any
   client_nom: string | null
   client_adresse: string | null
   client_code_postal: string | null
   client_ville: string | null
+}
+
+async function fetchPayload(id: string): Promise<any> {
+  const res = await fetch(`/api/historique/${id}`, { cache: 'no-store' })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`)
+  return data?.document?.payload ?? null
 }
 
 function buildClientData(d: HistoriqueDocument): ClientData {
@@ -34,10 +41,14 @@ function buildClientData(d: HistoriqueDocument): ClientData {
 }
 
 async function buildPdfBlob(doc: HistoriqueDocument): Promise<{ blob: Blob; filename: string } | null> {
-  if (!doc.payload || typeof doc.payload !== 'object') return null
+  let payload = doc.payload
+  if (!payload || typeof payload !== 'object') {
+    payload = await fetchPayload(doc.id)
+  }
+  if (!payload || typeof payload !== 'object') return null
 
   if (doc.type === 'facture') {
-    const facture: FactureData = doc.payload as FactureData
+    const facture: FactureData = payload as FactureData
     if (!facture.lignes) return null
     const emetteur = ltdbFactureEmetteur(doc.agence || undefined)
     const element = React.createElement(FactureDocument, {
@@ -51,7 +62,7 @@ async function buildPdfBlob(doc: HistoriqueDocument): Promise<{ blob: Blob; file
   }
 
   if (doc.type === 'devis') {
-    const devis: DevisData = doc.payload as DevisData
+    const devis: DevisData = payload as DevisData
     if (!devis.lignes) return null
     const element = React.createElement(DevisDocument, {
       emetteur: LTDB_EMETTEUR,
@@ -64,7 +75,7 @@ async function buildPdfBlob(doc: HistoriqueDocument): Promise<{ blob: Blob; file
   }
 
   if (doc.type === 'attestation') {
-    const data: AttestationData = doc.payload as AttestationData
+    const data: AttestationData = payload as AttestationData
     if (!data.numero && !doc.numero) return null
     // S'assure des champs critiques (objet/methode/observations/conclusion peuvent être manquants
     // sur de très anciens enregistrements — on remplit à vide pour ne pas crasher le PDF).
