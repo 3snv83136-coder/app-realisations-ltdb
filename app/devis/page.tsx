@@ -7,6 +7,7 @@ import VoiceRecorder from "@/components/VoiceRecorder"
 import AppTabs from "@/components/AppTabs"
 import VilleCombobox from "@/components/VilleCombobox"
 import ClientAutocomplete from "@/components/ClientAutocomplete"
+import PrestationsCombobox from "@/components/PrestationsCombobox"
 import { useUnsavedChangesWarning } from "@/lib/useUnsavedChangesWarning"
 import type { DevisPDFProps, DevisLineData, ClientData, DevisData } from "@/components/DevisPDF"
 import { LTDB_EMETTEUR } from "@/lib/emetteur"
@@ -450,10 +451,10 @@ export default function DevisPage() {
                         />
                       </td>
                       <td className="py-1 pr-2">
-                        <input
-                          value={l.designation}
-                          onChange={e => updateLine(i, { designation: e.target.value })}
-                          className="w-full border border-slate-200 rounded px-2 py-1 mb-1"
+                        <PrestationsCombobox
+                          designation={l.designation}
+                          onChange={(patch) => updateLine(i, patch)}
+                          className="mb-1"
                         />
                         <input
                           value={l.description || ''}

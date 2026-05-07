@@ -110,11 +110,11 @@ export default function PrestationsCombobox({ designation, onChange, className }
         <button
           type="button"
           onClick={() => setOpen(o => !o)}
-          className="px-2 py-1 border border-slate-200 rounded bg-slate-50 hover:bg-slate-100 text-slate-700"
-          title="Catalogue prestations"
-          aria-label="Ouvrir le catalogue de prestations"
+          className="px-2 py-1 border-2 border-blue-200 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded font-semibold text-xs whitespace-nowrap shrink-0"
+          title="Choisir un article du catalogue ou en créer un"
+          aria-label="Ouvrir le catalogue d'articles"
         >
-          📋
+          📋 Articles
         </button>
       </div>
 
