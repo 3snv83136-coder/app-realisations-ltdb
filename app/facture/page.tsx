@@ -15,6 +15,8 @@ import {
 } from "@/components/Icons"
 
 const DocumentDownloadButton = dynamic(() => import("@/components/DocumentDownloadButton"), { ssr: false })
+const ResendEmailButton = dynamic(() => import("@/components/ResendEmailButton"), { ssr: false })
+const RequestReviewButton = dynamic(() => import("@/components/RequestReviewButton"), { ssr: false })
 
 type FactureRow = {
   id: string
@@ -30,7 +32,8 @@ type FactureRow = {
   envoye_email: string | null
   envoye_at: string | null
   pdf_url: string | null
-  payload: any
+  payload?: any
+  intervention_id: string | null
   client_id: string | null
   client_nom: string | null
   client_email: string | null
@@ -207,7 +210,15 @@ export default function FactureConsolePage() {
     setPendingId(f.id); setError(''); setInfo('')
     try {
       const eche = parseEcheance(f.echeance, f.date_emission)
-      const facturePayload = (f.payload || {}) as FactureData
+      // Le payload n'est plus retourné par /api/historique (retiré pour ne pas
+      // tronquer la response) — on le fetch à la demande via /api/historique/[id].
+      let facturePayload = f.payload as FactureData | undefined
+      if (!facturePayload || !Array.isArray(facturePayload.lignes)) {
+        const r = await fetch(`/api/historique/${f.id}`, { cache: 'no-store' })
+        const d = await r.json().catch(() => ({}))
+        if (!r.ok) throw new Error(d.error || `HTTP ${r.status}`)
+        facturePayload = d?.document?.payload as FactureData | undefined
+      }
       if (!facturePayload || !Array.isArray(facturePayload.lignes)) {
         throw new Error("Données facture incomplètes (payload manquant ou invalide)")
       }
@@ -467,7 +478,7 @@ export default function FactureConsolePage() {
                     const isCancelled = f.statut === 'annule'
                     const canMarkPaid = !isPaid && !isCancelled
                     const canCancel = !isCancelled
-                    const canRelancer = f.statut === 'envoye' && !!f.payload
+                    const canRelancer = f.statut === 'envoye'
                     return (
                       <tr key={f.id} className={`border-t border-slate-100 hover:bg-slate-50 ${isPending ? 'opacity-50' : ''}`}>
                         <td className="px-3 py-3 font-mono text-xs text-[#0e2a52] font-bold">{f.numero || '—'}</td>
@@ -550,9 +561,24 @@ export default function FactureConsolePage() {
                                 <ArrowDownTrayIcon className="w-3.5 h-3.5" />
                                 <span>PDF</span>
                               </a>
-                            ) : f.payload ? (
+                            ) : (
                               <DocumentDownloadButton doc={f as any} />
-                            ) : null}
+                            )}
+                            <ResendEmailButton doc={f as any} />
+                            <RequestReviewButton
+                              clientEmail={f.client_email}
+                              clientNom={f.client_nom}
+                              ville={f.client_ville}
+                            />
+                            {f.intervention_id && (
+                              <Link
+                                href={`/intervention/${f.intervention_id}`}
+                                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-white hover:bg-blue-50 text-blue-700 text-[11px] font-semibold transition border border-slate-200 hover:border-blue-200"
+                                title="Voir l'intervention et le rapport associés"
+                              >
+                                📄 Rapport
+                              </Link>
+                            )}
                             {canCancel && (
                               <button
                                 type="button"
