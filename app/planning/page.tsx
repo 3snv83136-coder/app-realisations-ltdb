@@ -159,13 +159,13 @@ export default function PlanningPage() {
   return (
     <div className="min-h-screen bg-slate-50 pb-20">
       <div className="bg-white border-b border-slate-200 py-2">
-        <div className="max-w-6xl mx-auto px-4">
+        <div className="max-w-7xl mx-auto px-4">
           <AppTabs />
         </div>
       </div>
 
       <nav className="bg-[#0e2a52] text-white px-4 py-3 sm:px-6 sm:py-4 shadow-lg">
-        <div className="max-w-6xl mx-auto flex items-center justify-between gap-3">
+        <div className="max-w-7xl mx-auto flex items-center justify-between gap-3">
           <div>
             <div className="font-black text-base sm:text-lg leading-tight">LTDB</div>
             <div className="text-[11px] opacity-70">Planning &amp; dispatch</div>
@@ -187,7 +187,7 @@ export default function PlanningPage() {
         </div>
       </nav>
 
-      <main className="max-w-6xl mx-auto px-4 py-5 space-y-4">
+      <main className="max-w-7xl mx-auto px-4 py-5 space-y-4">
         {/* Synchronisation Google Calendar */}
         <CalendarSubscribePanel />
 
@@ -255,67 +255,11 @@ export default function PlanningPage() {
         )}
 
         {!loading && filtered.length > 0 && (
-          <section className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-            <div className="px-4 py-3 bg-slate-50 border-b border-slate-200 flex justify-between items-center">
-              <h3 className="font-bold text-[#0e2a52]">📅 Interventions ({filtered.length})</h3>
-              <button onClick={loadAll} className="text-xs font-bold text-blue-700 hover:text-blue-900">↻ Rafraîchir</button>
-            </div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="bg-slate-50 text-slate-500 uppercase text-[10px] tracking-wider">
-                  <tr>
-                    <th className="px-4 py-2 text-left">Date / heure</th>
-                    <th className="px-4 py-2 text-left">Client</th>
-                    <th className="px-4 py-2 text-left">Type</th>
-                    <th className="px-4 py-2 text-left">Adresse</th>
-                    <th className="px-4 py-2 text-left">Technicien</th>
-                    <th className="px-4 py-2 text-left">Agence</th>
-                    <th className="px-4 py-2 text-right">Prix</th>
-                    <th className="px-4 py-2 text-left">Statut</th>
-                    <th className="px-4 py-2 text-left">Action</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filtered.map(i => (
-                    <tr key={i.id} className="border-t border-slate-100 hover:bg-slate-50">
-                      <td className="px-4 py-3 text-slate-700">
-                        <div className="font-semibold">{fmtDateFR(i.date_prevue)}</div>
-                        <div className="text-xs text-slate-500">{fmtHeure(i.heure_prevue)}{i.duree_estimee_min ? ` · ${i.duree_estimee_min} min` : ''}</div>
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="font-semibold text-slate-700">{i.client_nom || '—'}</div>
-                        {i.client_telephone && <div className="text-xs text-slate-500">{i.client_telephone}</div>}
-                      </td>
-                      <td className="px-4 py-3 text-slate-600">
-                        {i.urgence && <span className="inline-block text-[10px] font-bold text-red-700 bg-red-50 border border-red-200 rounded-full px-2 py-0.5 mr-1">URG</span>}
-                        {i.type_intervention || '—'}
-                      </td>
-                      <td className="px-4 py-3 text-slate-600 text-xs">
-                        {i.adresse_chantier || '—'}<br />
-                        <span className="text-slate-500">{[i.code_postal, i.ville].filter(Boolean).join(' ')}</span>
-                      </td>
-                      <td className="px-4 py-3 text-slate-600">{i.technicien_nom || <span className="text-slate-400 italic">non assignée</span>}</td>
-                      <td className="px-4 py-3 text-slate-600 text-xs">{i.agence || '—'}</td>
-                      <td className="px-4 py-3 text-right text-slate-700 tabular-nums">{fmtEUR(i.prix_prevu)}</td>
-                      <td className="px-4 py-3">
-                        <span className={`inline-block px-2 py-0.5 rounded-full text-[11px] font-bold ${STATUT_BADGE[i.statut]}`}>
-                          {STATUT_LABEL[i.statut]}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3">
-                        <Link
-                          href={`/intervention/${i.id}`}
-                          className="text-blue-600 hover:underline font-semibold text-xs"
-                        >
-                          ouvrir →
-                        </Link>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </section>
+          <KanbanBoard
+            interventions={filtered}
+            filterStatut={filterStatut}
+            onRefresh={loadAll}
+          />
         )}
       </main>
 
@@ -334,6 +278,173 @@ export default function PlanningPage() {
         />
       )}
     </div>
+  )
+}
+
+// ====================================================================
+// KanbanBoard — desktop : 3 colonnes (à venir / en cours / terminées)
+//                mobile  : sections empilées
+// ====================================================================
+type ColumnDef = { key: Statut; label: string; emoji: string; accent: string; subAccent: string }
+
+const KANBAN_COLUMNS: ColumnDef[] = [
+  { key: 'planifiee', label: 'À venir',    emoji: '📅', accent: 'border-blue-200',    subAccent: 'bg-blue-50 text-blue-700' },
+  { key: 'en_cours',  label: 'En cours',   emoji: '⚙',  accent: 'border-amber-200',   subAccent: 'bg-amber-50 text-amber-700' },
+  { key: 'terminee',  label: 'Terminées',  emoji: '✅', accent: 'border-emerald-200', subAccent: 'bg-emerald-50 text-emerald-700' },
+]
+
+function KanbanBoard({
+  interventions, filterStatut, onRefresh,
+}: {
+  interventions: InterventionRow[]
+  filterStatut: 'all' | Statut
+  onRefresh: () => void
+}) {
+  // Quand le filterStatut est sur l'une des 3 colonnes du kanban, on affiche
+  // uniquement cette colonne en pleine largeur. Sinon, les 3 (ou 4 avec annulée).
+  const visibleColumns: ColumnDef[] = filterStatut === 'all' || filterStatut === 'annulee'
+    ? KANBAN_COLUMNS
+    : KANBAN_COLUMNS.filter(c => c.key === filterStatut)
+
+  const grouped: Record<Statut, InterventionRow[]> = {
+    planifiee: [],
+    en_cours: [],
+    terminee: [],
+    annulee: [],
+  }
+  for (const i of interventions) grouped[i.statut].push(i)
+
+  // Tri : à venir par date asc, en cours par date asc, terminées par date desc
+  grouped.planifiee.sort((a, b) => (a.date_prevue || '').localeCompare(b.date_prevue || ''))
+  grouped.en_cours.sort((a, b) => (a.date_prevue || '').localeCompare(b.date_prevue || ''))
+  grouped.terminee.sort((a, b) => (b.date_realisee || b.date_prevue || '').localeCompare(a.date_realisee || a.date_prevue || ''))
+
+  // Cas particulier : si filterStatut = 'annulee', on affiche les annulées en colonne unique
+  if (filterStatut === 'annulee') {
+    return (
+      <div className="space-y-3">
+        <div className="flex items-center justify-between px-1">
+          <h3 className="font-bold text-[#0e2a52]">🚫 Annulées ({grouped.annulee.length})</h3>
+          <button onClick={onRefresh} className="text-xs font-bold text-blue-700 hover:text-blue-900">↻ Rafraîchir</button>
+        </div>
+        <div className="space-y-2">
+          {grouped.annulee.map(i => <InterventionCard key={i.id} intervention={i} />)}
+          {grouped.annulee.length === 0 && (
+            <div className="bg-white rounded-xl border border-slate-200 p-6 text-center text-slate-400 text-sm">Aucune intervention annulée.</div>
+          )}
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-end px-1">
+        <button onClick={onRefresh} className="text-xs font-bold text-blue-700 hover:text-blue-900">↻ Rafraîchir</button>
+      </div>
+      <div className={`grid gap-4 ${
+        visibleColumns.length === 1 ? 'grid-cols-1' : 'grid-cols-1 lg:grid-cols-3'
+      }`}>
+        {visibleColumns.map(col => (
+          <KanbanColumn key={col.key} col={col} items={grouped[col.key]} />
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function KanbanColumn({ col, items }: { col: ColumnDef; items: InterventionRow[] }) {
+  return (
+    <section className={`bg-white rounded-2xl shadow-sm border-2 ${col.accent} overflow-hidden flex flex-col`}>
+      <header className={`px-4 py-3 ${col.subAccent} flex items-center justify-between border-b ${col.accent}`}>
+        <div className="flex items-center gap-2">
+          <span className="text-base">{col.emoji}</span>
+          <h3 className="font-bold text-sm uppercase tracking-wider">{col.label}</h3>
+        </div>
+        <span className="bg-white/70 px-2 py-0.5 rounded-full text-xs font-bold tabular-nums">
+          {items.length}
+        </span>
+      </header>
+      <div className="flex-1 p-3 space-y-2 max-h-[calc(100vh-380px)] overflow-y-auto bg-slate-50/30">
+        {items.length === 0 ? (
+          <p className="text-center text-slate-400 text-xs py-8 italic">Aucune intervention</p>
+        ) : (
+          items.map(i => <InterventionCard key={i.id} intervention={i} compact />)
+        )}
+      </div>
+    </section>
+  )
+}
+
+function InterventionCard({
+  intervention: i, compact,
+}: {
+  intervention: InterventionRow
+  compact?: boolean
+}) {
+  return (
+    <Link
+      href={`/intervention/${i.id}`}
+      className="block bg-white rounded-xl border border-slate-200 hover:border-[#0e2a52] hover:shadow-md transition p-3 group"
+    >
+      <div className="flex items-start justify-between gap-2 mb-1.5">
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-1.5 flex-wrap">
+            {i.urgence && (
+              <span className="inline-block text-[10px] font-bold text-red-700 bg-red-50 border border-red-200 rounded-full px-2 py-0.5">URG</span>
+            )}
+            <span className="font-semibold text-sm text-[#0e2a52] truncate">
+              {i.client_nom || 'Client —'}
+            </span>
+          </div>
+          {i.client_telephone && (
+            <a
+              href={`tel:${i.client_telephone}`}
+              onClick={e => e.stopPropagation()}
+              className="text-xs text-slate-500 hover:text-blue-600 inline-block"
+            >
+              📞 {i.client_telephone}
+            </a>
+          )}
+        </div>
+        {!compact && (
+          <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold whitespace-nowrap ${STATUT_BADGE[i.statut]}`}>
+            {STATUT_LABEL[i.statut]}
+          </span>
+        )}
+      </div>
+
+      <div className="text-xs text-slate-600 mb-1.5">
+        <span className="font-semibold">{i.type_intervention || '—'}</span>
+      </div>
+
+      <div className="flex items-center gap-2 text-xs text-slate-500 mb-1.5">
+        <span>📅 {fmtDateFR(i.date_prevue)}</span>
+        {i.heure_prevue && <span>⏰ {fmtHeure(i.heure_prevue)}</span>}
+        {i.duree_estimee_min && <span>· {i.duree_estimee_min} min</span>}
+      </div>
+
+      {(i.adresse_chantier || i.ville) && (
+        <div className="text-xs text-slate-500 mb-1.5 truncate">
+          📍 {[i.adresse_chantier, [i.code_postal, i.ville].filter(Boolean).join(' ')].filter(Boolean).join(' · ')}
+        </div>
+      )}
+
+      <div className="flex items-center justify-between text-xs pt-1.5 border-t border-slate-100">
+        <span className="text-slate-600 truncate flex-1">
+          👷 {i.technicien_nom || <span className="text-slate-400 italic">non assignée</span>}
+        </span>
+        {typeof i.prix_prevu === 'number' && i.prix_prevu > 0 && (
+          <span className="text-[#0e2a52] font-bold tabular-nums whitespace-nowrap ml-2">
+            {fmtEUR(i.prix_prevu)}
+          </span>
+        )}
+      </div>
+
+      {i.agence && (
+        <div className="text-[10px] text-slate-400 mt-1.5 text-right">{i.agence}</div>
+      )}
+    </Link>
   )
 }
 
