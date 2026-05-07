@@ -6,6 +6,8 @@ import VoiceRecorder from "@/components/VoiceRecorder"
 import AppTabs from "@/components/AppTabs"
 import VilleCombobox from "@/components/VilleCombobox"
 import PrestationsCombobox from "@/components/PrestationsCombobox"
+import ClientAutocomplete from "@/components/ClientAutocomplete"
+import { useUnsavedChangesWarning } from "@/lib/useUnsavedChangesWarning"
 import { AGENCES, type Agence } from "@/lib/agences"
 import { LTDB_EMETTEUR, ltdbFactureEmetteur } from "@/lib/emetteur"
 import { fmtDateISOtoFR } from "@/lib/format"
@@ -55,6 +57,11 @@ export default function FacturePage() {
   const [emailSent, setEmailSent] = useState(false)
   const [emailError, setEmailError] = useState('')
 
+  useUnsavedChangesWarning(
+    (step === 'capture' && (transcription.trim() !== '' || clientNom.trim() !== '')) ||
+    (step === 'preview' && facture !== null && !emailSent)
+  )
+
   // Pré-remplissage depuis un devis transformé
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -83,6 +90,14 @@ export default function FacturePage() {
   async function handleSendToClient() {
     if (!facture) return
     if (!clientEmail) { setEmailError("Renseigne l'email du client."); return }
+    const missing: string[] = []
+    if (!clientNom.trim()) missing.push('nom')
+    if (!clientAdresse.trim()) missing.push('adresse')
+    if (!clientVille.trim()) missing.push('ville')
+    if (missing.length) {
+      setEmailError(`Champs client incomplets : ${missing.join(', ')}. Complète-les avant l'envoi.`)
+      return
+    }
     setEmailSending(true); setEmailError(''); setEmailSent(false)
     try {
       const totalHT = facture.lignes.reduce((sum, l) => {
@@ -257,6 +272,10 @@ export default function FacturePage() {
       ].filter(Boolean),
       adresseChantier: adresseChantier || undefined,
     }
+    const missingClient: string[] = []
+    if (!clientNom.trim()) missingClient.push('nom')
+    if (!clientAdresse.trim()) missingClient.push('adresse')
+    if (!clientVille.trim()) missingClient.push('ville')
     const emetteur = ltdbFactureEmetteur(agence)
     const pdfProps: FacturePDFProps = {
       emetteur,
@@ -310,6 +329,12 @@ export default function FacturePage() {
               <FactureDownloadButton {...pdfProps} />
             </div>
           </div>
+
+          {missingClient.length > 0 && (
+            <div className="bg-amber-50 border border-amber-300 text-amber-900 rounded-xl px-4 py-3 text-sm">
+              ⚠ Champs client manquants : <strong>{missingClient.join(', ')}</strong> — la facture risque de s&apos;afficher avec « — ». Complète le bloc <em>Client &amp; chantier</em> ci-dessous avant d&apos;exporter ou d&apos;envoyer.
+            </div>
+          )}
 
           {/* Envoi au client */}
           <section className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 space-y-3">
@@ -384,7 +409,23 @@ export default function FacturePage() {
           <section className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 space-y-3">
             <h2 className="font-bold text-[#0e2a52]">Client &amp; chantier</h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <Field label="Nom du client" value={clientNom} onChange={setClientNom} placeholder="M. Dupont / Mme Jules…" />
+              <label className="block text-sm">
+                <span className="text-xs uppercase tracking-wide text-slate-500">Nom du client</span>
+                <div className="mt-1">
+                  <ClientAutocomplete
+                    value={clientNom}
+                    onChange={setClientNom}
+                    onSelect={c => {
+                      setClientNom(c.nom)
+                      if (c.adresse) setClientAdresse(c.adresse)
+                      if (c.code_postal) setClientCP(c.code_postal)
+                      if (c.ville) setClientVille(c.ville)
+                      if (c.email) setClientEmail(c.email)
+                    }}
+                    placeholder="M. Dupont / Mme Jules…"
+                  />
+                </div>
+              </label>
               <Field label="Adresse client" value={clientAdresse} onChange={setClientAdresse} />
               <Field label="Code postal" value={clientCP} onChange={setClientCP} />
               <label className="block text-sm">
@@ -642,7 +683,23 @@ export default function FacturePage() {
         <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 sm:p-6 space-y-3">
           <h2 className="text-xl font-black text-[#0e2a52]">Client</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <Field label="Nom du client" value={clientNom} onChange={setClientNom} placeholder="M. Dupont / Mme Jules…" />
+            <label className="block text-sm">
+              <span className="text-xs uppercase tracking-wide text-slate-500">Nom du client</span>
+              <div className="mt-1">
+                <ClientAutocomplete
+                  value={clientNom}
+                  onChange={setClientNom}
+                  onSelect={c => {
+                    setClientNom(c.nom)
+                    if (c.adresse) setClientAdresse(c.adresse)
+                    if (c.code_postal) setClientCP(c.code_postal)
+                    if (c.ville) setClientVille(c.ville)
+                    if (c.email) setClientEmail(c.email)
+                  }}
+                  placeholder="M. Dupont / Mme Jules…"
+                />
+              </div>
+            </label>
             <Field label="Adresse" value={clientAdresse} onChange={setClientAdresse} />
             <Field label="Code postal" value={clientCP} onChange={setClientCP} />
             <label className="block text-sm">

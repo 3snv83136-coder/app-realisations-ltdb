@@ -93,6 +93,7 @@ export default function InterventionDetailPage({ params }: { params: { id: strin
   const [editing, setEditing] = useState(false)
   const [saving, setSaving] = useState(false)
   const [techniciens, setTechniciens] = useState<TechnicienDetail[]>([])
+  const [techniciensError, setTechniciensError] = useState('')
   const [form, setForm] = useState<Partial<InterventionDetail>>({})
 
   function startEdit() {
@@ -114,9 +115,16 @@ export default function InterventionDetailPage({ params }: { params: { id: strin
     setActionMsg(''); setError('')
     setEditing(true)
     if (techniciens.length === 0) {
+      setTechniciensError('')
       fetch('/api/techniciens?all=1', { cache: 'no-store' })
-        .then(r => r.json()).then(d => setTechniciens(d.techniciens || []))
-        .catch(() => {})
+        .then(r => {
+          if (!r.ok) throw new Error(`HTTP ${r.status}`)
+          return r.json()
+        })
+        .then(d => setTechniciens(d.techniciens || []))
+        .catch((e: any) => {
+          setTechniciensError(`Impossible de charger la liste des techniciens (${e?.message || 'erreur réseau'}).`)
+        })
     }
   }
 
@@ -544,18 +552,23 @@ export default function InterventionDetailPage({ params }: { params: { id: strin
         <section className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 space-y-3">
           <h2 className="text-sm font-bold uppercase tracking-wider text-slate-500">Technicien assigné</h2>
           {editing ? (
-            <select
-              value={form.technicien_id || ''}
-              onChange={e => setForm(f => ({ ...f, technicien_id: e.target.value || null }))}
-              className={editInputCls + ' bg-blue-50 border-blue-200'}
-            >
-              <option value="">— non assigné —</option>
-              {techniciens.map(t => (
-                <option key={t.id} value={t.id}>
-                  {t.nom}{t.agence ? ` · ${t.agence}` : ''}
-                </option>
-              ))}
-            </select>
+            <>
+              <select
+                value={form.technicien_id || ''}
+                onChange={e => setForm(f => ({ ...f, technicien_id: e.target.value || null }))}
+                className={editInputCls + ' bg-blue-50 border-blue-200'}
+              >
+                <option value="">— non assigné —</option>
+                {techniciens.map(t => (
+                  <option key={t.id} value={t.id}>
+                    {t.nom}{t.agence ? ` · ${t.agence}` : ''}
+                  </option>
+                ))}
+              </select>
+              {techniciensError && (
+                <p className="text-xs text-red-600 mt-1">⚠ {techniciensError}</p>
+              )}
+            </>
           ) : technicien ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
               <InfoCell label="Nom" value={technicien.nom} />

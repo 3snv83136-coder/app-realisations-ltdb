@@ -83,6 +83,7 @@ export default function Home() {
   const [interventions, setInterventions] = useState<Intervention[]>([])
   const [documents, setDocuments] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState('')
   const [skipAnimation, setSkipAnimation] = useState(false)
   const [unlocked, setUnlocked] = useState(false)
   const [codeChecked, setCodeChecked] = useState(false)
@@ -114,12 +115,20 @@ export default function Home() {
   }
 
   useEffect(() => {
+    const failures: string[] = []
     Promise.all([
-      fetch('/api/interventions?limit=100').then(r => r.json()).catch(() => ({ interventions: [] })),
-      fetch('/api/historique').then(r => r.json()).catch(() => ({ documents: [] })),
+      fetch('/api/interventions?limit=100')
+        .then(r => r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`)))
+        .catch((e: any) => { failures.push(`interventions (${e?.message || 'erreur'})`); return { interventions: [] } }),
+      fetch('/api/historique')
+        .then(r => r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`)))
+        .catch((e: any) => { failures.push(`historique (${e?.message || 'erreur'})`); return { documents: [] } }),
     ]).then(([intRes, histRes]) => {
       setInterventions(intRes.interventions || [])
       setDocuments(histRes.documents || [])
+      if (failures.length) {
+        setLoadError(`Impossible de charger : ${failures.join(', ')}. Vérifie ta connexion ou réessaie.`)
+      }
     }).finally(() => setLoading(false))
   }, [])
 
@@ -280,6 +289,18 @@ export default function Home() {
 
             {loading && (
               <div className="text-center text-slate-400 text-sm">Chargement…</div>
+            )}
+            {!loading && loadError && (
+              <div className="bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3 text-sm flex items-start justify-between gap-3">
+                <span>⚠ {loadError}</span>
+                <button
+                  type="button"
+                  onClick={() => location.reload()}
+                  className="text-red-700 hover:text-red-900 font-bold underline whitespace-nowrap"
+                >
+                  Réessayer
+                </button>
+              </div>
             )}
           </div>
         </div>

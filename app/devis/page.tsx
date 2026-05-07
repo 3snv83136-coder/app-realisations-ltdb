@@ -6,6 +6,8 @@ import dynamic from "next/dynamic"
 import VoiceRecorder from "@/components/VoiceRecorder"
 import AppTabs from "@/components/AppTabs"
 import VilleCombobox from "@/components/VilleCombobox"
+import ClientAutocomplete from "@/components/ClientAutocomplete"
+import { useUnsavedChangesWarning } from "@/lib/useUnsavedChangesWarning"
 import type { DevisPDFProps, DevisLineData, ClientData, DevisData } from "@/components/DevisPDF"
 import { LTDB_EMETTEUR } from "@/lib/emetteur"
 import { fmtDateISOtoFR } from "@/lib/format"
@@ -41,9 +43,22 @@ export default function DevisPage() {
   const [emailSent, setEmailSent] = useState(false)
   const [emailError, setEmailError] = useState('')
 
+  useUnsavedChangesWarning(
+    (step === 'capture' && (transcription.trim() !== '' || clientNom.trim() !== '')) ||
+    (step === 'preview' && devis !== null && !emailSent)
+  )
+
   async function handleSendToClient() {
     if (!devis) return
     if (!clientEmail) { setEmailError('Renseigne l\'email du client.'); return }
+    const missing: string[] = []
+    if (!clientNom.trim()) missing.push('nom')
+    if (!clientAdresse.trim()) missing.push('adresse')
+    if (!clientVille.trim()) missing.push('ville')
+    if (missing.length) {
+      setEmailError(`Champs client incomplets : ${missing.join(', ')}. Complète-les avant l'envoi.`)
+      return
+    }
     setEmailSending(true); setEmailError(''); setEmailSent(false)
     try {
       const totalHT = devis.lignes.reduce((s, l) => s + (Number(l.pu_ht) || 0) * (Number(l.qte) || 0), 0)
@@ -259,6 +274,10 @@ export default function DevisPage() {
       ].filter(Boolean),
       adresseChantier: adresseChantier || undefined,
     }
+    const missingClient: string[] = []
+    if (!clientNom.trim()) missingClient.push('nom')
+    if (!clientAdresse.trim()) missingClient.push('adresse')
+    if (!clientVille.trim()) missingClient.push('ville')
     const pdfProps: DevisPDFProps = {
       emetteur: LTDB_EMETTEUR,
       client,
@@ -316,6 +335,12 @@ export default function DevisPage() {
             </div>
           </div>
 
+          {missingClient.length > 0 && (
+            <div className="bg-amber-50 border border-amber-300 text-amber-900 rounded-xl px-4 py-3 text-sm">
+              ⚠ Champs client manquants : <strong>{missingClient.join(', ')}</strong> — le devis risque de s&apos;afficher avec « — ». Complète le bloc <em>Client &amp; chantier</em> avant d&apos;exporter ou d&apos;envoyer.
+            </div>
+          )}
+
           {/* Envoi au client */}
           <section className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 space-y-3">
             <h2 className="font-bold text-[#0e2a52]">Envoyer le devis au client</h2>
@@ -347,7 +372,23 @@ export default function DevisPage() {
           <section className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 space-y-3">
             <h2 className="font-bold text-[#0e2a52]">Client &amp; chantier</h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <Field label="Nom du client" value={clientNom} onChange={setClientNom} placeholder="M. Dupont / SAS Martin…" />
+              <label className="block text-sm">
+                <span className="text-xs uppercase tracking-wide text-slate-500">Nom du client</span>
+                <div className="mt-1">
+                  <ClientAutocomplete
+                    value={clientNom}
+                    onChange={setClientNom}
+                    onSelect={c => {
+                      setClientNom(c.nom)
+                      if (c.adresse) setClientAdresse(c.adresse)
+                      if (c.code_postal) setClientCP(c.code_postal)
+                      if (c.ville) setClientVille(c.ville)
+                      if (c.email) setClientEmail(c.email)
+                    }}
+                    placeholder="M. Dupont / SAS Martin…"
+                  />
+                </div>
+              </label>
               <Field label="Adresse client" value={clientAdresse} onChange={setClientAdresse} />
               <Field label="Code postal" value={clientCP} onChange={setClientCP} />
               <label className="block text-sm">
@@ -594,7 +635,23 @@ export default function DevisPage() {
         <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 sm:p-6 space-y-3">
           <h2 className="text-xl font-black text-[#0e2a52]">Client</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <Field label="Nom du client" value={clientNom} onChange={setClientNom} placeholder="M. Dupont / SAS Martin…" />
+            <label className="block text-sm">
+              <span className="text-xs uppercase tracking-wide text-slate-500">Nom du client</span>
+              <div className="mt-1">
+                <ClientAutocomplete
+                  value={clientNom}
+                  onChange={setClientNom}
+                  onSelect={c => {
+                    setClientNom(c.nom)
+                    if (c.adresse) setClientAdresse(c.adresse)
+                    if (c.code_postal) setClientCP(c.code_postal)
+                    if (c.ville) setClientVille(c.ville)
+                    if (c.email) setClientEmail(c.email)
+                  }}
+                  placeholder="M. Dupont / SAS Martin…"
+                />
+              </div>
+            </label>
             <Field label="Adresse" value={clientAdresse} onChange={setClientAdresse} />
             <Field label="Code postal" value={clientCP} onChange={setClientCP} />
             <label className="block text-sm">

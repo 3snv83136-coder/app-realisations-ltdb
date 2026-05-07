@@ -93,6 +93,7 @@ export default function InspectionPage() {
   const [observations, setObservations] = useState<ObsForm[]>([
     { position: '', code: '', description: '' },
   ])
+  const [photoError, setPhotoError] = useState('')
 
   // Préconisations
   const [precoSelected, setPrecoSelected] = useState<string[]>([])
@@ -128,13 +129,15 @@ export default function InspectionPage() {
   }
   async function setObsPhoto(i: number, file: File | null) {
     if (!file) return
+    setPhotoError('')
     try {
       const compressed = await compressImage(file)
       const dataUrl = await fileToDataUrl(compressed)
       const preview = URL.createObjectURL(compressed)
       updateObs(i, { _photoFile: compressed, _photoPreview: preview, photoUrl: dataUrl })
-    } catch (e) {
+    } catch (e: any) {
       console.error(e)
+      setPhotoError(`Photo n°${i + 1} : ${e?.message || 'compression impossible'}. Réessaie ou choisis une autre image.`)
     }
   }
   function clearObsPhoto(i: number) {
@@ -310,6 +313,12 @@ export default function InspectionPage() {
           <p className="text-xs text-slate-500 mb-3">
             Une observation = un point précis du tronçon. Renseigne la position (mètres ou repère), choisis le code défaut NF EN 13508-2 et joins la photo correspondante.
           </p>
+          {photoError && (
+            <div className="bg-red-50 border border-red-200 text-red-700 rounded-xl px-3 py-2 text-sm mb-3 flex items-start justify-between gap-3">
+              <span>⚠ {photoError}</span>
+              <button type="button" onClick={() => setPhotoError('')} className="text-red-500 hover:text-red-700 font-bold">×</button>
+            </div>
+          )}
           <div className="space-y-4">
             {observations.map((o, i) => {
               const def = DEFAUTS.find(d => d.code === o.code)

@@ -5,6 +5,8 @@ import dynamic from "next/dynamic"
 import Link from "next/link"
 import VoiceRecorder from "@/components/VoiceRecorder"
 import VilleCombobox from "@/components/VilleCombobox"
+import ClientAutocomplete from "@/components/ClientAutocomplete"
+import { useUnsavedChangesWarning } from "@/lib/useUnsavedChangesWarning"
 import type { AttestationData, AttestationObservation, Variante } from "@/components/AttestationPDF"
 
 const AttestationDownloadButton = dynamic(() => import("@/components/AttestationPDF"), { ssr: false })
@@ -97,9 +99,26 @@ export default function AttestationPage() {
   const [emailSent, setEmailSent] = useState(false)
   const [emailError, setEmailError] = useState('')
 
+  useUnsavedChangesWarning(
+    !emailSent && (
+      nom.trim() !== '' ||
+      transcription.trim() !== '' ||
+      photos.length > 0 ||
+      data !== null
+    )
+  )
+
   async function handleSendToClient() {
     if (!data) return
     if (!clientEmail) { setEmailError('Renseigne l\'email du client.'); return }
+    const missing: string[] = []
+    if (!data.nom?.trim()) missing.push('nom')
+    if (!data.adresse?.trim()) missing.push('adresse')
+    if (!data.ville?.trim()) missing.push('ville')
+    if (missing.length) {
+      setEmailError(`Champs client incomplets : ${missing.join(', ')}.`)
+      return
+    }
     setEmailSending(true); setEmailError(''); setEmailSent(false)
     try {
       const photosForPdf = photos.map(p => ({ url: p.dataUrl, legende: p.legende }))
@@ -482,7 +501,23 @@ export default function AttestationPage() {
           <h2 className="font-bold text-[#0f2e5c]">Propriétaire &amp; bien immobilier</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Field label="Prénom" value={prenom} onChange={setPrenom} placeholder="Jean" />
-            <Field label="Nom" value={nom} onChange={setNom} placeholder="Dupont" />
+            <label className="block text-sm">
+              <span className="text-xs uppercase tracking-wide text-slate-500">Nom</span>
+              <div className="mt-1">
+                <ClientAutocomplete
+                  value={nom}
+                  onChange={setNom}
+                  onSelect={c => {
+                    setNom(c.nom)
+                    if (c.adresse) setAdresse(c.adresse)
+                    if (c.code_postal) setCodePostal(c.code_postal)
+                    if (c.ville) setVille(c.ville)
+                    if (c.email) setClientEmail(c.email)
+                  }}
+                  placeholder="Dupont / Mairie de…"
+                />
+              </div>
+            </label>
             <Field label="Adresse du bien" value={adresse} onChange={setAdresse} placeholder="1 place du Château" />
             <Field label="Code postal" value={codePostal} onChange={setCodePostal} />
             <label className="block text-sm">

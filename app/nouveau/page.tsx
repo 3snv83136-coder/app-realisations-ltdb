@@ -8,6 +8,7 @@ import AppTabs from "@/components/AppTabs"
 import dynamic from "next/dynamic"
 import { type VilleVar } from "@/lib/villes-var"
 import VilleCombobox from "@/components/VilleCombobox"
+import { useUnsavedChangesWarning } from "@/lib/useUnsavedChangesWarning"
 
 const PDFDownloadButton = dynamic(() => import("@/components/RealisationPDF"), { ssr: false })
 const PDFPreviewModal = dynamic(() => import("@/components/PDFPreviewModal"), { ssr: false })
@@ -30,6 +31,33 @@ async function ensureNotificationPermission() {
 }
 
 type Step = 'capture' | 'extracting' | 'validate' | 'generating' | 'preview' | 'publishing' | 'done'
+
+const DRAFT_KEY = 'ltdb_draft'
+const DRAFT_VERSION = 1
+type Draft = {
+  v: number
+  savedAt: number
+  transcription: string
+  typeIntervention: string
+  adresse: string
+  ville: string
+  codePostal: string
+  dateIntervention: string
+  clientNom: string
+  clientEmail: string
+  technicienNom: string
+  interventionId: string | null
+}
+
+function formatDraftAge(ts: number) {
+  const diff = Date.now() - ts
+  const min = Math.floor(diff / 60000)
+  if (min < 1) return "à l'instant"
+  if (min < 60) return `il y a ${min} min`
+  const h = Math.floor(min / 60)
+  if (h < 24) return `il y a ${h} h`
+  return new Date(ts).toLocaleDateString('fr-FR')
+}
 
 const TYPES = [
   { v: 'Débouchage canalisation', icon: '🔧' },
@@ -120,6 +148,9 @@ export default function NouveauPage() {
   const [showPdfPreview, setShowPdfPreview] = useState(false)
   const [showSitePreview, setShowSitePreview] = useState(false)
 
+  // Bannière de restauration de brouillon
+  const [draftRestoredAt, setDraftRestoredAt] = useState<number | null>(null)
+
   // Persist nom technicien
   useEffect(() => {
     const saved = typeof window !== 'undefined' ? localStorage.getItem('ltdb_technicien') : null
@@ -130,9 +161,78 @@ export default function NouveauPage() {
     if (technicienNom && typeof window !== 'undefined') localStorage.setItem('ltdb_technicien', technicienNom)
   }, [technicienNom])
 
+  // Restauration du brouillon au mount (sauf si un prefill /planning est présent)
   useEffect(() => {
-    if (typeof window !== 'undefined') localStorage.removeItem('ltdb_draft')
+    if (typeof window === 'undefined') return
+    if (sessionStorage.getItem('ltdb_intervention_prefill')) return
+    const raw = localStorage.getItem(DRAFT_KEY)
+    if (!raw) return
+    try {
+      const d = JSON.parse(raw) as Draft
+      if (d.v !== DRAFT_VERSION) {
+        localStorage.removeItem(DRAFT_KEY)
+        return
+      }
+      if (d.transcription) setTranscription(d.transcription)
+      if (d.typeIntervention) setTypeIntervention(d.typeIntervention)
+      if (d.adresse) setAdresse(d.adresse)
+      if (d.ville) setVille(d.ville)
+      if (d.codePostal) setCodePostal(d.codePostal)
+      if (d.dateIntervention) setDateIntervention(d.dateIntervention)
+      if (d.clientNom) setClientNom(d.clientNom)
+      if (d.clientEmail) setClientEmail(d.clientEmail)
+      if (d.technicienNom) setTechnicienNom(d.technicienNom)
+      if (d.interventionId) setInterventionId(d.interventionId)
+      setDraftRestoredAt(d.savedAt)
+    } catch {
+      localStorage.removeItem(DRAFT_KEY)
+    }
   }, [])
+
+  // Auto-save du brouillon pendant la phase de saisie (capture / extracting / validate)
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    if (step !== 'capture' && step !== 'extracting' && step !== 'validate') return
+    const hasContent =
+      transcription.trim() !== '' ||
+      clientNom.trim() !== '' ||
+      adresse.trim() !== '' ||
+      ville.trim() !== ''
+    if (!hasContent) return
+    const draft: Draft = {
+      v: DRAFT_VERSION,
+      savedAt: Date.now(),
+      transcription,
+      typeIntervention,
+      adresse,
+      ville,
+      codePostal,
+      dateIntervention,
+      clientNom,
+      clientEmail,
+      technicienNom,
+      interventionId,
+    }
+    try {
+      localStorage.setItem(DRAFT_KEY, JSON.stringify(draft))
+    } catch {
+      /* quota dépassé : on ignore silencieusement */
+    }
+  }, [step, transcription, typeIntervention, adresse, ville, codePostal, dateIntervention, clientNom, clientEmail, technicienNom, interventionId])
+
+  useUnsavedChangesWarning(
+    step !== 'done' && (transcription.trim() !== '' || photos.length > 0 || rapport !== null)
+  )
+
+  function discardDraft() {
+    if (typeof window !== 'undefined') localStorage.removeItem(DRAFT_KEY)
+    setDraftRestoredAt(null)
+    setTranscription('')
+    setAdresse(''); setVille(''); setCodePostal('')
+    setClientNom(''); setClientEmail('')
+    setInterventionId(null)
+    setPhotos([])
+  }
 
   // Animation progressive écran IA
   const GEN_STEPS = [
@@ -431,7 +531,8 @@ export default function NouveauPage() {
       setPhotos([])
       setEmailSent(false)
       setInterventionId(null)
-      if (typeof window !== 'undefined') localStorage.removeItem('ltdb_draft')
+      if (typeof window !== 'undefined') localStorage.removeItem(DRAFT_KEY)
+      setDraftRestoredAt(null)
       setStep('done')
     } catch (e: any) {
       setError(`Erreur publication : ${e.message}`)
@@ -446,7 +547,8 @@ export default function NouveauPage() {
     setPhotos([])
     setEmailSent(false); setPublishedSlug('')
     setInterventionId(null)
-    if (typeof window !== 'undefined') localStorage.removeItem('ltdb_draft')
+    setDraftRestoredAt(null)
+    if (typeof window !== 'undefined') localStorage.removeItem(DRAFT_KEY)
   }
 
   const totalMb = photos.reduce((s, p) => s + p.file.size, 0) / 1024 / 1024
@@ -526,6 +628,23 @@ export default function NouveauPage() {
         {/* ═══════════ ÉTAPE 1 — DICTÉE + PHOTOS ═══════════ */}
         {(step === 'capture' || step === 'extracting') && (
           <>
+            {draftRestoredAt && (
+              <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 flex items-center justify-between gap-3 text-sm">
+                <span className="text-amber-900">
+                  📝 Brouillon restauré <span className="opacity-70">({formatDraftAge(draftRestoredAt)})</span>
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (confirm('Effacer le brouillon et démarrer à neuf ?')) discardDraft()
+                  }}
+                  className="text-amber-700 hover:text-amber-900 font-bold text-xs underline"
+                >
+                  Démarrer à neuf
+                </button>
+              </div>
+            )}
+
             {/* Dictée */}
             <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 sm:p-6 space-y-4">
               <div>
