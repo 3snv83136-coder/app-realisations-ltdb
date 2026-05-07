@@ -242,6 +242,29 @@ export default function FacturePage() {
     })
   }
 
+  function handleCreateBlank() {
+    const today = new Date()
+    const seq = String(today.getHours()).padStart(2, '0') + String(today.getMinutes()).padStart(2, '0')
+    const numero = `FA-${today.getFullYear()}${String(today.getMonth() + 1).padStart(2, '0')}${String(today.getDate()).padStart(2, '0')}-${seq}`
+    const blank: FactureData = {
+      numero,
+      date_facture: dateFacture,
+      echeance: 'À réception',
+      objet: '',
+      reference_dossier: referenceDossier || undefined,
+      lignes: [
+        { designation: '', description: '', qte: 1, unite: 'forfait', pu_ht: 0, inclus: false },
+      ],
+      tva_taux: 10,
+      mode_reglement: '',
+      observations: '',
+      recommandation: '',
+    }
+    setError('')
+    setFacture(blank)
+    setStep('preview')
+  }
+
   const totalHT = facture?.lignes.reduce((s, l) => {
     if (l.inclus) return s
     return s + (Number(l.pu_ht) || 0) * (Number(l.qte) || 0)
@@ -742,7 +765,20 @@ export default function FacturePage() {
           disabled={transcription.trim().length < 20}
           className="w-full bg-[#0e2a52] hover:bg-[#13386e] disabled:bg-slate-300 text-white font-bold py-4 rounded-xl transition-colors"
         >
-          Générer la facture →
+          🤖 Générer la facture depuis la dictée →
+        </button>
+
+        <div className="flex items-center gap-3 my-2">
+          <div className="flex-1 h-px bg-slate-200" />
+          <span className="text-xs text-slate-400 font-semibold uppercase tracking-wider">ou</span>
+          <div className="flex-1 h-px bg-slate-200" />
+        </div>
+
+        <button
+          onClick={handleCreateBlank}
+          className="w-full bg-white border-2 border-[#0e2a52] hover:bg-slate-50 text-[#0e2a52] font-bold py-4 rounded-xl transition-colors"
+        >
+          ✏️ Saisir manuellement (sans dictée)
         </button>
       </main>
     </div>
