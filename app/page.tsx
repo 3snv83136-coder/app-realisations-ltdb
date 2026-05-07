@@ -1,50 +1,28 @@
 'use client'
-import { useEffect, useState, type ComponentType } from "react"
+import { useEffect, useState } from "react"
 import Link from "next/link"
-import {
-  CalendarIcon, DocumentIcon, CameraIcon, ClipboardIcon, ReceiptIcon,
-  CheckBadgeIcon, ArchiveIcon, ChartBarIcon, BriefcaseIcon,
-} from "@/components/Icons"
 
 type Tool = {
   href: string
-  Icon: ComponentType<{ className?: string; strokeWidth?: number }>
+  emoji: string
   label: string
   desc: string
-  /** Container : fond clair + bordure colorée + hover */
-  card: string
-  /** Pastille icône : fond + couleur */
-  iconClass: string
+  /** Fond du container (gradient ou couleur vive) */
+  bg: string
+  /** Couleur du texte par-dessus */
+  text: 'white' | 'black'
 }
 
 const TOOLS: Tool[] = [
-  { href: '/planning',     Icon: CalendarIcon,    label: 'Planning',     desc: 'Prendre RDV, dispatcher',
-    card: 'bg-gradient-to-br from-blue-50 to-blue-100/50 border-blue-200 hover:border-blue-400 hover:shadow-blue-100',
-    iconClass: 'bg-blue-500 text-white shadow-md shadow-blue-200' },
-  { href: '/nouveau',      Icon: DocumentIcon,    label: 'Rapport',      desc: 'Rédiger sur place',
-    card: 'bg-gradient-to-br from-slate-50 to-slate-100/70 border-slate-200 hover:border-slate-400 hover:shadow-slate-200',
-    iconClass: 'bg-slate-700 text-white shadow-md shadow-slate-300' },
-  { href: '/inspection',   Icon: CameraIcon,      label: 'Caméra',       desc: 'Inspection NF EN 13508-2',
-    card: 'bg-gradient-to-br from-sky-50 to-sky-100/50 border-sky-200 hover:border-sky-400 hover:shadow-sky-100',
-    iconClass: 'bg-sky-500 text-white shadow-md shadow-sky-200' },
-  { href: '/devis',        Icon: ClipboardIcon,   label: 'Devis',        desc: 'Établir un devis',
-    card: 'bg-gradient-to-br from-amber-50 to-amber-100/60 border-amber-200 hover:border-amber-400 hover:shadow-amber-100',
-    iconClass: 'bg-amber-500 text-white shadow-md shadow-amber-200' },
-  { href: '/facture',      Icon: ReceiptIcon,     label: 'Facturation',  desc: 'Suivi, paiements & relances',
-    card: 'bg-gradient-to-br from-emerald-50 to-emerald-100/50 border-emerald-200 hover:border-emerald-400 hover:shadow-emerald-100',
-    iconClass: 'bg-emerald-500 text-white shadow-md shadow-emerald-200' },
-  { href: '/attestation',  Icon: CheckBadgeIcon,  label: 'Attestation',  desc: 'Raccordement / SPANC',
-    card: 'bg-gradient-to-br from-[#f5efe2] to-[#ebe0c5]/60 border-[#d4c08a] hover:border-[#a08049] hover:shadow-amber-100',
-    iconClass: 'bg-[#8a6d3b] text-white shadow-md shadow-amber-200' },
-  { href: '/historique',   Icon: ArchiveIcon,     label: 'Historique',   desc: 'Tout retrouver',
-    card: 'bg-gradient-to-br from-slate-100 to-slate-200/60 border-slate-300 hover:border-slate-500 hover:shadow-slate-200',
-    iconClass: 'bg-slate-600 text-white shadow-md shadow-slate-300' },
-  { href: '/statistiques', Icon: ChartBarIcon,    label: 'Statistiques', desc: 'Canaux d’acquisition',
-    card: 'bg-gradient-to-br from-rose-50 to-rose-100/50 border-rose-200 hover:border-rose-400 hover:shadow-rose-100',
-    iconClass: 'bg-rose-500 text-white shadow-md shadow-rose-200' },
-  { href: '/comptabilite', Icon: BriefcaseIcon,   label: 'Comptabilité', desc: 'Bilan, FEC, exports',
-    card: 'bg-gradient-to-br from-violet-50 to-violet-100/50 border-violet-200 hover:border-violet-400 hover:shadow-violet-100',
-    iconClass: 'bg-violet-500 text-white shadow-md shadow-violet-200' },
+  { href: '/planning',     emoji: '📅', label: 'Planning',     desc: 'Prendre RDV, dispatcher',     bg: 'bg-gradient-to-br from-blue-500 to-blue-700',           text: 'white' },
+  { href: '/nouveau',      emoji: '📝', label: 'Rapport',      desc: 'Rédiger sur place',           bg: 'bg-gradient-to-br from-slate-700 to-slate-900',         text: 'white' },
+  { href: '/inspection',   emoji: '📹', label: 'Caméra',       desc: 'Inspection NF EN 13508-2',    bg: 'bg-gradient-to-br from-sky-400 to-sky-600',             text: 'white' },
+  { href: '/devis',        emoji: '📋', label: 'Devis',        desc: 'Établir un devis',            bg: 'bg-gradient-to-br from-amber-400 to-amber-600',         text: 'white' },
+  { href: '/facture',      emoji: '🧾', label: 'Facturation',  desc: 'Suivi, paiements & relances', bg: 'bg-gradient-to-br from-emerald-500 to-emerald-700',     text: 'white' },
+  { href: '/attestation',  emoji: '✅', label: 'Attestation',  desc: 'Raccordement / SPANC',        bg: 'bg-gradient-to-br from-[#a18249] to-[#6e5530]',         text: 'white' },
+  { href: '/historique',   emoji: '📚', label: 'Historique',   desc: 'Tout retrouver',              bg: 'bg-gradient-to-br from-slate-400 to-slate-600',         text: 'white' },
+  { href: '/statistiques', emoji: '📊', label: 'Statistiques', desc: 'Canaux d’acquisition',        bg: 'bg-gradient-to-br from-rose-500 to-rose-700',           text: 'white' },
+  { href: '/comptabilite', emoji: '💼', label: 'Comptabilité', desc: 'Bilan, FEC, exports',         bg: 'bg-gradient-to-br from-violet-500 to-violet-700',       text: 'white' },
 ]
 
 const DASHBOARD_CODE = '1004'
@@ -133,26 +111,35 @@ export default function Home() {
 
       <div className="relative z-10">
 
-        {/* Tools grid — modules colorés */}
+        {/* Tools grid — tuiles carrées colorées avec emoji en fond */}
         <div className={`px-4 sm:px-6 pt-6 sm:pt-8 pb-12 ${skipAnimation ? '' : 'buttons-reveal'}`}>
           <div className="max-w-7xl mx-auto">
             <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500 font-semibold mb-4 px-1">Modules</div>
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
               {TOOLS.map(t => {
-                const Icon = t.Icon
+                const textColor = t.text === 'white' ? 'text-white' : 'text-black'
+                const descColor = t.text === 'white' ? 'text-white/80' : 'text-black/70'
                 return (
                   <Link
                     key={t.href}
                     href={t.href}
-                    className={`group relative rounded-2xl p-5 text-left border-2 transition-all duration-200 hover:shadow-lg hover:-translate-y-0.5 ${t.card}`}
+                    className={`group relative rounded-3xl overflow-hidden aspect-square flex flex-col justify-end p-5 sm:p-6 shadow-md hover:shadow-2xl hover:-translate-y-1 transition-all duration-300 ${t.bg}`}
                   >
-                    <div className="flex items-center gap-3 sm:gap-4">
-                      <div className={`w-12 h-12 rounded-2xl ${t.iconClass} flex items-center justify-center flex-shrink-0 transition-transform group-hover:scale-110`}>
-                        <Icon className="w-6 h-6" strokeWidth={2} />
+                    {/* Emoji géant en fond */}
+                    <span
+                      aria-hidden
+                      className="pointer-events-none select-none absolute -top-4 -right-4 sm:-top-6 sm:-right-6 text-[140px] sm:text-[170px] leading-none opacity-25 group-hover:opacity-30 group-hover:scale-110 transition-all duration-500"
+                    >
+                      {t.emoji}
+                    </span>
+
+                    {/* Texte */}
+                    <div className={`relative z-10 ${textColor}`}>
+                      <div className="text-xl sm:text-2xl font-black leading-tight tracking-tight drop-shadow-sm">
+                        {t.label}
                       </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="text-base font-bold text-slate-900 leading-tight tracking-tight">{t.label}</div>
-                        <div className="text-xs text-slate-600 mt-0.5 leading-snug">{t.desc}</div>
+                      <div className={`text-xs sm:text-sm mt-1 leading-snug ${descColor}`}>
+                        {t.desc}
                       </div>
                     </div>
                   </Link>
