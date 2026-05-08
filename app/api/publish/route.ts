@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getSupabaseOrNull, upsertClient } from "@/lib/supabase"
+import type { SupabaseClient } from "@supabase/supabase-js"
+
+const PHOTOS_BUCKET = process.env.SUPABASE_PHOTOS_BUCKET || 'interventions-photos'
 
 export async function POST(req: NextRequest) {
   const formData = await req.formData()
@@ -77,6 +80,8 @@ async function persistIntervention(formData: FormData, ltdbResponse: any) {
     code_postal: codePostal,
   })
 
+  const photosUrls = await uploadInterventionPhotos(sb, formData, slug || interventionId || reference || 'intervention')
+
   if (interventionId) {
     // Mise à jour de l'intervention planifiée existante
     const { error } = await sb.from('interventions').update({
@@ -91,6 +96,7 @@ async function persistIntervention(formData: FormData, ltdbResponse: any) {
       rapport_json: rapportJson,
       seo_json: seoJson,
       publie_slug: slug || null,
+      ...(photosUrls.length > 0 ? { photos_urls: photosUrls } : {}),
     }).eq('id', interventionId)
     if (error) console.error('[persistIntervention update]', error)
     return
@@ -114,6 +120,7 @@ async function persistIntervention(formData: FormData, ltdbResponse: any) {
       rapport_json: rapportJson,
       seo_json: seoJson,
       publie_slug: slug || null,
+      photos_urls: photosUrls.length > 0 ? photosUrls : null,
     })
     if (!error) return
     // 23505 = unique_violation Postgres
@@ -132,4 +139,51 @@ async function persistIntervention(formData: FormData, ltdbResponse: any) {
 function safeParseJson(s: string | null): any {
   if (!s) return null
   try { return JSON.parse(s) } catch { return null }
+}
+
+async function uploadInterventionPhotos(
+  sb: SupabaseClient,
+  formData: FormData,
+  folderKey: string,
+): Promise<string[]> {
+  const before = formData.get('before_image')
+  const after = formData.get('after_image')
+
+  const ordered: File[] = []
+  if (before instanceof File && before.size > 0) ordered.push(before)
+  if (
+    after instanceof File && after.size > 0 &&
+    !(before instanceof File && after.name === before.name && after.size === before.size && after.lastModified === before.lastModified)
+  ) {
+    ordered.push(after)
+  }
+  for (let i = 0; ; i++) {
+    const f = formData.get(`extra_image_${i}`)
+    if (!(f instanceof File) || f.size === 0) break
+    ordered.push(f)
+  }
+  if (ordered.length === 0) return []
+
+  const folder = (folderKey || 'intervention').replace(/[^a-zA-Z0-9_-]/g, '-').slice(0, 80)
+  const stamp = Date.now()
+  const urls: string[] = []
+  for (let i = 0; i < ordered.length; i++) {
+    const file = ordered[i]
+    const ext = (file.name.match(/\.[a-zA-Z0-9]+$/)?.[0] || '.jpg').toLowerCase()
+    const path = `${folder}/${stamp}-${i}${ext}`
+    const buf = Buffer.from(await file.arrayBuffer())
+    const { error } = await sb.storage
+      .from(PHOTOS_BUCKET)
+      .upload(path, buf, {
+        contentType: file.type || 'image/jpeg',
+        upsert: true,
+      })
+    if (error) {
+      console.error('[uploadInterventionPhotos]', { path, error: error.message })
+      continue
+    }
+    const { data } = sb.storage.from(PHOTOS_BUCKET).getPublicUrl(path)
+    if (data?.publicUrl) urls.push(data.publicUrl)
+  }
+  return urls
 }

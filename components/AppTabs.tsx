@@ -1,7 +1,7 @@
 'use client'
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { type ComponentType } from "react"
+import { useEffect, useState, type ComponentType } from "react"
 import {
   HomeIcon, CalendarIcon, DocumentIcon, CameraIcon, ClipboardIcon, ReceiptIcon,
   CheckBadgeIcon, ArchiveIcon, ChartBarIcon, BriefcaseIcon,
@@ -28,10 +28,22 @@ const TABS: Tab[] = [
 
 export default function AppTabs() {
   const pathname = usePathname() || ''
+  const [techOnly, setTechOnly] = useState(false)
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const sync = () => setTechOnly(sessionStorage.getItem('ltdb_tech_only') === '1')
+    sync()
+    window.addEventListener('storage', sync)
+    return () => window.removeEventListener('storage', sync)
+  }, [])
+
+  const visibleTabs = techOnly ? TABS.filter(t => t.href === '/nouveau') : TABS
+
   return (
     <nav className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0 scrollbar-hide">
       <div className="inline-flex gap-1 p-1 bg-slate-100 rounded-2xl mb-3 whitespace-nowrap min-w-max sm:min-w-0">
-        {TABS.map(t => {
+        {visibleTabs.map(t => {
           const active = t.href === '/'
             ? pathname === '/'
             : pathname.startsWith(t.href)

@@ -1,6 +1,7 @@
 'use client'
 import { useEffect, useState } from "react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 
 type Tool = {
   href: string
@@ -26,8 +27,10 @@ const TOOLS: Tool[] = [
 ]
 
 const DASHBOARD_CODE = '1004'
+const TECH_RAPPORT_CODE = '0901'
 
 export default function Home() {
+  const router = useRouter()
   const [skipAnimation, setSkipAnimation] = useState(false)
   const [unlocked, setUnlocked] = useState(false)
   const [codeChecked, setCodeChecked] = useState(false)
@@ -36,6 +39,10 @@ export default function Home() {
 
   useEffect(() => {
     if (typeof window === 'undefined') return
+    if (sessionStorage.getItem('ltdb_tech_only') === '1') {
+      router.replace('/nouveau')
+      return
+    }
     if (sessionStorage.getItem('ltdb_dashboard_unlocked') === '1') {
       setUnlocked(true)
     }
@@ -45,17 +52,26 @@ export default function Home() {
     } else {
       sessionStorage.setItem('ltdb_seen_intro', '1')
     }
-  }, [])
+  }, [router])
 
   function handleCodeSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
-    if (codeInput.trim() === DASHBOARD_CODE) {
+    const value = codeInput.trim()
+    if (value === DASHBOARD_CODE) {
       sessionStorage.setItem('ltdb_dashboard_unlocked', '1')
+      sessionStorage.removeItem('ltdb_tech_only')
       setUnlocked(true); setCodeError('')
-    } else {
-      setCodeError('Code incorrect.')
-      setCodeInput('')
+      return
     }
+    if (value === TECH_RAPPORT_CODE) {
+      sessionStorage.setItem('ltdb_tech_only', '1')
+      sessionStorage.removeItem('ltdb_dashboard_unlocked')
+      setCodeError('')
+      router.replace('/nouveau')
+      return
+    }
+    setCodeError('Code incorrect.')
+    setCodeInput('')
   }
 
   if (codeChecked && !unlocked) {
