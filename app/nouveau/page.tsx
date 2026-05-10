@@ -119,6 +119,30 @@ export default function NouveauPage() {
   const [emailSending, setEmailSending] = useState(false)
   const [showPdfPreview, setShowPdfPreview] = useState(false)
   const [showSitePreview, setShowSitePreview] = useState(false)
+  const [savedFlash, setSavedFlash] = useState(false)
+
+  // Historique des rapports (modal en haut à droite)
+  type HistoryRapport = {
+    id: string
+    reference: string | null
+    type_intervention: string | null
+    ville: string | null
+    code_postal: string | null
+    date_realisee: string | null
+    date_prevue: string | null
+    client_nom: string | null
+    publie_slug: string | null
+    has_rapport: boolean
+  }
+  const [showHistoryModal, setShowHistoryModal] = useState(false)
+  const [historyItems, setHistoryItems] = useState<HistoryRapport[]>([])
+  const [historyLoaded, setHistoryLoaded] = useState(false)
+  const [historyLoading, setHistoryLoading] = useState(false)
+  const [historyError, setHistoryError] = useState('')
+  const [historySearch, setHistorySearch] = useState('')
+  const [loadingEditId, setLoadingEditId] = useState<string | null>(null)
+  const [regenerating, setRegenerating] = useState(false)
+  const [savingInPlace, setSavingInPlace] = useState(false)
 
   // Persist nom technicien
   useEffect(() => {
@@ -439,6 +463,121 @@ export default function NouveauPage() {
     }
   }
 
+  // ── Historique : ouverture, recherche, chargement d'un rapport pour édition ──
+  async function openHistoryModal() {
+    setShowHistoryModal(true)
+    if (historyLoaded) return
+    setHistoryLoading(true); setHistoryError('')
+    try {
+      const res = await fetch('/api/historique?limit=500', { cache: 'no-store' })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`)
+      const withRapport = (data.interventions || []).filter((i: any) => i.has_rapport) as HistoryRapport[]
+      setHistoryItems(withRapport)
+      setHistoryLoaded(true)
+    } catch (e: any) {
+      setHistoryError(e.message || 'Erreur de chargement')
+    } finally {
+      setHistoryLoading(false)
+    }
+  }
+
+  async function loadRapportForEdit(id: string) {
+    setLoadingEditId(id); setHistoryError(''); setError('')
+    try {
+      const res = await fetch(`/api/interventions/${id}`, { cache: 'no-store' })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`)
+      const i = data.intervention
+      const c = data.client
+
+      setInterventionId(id)
+      setRapport(i.rapport_json || null)
+      setSeo(i.seo_json || null)
+      setTranscription(i.transcription || '')
+      setTypeIntervention(i.type_intervention || 'Débouchage canalisation')
+      setVille(i.ville || '')
+      setCodePostal(i.code_postal || '')
+      setAdresse(i.adresse_chantier || '')
+      setDateIntervention(i.date_realisee || i.date_prevue || new Date().toISOString().split('T')[0])
+      setClientNom(c?.nom || '')
+      setClientEmail(c?.email || '')
+      setPhotos([])
+      setEmailSent(false)
+      setPublishedSlug(i.publie_slug || '')
+
+      // Si rapport existant → preview directe ; sinon repart en validation
+      setStep(i.rapport_json && Object.keys(i.rapport_json || {}).length > 0 ? 'preview' : 'validate')
+      setShowHistoryModal(false)
+    } catch (e: any) {
+      setHistoryError(`Chargement impossible : ${e.message}`)
+    } finally {
+      setLoadingEditId(null)
+    }
+  }
+
+  /** Régénère le rapport à partir de la transcription/ville/type courants, puis revient au preview. */
+  async function handleRegenerate() {
+    if (!transcription || !typeIntervention || !ville) {
+      setError('Renseignez la dictée, le type et la ville.')
+      return
+    }
+    if (!confirm('Régénérer le rapport remplacera le contenu actuel. Continuer ?')) return
+    setError(''); setRegenerating(true); setStep('generating')
+    try {
+      const res = await fetch('/api/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ transcription, type_intervention: typeIntervention, ville, code_postal: codePostal }),
+        signal: AbortSignal.timeout(180_000),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Régénération échouée')
+      setRapport(data.rapport); setSeo(data.seo)
+      setStep('preview')
+    } catch (e: any) {
+      const isTimeout = e?.name === 'TimeoutError' || /aborted|timeout/i.test(String(e?.message || ''))
+      setError(isTimeout
+        ? 'La régénération a dépassé 3 minutes. Réessaie ou raccourcis la dictée.'
+        : `Erreur IA : ${e.message}`)
+      setStep('preview')
+    } finally {
+      setRegenerating(false)
+    }
+  }
+
+  /** Enregistre le rapport courant à la place de l'intervention chargée (update). */
+  async function handleSaveInPlace() {
+    if (!rapport || !interventionId) return
+    setError(''); setSavingInPlace(true); setSavedFlash(false)
+    try {
+      const res = await fetch('/api/save-rapport', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          interventionId,
+          clientNom, clientEmail,
+          clientAdresse: adresse,
+          ville, codePostal,
+          typeIntervention,
+          dateIntervention,
+          transcription,
+          rapport, seo,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`)
+      setSavedFlash(true)
+      // Remet à jour la liste historique en arrière-plan
+      setHistoryLoaded(false)
+      setTimeout(() => setSavedFlash(false), 2500)
+    } catch (e: any) {
+      setError(`Erreur enregistrement : ${e.message}`)
+    } finally {
+      setSavingInPlace(false)
+    }
+  }
+
   function resetForm() {
     setStep('capture')
     setTranscription(''); setRapport(null); setSeo(null); setError('')
@@ -468,6 +607,16 @@ export default function NouveauPage() {
             <div className="text-[11px] opacity-70">Nouvelle réalisation</div>
           </div>
           <div className="text-right flex items-center gap-2">
+            <button
+              type="button"
+              onClick={openHistoryModal}
+              className="inline-flex items-center gap-1.5 bg-white/15 hover:bg-white/25 text-white text-xs font-semibold px-3 py-1.5 rounded-lg border border-white/20 transition active:scale-95"
+              aria-label="Ouvrir l'historique des rapports"
+              title="Historique des rapports"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg>
+              <span className="hidden sm:inline">Historique</span>
+            </button>
             {editTech ? (
               <input
                 autoFocus
@@ -694,10 +843,40 @@ export default function NouveauPage() {
         {/* ═══════════ ÉTAPE 3 — RAPPORT PRÊT ═══════════ */}
         {(step === 'preview' || step === 'publishing') && rapport && seo && (
           <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 sm:p-6 space-y-5">
-            <div>
-              <h2 className="text-xl font-black text-[#0e2a52]">Rapport prêt</h2>
-              <p className="text-sm text-slate-500 mt-1">Vérifie, exporte ou publie.</p>
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h2 className="text-xl font-black text-[#0e2a52]">Rapport prêt</h2>
+                <p className="text-sm text-slate-500 mt-1">
+                  {interventionId ? 'Mode édition — modifie, régénère ou enregistre à la place.' : 'Vérifie, exporte ou publie.'}
+                </p>
+              </div>
+              {interventionId && (
+                <span className="inline-flex items-center gap-1 bg-amber-50 text-amber-700 text-[10px] font-bold px-2 py-1 rounded-full uppercase tracking-wider whitespace-nowrap">
+                  Édition
+                </span>
+              )}
             </div>
+
+            {interventionId && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                <button
+                  onClick={handleRegenerate}
+                  disabled={regenerating || !transcription}
+                  className="bg-violet-600 text-white px-4 py-3 rounded-xl font-bold hover:bg-violet-700 disabled:opacity-50 active:scale-95 transition-all text-sm"
+                >
+                  {regenerating ? 'Régénération…' : '🔄 Régénérer le rapport'}
+                </button>
+                <button
+                  onClick={handleSaveInPlace}
+                  disabled={savingInPlace}
+                  className={`px-4 py-3 rounded-xl font-bold active:scale-95 transition-all text-sm text-white ${
+                    savedFlash ? 'bg-emerald-500' : 'bg-[#0e2a52] hover:bg-[#1a3a6b] disabled:opacity-50'
+                  }`}
+                >
+                  {savingInPlace ? 'Enregistrement…' : savedFlash ? '✓ Enregistré' : '💾 Enregistrer à la place'}
+                </button>
+              </div>
+            )}
 
             <GenerationPreview rapport={rapport} seo={seo} onRapportChange={setRapport} onSeoChange={setSeo} />
 
@@ -836,6 +1015,132 @@ export default function NouveauPage() {
           </div>
         </div>
       )}
+
+      {/* ═══════════ MODAL HISTORIQUE DES RAPPORTS ═══════════ */}
+      {showHistoryModal && (
+        <RapportHistoryModal
+          items={historyItems}
+          loading={historyLoading}
+          error={historyError}
+          search={historySearch}
+          onSearchChange={setHistorySearch}
+          loadingEditId={loadingEditId}
+          onClose={() => setShowHistoryModal(false)}
+          onEdit={loadRapportForEdit}
+          onRefresh={() => { setHistoryLoaded(false); openHistoryModal() }}
+        />
+      )}
+    </div>
+  )
+}
+
+function RapportHistoryModal({
+  items, loading, error, search, onSearchChange,
+  loadingEditId, onClose, onEdit, onRefresh,
+}: {
+  items: {
+    id: string
+    reference: string | null
+    type_intervention: string | null
+    ville: string | null
+    code_postal: string | null
+    date_realisee: string | null
+    date_prevue: string | null
+    client_nom: string | null
+    publie_slug: string | null
+  }[]
+  loading: boolean
+  error: string
+  search: string
+  onSearchChange: (s: string) => void
+  loadingEditId: string | null
+  onClose: () => void
+  onEdit: (id: string) => void
+  onRefresh: () => void
+}) {
+  const filtered = items.filter(i => {
+    const q = search.trim().toLowerCase()
+    if (!q) return true
+    return [i.client_nom, i.ville, i.type_intervention, i.reference]
+      .filter(Boolean).join(' ').toLowerCase().includes(q)
+  })
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-sm p-0 sm:p-4">
+      <div className="bg-white w-full max-w-2xl sm:rounded-2xl rounded-t-2xl shadow-2xl flex flex-col max-h-[92vh]">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200">
+          <div>
+            <h3 className="text-lg font-black text-[#0e2a52]">Historique des rapports</h3>
+            <p className="text-xs text-slate-500 mt-0.5">Sélectionne un rapport pour le modifier ou le régénérer.</p>
+          </div>
+          <button onClick={onClose} aria-label="Fermer" className="w-9 h-9 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-500 text-xl font-bold active:scale-95 transition">×</button>
+        </div>
+
+        <div className="px-5 py-3 border-b border-slate-100 flex gap-2">
+          <input
+            value={search}
+            onChange={e => onSearchChange(e.target.value)}
+            placeholder="Rechercher : client, ville, type, référence…"
+            className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:bg-white focus:border-blue-400 transition-colors"
+            autoFocus
+          />
+          <button
+            onClick={onRefresh}
+            disabled={loading}
+            className="bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-semibold px-3 py-2.5 rounded-xl transition disabled:opacity-50"
+            title="Rafraîchir"
+          >
+            ↻
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto px-5 py-3">
+          {loading ? (
+            <div className="text-center text-slate-400 text-sm py-12">Chargement…</div>
+          ) : error ? (
+            <div className="bg-red-50 border border-red-200 text-red-700 p-3 rounded-xl text-sm">{error}</div>
+          ) : filtered.length === 0 ? (
+            <div className="text-center text-slate-400 text-sm py-12">
+              {items.length === 0 ? 'Aucun rapport enregistré.' : 'Aucun rapport ne correspond à la recherche.'}
+            </div>
+          ) : (
+            <ul className="space-y-2">
+              {filtered.map(i => {
+                const date = i.date_realisee || i.date_prevue
+                const dateLabel = date ? (date.match(/^(\d{4})-(\d{2})-(\d{2})/) ? `${RegExp.$3}/${RegExp.$2}/${RegExp.$1}` : date) : '—'
+                const isLoadingThis = loadingEditId === i.id
+                return (
+                  <li key={i.id} className="bg-white border border-slate-200 hover:border-slate-300 rounded-xl p-3 transition flex items-center gap-3">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-semibold text-sm text-slate-900 truncate">{i.client_nom || '—'}</span>
+                        {i.publie_slug && (
+                          <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded">
+                            publié
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-xs text-slate-500 mt-0.5 flex items-center gap-x-2 gap-y-0.5 flex-wrap">
+                        <span>{dateLabel}</span>
+                        {i.type_intervention && <span>· {i.type_intervention}</span>}
+                        {i.ville && <span>· {i.ville}{i.code_postal ? ` (${i.code_postal})` : ''}</span>}
+                        {i.reference && <span className="font-mono text-[10px] text-slate-400">· {i.reference}</span>}
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => onEdit(i.id)}
+                      disabled={isLoadingThis || !!loadingEditId}
+                      className="bg-[#0e2a52] hover:bg-[#1a3a6b] text-white text-xs font-bold px-3 py-2 rounded-lg active:scale-95 transition disabled:opacity-50 flex-shrink-0"
+                    >
+                      {isLoadingThis ? '…' : 'Modifier'}
+                    </button>
+                  </li>
+                )
+              })}
+            </ul>
+          )}
+        </div>
+      </div>
     </div>
   )
 }

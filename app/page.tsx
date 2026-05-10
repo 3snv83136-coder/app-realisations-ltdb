@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useState, type ComponentType } from "react"
+import { useEffect, useMemo, useState, type ComponentType } from "react"
 import Link from "next/link"
 import {
   CalendarIcon, DocumentIcon, CameraIcon, ClipboardIcon, ReceiptIcon,
@@ -10,6 +10,7 @@ import {
 type Intervention = {
   id: string
   reference: string | null
+  client_id?: string | null
   client_nom: string | null
   client_telephone?: string | null
   ville: string | null
@@ -31,6 +32,16 @@ type Stats = {
   ca_annee: number
   factures_mois: number
   interventions_semaine: number
+}
+
+type ClientLite = {
+  id: string
+  nom: string
+  email: string | null
+  telephone: string | null
+  adresse: string | null
+  code_postal: string | null
+  ville: string | null
 }
 
 type Tool = {
@@ -82,6 +93,7 @@ const DASHBOARD_CODE = '1004'
 export default function Home() {
   const [interventions, setInterventions] = useState<Intervention[]>([])
   const [documents, setDocuments] = useState<any[]>([])
+  const [allClients, setAllClients] = useState<ClientLite[]>([])
   const [loading, setLoading] = useState(true)
   const [skipAnimation, setSkipAnimation] = useState(false)
   const [unlocked, setUnlocked] = useState(false)
@@ -117,9 +129,11 @@ export default function Home() {
     Promise.all([
       fetch('/api/interventions?limit=100').then(r => r.json()).catch(() => ({ interventions: [] })),
       fetch('/api/historique').then(r => r.json()).catch(() => ({ documents: [] })),
-    ]).then(([intRes, histRes]) => {
+      fetch('/api/clients?limit=1000').then(r => r.json()).catch(() => ({ clients: [] })),
+    ]).then(([intRes, histRes, cliRes]) => {
       setInterventions(intRes.interventions || [])
       setDocuments(histRes.documents || [])
+      setAllClients(cliRes.clients || [])
     }).finally(() => setLoading(false))
   }, [])
 
@@ -248,6 +262,13 @@ export default function Home() {
               </div>
             </div>
 
+            {/* Clients + historique par client */}
+            <ClientsSection
+              clients={allClients}
+              interventions={interventions}
+              documents={documents}
+            />
+
             {/* Kanban interventions */}
             <div>
               <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500 font-semibold mb-3 px-1">Interventions</div>
@@ -357,6 +378,284 @@ function Column({ title, count, dotClass, interventions, emptyMessage, emptyActi
       )}
     </div>
   )
+}
+
+type ClientGroup = {
+  id: string
+  nom: string
+  email: string | null
+  telephone: string | null
+  ville: string | null
+  code_postal: string | null
+  interventions: Intervention[]
+  documents: any[]
+}
+
+function ClientsSection({
+  clients,
+  interventions,
+  documents,
+}: {
+  clients: ClientLite[]
+  interventions: Intervention[]
+  documents: any[]
+}) {
+  const [search, setSearch] = useState('')
+  const [expandedId, setExpandedId] = useState<string | null>(null)
+
+  const grouped: ClientGroup[] = useMemo(() => {
+    const map = new Map<string, ClientGroup>()
+    clients.forEach(c => {
+      map.set(c.id, {
+        id: c.id,
+        nom: c.nom,
+        email: c.email,
+        telephone: c.telephone,
+        ville: c.ville,
+        code_postal: c.code_postal,
+        interventions: [],
+        documents: [],
+      })
+    })
+    interventions.forEach(i => {
+      if (!i.client_id) return
+      let g = map.get(i.client_id)
+      if (!g) {
+        g = {
+          id: i.client_id,
+          nom: i.client_nom || '—',
+          email: null,
+          telephone: i.client_telephone || null,
+          ville: i.ville,
+          code_postal: i.code_postal,
+          interventions: [],
+          documents: [],
+        }
+        map.set(i.client_id, g)
+      }
+      g.interventions.push(i)
+    })
+    documents.forEach(d => {
+      const id = d.client_id as string | null | undefined
+      if (!id) return
+      let g = map.get(id)
+      if (!g) {
+        g = {
+          id,
+          nom: d.client_nom || '—',
+          email: null,
+          telephone: null,
+          ville: d.client_ville,
+          code_postal: d.client_code_postal,
+          interventions: [],
+          documents: [],
+        }
+        map.set(id, g)
+      }
+      g.documents.push(d)
+    })
+    return Array.from(map.values())
+  }, [clients, interventions, documents])
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase()
+    let arr = grouped
+    if (q) {
+      arr = arr.filter(c => {
+        const blob = [c.nom, c.email, c.telephone, c.ville, c.code_postal]
+          .filter(Boolean).join(' ').toLowerCase()
+        return blob.includes(q)
+      })
+    }
+    return arr.sort((a, b) => {
+      const aAct = a.interventions.length + a.documents.length
+      const bAct = b.interventions.length + b.documents.length
+      if (aAct !== bAct) return bAct - aAct
+      return (a.nom || '').localeCompare(b.nom || '', 'fr')
+    })
+  }, [grouped, search])
+
+  const totalAvecActivite = grouped.filter(c => c.interventions.length + c.documents.length > 0).length
+
+  return (
+    <div>
+      <div className="flex items-baseline justify-between mb-3 px-1">
+        <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500 font-semibold">
+          Clients
+        </div>
+        <div className="text-[11px] text-slate-400">
+          {grouped.length} clients · {totalAvecActivite} actifs
+        </div>
+      </div>
+      <div className="bg-white border border-slate-200/70 rounded-2xl overflow-hidden">
+        <div className="p-3 border-b border-slate-100">
+          <input
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Filtrer par nom, email, ville…"
+            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-sm outline-none focus:bg-white focus:border-blue-400 transition-colors"
+          />
+        </div>
+        {filtered.length === 0 ? (
+          <div className="p-8 text-center text-slate-400 text-sm">
+            {grouped.length === 0 ? 'Aucun client enregistré.' : 'Aucun client ne correspond à la recherche.'}
+          </div>
+        ) : (
+          <div className="divide-y divide-slate-100 max-h-[480px] overflow-y-auto">
+            {filtered.map(c => (
+              <ClientRow
+                key={c.id}
+                client={c}
+                expanded={expandedId === c.id}
+                onToggle={() => setExpandedId(prev => prev === c.id ? null : c.id)}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function ClientRow({
+  client,
+  expanded,
+  onToggle,
+}: {
+  client: ClientGroup
+  expanded: boolean
+  onToggle: () => void
+}) {
+  const ca = client.documents
+    .filter(d => d.type === 'facture' && d.statut !== 'annule')
+    .reduce((s, d) => s + (d.montant_ttc || 0), 0)
+  const nbInt = client.interventions.length
+  const nbFact = client.documents.filter(d => d.type === 'facture').length
+  const nbDevis = client.documents.filter(d => d.type === 'devis').length
+  const nbAtt = client.documents.filter(d => d.type === 'attestation').length
+
+  type HistItem =
+    | { kind: 'intervention'; date: string; intervention: Intervention }
+    | { kind: 'document'; date: string; document: any }
+
+  const items: HistItem[] = [
+    ...client.interventions.map<HistItem>(i => ({
+      kind: 'intervention',
+      date: i.date_realisee || i.date_prevue || '',
+      intervention: i,
+    })),
+    ...client.documents.map<HistItem>(d => ({
+      kind: 'document',
+      date: d.date_emission || d.created_at || '',
+      document: d,
+    })),
+  ].sort((a, b) => (b.date || '').localeCompare(a.date || ''))
+
+  return (
+    <div>
+      <button
+        type="button"
+        onClick={onToggle}
+        className="w-full flex items-center justify-between gap-3 p-3 hover:bg-slate-50 transition text-left"
+        aria-expanded={expanded}
+      >
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2 min-w-0 flex-wrap">
+            <span className="font-semibold text-sm text-slate-900 truncate">
+              {client.nom || '—'}
+            </span>
+            {client.ville && (
+              <span className="text-[11px] text-slate-500 inline-flex items-center gap-0.5">
+                <MapPinIcon className="w-3 h-3" />
+                {client.ville}
+              </span>
+            )}
+          </div>
+          <div className="text-[11px] text-slate-500 mt-0.5 flex items-center gap-x-2 gap-y-0.5 flex-wrap tabular-nums">
+            {nbInt > 0 && <span>{nbInt} interv.</span>}
+            {nbFact > 0 && <span>· {nbFact} fact.</span>}
+            {nbDevis > 0 && <span>· {nbDevis} devis</span>}
+            {nbAtt > 0 && <span>· {nbAtt} attest.</span>}
+            {ca > 0 && <span className="font-semibold text-slate-700">· {fmtEUR(ca)}</span>}
+            {nbInt + nbFact + nbDevis + nbAtt === 0 && <span className="text-slate-400">Aucune activité</span>}
+          </div>
+        </div>
+        <span className={`text-slate-400 text-xs transition-transform flex-shrink-0 ${expanded ? 'rotate-90' : ''}`} aria-hidden>
+          ▶
+        </span>
+      </button>
+      {expanded && (
+        <div className="px-3 pb-3 pt-0.5 bg-slate-50/50 space-y-1.5">
+          {items.length === 0 ? (
+            <p className="text-xs text-slate-400 px-2 py-2">
+              Aucun rapport, devis ou facture pour ce client.
+            </p>
+          ) : (
+            items.map(it => (
+              <ClientHistoryItem
+                key={it.kind === 'intervention' ? `i-${it.intervention.id}` : `d-${it.document.id}`}
+                item={it}
+              />
+            ))
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function ClientHistoryItem({ item }: { item: { kind: 'intervention' | 'document'; date: string; intervention?: Intervention; document?: any } }) {
+  if (item.kind === 'intervention' && item.intervention) {
+    const i = item.intervention
+    return (
+      <Link
+        href={`/intervention/${i.id}`}
+        className="block bg-white rounded-lg border border-slate-200/60 hover:border-slate-300 px-3 py-2 transition"
+      >
+        <div className="flex items-center justify-between gap-2">
+          <div className="min-w-0 flex-1">
+            <div className="text-[12px] font-semibold text-slate-900 flex items-center gap-1.5 truncate">
+              <span className="text-[10px] uppercase tracking-wider text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded font-bold">
+                Intervention
+              </span>
+              <span className="truncate">{i.type_intervention || '—'}</span>
+            </div>
+            <div className="text-[11px] text-slate-500 mt-0.5">
+              {fmtDate(i.date_realisee || i.date_prevue)} · {i.statut}
+              {i.reference && ` · ${i.reference}`}
+            </div>
+          </div>
+        </div>
+      </Link>
+    )
+  }
+  if (item.kind === 'document' && item.document) {
+    const d = item.document
+    const tone =
+      d.type === 'facture' ? 'text-emerald-700 bg-emerald-50' :
+      d.type === 'devis' ? 'text-amber-700 bg-amber-50' :
+      d.type === 'attestation' ? 'text-violet-700 bg-violet-50' :
+      'text-slate-600 bg-slate-100'
+    return (
+      <div className="block bg-white rounded-lg border border-slate-200/60 px-3 py-2">
+        <div className="flex items-center justify-between gap-2">
+          <div className="min-w-0 flex-1">
+            <div className="text-[12px] font-semibold text-slate-900 flex items-center gap-1.5 truncate">
+              <span className={`text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded font-bold ${tone}`}>
+                {d.type}
+              </span>
+              <span className="truncate">{d.numero || '—'}</span>
+            </div>
+            <div className="text-[11px] text-slate-500 mt-0.5">
+              {fmtDate(d.date_emission)} · {d.statut}
+              {typeof d.montant_ttc === 'number' && d.montant_ttc > 0 && ` · ${fmtEUR(d.montant_ttc)}`}
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+  return null
 }
 
 function InterventionCard({ i }: { i: Intervention }) {
