@@ -18,6 +18,10 @@ const CreateFactureFromRapportButton = dynamic(
   () => import('@/components/CreateFactureFromRapportButton'),
   { ssr: false },
 )
+const InterventionActionsHub = dynamic(
+  () => import('@/components/InterventionActionsHub'),
+  { ssr: false },
+)
 
 type Statut = 'planifiee' | 'en_cours' | 'terminee' | 'annulee'
 
@@ -94,6 +98,7 @@ export default function InterventionDetailPage({ params }: { params: { id: strin
   const [saving, setSaving] = useState(false)
   const [techniciens, setTechniciens] = useState<TechnicienDetail[]>([])
   const [techniciensError, setTechniciensError] = useState('')
+  const [hasFacture, setHasFacture] = useState(false)
   const [form, setForm] = useState<Partial<InterventionDetail>>({})
 
   function startEdit() {
@@ -169,6 +174,17 @@ export default function InterventionDetailPage({ params }: { params: { id: strin
       setIntervention(data.intervention)
       setClient(data.client)
       setTechnicien(data.technicien)
+      // Vérifie en parallèle l'existence d'une facture liée à l'intervention
+      try {
+        const docsRes = await fetch(`/api/historique?limit=500`, { cache: 'no-store' })
+        const docsJson = await docsRes.json()
+        const has = (docsJson.documents || []).some((d: { intervention_id: string | null; type: string }) =>
+          d.intervention_id === params.id && d.type === 'facture'
+        )
+        setHasFacture(has)
+      } catch {
+        // best-effort, on n'échoue pas le chargement principal
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
     } finally {
@@ -417,6 +433,34 @@ export default function InterventionDetailPage({ params }: { params: { id: strin
             </div>
           )}
         </section>
+
+        {/* Hub d'actions : envoi combiné, publication, vidéo, facture */}
+        <InterventionActionsHub
+          interventionId={intervention.id}
+          hasRapport={!!intervention.rapport_json && Object.keys(intervention.rapport_json || {}).length > 0}
+          hasFacture={hasFacture}
+          clientEmail={client?.email || null}
+          publieSlug={intervention.publie_slug}
+          onCreateFacture={() => {
+            if (!intervention.rapport_json) return
+            import('@/lib/rapportToFacture').then(({ buildFactureFromRapport }) => {
+              const payload = buildFactureFromRapport({
+                rapport: intervention.rapport_json,
+                client_nom: client?.nom || null,
+                client_email: client?.email || null,
+                client_adresse: client?.adresse || null,
+                client_code_postal: client?.code_postal || null,
+                client_ville: client?.ville || null,
+                adresse_chantier: intervention.adresse_chantier || null,
+                type_intervention: intervention.type_intervention || null,
+                date_intervention: intervention.date_realisee || intervention.date_prevue || null,
+                reference: intervention.reference || null,
+              })
+              sessionStorage.setItem('ltdb_devis_to_facture', JSON.stringify(payload))
+              router.push('/facture/nouvelle')
+            })
+          }}
+        />
 
         {/* Date / heure / type */}
         {editing ? (
