@@ -503,63 +503,91 @@ export default function ClientsPage() {
                       >✉ Envoyer le récap</button>
                     </div>
 
-                    {d.interventions.length > 0 && (
-                      <div>
-                        <div className="text-[11px] uppercase tracking-wider text-slate-500 font-semibold mb-2">Interventions ({d.interventions.length})</div>
-                        <div className="space-y-1.5">
-                          {d.interventions.map(i => (
-                            <Link
-                              key={i.id}
-                              href={`/intervention/${i.id}`}
-                              className="block bg-white border border-slate-200 rounded-lg px-3 py-2 hover:border-[#0e2a52] hover:bg-slate-50"
-                            >
-                              <div className="flex items-center justify-between gap-3 text-sm">
+                    {(() => {
+                      const rapports = d.interventions.filter(i => i.has_rapport)
+                      const interventionsSansRapport = d.interventions.filter(i => !i.has_rapport)
+                      const factures = d.documents.filter(doc => doc.type === 'facture')
+                      const devis = d.documents.filter(doc => doc.type === 'devis')
+                      const attestations = d.documents.filter(doc => doc.type === 'attestation')
+                      return (
+                        <>
+                          <div className="flex flex-wrap gap-2 text-[11px] text-slate-600">
+                            <Pill className="bg-indigo-50 text-indigo-700 border-indigo-100">📝 {rapports.length} rapport{rapports.length > 1 ? 's' : ''}</Pill>
+                            <Pill className="bg-emerald-50 text-emerald-700 border-emerald-100">🧾 {factures.length} facture{factures.length > 1 ? 's' : ''}</Pill>
+                            <Pill className="bg-amber-50 text-amber-700 border-amber-100">📋 {devis.length} devis</Pill>
+                            <Pill className="bg-stone-50 text-stone-700 border-stone-100">✅ {attestations.length} attestation{attestations.length > 1 ? 's' : ''}</Pill>
+                          </div>
+
+                          <DocSection title="📝 Rapports d'intervention" count={rapports.length} accent="indigo">
+                            {rapports.map(i => (
+                              <div
+                                key={i.id}
+                                className="flex items-center justify-between gap-3 bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm"
+                              >
                                 <div className="flex-1 min-w-0">
                                   <span className="font-medium">{i.reference || i.id.slice(0, 8)}</span>
                                   {i.type_intervention && <span className="text-slate-500"> · {i.type_intervention}</span>}
                                   {i.ville && <span className="text-slate-500"> · {i.ville}</span>}
                                 </div>
-                                <div className="text-xs text-slate-500 shrink-0">
-                                  {fmtDate(i.date_realisee || i.date_prevue || i.created_at)}
-                                  {i.statut && <span className={`ml-2 px-1.5 py-0.5 rounded text-[10px] uppercase ${statutClass(i.statut)}`}>{i.statut}</span>}
+                                <div className="text-xs text-slate-600 shrink-0 flex items-center gap-3">
+                                  <span className="text-slate-500">{fmtDate(i.date_realisee || i.date_prevue || i.created_at)}</span>
+                                  {i.pdf_rapport_url && (
+                                    <a href={i.pdf_rapport_url} target="_blank" rel="noreferrer" className="px-2 py-1 rounded bg-indigo-600 text-white hover:bg-indigo-700 text-[11px]">📄 PDF</a>
+                                  )}
+                                  <Link href={`/intervention/${i.id}`} className="text-[#0e2a52] hover:underline">Voir →</Link>
                                 </div>
                               </div>
-                            </Link>
-                          ))}
-                        </div>
-                      </div>
-                    )}
+                            ))}
+                          </DocSection>
 
-                    {d.documents.length > 0 && (
-                      <div>
-                        <div className="text-[11px] uppercase tracking-wider text-slate-500 font-semibold mb-2">Documents ({d.documents.length})</div>
-                        <div className="space-y-1.5">
-                          {d.documents.map(doc => (
-                            <div
-                              key={doc.id}
-                              className="flex items-center justify-between gap-3 bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm"
-                            >
-                              <div className="flex-1 min-w-0">
-                                <span className="font-medium">{TYPE_LABEL[doc.type] || doc.type}</span>
-                                {doc.numero && <span className="text-slate-500"> · {doc.numero}</span>}
-                                {doc.statut && <span className={`ml-2 px-1.5 py-0.5 rounded text-[10px] uppercase ${docStatutClass(doc.statut)}`}>{doc.statut}</span>}
-                              </div>
-                              <div className="text-xs text-slate-600 shrink-0 flex items-center gap-3">
-                                {typeof doc.montant_ttc === 'number' && <span className="font-medium">{fmtMontant(doc.montant_ttc)}</span>}
-                                <span className="text-slate-500">{fmtDate(doc.date_emission || doc.created_at)}</span>
-                                {doc.pdf_url && (
-                                  <a href={doc.pdf_url} target="_blank" rel="noreferrer" className="text-[#0e2a52] hover:underline">PDF</a>
-                                )}
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
+                          <DocSection title="🧾 Factures" count={factures.length} accent="emerald">
+                            {factures.map(doc => (
+                              <DocRowView key={doc.id} doc={doc} />
+                            ))}
+                          </DocSection>
 
-                    {d.interventions.length === 0 && d.documents.length === 0 && (
-                      <div className="text-xs text-slate-500 italic">Aucune intervention ni document pour ce client.</div>
-                    )}
+                          <DocSection title="📋 Devis" count={devis.length} accent="amber">
+                            {devis.map(doc => (
+                              <DocRowView key={doc.id} doc={doc} />
+                            ))}
+                          </DocSection>
+
+                          <DocSection title="✅ Attestations" count={attestations.length} accent="stone">
+                            {attestations.map(doc => (
+                              <DocRowView key={doc.id} doc={doc} />
+                            ))}
+                          </DocSection>
+
+                          {interventionsSansRapport.length > 0 && (
+                            <DocSection title="📅 Interventions sans rapport" count={interventionsSansRapport.length} accent="slate">
+                              {interventionsSansRapport.map(i => (
+                                <Link
+                                  key={i.id}
+                                  href={`/intervention/${i.id}`}
+                                  className="block bg-white border border-slate-200 rounded-lg px-3 py-2 hover:border-[#0e2a52] hover:bg-slate-50"
+                                >
+                                  <div className="flex items-center justify-between gap-3 text-sm">
+                                    <div className="flex-1 min-w-0">
+                                      <span className="font-medium">{i.reference || i.id.slice(0, 8)}</span>
+                                      {i.type_intervention && <span className="text-slate-500"> · {i.type_intervention}</span>}
+                                      {i.ville && <span className="text-slate-500"> · {i.ville}</span>}
+                                    </div>
+                                    <div className="text-xs text-slate-500 shrink-0">
+                                      {fmtDate(i.date_realisee || i.date_prevue || i.created_at)}
+                                      {i.statut && <span className={`ml-2 px-1.5 py-0.5 rounded text-[10px] uppercase ${statutClass(i.statut)}`}>{i.statut}</span>}
+                                    </div>
+                                  </div>
+                                </Link>
+                              ))}
+                            </DocSection>
+                          )}
+
+                          {d.interventions.length === 0 && d.documents.length === 0 && (
+                            <div className="text-xs text-slate-500 italic">Aucune intervention ni document pour ce client.</div>
+                          )}
+                        </>
+                      )
+                    })()}
                   </div>
                 )}
               </div>
@@ -626,6 +654,46 @@ function statutClass(s: string): string {
     case 'annulee': return 'bg-slate-200 text-slate-600'
     default: return 'bg-slate-100 text-slate-600'
   }
+}
+
+type Accent = 'indigo' | 'emerald' | 'amber' | 'stone' | 'slate'
+
+const ACCENT_CLASSES: Record<Accent, string> = {
+  indigo: 'text-indigo-700 border-indigo-100 bg-indigo-50/50',
+  emerald: 'text-emerald-700 border-emerald-100 bg-emerald-50/50',
+  amber: 'text-amber-700 border-amber-100 bg-amber-50/50',
+  stone: 'text-stone-700 border-stone-100 bg-stone-50/50',
+  slate: 'text-slate-700 border-slate-100 bg-slate-50/50',
+}
+
+function DocSection({ title, count, accent, children }: { title: string; count: number; accent: Accent; children: React.ReactNode }) {
+  if (count === 0) return null
+  return (
+    <div>
+      <div className={`text-[11px] uppercase tracking-wider font-semibold mb-2 px-2 py-1 inline-block rounded border ${ACCENT_CLASSES[accent]}`}>
+        {title} ({count})
+      </div>
+      <div className="space-y-1.5">{children}</div>
+    </div>
+  )
+}
+
+function DocRowView({ doc }: { doc: DocRow }) {
+  return (
+    <div className="flex items-center justify-between gap-3 bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm">
+      <div className="flex-1 min-w-0">
+        <span className="font-medium">{doc.numero || (TYPE_LABEL[doc.type] || doc.type)}</span>
+        {doc.statut && <span className={`ml-2 px-1.5 py-0.5 rounded text-[10px] uppercase ${docStatutClass(doc.statut)}`}>{doc.statut}</span>}
+      </div>
+      <div className="text-xs text-slate-600 shrink-0 flex items-center gap-3">
+        {typeof doc.montant_ttc === 'number' && <span className="font-medium">{fmtMontant(doc.montant_ttc)}</span>}
+        <span className="text-slate-500">{fmtDate(doc.date_emission || doc.created_at)}</span>
+        {doc.pdf_url && (
+          <a href={doc.pdf_url} target="_blank" rel="noreferrer" className="px-2 py-1 rounded bg-[#0e2a52] text-white hover:bg-[#0a1f3d] text-[11px]">📄 PDF</a>
+        )}
+      </div>
+    </div>
+  )
 }
 
 function docStatutClass(s: string): string {
