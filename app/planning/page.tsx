@@ -386,6 +386,51 @@ function NouvelleInterventionModal({
   const [clientCP, setClientCP] = useState('')
   const [clientVille, setClientVille] = useState('')
 
+  // Reconnaissance par téléphone : dès que l'utilisateur saisit un numéro
+  // assez long, on cherche un client existant pour proposer de pré-remplir.
+  const [phoneMatches, setPhoneMatches] = useState<ClientRow[]>([])
+  const [phoneSearching, setPhoneSearching] = useState(false)
+
+  function fillFromClient(c: ClientRow) {
+    setClientId(c.id)
+    setClientNom(c.nom)
+    setClientEmail(c.email || '')
+    setClientTel(c.telephone || '')
+    setClientAdresse(c.adresse || '')
+    setClientCP(c.code_postal || '')
+    setClientVille(c.ville || '')
+    setPhoneMatches([])
+  }
+
+  useEffect(() => {
+    // Si un client est déjà sélectionné (autocomplete / fillFromClient), on ne
+    // propose plus rien : l'utilisateur a fait son choix.
+    if (clientId) {
+      setPhoneMatches([])
+      return
+    }
+    const digits = clientTel.replace(/\D/g, '')
+    if (digits.length < 6) {
+      setPhoneMatches([])
+      return
+    }
+    let cancelled = false
+    setPhoneSearching(true)
+    const t = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/clients?phone=${encodeURIComponent(digits)}&limit=10`, { cache: 'no-store' })
+        const data = await res.json()
+        if (cancelled) return
+        setPhoneMatches((data?.clients || []) as ClientRow[])
+      } catch {
+        if (!cancelled) setPhoneMatches([])
+      } finally {
+        if (!cancelled) setPhoneSearching(false)
+      }
+    }, 350)
+    return () => { cancelled = true; clearTimeout(t) }
+  }, [clientTel, clientId])
+
   // Chantier
   const [chantierIdem, setChantierIdem] = useState(true)
   const [adresseChantier, setAdresseChantier] = useState('')
@@ -490,7 +535,15 @@ function NouvelleInterventionModal({
             />
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <Field label="Email" type="email" value={clientEmail} onChange={setClientEmail} placeholder="client@exemple.fr" />
-              <Field label="Téléphone" value={clientTel} onChange={setClientTel} placeholder="06 12 34 56 78" />
+              <div>
+                <Field label="Téléphone" value={clientTel} onChange={setClientTel} placeholder="06 12 34 56 78" />
+                <PhoneMatchHint
+                  searching={phoneSearching}
+                  matches={phoneMatches}
+                  hasClientId={!!clientId}
+                  onPick={fillFromClient}
+                />
+              </div>
               <Field label="Adresse" value={clientAdresse} onChange={setClientAdresse} placeholder="5 rue des Tombades" />
               <label className="block text-sm">
                 <span className="text-xs uppercase tracking-wide text-slate-500">Ville</span>
@@ -794,6 +847,74 @@ function ClientAutocomplete({
           ))}
         </div>
       )}
+    </div>
+  )
+}
+
+function PhoneMatchHint({
+  searching, matches, hasClientId, onPick,
+}: {
+  searching: boolean
+  matches: ClientRow[]
+  hasClientId: boolean
+  onPick: (c: ClientRow) => void
+}) {
+  if (hasClientId) return null
+  if (matches.length === 0) {
+    if (!searching) return null
+    return (
+      <div className="mt-1.5 text-[11px] text-slate-400">Recherche…</div>
+    )
+  }
+  if (matches.length === 1) {
+    const c = matches[0]
+    const detail = [c.ville, c.email].filter(Boolean).join(' · ')
+    return (
+      <button
+        type="button"
+        onClick={() => onPick(c)}
+        className="mt-1.5 w-full bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-800 rounded-lg px-3 py-2 text-left transition active:scale-[0.99]"
+      >
+        <div className="flex items-center justify-between gap-2 min-w-0">
+          <div className="min-w-0">
+            <div className="text-xs font-bold flex items-center gap-1.5">
+              <span>✓ Client existant</span>
+              <span className="font-normal opacity-70">— {c.nom}</span>
+            </div>
+            {detail && <div className="text-[11px] opacity-70 truncate mt-0.5">{detail}</div>}
+          </div>
+          <span className="text-[10px] font-bold bg-emerald-700 text-white px-2 py-1 rounded-md uppercase tracking-wider whitespace-nowrap">
+            Utiliser
+          </span>
+        </div>
+      </button>
+    )
+  }
+  return (
+    <div className="mt-1.5 bg-amber-50 border border-amber-200 rounded-lg p-2 space-y-1.5">
+      <div className="text-[11px] font-bold text-amber-800 uppercase tracking-wider px-1">
+        {matches.length} clients existants — choisis le bon
+      </div>
+      <ul className="space-y-1">
+        {matches.map(c => {
+          const detail = [c.ville, c.email].filter(Boolean).join(' · ')
+          return (
+            <li key={c.id}>
+              <button
+                type="button"
+                onClick={() => onPick(c)}
+                className="w-full bg-white hover:bg-amber-100 border border-amber-200 rounded-md px-2.5 py-1.5 text-left text-xs transition flex items-center justify-between gap-2"
+              >
+                <div className="min-w-0">
+                  <div className="font-semibold text-slate-900 truncate">{c.nom}</div>
+                  {detail && <div className="text-[11px] text-slate-500 truncate">{detail}</div>}
+                </div>
+                <span className="text-[10px] font-bold text-amber-700 whitespace-nowrap">→</span>
+              </button>
+            </li>
+          )
+        })}
+      </ul>
     </div>
   )
 }
