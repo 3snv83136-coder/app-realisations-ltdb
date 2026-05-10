@@ -79,8 +79,18 @@ export default function NouveauPage() {
   const [photos, setPhotos] = useState<PhotoItem[]>([])
 
   // Pré-remplissage depuis Planning (sessionStorage 'ltdb_intervention_prefill')
+  // ou chargement direct d'un rapport existant pour édition (sessionStorage 'ltdb_load_rapport_id').
   useEffect(() => {
     if (typeof window === 'undefined') return
+    const loadId = sessionStorage.getItem('ltdb_load_rapport_id')
+    if (loadId) {
+      sessionStorage.removeItem('ltdb_load_rapport_id')
+      sessionStorage.removeItem('ltdb_intervention_prefill')
+      // loadRapportForEdit n'est pas encore défini à ce stade du fichier, on l'appelle
+      // via setTimeout pour être sûr qu'il est dans la portée au moment de l'exécution.
+      setTimeout(() => { loadRapportForEdit(loadId) }, 0)
+      return
+    }
     const raw = sessionStorage.getItem('ltdb_intervention_prefill')
     if (!raw) return
     try {
@@ -109,6 +119,7 @@ export default function NouveauPage() {
     } finally {
       sessionStorage.removeItem('ltdb_intervention_prefill')
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   // Résultats IA

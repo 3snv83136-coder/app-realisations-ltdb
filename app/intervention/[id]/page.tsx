@@ -210,19 +210,27 @@ export default function InterventionDetailPage({ params }: { params: { id: strin
 
   function goToRapport() {
     if (!intervention) return
-    const prefill = {
-      intervention_id: intervention.id,
-      clientNom: client?.nom || '',
-      clientEmail: client?.email || '',
-      adresse: intervention.adresse_chantier || client?.adresse || '',
-      ville: intervention.ville || client?.ville || '',
-      codePostal: intervention.code_postal || client?.code_postal || '',
-      dateIntervention: intervention.date_prevue || new Date().toISOString().slice(0, 10),
-      typeIntervention: intervention.type_intervention || '',
-      technicienNom: technicien?.nom || '',
-    }
+    const hasRapport = !!intervention.rapport_json && Object.keys(intervention.rapport_json || {}).length > 0
     if (typeof window !== 'undefined') {
-      sessionStorage.setItem('ltdb_intervention_prefill', JSON.stringify(prefill))
+      if (hasRapport) {
+        // Demande à /nouveau de charger le rapport existant pour édition.
+        sessionStorage.setItem('ltdb_load_rapport_id', intervention.id)
+        sessionStorage.removeItem('ltdb_intervention_prefill')
+      } else {
+        const prefill = {
+          intervention_id: intervention.id,
+          clientNom: client?.nom || '',
+          clientEmail: client?.email || '',
+          adresse: intervention.adresse_chantier || client?.adresse || '',
+          ville: intervention.ville || client?.ville || '',
+          codePostal: intervention.code_postal || client?.code_postal || '',
+          dateIntervention: intervention.date_prevue || new Date().toISOString().slice(0, 10),
+          typeIntervention: intervention.type_intervention || '',
+          technicienNom: technicien?.nom || '',
+        }
+        sessionStorage.setItem('ltdb_intervention_prefill', JSON.stringify(prefill))
+        sessionStorage.removeItem('ltdb_load_rapport_id')
+      }
     }
     router.push('/nouveau')
   }
@@ -307,22 +315,24 @@ export default function InterventionDetailPage({ params }: { params: { id: strin
                   ▶ Démarrer
                 </button>
               )}
+              {intervention.statut !== 'annulee' && (
+                <button
+                  onClick={goToRapport}
+                  className="bg-[#0e2a52] hover:bg-[#0a2047] text-white px-4 py-2.5 rounded-xl font-bold text-sm transition"
+                >
+                  {intervention.rapport_json && Object.keys(intervention.rapport_json || {}).length > 0
+                    ? '📄 Modifier le rapport'
+                    : '📄 Aller au rapport'}
+                </button>
+              )}
               {(intervention.statut === 'planifiee' || intervention.statut === 'en_cours') && (
-                <>
-                  <button
-                    onClick={goToRapport}
-                    className="bg-[#0e2a52] hover:bg-[#0a2047] text-white px-4 py-2.5 rounded-xl font-bold text-sm transition"
-                  >
-                    📄 Aller au rapport
-                  </button>
-                  <button
-                    onClick={() => updateStatut('terminee')}
-                    disabled={actionInProgress}
-                    className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 rounded-xl font-bold text-sm disabled:opacity-50 transition"
-                  >
-                    ✓ Terminer
-                  </button>
-                </>
+                <button
+                  onClick={() => updateStatut('terminee')}
+                  disabled={actionInProgress}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 rounded-xl font-bold text-sm disabled:opacity-50 transition"
+                >
+                  ✓ Terminer
+                </button>
               )}
               {!editing && (
                 <button
