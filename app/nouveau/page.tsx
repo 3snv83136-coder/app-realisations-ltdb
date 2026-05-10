@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation"
 import VoiceRecorder from "@/components/VoiceRecorder"
 import GenerationPreview from "@/components/GenerationPreview"
 import AppTabs from "@/components/AppTabs"
+import RapportTabs from "@/components/RapportTabs"
 import dynamic from "next/dynamic"
 import { type VilleVar } from "@/lib/villes-var"
 import VilleCombobox from "@/components/VilleCombobox"
@@ -749,6 +750,8 @@ export default function NouveauPage() {
           </div>
         </div>
       </nav>
+
+      <RapportTabs current="rediger" />
 
       {/* STEPPER */}
       <div className="bg-white border-b border-slate-200 shadow-sm sticky top-[52px] sm:top-[60px] z-20">
