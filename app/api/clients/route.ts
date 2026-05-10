@@ -14,7 +14,7 @@ export async function GET(req: NextRequest) {
 
   const url = new URL(req.url)
   const q = (url.searchParams.get('q') || '').trim()
-  const limit = Math.min(Number(url.searchParams.get('limit')) || 20, 50)
+  const limit = Math.min(Number(url.searchParams.get('limit')) || 20, 1000)
 
   let query = sb
     .from('clients')
