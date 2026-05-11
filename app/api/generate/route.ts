@@ -310,8 +310,8 @@ Réponds UNIQUEMENT avec ce JSON (sans markdown, sans backticks) :
   let rapportMsg, seoMsg
   try {
     [rapportMsg, seoMsg] = await Promise.all([
-      callWithRetry(() => deepseek.messages.create({ model: MODEL, max_tokens: 16000, messages: [{ role: "user", content: rapportPrompt }] })),
-      callWithRetry(() => deepseek.messages.create({ model: MODEL, max_tokens: 16000, messages: [{ role: "user", content: seoPrompt }] })),
+      callWithRetry(() => deepseek.messages.create({ model: MODEL, max_tokens: 16000, thinking: { type: "disabled" }, messages: [{ role: "user", content: rapportPrompt }] })),
+      callWithRetry(() => deepseek.messages.create({ model: MODEL, max_tokens: 16000, thinking: { type: "disabled" }, messages: [{ role: "user", content: seoPrompt }] })),
     ])
   } catch (e: any) {
     return NextResponse.json({ error: `AI API : ${e.message || e.toString()}`, model: MODEL }, { status: 500 })

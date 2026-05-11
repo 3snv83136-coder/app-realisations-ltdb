@@ -22,6 +22,10 @@ const InterventionActionsHub = dynamic(
   () => import('@/components/InterventionActionsHub'),
   { ssr: false },
 )
+const GenerateVideoButton = dynamic(
+  () => import('@/components/GenerateVideoButton'),
+  { ssr: false },
+)
 
 type Statut = 'planifiee' | 'en_cours' | 'terminee' | 'annulee'
 
@@ -47,6 +51,11 @@ type InterventionDetail = {
   rapport_json: any
   photos_urls: string[] | null
   canal_acquisition: string | null
+  video_urls: Partial<Record<'vertical' | 'horizontal' | 'square', string>> | null
+  video_status: 'idle' | 'rendering' | 'ready' | 'failed' | 'uploading' | 'published' | null
+  video_error: string | null
+  video_youtube_id: string | null
+  video_youtube_url: string | null
   created_at: string
   updated_at: string
 }
@@ -461,6 +470,16 @@ export default function InterventionDetailPage({ params }: { params: { id: strin
             })
           }}
         />
+        {!editing && intervention.statut === 'terminee' ? (
+          <GenerateVideoButton
+            interventionId={intervention.id}
+            hasPhotos={!!(intervention.photos_urls && intervention.photos_urls.length > 0)}
+            initialVideoUrls={intervention.video_urls}
+            initialVideoStatus={intervention.video_status}
+            initialVideoError={intervention.video_error}
+            initialYoutubeUrl={intervention.video_youtube_url}
+          />
+        ) : null}
 
         {/* Date / heure / type */}
         {editing ? (
