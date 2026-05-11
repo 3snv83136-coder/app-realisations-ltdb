@@ -1,0 +1,65 @@
+{
+  "name": "Les Techniciens du Débouchage",
+  "short_name": "LTDB",
+  "description": "Plombiers débouchage Var 83 — urgence 24h/24, 7j/7",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0e2a52",
+  "theme_color": "#0e2a52",
+  "orientation": "portrait-primary",
+  "lang": "fr",
+  "icons": [
+    {
+      "src": "https://lestechniciensdudebouchage.fr/icons/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "https://lestechniciensdudebouchage.fr/icons/icon-1024x1024.png",
+      "sizes": "1024x1024",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["business", "utilities"],
+  "screenshots": [],
+  "shortcuts": [
+    {
+      "name": "Nouveau rapport",
+      "short_name": "Rapport",
+      "description": "Dicter une intervention",
+      "url": "/intervention/nouveau",
+      "icons": [
+        {
+          "src": "https://lestechniciensdudebouchage.fr/icons/icon-512x512.png",
+          "sizes": "512x512"
+        }
+      ]
+    },
+    {
+      "name": "Devis",
+      "short_name": "Devis",
+      "description": "Créer un devis",
+      "url": "/devis",
+      "icons": [
+        {
+          "src": "https://lestechniciensdudebouchage.fr/icons/icon-512x512.png",
+          "sizes": "512x512"
+        }
+      ]
+    },
+    {
+      "name": "Planning",
+      "short_name": "Planning",
+      "description": "Planning des interventions",
+      "url": "/planning",
+      "icons": [
+        {
+          "src": "https://lestechniciensdudebouchage.fr/icons/icon-512x512.png",
+          "sizes": "512x512"
+        }
+      ]
+    }
+  ]
+}
