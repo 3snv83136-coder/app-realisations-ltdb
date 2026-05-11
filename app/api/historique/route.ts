@@ -39,16 +39,24 @@ export async function GET(req: NextRequest) {
   console.log('[historique] docs ids:', docRes.data?.map((d: any) => `${d.type}:${d.id.slice(0, 8)}`).join(', '))
 
   if (isDebug) {
-    // Requêtes debug sans filtre neq pour voir tous les documents
-    const [rawDocRes, devisRes] = await Promise.all([
+    // Requêtes debug pour isoler le bug du neq
+    const [rawDocRes, devisRes, fullNoNeqRes, neqOnlyRes] = await Promise.all([
       sb.from('documents').select('id, type, numero, statut, created_at').order('created_at', { ascending: false }).limit(50),
       sb.from('documents').select('id, type, numero, statut, created_at').eq('type', 'devis'),
+      // Mêmes colonnes que la requête principale mais SANS neq
+      sb.from('documents').select('id, type, numero, agence, date_emission, echeance, statut, montant_ht, montant_ttc, tva_taux, pdf_url, envoye_email, envoye_at, intervention_id, client_id, created_at').order('created_at', { ascending: false }).limit(50),
+      // Colonnes minimales AVEC neq (même filtre que la requête principale)
+      sb.from('documents').select('id, type, numero, statut, created_at').neq('statut', 'annule').order('created_at', { ascending: false }).limit(50),
     ])
     return NextResponse.json({
       _debug_supabase_url: supabaseUrl.replace(/\/\/.*@/, '//***@'),
       _debug_doc_count_raw: docRes.data?.length || 0,
+      _debug_doc_count_raw_types: docRes.data?.map((d: any) => d.type).join(', ') || '',
       _debug_all_docs_count: rawDocRes.data?.length || 0,
-      _debug_all_docs: rawDocRes.data?.map((d: any) => ({ id8: d.id.slice(0,8), type: d.type, numero: d.numero, statut: d.statut })) || [],
+      _debug_full_no_neq_count: fullNoNeqRes.data?.length || 0,
+      _debug_full_no_neq_types: fullNoNeqRes.data?.map((d: any) => d.type).join(', ') || '',
+      _debug_neq_only_count: neqOnlyRes.data?.length || 0,
+      _debug_neq_only_types: neqOnlyRes.data?.map((d: any) => d.type).join(', ') || '',
       _debug_devis: devisRes.data || [],
       interventions: [],
       documents: [],
