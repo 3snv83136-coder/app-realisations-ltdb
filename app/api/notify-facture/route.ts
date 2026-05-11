@@ -42,16 +42,20 @@ export async function POST(req: NextRequest) {
     }, { status: 500 })
   }
 
-  // Persistance DB (best-effort, non bloquant)
+  let docId: string | null = null
   if (facture) {
-    persistFacture({
-      facture, clientNom, clientEmail, clientAdresse, clientCP, ville,
-      agence, numero, totalHT, totalTTC, tvaTaux, echeance,
-      emailSent: true,
-    }).catch(e => console.error('[notify-facture] persist', e))
+    try {
+      docId = await persistFacture({
+        facture, clientNom, clientEmail, clientAdresse, clientCP, ville,
+        agence, numero, totalHT, totalTTC, tvaTaux, echeance,
+        emailSent: true,
+      })
+    } catch (e: any) {
+      console.error('[notify-facture] persist', e)
+    }
   }
 
-  return NextResponse.json({ ok: true, id: result.data?.id })
+  return NextResponse.json({ ok: true, id: result.data?.id, docId })
 }
 
 function emailFacture({ clientNom, technicienNom, ville, dateFacture, numero, totalTTC, echeance, agence }: {

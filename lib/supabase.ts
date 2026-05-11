@@ -155,7 +155,10 @@ export async function saveDocument(input: {
   envoye_at?: string | null
 }): Promise<string | null> {
   const sb = getSupabaseOrNull()
-  if (!sb) return null
+  if (!sb) {
+    console.warn('[saveDocument] Supabase non configuré — le document ne sera pas persisté')
+    return null
+  }
   const row = {
     type: input.type,
     numero: input.numero || null,

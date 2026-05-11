@@ -41,15 +41,20 @@ export async function POST(req: NextRequest) {
     }, { status: 500 })
   }
 
+  let docId: string | null = null
   if (devis) {
-    persistDevis({
-      devis, clientNom, clientEmail, clientAdresse, clientCP, ville,
-      agence, numero, totalHT, totalTTC, tvaTaux, validiteJours,
-      emailSent: true,
-    }).catch(e => console.error('[notify-devis] persist', e))
+    try {
+      docId = await persistDevis({
+        devis, clientNom, clientEmail, clientAdresse, clientCP, ville,
+        agence, numero, totalHT, totalTTC, tvaTaux, validiteJours,
+        emailSent: true,
+      })
+    } catch (e: any) {
+      console.error('[notify-devis] persist', e)
+    }
   }
 
-  return NextResponse.json({ ok: true, id: result.data?.id })
+  return NextResponse.json({ ok: true, id: result.data?.id, docId })
 }
 
 function emailDevis({ clientNom, technicienNom, ville, dateDevis, numero, totalTTC, validiteJours }: {

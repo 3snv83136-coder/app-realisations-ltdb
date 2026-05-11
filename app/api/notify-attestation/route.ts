@@ -48,15 +48,20 @@ export async function POST(req: NextRequest) {
     }, { status: 500 })
   }
 
+  let docId: string | null = null
   if (attestation || numero || variante) {
-    persistAttestation({
-      attestation, clientNom, clientEmail, clientAdresse, clientCP, ville,
-      agence, numero, variante, dateAttestation,
-      emailSent: true,
-    }).catch(e => console.error('[notify-attestation] persist', e))
+    try {
+      docId = await persistAttestation({
+        attestation, clientNom, clientEmail, clientAdresse, clientCP, ville,
+        agence, numero, variante, dateAttestation,
+        emailSent: true,
+      })
+    } catch (e: any) {
+      console.error('[notify-attestation] persist', e)
+    }
   }
 
-  return NextResponse.json({ ok: true, id: result.data?.id })
+  return NextResponse.json({ ok: true, id: result.data?.id, docId })
 }
 
 function emailAttestation({ clientNom, technicienNom, ville, dateAttestation, variantLabel, numero }: {

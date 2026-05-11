@@ -155,11 +155,20 @@ Réponds UNIQUEMENT avec ce JSON (sans markdown, sans backticks) :
 
   let data: any
   try {
-    data = parseJson((msg.content[0] as { type: string; text: string }).text)
+    data = parseJson(
+      (msg.content as { type: string; text?: string }[])
+        .filter(block => block.type === "text")
+        .map(block => block.text || "")
+        .join("")
+    )
   } catch (e: any) {
+    const rawText = (msg.content as { type: string; text?: string }[])
+      .filter(block => block.type === "text")
+      .map(block => block.text || "")
+      .join("")
     return NextResponse.json({
       error: `Réponse IA illisible : ${e.message}`,
-      raw: (msg.content[0] as any)?.text?.slice(0, 500),
+      raw: rawText.slice(0, 500),
     }, { status: 500 })
   }
 
