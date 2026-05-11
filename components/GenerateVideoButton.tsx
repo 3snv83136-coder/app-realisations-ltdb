@@ -4,6 +4,15 @@ import { useState } from 'react'
 type VideoUrls = Partial<Record<'vertical' | 'horizontal' | 'square', string>>
 type VideoStatus = 'idle' | 'rendering' | 'ready' | 'failed' | 'uploading' | 'published'
 
+type SocialPlatform = 'youtube' | 'facebook' | 'instagram' | 'tiktok'
+
+type PublishState = {
+  platform: SocialPlatform
+  status: 'idle' | 'posting' | 'ok' | 'error'
+  url?: string
+  error?: string
+}
+
 type Props = {
   interventionId: string
   hasPhotos: boolean
@@ -19,6 +28,37 @@ const FORMAT_LABEL: Record<keyof VideoUrls, { label: string; ratio: string; usag
   square: { label: 'Carré 1:1', ratio: 'aspect-square', usage: 'Feed Instagram' },
 }
 
+const SOCIAL_CFG: Record<SocialPlatform, { label: string; color: string; endpoint: string; icon: string; help: string }> = {
+  youtube: {
+    label: 'YouTube',
+    color: 'bg-red-600 hover:bg-red-700',
+    endpoint: '/api/publish-youtube',
+    icon: '▶',
+    help: 'Nécessite un compte Google connecté',
+  },
+  facebook: {
+    label: 'Facebook',
+    color: 'bg-blue-600 hover:bg-blue-700',
+    endpoint: '/api/publish-facebook',
+    icon: '📘',
+    help: 'Nécessite une Page Facebook connectée',
+  },
+  instagram: {
+    label: 'Instagram',
+    color: 'bg-pink-600 hover:bg-pink-700',
+    endpoint: '/api/publish-instagram',
+    icon: '📸',
+    help: 'Nécessite un compte Instagram Business lié à une Page Facebook',
+  },
+  tiktok: {
+    label: 'TikTok',
+    color: 'bg-slate-900 hover:bg-slate-800',
+    endpoint: '/api/publish-tiktok',
+    icon: '🎵',
+    help: 'Nécessite un compte TikTok Business connecté',
+  },
+}
+
 export default function GenerateVideoButton({
   interventionId,
   hasPhotos,
@@ -30,15 +70,15 @@ export default function GenerateVideoButton({
   const [status, setStatus] = useState<VideoStatus>(initialVideoStatus || 'idle')
   const [videoUrls, setVideoUrls] = useState<VideoUrls>(initialVideoUrls || {})
   const [error, setError] = useState<string | null>(initialVideoError || null)
-  const [youtubeUrl, setYoutubeUrl] = useState<string | null>(initialYoutubeUrl || null)
-  const [ytError, setYtError] = useState<string | null>(null)
-  const [ytPosting, setYtPosting] = useState(false)
+  const [publishState, setPublishState] = useState<Record<string, PublishState>>(
+    initialYoutubeUrl
+      ? { youtube: { platform: 'youtube', status: 'ok', url: initialYoutubeUrl } }
+      : {}
+  )
 
   const isRendering = status === 'rendering'
-  const isUploading = status === 'uploading' || ytPosting
   const hasVideos = Object.keys(videoUrls).length > 0
   const cta = hasVideos ? 'Régénérer la vidéo' : 'Générer la vidéo'
-  const needsOAuthConnect = ytError?.includes('Aucun token YouTube') || ytError?.includes('OAuth Google non configuré')
 
   const generate = async () => {
     setStatus('rendering')
@@ -53,29 +93,51 @@ export default function GenerateVideoButton({
       if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`)
       setVideoUrls(data.video_urls || {})
       setStatus('ready')
+      setPublishState({})
     } catch (e: any) {
       setError(e?.message || 'Erreur inconnue')
       setStatus('failed')
     }
   }
 
-  const publishYoutube = async () => {
-    setYtPosting(true)
-    setYtError(null)
+  const publishTo = async (platform: SocialPlatform) => {
+    const cfg = SOCIAL_CFG[platform]
+    setPublishState(prev => ({
+      ...prev,
+      [platform]: { platform, status: 'posting' },
+    }))
     try {
-      const res = await fetch('/api/publish-youtube', {
+      const res = await fetch(cfg.endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ interventionId }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`)
-      setYoutubeUrl(data.url)
-      setStatus('published')
+      setPublishState(prev => ({
+        ...prev,
+        [platform]: { platform, status: 'ok', url: data.url || data.videoUrl },
+      }))
+      if (platform === 'youtube') setStatus('published')
     } catch (e: any) {
-      setYtError(e?.message || 'Erreur upload YouTube')
-    } finally {
-      setYtPosting(false)
+      setPublishState(prev => ({
+        ...prev,
+        [platform]: { platform, status: 'error', error: e?.message || 'Échec' },
+      }))
+    }
+  }
+
+  const needsOAuth = (platform: SocialPlatform) => {
+    const ps = publishState[platform]
+    return ps?.error?.includes('Aucun token') || ps?.error?.includes('non configuré')
+  }
+
+  const oauthUrl = (platform: SocialPlatform) => {
+    switch (platform) {
+      case 'youtube': return '/api/oauth/google'
+      case 'facebook': return '/api/oauth/facebook'
+      case 'instagram': return '/api/oauth/facebook' // Instagram uses Facebook OAuth
+      case 'tiktok': return '/api/oauth/tiktok'
     }
   }
 
@@ -150,58 +212,66 @@ export default function GenerateVideoButton({
             })}
           </div>
 
-          <div className="flex items-center justify-between gap-3 flex-wrap pt-2 border-t border-slate-100">
-            <div className="text-sm">
-              <div className="font-bold text-slate-800">Publication YouTube</div>
-              {youtubeUrl ? (
-                <a
-                  href={youtubeUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-xs text-emerald-600 hover:text-emerald-800 font-semibold"
-                >
-                  ✅ Publiée — {youtubeUrl}
-                </a>
-              ) : (
-                <div className="text-xs text-slate-500">
-                  Le format 16:9 sera uploadé en public avec titre + description SEO automatiques.
-                </div>
-              )}
-            </div>
-            {!youtubeUrl ? (
-              <button
-                type="button"
-                onClick={publishYoutube}
-                disabled={isUploading || !videoUrls.horizontal}
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-red-600 text-white font-semibold disabled:bg-slate-300 disabled:cursor-not-allowed hover:bg-red-700 transition"
-              >
-                {ytPosting ? (
-                  <>
-                    <span className="inline-block w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
-                    Upload…
-                  </>
-                ) : (
-                  <>▶ Publier sur YouTube</>
-                )}
-              </button>
-            ) : null}
-          </div>
+          {/* Publication sociale */}
+          <div className="pt-2 border-t border-slate-100 space-y-3">
+            <h3 className="text-sm font-bold text-slate-700">Publier sur les réseaux</h3>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              {(Object.keys(SOCIAL_CFG) as SocialPlatform[]).map(platform => {
+                const cfg = SOCIAL_CFG[platform]
+                const ps = publishState[platform]
+                const isPosting = ps?.status === 'posting'
+                const isOk = ps?.status === 'ok'
+                const hasError = ps?.status === 'error'
+                // Désactiver si pas de vidéo appropriée pour la plateforme
+                const vidKey = platform === 'tiktok' || platform === 'instagram' ? 'vertical' : platform === 'youtube' ? 'horizontal' : 'square'
+                const hasRightVideo = !!videoUrls[vidKey] || !!videoUrls.horizontal || !!videoUrls.vertical
 
-          {ytError ? (
-            <div className="rounded-xl bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-800 space-y-2">
-              <div>
-                <strong>Échec upload YouTube :</strong> {ytError}
-              </div>
-              {needsOAuthConnect ? (
-                <a
-                  href="/api/oauth/google"
-                  className="inline-flex items-center gap-1.5 text-xs font-semibold text-red-700 underline hover:text-red-900"
-                >
-                  → Connecter le compte YouTube (OAuth)
-                </a>
-              ) : null}
+                return (
+                  <div key={platform} className="space-y-1.5">
+                    <button
+                      type="button"
+                      onClick={() => publishTo(platform)}
+                      disabled={isPosting || !hasRightVideo}
+                      className={`w-full inline-flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl text-white font-semibold text-xs transition disabled:opacity-50 disabled:cursor-not-allowed ${cfg.color}`}
+                    >
+                      {isPosting ? (
+                        <span className="inline-block w-3.5 h-3.5 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                      ) : (
+                        <span>{cfg.icon}</span>
+                      )}
+                      {isPosting ? 'Envoi…' : cfg.label}
+                    </button>
+                    {isOk && ps?.url ? (
+                      <a
+                        href={ps.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="block text-[10px] text-emerald-600 hover:text-emerald-800 truncate text-center"
+                      >
+                        ✅ Publié
+                      </a>
+                    ) : null}
+                    {hasError ? (
+                      <div className="text-[10px] text-red-600 text-center space-y-0.5">
+                        <span className="truncate block">{ps?.error}</span>
+                        {needsOAuth(platform) ? (
+                          <a
+                            href={oauthUrl(platform)}
+                            className="inline-block text-blue-600 underline hover:text-blue-800"
+                          >
+                            → Connecter
+                          </a>
+                        ) : null}
+                      </div>
+                    ) : null}
+                  </div>
+                )
+              })}
             </div>
-          ) : null}
+            <p className="text-[10px] text-slate-400 text-center">
+              Chaque plateforme nécessite une connexion OAuth préalable. Facebook + Instagram partagent la même connexion.
+            </p>
+          </div>
         </>
       ) : null}
     </section>
