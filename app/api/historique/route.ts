@@ -33,9 +33,27 @@ export async function GET(req: NextRequest) {
   ])
 
   const supabaseUrl = process.env.SUPABASE_URL || 'MISSING'
+  const isDebug = url.searchParams.get('raw') === '1'
   console.log('[historique] SUPABASE_URL:', supabaseUrl.replace(/\/\/.*@/, '//***@'))
   console.log('[historique] docs bruts:', docRes.data?.length, '| types:', docRes.data?.map((d: any) => d.type).join(', '))
   console.log('[historique] docs ids:', docRes.data?.map((d: any) => `${d.type}:${d.id.slice(0, 8)}`).join(', '))
+
+  if (isDebug) {
+    // Requêtes debug sans filtre neq pour voir tous les documents
+    const [rawDocRes, devisRes] = await Promise.all([
+      sb.from('documents').select('id, type, numero, statut, created_at').order('created_at', { ascending: false }).limit(50),
+      sb.from('documents').select('id, type, numero, statut, created_at').eq('type', 'devis'),
+    ])
+    return NextResponse.json({
+      _debug_supabase_url: supabaseUrl.replace(/\/\/.*@/, '//***@'),
+      _debug_doc_count_raw: docRes.data?.length || 0,
+      _debug_all_docs_count: rawDocRes.data?.length || 0,
+      _debug_all_docs: rawDocRes.data?.map((d: any) => ({ id8: d.id.slice(0,8), type: d.type, numero: d.numero, statut: d.statut })) || [],
+      _debug_devis: devisRes.data || [],
+      interventions: [],
+      documents: [],
+    })
+  }
 
   if (intRes.error) {
     return NextResponse.json({ error: intRes.error.message, interventions: [], documents: [] }, { status: 500 })
