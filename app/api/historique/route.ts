@@ -32,6 +32,8 @@ export async function GET(req: NextRequest) {
       .limit(limit),
   ])
 
+  console.log('[historique] docs bruts:', docRes.data?.length, '| ids:', docRes.data?.map((d: any) => d.id.slice(0, 8)).join(', '))
+
   if (intRes.error) {
     return NextResponse.json({ error: intRes.error.message, interventions: [], documents: [] }, { status: 500 })
   }
