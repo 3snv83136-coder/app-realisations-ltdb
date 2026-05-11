@@ -32,7 +32,10 @@ export async function GET(req: NextRequest) {
       .limit(limit),
   ])
 
-  console.log('[historique] docs bruts:', docRes.data?.length, '| ids:', docRes.data?.map((d: any) => d.id.slice(0, 8)).join(', '))
+  const supabaseUrl = process.env.SUPABASE_URL || 'MISSING'
+  console.log('[historique] SUPABASE_URL:', supabaseUrl.replace(/\/\/.*@/, '//***@'))
+  console.log('[historique] docs bruts:', docRes.data?.length, '| types:', docRes.data?.map((d: any) => d.type).join(', '))
+  console.log('[historique] docs ids:', docRes.data?.map((d: any) => `${d.type}:${d.id.slice(0, 8)}`).join(', '))
 
   if (intRes.error) {
     return NextResponse.json({ error: intRes.error.message, interventions: [], documents: [] }, { status: 500 })
@@ -114,6 +117,8 @@ export async function GET(req: NextRequest) {
   }
 
   return NextResponse.json({
+    _debug_supabase_url: supabaseUrl.replace(/\/\/.*@/, '//***@'),
+    _debug_doc_count_raw: docRes.data?.length || 0,
     interventions: filterByQ(decoratedInterventions),
     documents: filterByQ(decoratedDocuments),
   })
