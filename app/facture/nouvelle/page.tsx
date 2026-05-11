@@ -152,11 +152,10 @@ export default function FacturePage() {
           clientCP,
         }),
       })
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}))
-        throw new Error(err.error || `HTTP ${res.status}`)
-      }
-      setEmailSent(true)
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`)
+      if (data.warning) setEmailError(data.warning)
+      else setEmailSent(true)
     } catch (e: any) {
       setEmailError(`Erreur envoi : ${e.message || e}`)
     } finally {

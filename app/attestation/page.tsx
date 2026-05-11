@@ -150,11 +150,10 @@ export default function AttestationPage() {
           clientCP: data.codePostal,
         }),
       })
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}))
-        throw new Error(err.error || `HTTP ${res.status}`)
-      }
-      setEmailSent(true)
+      const json = await res.json().catch(() => ({} as Record<string, any>))
+      if (!res.ok) throw new Error(json.error || `HTTP ${res.status}`)
+      if (json.warning) setEmailError(json.warning)
+      else setEmailSent(true)
     } catch (e: any) {
       setEmailError(`Erreur envoi : ${e.message || e}`)
     } finally {

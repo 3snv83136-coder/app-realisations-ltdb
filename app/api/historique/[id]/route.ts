@@ -44,13 +44,17 @@ export async function DELETE(
     return NextResponse.json({ error: 'id manquant' }, { status: 400 })
   }
 
-  const { error } = await sb
+  const { data: deleted, error } = await sb
     .from('documents')
     .delete()
     .eq('id', id)
+    .select('id')
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 })
+  }
+  if (!deleted || deleted.length === 0) {
+    return NextResponse.json({ error: 'Document introuvable (peut-être déjà supprimé)' }, { status: 404 })
   }
   return NextResponse.json({ ok: true })
 }

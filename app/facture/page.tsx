@@ -179,8 +179,8 @@ export default function FactureConsolePage() {
       })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`)
-      setFactures(prev => prev.map(x => x.id === f.id ? { ...x, statut: 'annule' } : x))
       setInfo(`Facture ${f.numero || ''} annulée.`)
+      await load()
     } catch (e: any) {
       setError(`Erreur : ${e.message}`)
     } finally {
@@ -195,7 +195,8 @@ export default function FactureConsolePage() {
       const res = await fetch(`/api/historique/${f.id}`, { method: 'DELETE' })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`)
-      setFactures(prev => prev.filter(x => x.id !== f.id))
+      setInfo(`Facture ${f.numero || ''} supprimée.`)
+      await load()
     } catch (e: any) {
       setError(`Erreur suppression : ${e.message}`)
     } finally {

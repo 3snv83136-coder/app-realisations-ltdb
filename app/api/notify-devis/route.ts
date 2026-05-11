@@ -42,6 +42,7 @@ export async function POST(req: NextRequest) {
   }
 
   let docId: string | null = null
+  let persistError: string | null = null
   if (devis) {
     try {
       docId = await persistDevis({
@@ -49,12 +50,19 @@ export async function POST(req: NextRequest) {
         agence, numero, totalHT, totalTTC, tvaTaux, validiteJours,
         emailSent: true,
       })
+      if (!docId) persistError = "Sauvegarde DB impossible (vérifie les logs serveur)"
     } catch (e: any) {
+      persistError = e?.message || 'Erreur de sauvegarde DB'
       console.error('[notify-devis] persist', e)
     }
   }
 
-  return NextResponse.json({ ok: true, id: result.data?.id, docId })
+  return NextResponse.json({
+    ok: true,
+    id: result.data?.id,
+    docId,
+    ...(persistError ? { warning: `Email envoyé mais le devis n'a PAS été enregistré en base : ${persistError}` } : {}),
+  })
 }
 
 function emailDevis({ clientNom, technicienNom, ville, dateDevis, numero, totalTTC, validiteJours }: {

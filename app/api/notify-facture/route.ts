@@ -43,6 +43,7 @@ export async function POST(req: NextRequest) {
   }
 
   let docId: string | null = null
+  let persistError: string | null = null
   if (facture) {
     try {
       docId = await persistFacture({
@@ -50,12 +51,19 @@ export async function POST(req: NextRequest) {
         agence, numero, totalHT, totalTTC, tvaTaux, echeance,
         emailSent: true,
       })
+      if (!docId) persistError = "Sauvegarde DB impossible (vérifie les logs serveur)"
     } catch (e: any) {
+      persistError = e?.message || 'Erreur de sauvegarde DB'
       console.error('[notify-facture] persist', e)
     }
   }
 
-  return NextResponse.json({ ok: true, id: result.data?.id, docId })
+  return NextResponse.json({
+    ok: true,
+    id: result.data?.id,
+    docId,
+    ...(persistError ? { warning: `Email envoyé mais la facture n'a PAS été enregistrée en base : ${persistError}` } : {}),
+  })
 }
 
 function emailFacture({ clientNom, technicienNom, ville, dateFacture, numero, totalTTC, echeance, agence }: {

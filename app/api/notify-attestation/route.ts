@@ -49,6 +49,7 @@ export async function POST(req: NextRequest) {
   }
 
   let docId: string | null = null
+  let persistError: string | null = null
   if (attestation || numero || variante) {
     try {
       docId = await persistAttestation({
@@ -56,12 +57,19 @@ export async function POST(req: NextRequest) {
         agence, numero, variante, dateAttestation,
         emailSent: true,
       })
+      if (!docId) persistError = "Sauvegarde DB impossible (vérifie les logs serveur)"
     } catch (e: any) {
+      persistError = e?.message || 'Erreur de sauvegarde DB'
       console.error('[notify-attestation] persist', e)
     }
   }
 
-  return NextResponse.json({ ok: true, id: result.data?.id, docId })
+  return NextResponse.json({
+    ok: true,
+    id: result.data?.id,
+    docId,
+    ...(persistError ? { warning: `Email envoyé mais l'attestation n'a PAS été enregistrée en base : ${persistError}` } : {}),
+  })
 }
 
 function emailAttestation({ clientNom, technicienNom, ville, dateAttestation, variantLabel, numero }: {
