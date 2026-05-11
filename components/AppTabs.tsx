@@ -4,7 +4,7 @@ import { usePathname } from "next/navigation"
 import { useEffect, useState, type ComponentType } from "react"
 import {
   HomeIcon, CalendarIcon, DocumentIcon, CameraIcon, ClipboardIcon, ReceiptIcon,
-  CheckBadgeIcon, ArchiveIcon, ChartBarIcon, BriefcaseIcon,
+  CheckBadgeIcon, ArchiveIcon, ChartBarIcon, BriefcaseIcon, EnvelopeIcon,
 } from "@/components/Icons"
 
 type Tab = {
@@ -24,6 +24,7 @@ const TABS: Tab[] = [
   { href: '/historique',   label: 'Historique',   Icon: ArchiveIcon },
   { href: '/statistiques', label: 'Statistiques', Icon: ChartBarIcon },
   { href: '/comptabilite', label: 'Comptabilité', Icon: BriefcaseIcon },
+  { href: '/mail',         label: 'Mail',         Icon: EnvelopeIcon },
 ]
 
 export default function AppTabs() {

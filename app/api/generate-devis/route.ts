@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
-import Anthropic from "@anthropic-ai/sdk"
+import { deepseek } from "@/lib/deepseek"
 
-const MODEL = process.env.ANTHROPIC_MODEL || "claude-sonnet-4-5"
+const MODEL = "deepseek-v4-pro"
 
 async function callWithRetry<T>(fn: () => Promise<T>, maxAttempts = 5): Promise<T> {
   let lastErr: any
@@ -51,8 +51,8 @@ export async function POST(req: NextRequest) {
   if (!transcription || typeof transcription !== 'string' || transcription.trim().length < 15) {
     return NextResponse.json({ error: 'Dictée trop courte (décris l\'objet du devis, les travaux, les quantités, les prix, les délais).' }, { status: 400 })
   }
-  if (!process.env.ANTHROPIC_API_KEY) {
-    return NextResponse.json({ error: 'ANTHROPIC_API_KEY non configurée' }, { status: 500 })
+  if (!process.env.DEEPSEEK_API_KEY) {
+    return NextResponse.json({ error: 'DEEPSEEK_API_KEY non configurée' }, { status: 500 })
   }
 
   const today = new Date()
@@ -61,8 +61,6 @@ export async function POST(req: NextRequest) {
 
   const seq = String(today.getHours()).padStart(2, '0') + String(today.getMinutes()).padStart(2, '0')
   const numeroFallback = `DV-${today.getFullYear()}${String(today.getMonth() + 1).padStart(2, '0')}${String(today.getDate()).padStart(2, '0')}-${seq}`
-
-  const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
   const prompt = `Tu es un assistant spécialisé dans la rédaction de devis estimatifs pour une entreprise de débouchage et assainissement (LTDB — Les Techniciens du Débouchage, Var). À partir d'une dictée vocale du technicien/chef d'équipe, tu structures un devis complet.
 
@@ -145,9 +143,10 @@ Réponds UNIQUEMENT avec ce JSON (sans markdown, sans backticks) :
 
   let msg
   try {
-    msg = await callWithRetry(() => client.messages.create({
+    msg = await callWithRetry(() => deepseek.messages.create({
       model: MODEL,
-      max_tokens: 4000,
+      max_tokens: 6000,
+      thinking: { type: "disabled" },
       messages: [{ role: "user", content: prompt }],
     }))
   } catch (e: any) {

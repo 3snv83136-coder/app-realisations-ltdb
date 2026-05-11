@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server"
-import Anthropic from "@anthropic-ai/sdk"
+import { deepseek } from "@/lib/deepseek"
 
 export const maxDuration = 300
 
-const MODEL = process.env.ANTHROPIC_MODEL || "claude-sonnet-4-5"
+const MODEL = "deepseek-v4-pro"
 const SITE = 'https://lestechniciensdudebouchage.fr'
 
 const SERVICES = [
@@ -98,16 +98,21 @@ function repairJson(s: string): string {
   return result
 }
 
+function extractText(msg: { content: { type: string; text?: string }[] }): string {
+  return (msg.content as { type: string; text?: string }[])
+    .filter(block => block.type === "text")
+    .map(block => block.text || "")
+    .join("")
+}
+
 export async function POST(req: NextRequest) {
   const { transcription, type_intervention, ville, code_postal } = await req.json()
   if (!transcription || !type_intervention || !ville) {
     return NextResponse.json({ error: 'Champs manquants' }, { status: 400 })
   }
-  if (!process.env.ANTHROPIC_API_KEY) {
-    return NextResponse.json({ error: 'ANTHROPIC_API_KEY non configurée' }, { status: 500 })
+  if (!process.env.DEEPSEEK_API_KEY) {
+    return NextResponse.json({ error: 'DEEPSEEK_API_KEY non configurée' }, { status: 500 })
   }
-
-  const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
   // Pré-calculs (utilisés par les 2 prompts en parallèle)
   const villeSlug = slugify(ville)
@@ -305,25 +310,25 @@ Réponds UNIQUEMENT avec ce JSON (sans markdown, sans backticks) :
   let rapportMsg, seoMsg
   try {
     [rapportMsg, seoMsg] = await Promise.all([
-      callWithRetry(() => client.messages.create({ model: MODEL, max_tokens: 6000, messages: [{ role: "user", content: rapportPrompt }] })),
-      callWithRetry(() => client.messages.create({ model: MODEL, max_tokens: 6000, messages: [{ role: "user", content: seoPrompt }] })),
+      callWithRetry(() => deepseek.messages.create({ model: MODEL, max_tokens: 16000, messages: [{ role: "user", content: rapportPrompt }] })),
+      callWithRetry(() => deepseek.messages.create({ model: MODEL, max_tokens: 16000, messages: [{ role: "user", content: seoPrompt }] })),
     ])
   } catch (e: any) {
-    return NextResponse.json({ error: `Anthropic API : ${e.message || e.toString()}`, model: MODEL }, { status: 500 })
+    return NextResponse.json({ error: `AI API : ${e.message || e.toString()}`, model: MODEL }, { status: 500 })
   }
 
   let rapport: any
   try {
-    rapport = parseJson((rapportMsg.content[0] as { type: string; text: string }).text)
+    rapport = parseJson(extractText(rapportMsg))
   } catch (e: any) {
-    return NextResponse.json({ error: `Parsing rapport Claude : ${e.message}`, raw: (rapportMsg.content[0] as any)?.text?.slice(0, 500) }, { status: 500 })
+    return NextResponse.json({ error: `Parsing rapport IA : ${e.message}`, raw: extractText(rapportMsg).slice(0, 500) }, { status: 500 })
   }
 
   let seo: any
   try {
-    seo = parseJson((seoMsg.content[0] as { type: string; text: string }).text)
+    seo = parseJson(extractText(seoMsg))
   } catch (e: any) {
-    return NextResponse.json({ error: `Parsing SEO Claude : ${e.message}`, raw: (seoMsg.content[0] as any)?.text?.slice(0, 500) }, { status: 500 })
+    return NextResponse.json({ error: `Parsing SEO IA : ${e.message}`, raw: extractText(seoMsg).slice(0, 500) }, { status: 500 })
   }
 
   // Normalisation : garantit que la sortie a toujours la forme attendue

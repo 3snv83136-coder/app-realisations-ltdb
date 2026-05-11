@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server"
-import Anthropic from "@anthropic-ai/sdk"
+import { deepseek } from "@/lib/deepseek"
 import { VILLES_VAR, findVilleByName, searchVilles } from "@/lib/villes-var"
 
-const MODEL = "claude-haiku-4-5-20251001"
+const MODEL = "deepseek-v4-flash"
 
 const TYPES = [
   'Débouchage canalisation',
@@ -50,11 +50,9 @@ export async function POST(req: NextRequest) {
   if (!transcription || typeof transcription !== 'string' || transcription.trim().length < 10) {
     return NextResponse.json({ error: 'Dictée trop courte' }, { status: 400 })
   }
-  if (!process.env.ANTHROPIC_API_KEY) {
-    return NextResponse.json({ error: 'ANTHROPIC_API_KEY non configurée' }, { status: 500 })
+  if (!process.env.DEEPSEEK_API_KEY) {
+    return NextResponse.json({ error: 'DEEPSEEK_API_KEY non configurée' }, { status: 500 })
   }
-
-  const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
   const prompt = `Tu es un assistant qui extrait des informations structurées depuis la dictée vocale d'un technicien plombier du Var (83).
 
@@ -81,9 +79,10 @@ Réponds UNIQUEMENT avec ce JSON (sans markdown, sans backticks) :
   // Fallback gracieux : si l'API est KO, on renvoie des champs vides pour ne pas bloquer le flow.
   let msg
   try {
-    msg = await callWithRetry(() => client.messages.create({
+    msg = await callWithRetry(() => deepseek.messages.create({
       model: MODEL,
-      max_tokens: 500,
+      max_tokens: 1500,
+      thinking: { type: "disabled" },
       messages: [{ role: "user", content: prompt }],
     }))
   } catch (e: any) {
@@ -100,7 +99,12 @@ Réponds UNIQUEMENT avec ce JSON (sans markdown, sans backticks) :
 
   let data: any
   try {
-    data = parseJson((msg.content[0] as { type: string; text: string }).text)
+    data = parseJson(
+      (msg.content as { type: string; text: string }[])
+        .filter(block => block.type === "text")
+        .map(block => block.text)
+        .join("")
+    )
   } catch (e: any) {
     return NextResponse.json({
       type_intervention: 'Débouchage canalisation',

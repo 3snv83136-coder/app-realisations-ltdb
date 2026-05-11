@@ -25,6 +25,7 @@ const TOOLS: Tool[] = [
   { href: '/clients',      emoji: '👥', label: 'Clients',      desc: 'Annuaire, dossier, envoi',    bg: 'bg-gradient-to-br from-teal-500 to-teal-700',           text: 'white' },
   { href: '/statistiques', emoji: '📊', label: 'Statistiques', desc: 'Canaux d’acquisition',        bg: 'bg-gradient-to-br from-rose-500 to-rose-700',           text: 'white' },
   { href: '/comptabilite', emoji: '💼', label: 'Comptabilité', desc: 'Bilan, FEC, exports',         bg: 'bg-gradient-to-br from-violet-500 to-violet-700',       text: 'white' },
+  { href: '/mail',         emoji: '📧', label: 'Mail',         desc: 'Emails envoyés',              bg: 'bg-gradient-to-br from-cyan-500 to-cyan-700',           text: 'white' },
 ]
 
 const DASHBOARD_CODE = '1004'
