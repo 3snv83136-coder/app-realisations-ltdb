@@ -248,6 +248,33 @@ export default function DevisPage() {
     router.push('/facture/nouvelle')
   }
 
+  function handleManualEntry() {
+    const today = new Date()
+    const seq = String(today.getHours()).padStart(2, '0') + String(today.getMinutes()).padStart(2, '0')
+    setDevis({
+      numero: `DV-${today.getFullYear()}${String(today.getMonth() + 1).padStart(2, '0')}${String(today.getDate()).padStart(2, '0')}-${seq}`,
+      date_devis: today.toISOString().split('T')[0],
+      validite_jours: 30,
+      objet: '',
+      lignes: [{ section: '1. Prestations', designation: '', description: '', qte: 1, unite: 'forfait', pu_ht: 0 }],
+      tva_taux: 10,
+      tva_reduite_attestation: true,
+      conditions: {
+        validite: '30 jours à compter de la date d\'établissement',
+        delai_execution: 'À convenir avec le client après validation',
+        duree_chantier: 'Selon accès et météo',
+        garanties: 'Garantie décennale sur ouvrages enterrés · Garantie de parfait achèvement 1 an',
+        assurance: 'RC Pro et décennale LTDB en cours de validité',
+        particulieres: '',
+      },
+      modalites: {
+        acompte_pct: 30,
+        modes_paiement: ['Chèque', 'Virement bancaire', 'Carte bancaire', 'Espèces (dans la limite légale)'],
+      },
+    })
+    setStep('preview')
+  }
+
   const total = devis?.lignes.reduce((s, l) => s + (Number(l.pu_ht) || 0) * (Number(l.qte) || 0), 0) || 0
   const tvaTaux = devis?.tva_taux ?? 10
   const tva = total * tvaTaux / 100
@@ -593,6 +620,21 @@ export default function DevisPage() {
         <div className="text-center">
           <h1 className="text-2xl font-black text-[#0e2a52]">Nouveau devis</h1>
           <p className="text-sm text-slate-500 mt-1">Dicte les travaux, les quantités et les prix — on s&apos;occupe du reste.</p>
+        </div>
+
+        {/* Saisie manuelle */}
+        <button
+          onClick={handleManualEntry}
+          className="w-full bg-white border-2 border-dashed border-amber-400 hover:border-amber-500 bg-amber-50/50 hover:bg-amber-50 text-amber-800 font-bold py-4 rounded-2xl transition-all flex items-center justify-center gap-2"
+        >
+          <span className="text-xl">✍️</span>
+          <span>Saisir un devis manuellement (sans dictée)</span>
+        </button>
+
+        <div className="flex items-center gap-3">
+          <div className="flex-1 border-t border-slate-200" />
+          <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">ou</span>
+          <div className="flex-1 border-t border-slate-200" />
         </div>
 
         {/* Dictée */}
