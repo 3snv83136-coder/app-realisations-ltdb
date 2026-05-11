@@ -96,13 +96,6 @@ export default function MailPage() {
       </nav>
 
       <main className="max-w-6xl mx-auto px-4 py-5 space-y-4">
-        {/* Stats */}
-        <div className="grid grid-cols-3 gap-3">
-          <StatCard label="Total docs" value={stats.total} color="bg-slate-600" />
-          <StatCard label="Envoyés" value={stats.envoyes} color="bg-emerald-600" />
-          <StatCard label="Non envoyés" value={stats.nonEnvoyes} color="bg-amber-500" />
-        </div>
-
         {/* Filtres */}
         <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4">
           <div className="flex flex-wrap gap-2 items-center">
@@ -123,6 +116,13 @@ export default function MailPage() {
               ↻ Rafraîchir
             </button>
           </div>
+        </div>
+
+        {/* Stats */}
+        <div className="grid grid-cols-3 gap-3">
+          <StatCard label="Total docs" value={stats.total} color="bg-slate-600" />
+          <StatCard label="Envoyés" value={stats.envoyes} color="bg-emerald-600" />
+          <StatCard label="Non envoyés" value={stats.nonEnvoyes} color="bg-amber-500" />
         </div>
 
         {error && (
