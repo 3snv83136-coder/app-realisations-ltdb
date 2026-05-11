@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation"
 import dynamic from "next/dynamic"
 import VoiceRecorder from "@/components/VoiceRecorder"
 import AppTabs from "@/components/AppTabs"
+import DevisTabs from "@/components/DevisTabs"
 import VilleCombobox from "@/components/VilleCombobox"
 import ClientAutocomplete from "@/components/ClientAutocomplete"
 import PrestationsCombobox from "@/components/PrestationsCombobox"
@@ -320,6 +321,7 @@ export default function DevisPage() {
             <AppTabs />
           </div>
         </header>
+        <DevisTabs current="nouveau" />
 
         <main className="max-w-4xl mx-auto px-4 py-6 space-y-4">
           {/* Header preview */}
@@ -615,6 +617,7 @@ export default function DevisPage() {
           <AppTabs />
         </div>
       </header>
+      <DevisTabs current="nouveau" />
 
       <main className="max-w-3xl mx-auto px-4 py-5 space-y-4">
         <div className="text-center">

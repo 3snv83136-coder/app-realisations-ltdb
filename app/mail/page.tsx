@@ -95,6 +95,10 @@ export default function MailPage() {
         </div>
       </nav>
 
+      <div className="max-w-6xl mx-auto px-4 pt-3">
+        <AppTabs />
+      </div>
+
       <main className="max-w-6xl mx-auto px-4 py-5 space-y-4">
         {/* Filtres */}
         <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4">
@@ -213,8 +217,6 @@ export default function MailPage() {
           </div>
         </section>
       </main>
-
-      <AppTabs />
     </div>
   )
 }
