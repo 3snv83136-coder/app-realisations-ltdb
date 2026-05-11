@@ -1,19 +1,19 @@
 import { NextResponse } from 'next/server'
-import Anthropic from '@anthropic-ai/sdk'
+import { deepseek } from '@/lib/deepseek'
 
 export const maxDuration = 30
 export const dynamic = 'force-dynamic'
 
 type Check = { ok: boolean; latencyMs?: number; detail?: string }
 
-async function checkAnthropic(): Promise<Check> {
-  if (!process.env.ANTHROPIC_API_KEY) return { ok: false, detail: 'ANTHROPIC_API_KEY missing' }
+async function checkDeepseek(): Promise<Check> {
+  if (!process.env.DEEPSEEK_API_KEY) return { ok: false, detail: 'DEEPSEEK_API_KEY missing' }
   const start = Date.now()
   try {
-    const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
-    await client.messages.create({
-      model: 'claude-haiku-4-5-20251001',
+    await deepseek.messages.create({
+      model: 'deepseek-v4-flash',
       max_tokens: 1,
+      thinking: { type: 'disabled' },
       messages: [{ role: 'user', content: 'ok' }],
     })
     return { ok: true, latencyMs: Date.now() - start }
@@ -72,14 +72,15 @@ async function checkResend(): Promise<Check> {
 }
 
 export async function GET() {
-  const [anthropic, backend, resend] = await Promise.all([checkAnthropic(), checkBackend(), checkResend()])
+  const [deepseekCheck, backend, resend] = await Promise.all([checkDeepseek(), checkBackend(), checkResend()])
 
+  // Clés JSON conservées (anthropic_api, env_anthropic_key) pour compat avec monitoring externe (Vercel, Uptime, etc.) — DeepSeek en interne
   const checks = {
-    env_anthropic_key: { ok: !!process.env.ANTHROPIC_API_KEY } as Check,
+    env_anthropic_key: { ok: !!process.env.DEEPSEEK_API_KEY } as Check,
     env_ltdb_api_url: { ok: !!process.env.LTDB_API_URL } as Check,
     env_nextauth_secret: { ok: !!process.env.NEXTAUTH_SECRET } as Check,
     env_resend_key: { ok: !!process.env.RESEND_API_KEY } as Check,
-    anthropic_api: anthropic,
+    anthropic_api: deepseekCheck,
     backend_api: backend,
     resend_api: resend,
   }
