@@ -130,6 +130,38 @@ export default function ClientsPage() {
     open: false, dossier: null, email: '', sending: false, status: null,
   })
 
+  const [deletingKey, setDeletingKey] = useState<string | null>(null)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
+
+  async function handleDeleteClient(d: ClientDossier) {
+    setDeleteError(null)
+    const id = d.client.id
+    if (!id) {
+      setDeleteError(`"${d.client.nom}" n'est pas un client enregistré en base (agrégé depuis des interventions sans fiche client) — rien à supprimer.`)
+      return
+    }
+    if (d.interventions.length > 0 || d.documents.length > 0) {
+      const parts: string[] = []
+      if (d.interventions.length > 0) parts.push(`${d.interventions.length} intervention(s)`)
+      if (d.documents.length > 0) parts.push(`${d.documents.length} document(s)`)
+      setDeleteError(`Impossible de supprimer "${d.client.nom}" : ${parts.join(' et ')} y ${d.interventions.length + d.documents.length > 1 ? 'sont' : 'est'} rattaché(s). Supprime-les d'abord depuis l'historique.`)
+      return
+    }
+    if (!confirm(`Supprimer définitivement le client "${d.client.nom}" ? Cette action est irréversible.`)) return
+    setDeletingKey(d.key)
+    try {
+      const res = await fetch(`/api/clients/${id}`, { method: 'DELETE' })
+      const body = await res.json().catch(() => null)
+      if (!res.ok) throw new Error(body?.error || `HTTP ${res.status}`)
+      setAllClients(prev => prev.filter(c => c.id !== id))
+      setExpanded(s => { const next = { ...s }; delete next[d.key]; return next })
+    } catch (e) {
+      setDeleteError(e instanceof Error ? e.message : 'Suppression échouée')
+    } finally {
+      setDeletingKey(null)
+    }
+  }
+
   useEffect(() => {
     let alive = true
     async function load() {
@@ -459,6 +491,12 @@ export default function ClientsPage() {
         {/* Liste */}
         {loading && <div className="text-center py-12 text-slate-500 text-sm">Chargement…</div>}
         {error && <div className="bg-red-50 border border-red-200 text-red-700 rounded-xl p-4 text-sm">{error}</div>}
+        {deleteError && (
+          <div className="bg-amber-50 border border-amber-200 text-amber-800 rounded-xl p-4 text-sm flex items-start justify-between gap-3 mb-3">
+            <span>⚠ {deleteError}</span>
+            <button onClick={() => setDeleteError(null)} className="text-amber-600 hover:text-amber-900 font-bold shrink-0">✕</button>
+          </div>
+        )}
         {!loading && !error && filtered.length === 0 && (
           <div className="text-center py-12 text-slate-500 text-sm">Aucun client ne correspond aux filtres.</div>
         )}
@@ -468,26 +506,38 @@ export default function ClientsPage() {
             const isOpen = !!expanded[d.key]
             return (
               <div key={d.key} className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
-                <button
-                  onClick={() => setExpanded(s => ({ ...s, [d.key]: !s[d.key] }))}
-                  className="w-full px-4 sm:px-5 py-4 flex items-center gap-4 hover:bg-slate-50 text-left"
-                >
-                  <div className="w-10 h-10 rounded-full bg-teal-100 text-teal-700 flex items-center justify-center font-bold text-sm shrink-0">
-                    {(d.client.nom || '?').slice(0, 2).toUpperCase()}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="font-semibold text-sm sm:text-base truncate">{d.client.nom}</div>
-                    <div className="text-xs text-slate-500 truncate">
-                      {[d.client.email, d.client.telephone, d.client.ville].filter(Boolean).join(' · ') || 'Aucun contact'}
+                <div className="flex items-stretch">
+                  <button
+                    onClick={() => setExpanded(s => ({ ...s, [d.key]: !s[d.key] }))}
+                    className="flex-1 min-w-0 px-4 sm:px-5 py-4 flex items-center gap-4 hover:bg-slate-50 text-left"
+                  >
+                    <div className="w-10 h-10 rounded-full bg-teal-100 text-teal-700 flex items-center justify-center font-bold text-sm shrink-0">
+                      {(d.client.nom || '?').slice(0, 2).toUpperCase()}
                     </div>
-                  </div>
-                  <div className="hidden sm:flex gap-3 text-xs text-slate-600">
-                    <Pill>{d.interventions.length} interv.</Pill>
-                    <Pill>{d.documents.length} doc.</Pill>
-                    {d.caTotal > 0 && <Pill className="bg-emerald-50 text-emerald-700 border-emerald-100">{fmtMontant(d.caTotal)}</Pill>}
-                  </div>
-                  <span className={`text-slate-400 transition-transform ${isOpen ? 'rotate-180' : ''}`}>▾</span>
-                </button>
+                    <div className="flex-1 min-w-0">
+                      <div className="font-semibold text-sm sm:text-base truncate">{d.client.nom}</div>
+                      <div className="text-xs text-slate-500 truncate">
+                        {[d.client.email, d.client.telephone, d.client.ville].filter(Boolean).join(' · ') || 'Aucun contact'}
+                      </div>
+                    </div>
+                    <div className="hidden sm:flex gap-3 text-xs text-slate-600">
+                      <Pill>{d.interventions.length} interv.</Pill>
+                      <Pill>{d.documents.length} doc.</Pill>
+                      {d.caTotal > 0 && <Pill className="bg-emerald-50 text-emerald-700 border-emerald-100">{fmtMontant(d.caTotal)}</Pill>}
+                    </div>
+                    <span className={`text-slate-400 transition-transform ${isOpen ? 'rotate-180' : ''}`}>▾</span>
+                  </button>
+                  <button
+                    onClick={() => handleDeleteClient(d)}
+                    disabled={deletingKey === d.key}
+                    title={d.interventions.length > 0 || d.documents.length > 0
+                      ? 'Ce client a des interventions/documents — supprime-les d\'abord'
+                      : 'Supprimer ce client'}
+                    className="px-3 sm:px-4 flex items-center justify-center text-slate-300 hover:text-red-600 hover:bg-red-50 border-l border-slate-100 transition-colors disabled:opacity-40"
+                  >
+                    {deletingKey === d.key ? '⏳' : '🗑'}
+                  </button>
+                </div>
 
                 {isOpen && (
                   <div className="border-t border-slate-100 bg-slate-50/50 p-4 sm:p-5 space-y-4">
@@ -501,7 +551,18 @@ export default function ClientsPage() {
                         disabled={!d.client.email && !d.documents.length && !d.interventions.length}
                         className="px-3 py-1.5 text-xs rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-40"
                       >✉ Envoyer le récap</button>
+                      <button
+                        onClick={() => handleDeleteClient(d)}
+                        disabled={deletingKey === d.key}
+                        className="px-3 py-1.5 text-xs rounded-lg bg-white border border-red-200 text-red-700 hover:bg-red-50 disabled:opacity-40"
+                      >{deletingKey === d.key ? '⏳ Suppression…' : '🗑 Supprimer ce client'}</button>
                     </div>
+                    {(d.interventions.length > 0 || d.documents.length > 0) && (
+                      <p className="text-[11px] text-slate-500">
+                        ⚠ Ce client a {d.interventions.length} intervention(s) et {d.documents.length} document(s) liés.
+                        Sa suppression est bloquée tant qu'ils existent.
+                      </p>
+                    )}
 
                     {(() => {
                       const rapports = d.interventions.filter(i => i.has_rapport)
