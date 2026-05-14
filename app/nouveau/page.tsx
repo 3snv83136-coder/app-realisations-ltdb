@@ -525,7 +525,16 @@ export default function NouveauPage() {
     const galleryHtml = photos.length > 1
       ? `<section class="content-block gallery-block"><h2>Photos de l'intervention</h2><p>Ces photos documentent les étapes clés sur site (avant, pendant, après).</p><div class="photo-grid">${photos.map((p, i) => `<figure class="photo-card"><img src="{PHOTO_${i + 1}_URL}" alt="${escapeHtml(p.legende || `Photo ${i + 1}`)}" loading="lazy"><figcaption>${escapeHtml(p.legende || `Photo ${i + 1}`)}</figcaption></figure>`).join('')}</div></section>`
       : ''
-    const contentWithContainers = `${seo.resume_rich_snippet ? `<section class="content-block resume-block"><h2>Resume de l'intervention</h2><p>${escapeHtml(seo.resume_rich_snippet)}</p></section>` : ''}${seo.contenu_principal || ''}${galleryHtml}`
+    // FAQ intégrée DIRECTEMENT dans le HTML de contenu : le template Django
+    // n'affiche que `content`, donc la FAQ doit y être (sinon elle n'apparaît
+    // pas sur la page publiée, même si elle part aussi dans faq_json/seo_json).
+    const faqHtml = Array.isArray(seo.faq) && seo.faq.length > 0
+      ? `<section class="content-block faq-block"><h2>Questions fréquentes</h2>${seo.faq.map((f: any) => `<details class="faq-item"><summary>${escapeHtml(f?.question || '')}</summary><div class="faq-answer"><p>${escapeHtml(f?.reponse || '')}</p></div></details>`).join('')}</section>`
+      : ''
+    const resumeHtml = seo.resume_rich_snippet
+      ? `<section class="content-block resume-block"><h2>Résumé de l'intervention</h2><p>${escapeHtml(seo.resume_rich_snippet)}</p></section>`
+      : ''
+    const contentWithContainers = `${resumeHtml}${seo.contenu_principal || ''}${galleryHtml}${faqHtml}`
     formData.append('title', seo.titre_h1)
     formData.append('slug', seo.slug || '')
     formData.append('service_type', typeIntervention)

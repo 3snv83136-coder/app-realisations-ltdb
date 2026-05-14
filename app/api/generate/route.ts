@@ -230,13 +230,15 @@ Les 3 champs "titre_h1", "meta_description" et "resume_rich_snippet" doivent pou
 - 8-12 mots-clés longue traîne, vrais termes de recherche humains.
 - GEO / citabilité IA : phrases courtes, vérifiables, ancrage local précis, style factuel.
 
-Réponds UNIQUEMENT avec ce JSON (sans markdown, sans backticks) :
+Réponds UNIQUEMENT avec ce JSON (sans markdown, sans backticks).
+IMPORTANT : respecte EXACTEMENT cet ordre de clés. "contenu_principal" est
+volumineux et vient en DERNIER — les champs courts (faq, related_services)
+sont placés avant pour ne jamais être perdus si la réponse est longue.
 {
   "titre_h1": "titre unique et spécifique — ne pas copier d'autres pages",
   "meta_description": "description unique avec angle distinctif",
   "resume_rich_snippet": "résumé court 2-3 phrases, factuel, citable, sans promo excessive",
   "meta_keywords": ["ville+service","longue traîne 1","longue traîne 2","..."],
-  "contenu_principal": "<section class=\\"content-block\\"><h2>Contexte de l'intervention</h2><p>...</p></section><section class=\\"content-block\\"><h2>Diagnostic technique</h2><p>...<a href=\\"${SITE}/debouchage/...\\">lien</a>...</p><div class=\\"info-box\\"><strong>Point clé :</strong> ...</div></section><section class=\\"content-block\\"><h2>Travaux réalisés</h2><h3>Étape 1 — ...</h3><p>...</p><div class=\\"checklist-box\\"><ul><li>...</li></ul></div></section><section class=\\"content-block\\"><h2>Recommandations</h2><p>...</p></section>",
   "faq": [
     {"question":"...","reponse":"..."},
     {"question":"...","reponse":"..."},
@@ -249,7 +251,8 @@ Réponds UNIQUEMENT avec ce JSON (sans markdown, sans backticks) :
     {"label":"...","url":"${SITE}/debouchage/..."},
     {"label":"...","url":"${SITE}/debouchage/..."},
     {"label":"...","url":"${SITE}/debouchage/..."}
-  ]
+  ],
+  "contenu_principal": "<section class=\\"content-block\\"><h2>Contexte de l'intervention</h2><p>...</p></section><section class=\\"content-block\\"><h2>Diagnostic technique</h2><p>...<a href=\\"${SITE}/debouchage/...\\">lien</a>...</p><div class=\\"info-box\\"><strong>Point clé :</strong> ...</div></section><section class=\\"content-block\\"><h2>Travaux réalisés</h2><h3>Étape 1 — ...</h3><p>...</p><div class=\\"checklist-box\\"><ul><li>...</li></ul></div></section><section class=\\"content-block\\"><h2>Recommandations</h2><p>...</p></section>"
 }`
 
   // ===== Exécution parallèle =====
