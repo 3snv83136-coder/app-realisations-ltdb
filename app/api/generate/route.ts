@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { deepseek } from "@/lib/deepseek"
+import { parseAiJson } from "@/lib/parseAiJson"
 
 export const maxDuration = 300
 
@@ -41,61 +42,6 @@ async function callWithRetry<T>(fn: () => Promise<T>, maxAttempts = 3): Promise<
     }
   }
   throw lastErr
-}
-
-function parseJson(raw: string) {
-  let cleaned = raw.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '')
-  // Premier essai
-  try { return JSON.parse(cleaned) } catch {}
-  // Si troncature : tenter de couper au dernier objet/tableau valide
-  // Extrait le plus grand préfixe qui parse
-  const lastBrace = Math.max(cleaned.lastIndexOf('}'), cleaned.lastIndexOf(']'))
-  if (lastBrace > 0) {
-    for (let i = lastBrace; i > 0; i--) {
-      const attempt = cleaned.slice(0, i + 1)
-      try { return JSON.parse(attempt) } catch {}
-    }
-  }
-  // Tentative plus agressive : fermer les chaînes ouvertes puis les objets/tableaux
-  try {
-    const repaired = repairJson(cleaned)
-    return JSON.parse(repaired)
-  } catch {}
-  throw new Error('JSON invalide et irréparable')
-}
-
-function repairJson(s: string): string {
-  // Ferme les guillemets non terminés en fin de chaîne
-  let result = s
-  // Compte la parité des guillemets non échappés
-  let inString = false
-  let escaped = false
-  let lastOpenString = -1
-  for (let i = 0; i < result.length; i++) {
-    const c = result[i]
-    if (escaped) { escaped = false; continue }
-    if (c === '\\') { escaped = true; continue }
-    if (c === '"') {
-      if (inString) { inString = false } else { inString = true; lastOpenString = i }
-    }
-  }
-  if (inString) result = result + '"'
-  // Ferme les tableaux et objets ouverts
-  let opens = 0, closes = 0, bOpens = 0, bCloses = 0
-  inString = false; escaped = false
-  for (const c of result) {
-    if (escaped) { escaped = false; continue }
-    if (c === '\\') { escaped = true; continue }
-    if (c === '"') { inString = !inString; continue }
-    if (inString) continue
-    if (c === '{') opens++
-    if (c === '}') closes++
-    if (c === '[') bOpens++
-    if (c === ']') bCloses++
-  }
-  while (bCloses < bOpens) { result += ']'; bCloses++ }
-  while (closes < opens) { result += '}'; closes++ }
-  return result
 }
 
 function extractText(msg: { content: { type: string; text?: string }[] }): string {
@@ -319,9 +265,17 @@ Réponds UNIQUEMENT avec ce JSON (sans markdown, sans backticks) :
 
   let rapport: any
   try {
-    rapport = parseJson(extractText(rapportMsg))
+    rapport = parseAiJson(extractText(rapportMsg))
   } catch (e: any) {
-    return NextResponse.json({ error: `Parsing rapport IA : ${e.message}`, raw: extractText(rapportMsg).slice(0, 500) }, { status: 500 })
+    const rawFull = extractText(rapportMsg)
+    // Log complet côté serveur pour diagnostic (la réponse HTTP reste tronquée)
+    console.error('[generate] Parsing rapport IA échoué', {
+      error: e.message,
+      stop_reason: (rapportMsg as any)?.stop_reason,
+      rawLength: rawFull.length,
+      raw: rawFull,
+    })
+    return NextResponse.json({ error: `Parsing rapport IA : ${e.message}`, raw: rawFull.slice(0, 500) }, { status: 500 })
   }
 
   // Le SEO sert uniquement à la publication site (page /nouveau).
@@ -330,7 +284,7 @@ Réponds UNIQUEMENT avec ce JSON (sans markdown, sans backticks) :
   let seo: any = {}
   let seoWarning: string | null = null
   try {
-    seo = parseJson(extractText(seoMsg))
+    seo = parseAiJson(extractText(seoMsg))
   } catch (e: any) {
     seoWarning = `Parsing SEO IA : ${e.message}. Le SEO sera vide — la publication site nécessitera un édit manuel.`
     console.error('[generate] SEO parse failed', { error: e.message, raw: extractText(seoMsg).slice(0, 500) })
