@@ -820,6 +820,7 @@ function StepEnvoi({ interv, client, onSent, onError }: {
 }) {
   const router = useRouter()
   const [email, setEmail] = useState(client?.email || '')
+  const [nom, setNom] = useState(client?.nom || '')
   const [sending, setSending] = useState(false)
   const [sendingStep, setSendingStep] = useState<string>('')
   // Ref guard contre la double-soumission : couvre le gap entre le clic
@@ -837,6 +838,10 @@ function StepEnvoi({ interv, client, onSent, onError }: {
       if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
         throw new Error('Email client invalide')
       }
+      const clientNom = nom.trim()
+      if (!clientNom) {
+        throw new Error('Saisis le nom du client avant d\'envoyer.')
+      }
 
       // ── 1. Refresh complet depuis le serveur (évite tout state stale) ──
       const intFresh = await fetchJsonWithRetry<{ intervention: Intervention; client: Client; technicien: { nom?: string } | null }>(
@@ -847,14 +852,27 @@ function StepEnvoi({ interv, client, onSent, onError }: {
       const freshClient = intFresh.client
       const technicienNom = intFresh.technicien?.nom || 'Technicien'
 
-      // Validation stricte : ces deux infos doivent être présentes côté DB,
-      // sinon le PDF rapport sortira anonyme (cause du bug "rapport sans nom").
-      const clientNom = (freshClient?.nom || '').trim()
-      if (!clientNom) {
-        throw new Error('Nom client manquant en base. Modifie la fiche client avant d\'envoyer.')
-      }
       if (!freshInterv.rapport_json || Object.keys(freshInterv.rapport_json).length === 0) {
         throw new Error('Rapport non sauvegardé. Reviens à l\'étape rapport.')
+      }
+
+      // ── 1bis. Synchronise la fiche client si le nom/email a été saisi ou modifié ──
+      // (cas fréquent : intervention créée sans client complet — le technicien
+      // complète directement ici plutôt que de quitter le wizard).
+      const clientId = freshClient?.id || interv.client_id
+      const needsClientUpdate = clientId && (
+        (freshClient?.nom || '').trim() !== clientNom ||
+        (freshClient?.email || '').trim() !== email.trim()
+      )
+      if (needsClientUpdate) {
+        setSendingStep('👤 Mise à jour de la fiche client…')
+        await fetchJsonWithRetry(`/api/clients/${clientId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ nom: clientNom, email: email.trim() }),
+          retries: 3,
+          timeoutMs: 15_000,
+        })
       }
 
       // ── 2. Charge la dernière facture (payload complet pour le PDF) ──
@@ -999,6 +1017,20 @@ function StepEnvoi({ interv, client, onSent, onError }: {
 
       <div className="bg-white rounded-2xl border-2 border-slate-200 p-5 space-y-3">
         <div>
+          <label className="block text-xs uppercase tracking-wider text-slate-500 font-bold mb-1">Nom du client</label>
+          <input
+            type="text"
+            value={nom}
+            onChange={e => setNom(e.target.value)}
+            placeholder="Nom du client ou de la copropriété"
+            className="w-full border-2 border-slate-200 focus:border-blue-500 outline-none rounded-xl px-4 py-3 text-base"
+          />
+          {!nom.trim() && (
+            <p className="text-xs text-amber-600 font-semibold mt-1">⚠ Obligatoire — apparaît sur le rapport et la facture</p>
+          )}
+        </div>
+
+        <div>
           <label className="block text-xs uppercase tracking-wider text-slate-500 font-bold mb-1">Email client</label>
           <input
             type="email"
@@ -1021,7 +1053,7 @@ function StepEnvoi({ interv, client, onSent, onError }: {
         <button
           type="button"
           onClick={handleSend}
-          disabled={sending || !email}
+          disabled={sending || !email || !nom.trim()}
           className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white rounded-2xl py-5 font-black text-lg shadow-lg transition"
         >
           {sending ? (sendingStep || '⚙ Envoi en cours…') : '✉ Tout envoyer au client'}
