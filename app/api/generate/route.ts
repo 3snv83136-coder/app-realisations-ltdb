@@ -258,7 +258,7 @@ Les 3 champs "titre_h1", "meta_description" et "resume_rich_snippet" doivent pou
   ❌ "Débouchage canalisation"                            (générique, ni ville ni angle)
   Interdits stricts : majuscules en bloc, "!", "?", "24/7", "urgent", "expert", "n°1", chiffres marketing.
 
-- Meta description (champ "meta_description") : 140-160 caractères, format RÉPONSE-D'ABORD.
+- Meta description (champ "meta_description") : 150 à 160 caractères MAXIMUM (jamais plus de 160), format RÉPONSE-D'ABORD.
   Les LLMs citent surtout les 12-15 PREMIERS MOTS — donc l'info clé doit y être.
   Structure en 2 phrases :
     Phrase 1 (60-85 car.) — LE QUOI + OÙ : action principale au passé, lieu précis, élément distinctif.
@@ -324,11 +324,16 @@ Réponds UNIQUEMENT avec ce JSON (sans markdown, sans backticks) :
     return NextResponse.json({ error: `Parsing rapport IA : ${e.message}`, raw: extractText(rapportMsg).slice(0, 500) }, { status: 500 })
   }
 
-  let seo: any
+  // Le SEO sert uniquement à la publication site (page /nouveau).
+  // Si le parsing échoue, on dégrade gracieusement avec seo={} + warning
+  // pour ne pas bloquer le wizard Mode Terrain qui n'en a pas besoin.
+  let seo: any = {}
+  let seoWarning: string | null = null
   try {
     seo = parseJson(extractText(seoMsg))
   } catch (e: any) {
-    return NextResponse.json({ error: `Parsing SEO IA : ${e.message}`, raw: extractText(seoMsg).slice(0, 500) }, { status: 500 })
+    seoWarning = `Parsing SEO IA : ${e.message}. Le SEO sera vide — la publication site nécessitera un édit manuel.`
+    console.error('[generate] SEO parse failed', { error: e.message, raw: extractText(seoMsg).slice(0, 500) })
   }
 
   // Normalisation : garantit que la sortie a toujours la forme attendue
@@ -480,5 +485,5 @@ Réponds UNIQUEMENT avec ce JSON (sans markdown, sans backticks) :
   }
   seo.page_url = pageUrl
 
-  return NextResponse.json({ rapport, seo })
+  return NextResponse.json({ rapport, seo, ...(seoWarning ? { warning: seoWarning } : {}) })
 }

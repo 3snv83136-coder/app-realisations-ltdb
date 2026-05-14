@@ -1,0 +1,1142 @@
+'use client'
+import { useEffect, useState, useRef } from "react"
+import Link from "next/link"
+import { useRouter } from "next/navigation"
+import dynamic from "next/dynamic"
+import TerrainStepper from "@/components/terrain/TerrainStepper"
+import TerrainPhotoCapture from "@/components/terrain/TerrainPhotoCapture"
+import TerrainOceanLoader from "@/components/terrain/TerrainOceanLoader"
+import { proxyImageUrl } from "@/lib/proxyImageUrl"
+import { fetchJsonWithRetry, fetchWithRetry } from "@/lib/fetchWithRetry"
+
+const VoiceRecorder = dynamic(() => import("@/components/VoiceRecorder"), { ssr: false })
+
+type Intervention = {
+  id: string
+  reference: string | null
+  client_id: string | null
+  technicien_id: string | null
+  agence: string | null
+  type_intervention: string | null
+  adresse_chantier: string | null
+  ville: string | null
+  code_postal: string | null
+  date_prevue: string | null
+  date_realisee: string | null
+  statut: string
+  terrain_step: number
+  heure_debut_reelle: string | null
+  heure_fin_reelle: string | null
+  mail_envoye_at: string | null
+  rapport_json: any
+  photos_urls: string[] | null
+  photos_legendes: string[] | null
+  publie_slug: string | null
+  prix_prevu: number | null
+}
+
+type Client = { id: string; nom: string | null; email: string | null; telephone: string | null } | null
+
+export default function TerrainPage({ params }: { params: { id: string } }) {
+  const router = useRouter()
+  const [interv, setInterv] = useState<Intervention | null>(null)
+  const [client, setClient] = useState<Client>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+
+  async function load() {
+    setError('')
+    try {
+      const res = await fetch(`/api/interventions/${params.id}`, { cache: 'no-store' })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`)
+      setInterv(data.intervention)
+      setClient(data.client)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => { load() }, [params.id])
+
+  async function setStep(step: number) {
+    setError('')
+    try {
+      const res = await fetch(`/api/interventions/${params.id}/terrain-step`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'set', step }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`)
+      setInterv(data.intervention)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    }
+  }
+
+  async function callTerrainAction(action: 'debut' | 'fin') {
+    setError('')
+    try {
+      const res = await fetch(`/api/interventions/${params.id}/terrain-step`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`)
+      setInterv(data.intervention)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    }
+  }
+
+  if (loading) {
+    return <div className="min-h-screen bg-slate-50 flex items-center justify-center text-slate-500">Chargement…</div>
+  }
+  if (error || !interv) {
+    return (
+      <div className="min-h-screen bg-slate-50 p-6">
+        <div className="bg-red-50 border border-red-200 text-red-700 p-4 rounded-xl">{error || 'Intervention introuvable'}</div>
+        <Link href="/planning" className="inline-block mt-4 text-blue-600 hover:underline font-semibold">← Retour au planning</Link>
+      </div>
+    )
+  }
+
+  const step = interv.terrain_step ?? 0
+
+  return (
+    <div className="min-h-screen bg-slate-50 pb-24">
+      {/* Header sticky */}
+      <nav className="bg-[#0e2a52] text-white px-4 py-3 sticky top-0 z-30 shadow-lg">
+        <div className="max-w-4xl mx-auto flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <div className="font-black text-base truncate">{interv.type_intervention || 'Intervention'}</div>
+            <div className="text-[11px] opacity-70 truncate">
+              {client?.nom || 'Client inconnu'} · {interv.ville || '—'}
+            </div>
+          </div>
+          <Link href={`/intervention/${interv.id}`} className="text-xs font-semibold bg-white/10 hover:bg-white/20 px-3 py-2 rounded-lg transition flex-shrink-0">
+            ✕ Quitter
+          </Link>
+        </div>
+      </nav>
+
+      <TerrainStepper current={step} onStepClick={setStep} />
+
+      <main className="max-w-2xl mx-auto px-4 py-6">
+        {error && (
+          <div className="bg-red-50 border-2 border-red-200 text-red-700 p-3 rounded-xl text-sm font-semibold mb-4">
+            ⚠ {error}
+          </div>
+        )}
+
+        {step === 0 && <StepPhotoAvant interv={interv} onDone={load} onError={setError} />}
+        {step === 1 && <StepDemarrer interv={interv} onAction={() => callTerrainAction('debut')} />}
+        {step === 2 && <StepEnCours interv={interv} onPhotoUploaded={load} onTerminer={() => callTerrainAction('fin')} onError={setError} onSkipToRapport={() => setStep(3)} />}
+        {step === 3 && <StepRapport interv={interv} onSaved={load} onError={setError} />}
+        {step === 4 && <StepFacture interv={interv} client={client} onCreated={load} onError={setError} />}
+        {step === 5 && <StepEnvoi interv={interv} client={client} onSent={load} onError={setError} />}
+        {step === 6 && <StepPublier interv={interv} onDone={() => setStep(7)} onError={setError} />}
+        {step >= 7 && <StepTermine interv={interv} />}
+      </main>
+    </div>
+  )
+}
+
+// ============================================================
+// ÉTAPE 0 — Photo avant
+// ============================================================
+function StepPhotoAvant({ interv, onDone, onError }: { interv: Intervention; onDone: () => void; onError: (e: string) => void }) {
+  return (
+    <section className="space-y-5">
+      <header className="text-center">
+        <div className="text-5xl mb-2">📷</div>
+        <h1 className="text-2xl font-black text-slate-800">Photo avant intervention</h1>
+        <p className="text-sm text-slate-600 mt-2">Capture l&apos;état initial du problème avant de commencer.</p>
+      </header>
+
+      <TerrainPhotoCapture
+        interventionId={interv.id}
+        legendeDefaut="Photo avant intervention"
+        titre="Prendre la photo AVANT"
+        onUploaded={onDone}
+      />
+
+      <div className="text-center pt-2">
+        <button
+          type="button"
+          onClick={onDone}
+          className="text-xs text-slate-500 hover:text-slate-700 underline"
+        >
+          Passer cette étape
+        </button>
+      </div>
+    </section>
+  )
+}
+
+// ============================================================
+// ÉTAPE 1 — Démarrer
+// ============================================================
+function StepDemarrer({ interv, onAction }: { interv: Intervention; onAction: () => void }) {
+  return (
+    <section className="space-y-6 text-center">
+      <header>
+        <div className="text-6xl mb-2">▶</div>
+        <h1 className="text-2xl font-black text-slate-800">Prêt à démarrer</h1>
+        <p className="text-sm text-slate-600 mt-2">Lance le chronomètre quand tu commences à travailler.</p>
+      </header>
+
+      {interv.photos_urls && interv.photos_urls[0] && (
+        <div className="rounded-xl overflow-hidden border-2 border-slate-200">
+          <img src={interv.photos_urls[0]} alt="Avant" className="w-full max-h-60 object-cover" />
+          <div className="text-xs text-slate-500 py-1 bg-slate-100">📷 Photo avant enregistrée</div>
+        </div>
+      )}
+
+      <button
+        type="button"
+        onClick={onAction}
+        className="w-full bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl py-6 font-black text-xl shadow-lg transition"
+      >
+        ▶ Démarrer l&apos;intervention
+      </button>
+    </section>
+  )
+}
+
+// ============================================================
+// ÉTAPE 2 — En cours (chrono + photo après + terminer)
+// ============================================================
+function StepEnCours({ interv, onPhotoUploaded, onTerminer, onError, onSkipToRapport }: {
+  interv: Intervention
+  onPhotoUploaded: () => void
+  onTerminer: () => void
+  onError: (e: string) => void
+  onSkipToRapport: () => void
+}) {
+  const [elapsed, setElapsed] = useState('')
+
+  useEffect(() => {
+    if (!interv.heure_debut_reelle) return
+    const start = new Date(interv.heure_debut_reelle).getTime()
+    const tick = () => {
+      const diff = Date.now() - start
+      const m = Math.floor(diff / 60000)
+      const s = Math.floor((diff % 60000) / 1000)
+      setElapsed(`${m}min ${String(s).padStart(2, '0')}s`)
+    }
+    tick()
+    const id = setInterval(tick, 1000)
+    return () => clearInterval(id)
+  }, [interv.heure_debut_reelle])
+
+  const hasPhotoApres = (interv.photos_urls?.length ?? 0) >= 2
+
+  return (
+    <section className="space-y-5">
+      <header className="text-center bg-amber-50 border-2 border-amber-200 rounded-2xl py-6 px-4">
+        <div className="text-3xl mb-1">⏱</div>
+        <div className="text-sm uppercase tracking-wider text-amber-700 font-bold">Intervention en cours</div>
+        <div className="text-4xl font-black text-amber-900 mt-2 tabular-nums">{elapsed || '—'}</div>
+      </header>
+
+      <div className="bg-white rounded-2xl border-2 border-slate-200 p-5 space-y-4">
+        <div>
+          <h2 className="font-bold text-slate-800">📷 Photo après l&apos;intervention</h2>
+          <p className="text-xs text-slate-500 mt-1">Capture le résultat du travail effectué.</p>
+        </div>
+        {!hasPhotoApres ? (
+          <TerrainPhotoCapture
+            interventionId={interv.id}
+            legendeDefaut="Photo après intervention"
+            titre="Photo APRÈS"
+            onUploaded={onPhotoUploaded}
+          />
+        ) : (
+          <div className="rounded-xl overflow-hidden border-2 border-emerald-200">
+            <img src={interv.photos_urls![1]} alt="Après" className="w-full max-h-60 object-cover" />
+            <div className="text-xs text-emerald-700 py-1 bg-emerald-50 font-bold">✓ Photo après enregistrée</div>
+          </div>
+        )}
+      </div>
+
+      <div className="flex gap-3">
+        <button
+          type="button"
+          onClick={onTerminer}
+          className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl py-4 font-black text-base shadow-lg transition"
+        >
+          ✓ Terminer le travail
+        </button>
+        {hasPhotoApres && (
+          <button
+            type="button"
+            onClick={onSkipToRapport}
+            className="bg-blue-600 hover:bg-blue-700 text-white rounded-2xl py-4 px-5 font-bold text-sm shadow-lg transition"
+          >
+            🎤 →
+          </button>
+        )}
+      </div>
+    </section>
+  )
+}
+
+// ============================================================
+// ÉTAPE 3 — Rapport (dictée + génération + preview + validation)
+// ============================================================
+function StepRapport({ interv, onSaved, onError }: { interv: Intervention; onSaved: () => void; onError: (e: string) => void }) {
+  const [transcription, setTranscription] = useState('')
+  const [generating, setGenerating] = useState(false)
+  // rapportPreview = rapport généré en mémoire, pas encore validé/sauvegardé
+  const [rapportPreview, setRapportPreview] = useState<any | null>(null)
+  const [seoPreview, setSeoPreview] = useState<any | null>(null)
+  const [saving, setSaving] = useState(false)
+
+  async function handleGenerate() {
+    if (!transcription || transcription.trim().length < 20) {
+      onError('Dicte ou tape au moins quelques phrases.')
+      return
+    }
+    setGenerating(true)
+    try {
+      const genRes = await fetch('/api/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          transcription,
+          type_intervention: interv.type_intervention || 'Intervention',
+          ville: interv.ville || '',
+          code_postal: interv.code_postal || '',
+        }),
+        signal: AbortSignal.timeout(180_000),
+      })
+      const genData = await genRes.json()
+      if (!genRes.ok) throw new Error(genData.error || 'Génération échouée')
+
+      setRapportPreview(genData.rapport)
+      setSeoPreview(genData.seo)
+    } catch (e) {
+      onError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setGenerating(false)
+    }
+  }
+
+  async function handleValidate() {
+    if (!rapportPreview) return
+    setSaving(true)
+    try {
+      const saveRes = await fetch('/api/save-rapport', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          interventionId: interv.id,
+          rapport: rapportPreview,
+          seo: seoPreview,
+          transcription,
+          typeIntervention: interv.type_intervention,
+          dateIntervention: interv.date_prevue,
+        }),
+      })
+      const saveData = await saveRes.json()
+      if (!saveRes.ok) throw new Error(saveData.error || 'Sauvegarde échouée')
+
+      // Bump step à 4
+      await fetch(`/api/interventions/${interv.id}/terrain-step`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'set', step: 4 }),
+      })
+
+      onSaved()
+    } catch (e) {
+      onError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  function handleRegenerate() {
+    setRapportPreview(null)
+    setSeoPreview(null)
+  }
+
+  // ── Vue 1 : preview du rapport généré, en attente de validation ──
+  if (rapportPreview) {
+    return (
+      <section className="space-y-5">
+        <header className="text-center">
+          <div className="text-5xl mb-2">📄</div>
+          <h1 className="text-2xl font-black text-slate-800">Aperçu du rapport</h1>
+          <p className="text-sm text-slate-600 mt-2">Relis avant de valider. Tu peux re-dicter ou regénérer si besoin.</p>
+        </header>
+
+        <div className="bg-white rounded-2xl border-2 border-slate-200 p-5 space-y-4">
+          {seoPreview?.titre_h1 && (
+            <div>
+              <div className="text-[11px] uppercase tracking-wider text-slate-500 font-bold mb-1">Titre</div>
+              <h2 className="text-lg font-black text-slate-800">{seoPreview.titre_h1}</h2>
+            </div>
+          )}
+
+          {rapportPreview.objet && (
+            <PreviewField label="Objet" value={rapportPreview.objet} />
+          )}
+          {rapportPreview.diagnostic && (
+            <PreviewField label="Diagnostic" value={rapportPreview.diagnostic} />
+          )}
+          {rapportPreview.travaux_realises && (
+            <PreviewField label="Travaux réalisés" value={rapportPreview.travaux_realises} />
+          )}
+          {rapportPreview.recommandations && (
+            <PreviewField label="Recommandations" value={rapportPreview.recommandations} />
+          )}
+          {rapportPreview.commentaire_technicien && (
+            <PreviewField label="Commentaire technicien" value={rapportPreview.commentaire_technicien} />
+          )}
+
+          {Array.isArray(rapportPreview.devis?.lignes) && rapportPreview.devis.lignes.length > 0 && (
+            <div className="border-t border-slate-200 pt-4">
+              <div className="text-[11px] uppercase tracking-wider text-slate-500 font-bold mb-2">Devis détecté</div>
+              <ul className="space-y-1 text-sm">
+                {rapportPreview.devis.lignes.map((l: any, i: number) => (
+                  <li key={i} className="flex justify-between gap-2">
+                    <span className="text-slate-700">{l.designation}</span>
+                    <span className="text-slate-500 tabular-nums">
+                      {l.qte ? `${l.qte} × ` : ''}{Number(l.pu_ht || 0).toFixed(2)} €
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+
+        <div className="flex gap-3">
+          <button
+            type="button"
+            onClick={handleRegenerate}
+            disabled={saving}
+            className="flex-1 bg-white border-2 border-slate-300 hover:bg-slate-50 text-slate-700 rounded-2xl py-4 font-bold text-sm disabled:opacity-50 transition"
+          >
+            ↻ Re-dicter
+          </button>
+          <button
+            type="button"
+            onClick={handleValidate}
+            disabled={saving}
+            className="flex-[2] bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white rounded-2xl py-4 font-black text-base shadow-lg transition"
+          >
+            {saving ? '⚙ Enregistrement…' : '✓ Valider le rapport'}
+          </button>
+        </div>
+      </section>
+    )
+  }
+
+  // ── Vue 2bis : génération en cours → loader ludique ──
+  if (generating) {
+    return (
+      <section className="space-y-5">
+        <header className="text-center">
+          <div className="text-5xl mb-2">✨</div>
+          <h1 className="text-2xl font-black text-slate-800">Le rapport se rédige…</h1>
+          <p className="text-sm text-slate-600 mt-2">Patiente quelques instants, on cingle vers le soleil.</p>
+        </header>
+
+        <TerrainOceanLoader />
+
+        <p className="text-xs text-center text-slate-400 italic">
+          La génération prend généralement 30 à 90 secondes. Ne ferme pas la page.
+        </p>
+      </section>
+    )
+  }
+
+  // ── Vue 2 : dictée initiale ──
+  return (
+    <section className="space-y-5">
+      <header className="text-center">
+        <div className="text-5xl mb-2">🎤</div>
+        <h1 className="text-2xl font-black text-slate-800">Dicte le rapport</h1>
+        <p className="text-sm text-slate-600 mt-2">Décris ce que tu as fait, ce que tu as trouvé, les prestations et les prix.</p>
+      </header>
+
+      <div className="bg-white rounded-2xl border-2 border-slate-200 p-4 space-y-4">
+        <VoiceRecorder onTranscription={(text) => setTranscription(prev => (prev ? prev + ' ' : '') + text)} />
+        <textarea
+          value={transcription}
+          onChange={e => setTranscription(e.target.value)}
+          rows={8}
+          placeholder="Ou tape ici directement le texte du rapport…"
+          className="w-full border-2 border-slate-200 focus:border-blue-500 outline-none rounded-xl px-4 py-3 text-sm resize-y"
+        />
+        <p className="text-[11px] text-slate-400">{transcription.length} caractères</p>
+      </div>
+
+      <button
+        type="button"
+        onClick={handleGenerate}
+        disabled={transcription.trim().length < 20}
+        className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-2xl py-5 font-black text-lg shadow-lg transition"
+      >
+        ✨ Générer le rapport
+      </button>
+    </section>
+  )
+}
+
+function PreviewField({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <div className="text-[11px] uppercase tracking-wider text-slate-500 font-bold mb-1">{label}</div>
+      <p className="text-sm text-slate-700 whitespace-pre-wrap">{value}</p>
+    </div>
+  )
+}
+
+// ============================================================
+// ÉTAPE 4 — Facture (éditeur complet : lignes, TVA 0/10/20, preview)
+// ============================================================
+type LigneFacture = {
+  designation: string
+  description: string
+  qte: number
+  unite: string
+  pu_ht: number
+  inclus: boolean
+}
+
+const UNITES = ['forfait', 'h', 'u', 'ml', 'm²', 'm³'] as const
+
+function StepFacture({ interv, client, onCreated, onError }: {
+  interv: Intervention
+  client: Client
+  onCreated: () => void
+  onError: (e: string) => void
+}) {
+  const [lignes, setLignes] = useState<LigneFacture[]>([])
+  const [objet, setObjet] = useState('')
+  const [modeReglement, setModeReglement] = useState('')
+  const [echeance, setEcheance] = useState<'Réglée' | 'À réception' | '30 jours'>('Réglée')
+  const [tva, setTva] = useState<0 | 10 | 20>(10)
+  const [observations, setObservations] = useState('')
+  const [recommandation, setRecommandation] = useState('')
+  const [loading, setLoading] = useState(true)
+  const [creating, setCreating] = useState(false)
+  const [numero, setNumero] = useState('')
+
+  // Charge le prefill au mount
+  useEffect(() => {
+    let cancelled = false
+    async function load() {
+      try {
+        const res = await fetch(`/api/interventions/${interv.id}/facture-preview`, { cache: 'no-store' })
+        const data = await res.json()
+        if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`)
+        if (cancelled) return
+
+        const facture = data.prefill?.facture
+        if (facture) {
+          setLignes((facture.lignes || []).map((l: any) => ({
+            designation: l.designation || '',
+            description: l.description || '',
+            qte: Number(l.qte) || 1,
+            unite: l.unite || 'forfait',
+            pu_ht: Number(l.pu_ht) || 0,
+            inclus: l.inclus === true,
+          })))
+          setObjet(facture.objet || '')
+          setTva((facture.tva_taux === 0 || facture.tva_taux === 20) ? facture.tva_taux : 10)
+          setObservations(facture.observations || '')
+          setRecommandation(facture.recommandation || '')
+          setNumero(facture.numero || '')
+          if (typeof facture.echeance === 'string') {
+            if (/r[ée]gl[ée]e?/i.test(facture.echeance)) setEcheance('Réglée')
+            else if (/r[ée]ception/i.test(facture.echeance)) setEcheance('À réception')
+            else setEcheance('30 jours')
+          }
+        }
+      } catch (e) {
+        onError(e instanceof Error ? e.message : String(e))
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    }
+    load()
+    return () => { cancelled = true }
+  }, [interv.id])
+
+  function updateLigne(i: number, patch: Partial<LigneFacture>) {
+    setLignes(prev => prev.map((l, idx) => idx === i ? { ...l, ...patch } : l))
+  }
+  function ajouterLigne() {
+    setLignes(prev => [...prev, { designation: '', description: '', qte: 1, unite: 'forfait', pu_ht: 0, inclus: false }])
+  }
+  function supprimerLigne(i: number) {
+    setLignes(prev => prev.filter((_, idx) => idx !== i))
+  }
+
+  // Calculs live
+  const totalHT = lignes.reduce((s, l) => s + (l.inclus ? 0 : l.qte * l.pu_ht), 0)
+  const totalTVA = totalHT * (tva / 100)
+  const totalTTC = totalHT + totalTVA
+
+  async function handleCreate() {
+    if (lignes.length === 0 || !lignes.some(l => l.designation.trim())) {
+      onError('Ajoute au moins une ligne avec une désignation.')
+      return
+    }
+    setCreating(true)
+    try {
+      const res = await fetch(`/api/interventions/${interv.id}/facture-quick`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          lignes: lignes.filter(l => l.designation.trim()),
+          objet: objet || undefined,
+          mode_reglement: modeReglement || undefined,
+          echeance,
+          tva_taux: tva,
+          observations: observations || undefined,
+          recommandation: recommandation || undefined,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Création facture échouée')
+      onCreated()
+    } catch (e) {
+      onError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setCreating(false)
+    }
+  }
+
+  if (loading) {
+    return (
+      <section className="space-y-3 text-center py-10">
+        <div className="animate-spin h-10 w-10 border-3 border-blue-600 border-t-transparent rounded-full mx-auto"></div>
+        <p className="text-sm text-slate-500">Préparation de la facture…</p>
+      </section>
+    )
+  }
+
+  return (
+    <section className="space-y-5">
+      <header className="text-center">
+        <div className="text-5xl mb-2">🧾</div>
+        <h1 className="text-2xl font-black text-slate-800">Facture</h1>
+        <p className="text-sm text-slate-600 mt-2">
+          {numero ? <span className="font-bold">{numero} · </span> : null}
+          Modifie les lignes, le prix, la TVA. Tout est enregistré à la validation.
+        </p>
+      </header>
+
+      {/* Objet */}
+      <div className="bg-white rounded-2xl border-2 border-slate-200 p-4 space-y-2">
+        <label className="block text-xs uppercase tracking-wider text-slate-500 font-bold">Objet</label>
+        <input
+          value={objet}
+          onChange={e => setObjet(e.target.value)}
+          placeholder="Intervention de débouchage…"
+          className="w-full border-2 border-slate-200 focus:border-blue-500 outline-none rounded-lg px-3 py-2 text-sm"
+        />
+      </div>
+
+      {/* Lignes éditables */}
+      <div className="bg-white rounded-2xl border-2 border-slate-200 p-4 space-y-3">
+        <div className="flex items-center justify-between">
+          <h2 className="text-sm font-bold uppercase tracking-wider text-slate-500">Lignes</h2>
+          <button
+            type="button"
+            onClick={ajouterLigne}
+            className="text-xs font-bold bg-blue-100 text-blue-700 hover:bg-blue-200 rounded-lg px-3 py-1.5 transition"
+          >
+            + Ajouter
+          </button>
+        </div>
+
+        {lignes.length === 0 && (
+          <p className="text-sm text-slate-400 italic text-center py-4">Aucune ligne. Clique &quot;+ Ajouter&quot;.</p>
+        )}
+
+        {lignes.map((l, i) => (
+          <div key={i} className="bg-slate-50 border-2 border-slate-200 rounded-xl p-3 space-y-2">
+            <div className="flex items-start gap-2">
+              <input
+                value={l.designation}
+                onChange={e => updateLigne(i, { designation: e.target.value })}
+                placeholder="Désignation"
+                className="flex-1 border-2 border-slate-200 focus:border-blue-500 outline-none rounded-lg px-3 py-2 text-sm font-bold bg-white"
+              />
+              <button
+                type="button"
+                onClick={() => supprimerLigne(i)}
+                className="text-red-600 hover:bg-red-50 rounded-lg w-9 h-9 flex items-center justify-center flex-shrink-0"
+                title="Supprimer cette ligne"
+              >
+                ✕
+              </button>
+            </div>
+
+            <input
+              value={l.description}
+              onChange={e => updateLigne(i, { description: e.target.value })}
+              placeholder="Description (facultatif)"
+              className="w-full border border-slate-200 focus:border-blue-500 outline-none rounded-lg px-3 py-1.5 text-xs bg-white"
+            />
+
+            <div className="grid grid-cols-12 gap-2">
+              <input
+                type="number"
+                inputMode="decimal"
+                min="0"
+                step="0.5"
+                value={l.qte}
+                onChange={e => updateLigne(i, { qte: Number(e.target.value) || 0 })}
+                className="col-span-3 border-2 border-slate-200 focus:border-blue-500 outline-none rounded-lg px-2 py-2 text-sm text-center bg-white"
+              />
+              <select
+                value={l.unite}
+                onChange={e => updateLigne(i, { unite: e.target.value })}
+                className="col-span-4 border-2 border-slate-200 focus:border-blue-500 outline-none rounded-lg px-2 py-2 text-sm bg-white"
+              >
+                {UNITES.map(u => <option key={u} value={u}>{u}</option>)}
+              </select>
+              <input
+                type="number"
+                inputMode="decimal"
+                min="0"
+                step="0.01"
+                value={l.pu_ht}
+                onChange={e => updateLigne(i, { pu_ht: Number(e.target.value) || 0 })}
+                placeholder="PU HT"
+                className="col-span-5 border-2 border-slate-200 focus:border-blue-500 outline-none rounded-lg px-2 py-2 text-sm text-right tabular-nums bg-white"
+              />
+            </div>
+
+            <div className="flex items-center justify-between">
+              <label className="inline-flex items-center gap-2 text-xs">
+                <input
+                  type="checkbox"
+                  checked={l.inclus}
+                  onChange={e => updateLigne(i, { inclus: e.target.checked })}
+                  className="w-4 h-4 accent-emerald-600"
+                />
+                <span className="font-bold text-slate-600">Inclus (gratuit)</span>
+              </label>
+              <span className="text-sm font-bold tabular-nums text-slate-700">
+                {l.inclus ? <span className="text-emerald-600 italic">Inclus</span> : `${(l.qte * l.pu_ht).toFixed(2)} €`}
+              </span>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* TVA */}
+      <div className="bg-white rounded-2xl border-2 border-slate-200 p-4 space-y-2">
+        <label className="block text-xs uppercase tracking-wider text-slate-500 font-bold">TVA</label>
+        <div className="flex gap-2">
+          {([0, 10, 20] as const).map(t => (
+            <button
+              key={t}
+              type="button"
+              onClick={() => setTva(t)}
+              className={`flex-1 py-2 rounded-lg font-bold text-sm ${tva === t ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-700'}`}
+            >
+              {t}%
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Règlement */}
+      <div className="bg-white rounded-2xl border-2 border-slate-200 p-4 space-y-2">
+        <label className="block text-xs uppercase tracking-wider text-slate-500 font-bold">Règlement</label>
+        <div className="flex gap-2">
+          {(['Réglée', 'À réception', '30 jours'] as const).map(e => (
+            <button
+              key={e}
+              type="button"
+              onClick={() => setEcheance(e)}
+              className={`flex-1 py-2 rounded-lg font-bold text-xs ${echeance === e ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-700'}`}
+            >
+              {e}
+            </button>
+          ))}
+        </div>
+        {echeance === 'Réglée' && (
+          <input
+            value={modeReglement}
+            onChange={e => setModeReglement(e.target.value)}
+            placeholder="Mode (CB, espèces, chèque…)"
+            className="w-full border-2 border-slate-200 focus:border-blue-500 outline-none rounded-lg px-3 py-2 text-sm"
+          />
+        )}
+      </div>
+
+      {/* Preview totaux */}
+      <div className="bg-blue-50 border-2 border-blue-200 rounded-2xl p-5 space-y-1">
+        <h2 className="text-sm font-bold uppercase tracking-wider text-blue-700 mb-2">Aperçu</h2>
+        <div className="flex justify-between text-sm">
+          <span className="text-slate-600">Total HT</span>
+          <span className="font-bold tabular-nums">{totalHT.toFixed(2)} €</span>
+        </div>
+        <div className="flex justify-between text-sm">
+          <span className="text-slate-600">TVA ({tva}%)</span>
+          <span className="font-bold tabular-nums">{totalTVA.toFixed(2)} €</span>
+        </div>
+        <div className="flex justify-between border-t border-blue-300 pt-2 mt-2">
+          <span className="font-black text-lg">Total TTC</span>
+          <span className="font-black text-lg tabular-nums text-blue-900">{totalTTC.toFixed(2)} €</span>
+        </div>
+      </div>
+
+      <button
+        type="button"
+        onClick={handleCreate}
+        disabled={creating}
+        className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-2xl py-5 font-black text-lg shadow-lg transition"
+      >
+        {creating ? '⚙ Enregistrement…' : '✓ Enregistrer la facture'}
+      </button>
+    </section>
+  )
+}
+
+// ============================================================
+// ÉTAPE 5 — Envoi groupé + publication
+// ============================================================
+function StepEnvoi({ interv, client, onSent, onError }: {
+  interv: Intervention
+  client: Client
+  onSent: () => void
+  onError: (e: string) => void
+}) {
+  const router = useRouter()
+  const [email, setEmail] = useState(client?.email || '')
+  const [sending, setSending] = useState(false)
+  const [sendingStep, setSendingStep] = useState<string>('')
+  // Ref guard contre la double-soumission : couvre le gap entre le clic
+  // et le re-render qui propage `sending=true` au bouton.
+  const sendingRef = useRef(false)
+
+  async function handleSend() {
+    // ── Guard double-soumission : sync, indépendant du re-render React ──
+    if (sendingRef.current || sending) return
+    sendingRef.current = true
+    setSending(true)
+    setSendingStep('⚙ Vérifications…')
+
+    try {
+      if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        throw new Error('Email client invalide')
+      }
+
+      // ── 1. Refresh complet depuis le serveur (évite tout state stale) ──
+      const intFresh = await fetchJsonWithRetry<{ intervention: Intervention; client: Client; technicien: { nom?: string } | null }>(
+        `/api/interventions/${interv.id}`,
+        { cache: 'no-store', retries: 3, timeoutMs: 20_000 },
+      )
+      const freshInterv = intFresh.intervention
+      const freshClient = intFresh.client
+      const technicienNom = intFresh.technicien?.nom || 'Technicien'
+
+      // Validation stricte : ces deux infos doivent être présentes côté DB,
+      // sinon le PDF rapport sortira anonyme (cause du bug "rapport sans nom").
+      const clientNom = (freshClient?.nom || '').trim()
+      if (!clientNom) {
+        throw new Error('Nom client manquant en base. Modifie la fiche client avant d\'envoyer.')
+      }
+      if (!freshInterv.rapport_json || Object.keys(freshInterv.rapport_json).length === 0) {
+        throw new Error('Rapport non sauvegardé. Reviens à l\'étape rapport.')
+      }
+
+      // ── 2. Charge la dernière facture (payload complet pour le PDF) ──
+      const factData = await fetchJsonWithRetry<{ facture: { id: string; numero?: string; payload: any; pdf_url?: string | null } | null }>(
+        `/api/interventions/${interv.id}/facture`,
+        { cache: 'no-store', retries: 3, timeoutMs: 20_000 },
+      )
+      if (!factData.facture || !factData.facture.payload) {
+        throw new Error('Facture introuvable — reviens à l\'étape facture pour la créer.')
+      }
+      const facturePayload = factData.facture.payload
+
+      // ── 3. Génère PDF rapport côté client (Blob direct, pas de base64) ──
+      setSendingStep('📄 Génération du PDF rapport…')
+      const [{ RealisationDocument }, { pdfElementToBlob }, React] = await Promise.all([
+        import('@/components/RealisationPDF'),
+        import('@/lib/pdfToBase64'),
+        import('react'),
+      ])
+      const pdfRapportBlob = await pdfElementToBlob(
+        React.createElement(RealisationDocument, {
+          clientNom,
+          adresse: freshInterv.adresse_chantier || '',
+          ville: freshInterv.ville || '',
+          codePostal: freshInterv.code_postal || '',
+          dateIntervention: freshInterv.date_realisee || freshInterv.date_prevue || '',
+          typeIntervention: freshInterv.type_intervention || '',
+          technicienNom,
+          rapport: freshInterv.rapport_json,
+          reference: freshInterv.reference || undefined,
+          photos: (freshInterv.photos_urls || []).map((url, i) => ({
+            url: proxyImageUrl(url),
+            legende: freshInterv.photos_legendes?.[i] || `Photo ${i + 1}`,
+          })),
+        }),
+      )
+      if (!pdfRapportBlob || pdfRapportBlob.size < 1000) {
+        throw new Error('PDF rapport vide — relance la génération.')
+      }
+
+      // ── 4. Upload PDF rapport → Storage (multipart : pas de limite 4.5MB) ──
+      setSendingStep('☁ Upload du rapport…')
+      const fdRapport = new FormData()
+      fdRapport.append('kind', 'rapport')
+      fdRapport.append('pdf', pdfRapportBlob, `rapport-${interv.id}.pdf`)
+      await fetchJsonWithRetry(`/api/interventions/${interv.id}/store-pdf`, {
+        method: 'POST',
+        body: fdRapport,
+        retries: 3,
+        timeoutMs: 60_000,
+      })
+
+      // ── 5. Génère PDF facture côté client ──
+      setSendingStep('🧾 Génération du PDF facture…')
+      const [{ FactureDocument }, { ltdbFactureEmetteur }] = await Promise.all([
+        import('@/components/FacturePDF'),
+        import('@/lib/emetteur'),
+      ])
+      const clientAdresseLignes: string[] = []
+      if (freshInterv.adresse_chantier) clientAdresseLignes.push(freshInterv.adresse_chantier)
+      if (freshInterv.code_postal || freshInterv.ville) {
+        clientAdresseLignes.push([freshInterv.code_postal, freshInterv.ville].filter(Boolean).join(' '))
+      }
+      const pdfFactureBlob = await pdfElementToBlob(
+        React.createElement(FactureDocument, {
+          emetteur: ltdbFactureEmetteur(freshInterv.agence || undefined),
+          client: {
+            nom: clientNom,
+            adresseLignes: clientAdresseLignes.length > 0 ? clientAdresseLignes : ['—'],
+          },
+          facture: facturePayload,
+        }),
+      )
+      if (!pdfFactureBlob || pdfFactureBlob.size < 1000) {
+        throw new Error('PDF facture vide — relance la génération.')
+      }
+
+      // ── 6. Upload PDF facture → Storage ──
+      setSendingStep('☁ Upload de la facture…')
+      const fdFacture = new FormData()
+      fdFacture.append('kind', 'facture')
+      fdFacture.append('pdf', pdfFactureBlob, `facture-${interv.id}.pdf`)
+      await fetchJsonWithRetry(`/api/interventions/${interv.id}/store-pdf`, {
+        method: 'POST',
+        body: fdFacture,
+        retries: 3,
+        timeoutMs: 60_000,
+      })
+
+      // ── 7. Envoi mail : body MINUSCULE, route lit les PDFs depuis Storage ──
+      setSendingStep('✉ Envoi du mail au client…')
+      await fetchJsonWithRetry('/api/notify-rapport-facture', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          interventionId: interv.id,
+          clientEmail: email,
+        }),
+        retries: 3,
+        timeoutMs: 90_000,
+      })
+
+      // ── 8. Statut intervention → terminée (remplace l'ancien bouton "Terminer") ──
+      try {
+        await fetchWithRetry(`/api/interventions/${interv.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ statut: 'terminee' }),
+          retries: 2,
+          timeoutMs: 15_000,
+        })
+      } catch {
+        // best-effort : le mail est parti, ne pas bloquer l'utilisateur
+      }
+
+      onSent()
+    } catch (e) {
+      onError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setSending(false)
+      setSendingStep('')
+      sendingRef.current = false
+    }
+  }
+
+  function handlePublier() {
+    // Redirige vers /nouveau avec le rapport chargé — la page sait publier sur le site
+    if (typeof window !== 'undefined') {
+      sessionStorage.setItem('ltdb_load_rapport_id', interv.id)
+      sessionStorage.removeItem('ltdb_intervention_prefill')
+    }
+    router.push('/nouveau')
+  }
+
+  return (
+    <section className="space-y-5">
+      <header className="text-center">
+        <div className="text-5xl mb-2">✉</div>
+        <h1 className="text-2xl font-black text-slate-800">Envoyer & publier</h1>
+        <p className="text-sm text-slate-600 mt-2">Mail au client + publication SEO sur le site.</p>
+      </header>
+
+      <div className="bg-white rounded-2xl border-2 border-slate-200 p-5 space-y-3">
+        <div>
+          <label className="block text-xs uppercase tracking-wider text-slate-500 font-bold mb-1">Email client</label>
+          <input
+            type="email"
+            value={email}
+            onChange={e => setEmail(e.target.value)}
+            placeholder="client@exemple.fr"
+            className="w-full border-2 border-slate-200 focus:border-blue-500 outline-none rounded-xl px-4 py-3 text-base"
+          />
+        </div>
+
+        <div className="text-sm text-slate-700 space-y-1 pt-2">
+          <div>📄 Rapport d&apos;intervention (PDF)</div>
+          <div>🧾 Facture (PDF)</div>
+          <div>⭐ Demande d&apos;avis Google</div>
+          <div className="text-xs text-slate-500 pt-1">+ relances auto J+2, J+4, J+6 si pas d&apos;avis</div>
+        </div>
+      </div>
+
+      <div className="space-y-3">
+        <button
+          type="button"
+          onClick={handleSend}
+          disabled={sending || !email}
+          className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white rounded-2xl py-5 font-black text-lg shadow-lg transition"
+        >
+          {sending ? (sendingStep || '⚙ Envoi en cours…') : '✉ Tout envoyer au client'}
+        </button>
+
+        <button
+          type="button"
+          onClick={handlePublier}
+          disabled={sending}
+          className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-2xl py-5 font-black text-lg shadow-lg transition"
+        >
+          🌐 Publier sur le site
+        </button>
+      </div>
+    </section>
+  )
+}
+
+// ============================================================
+// ÉTAPE 6 — Publier ?
+// ============================================================
+function StepPublier({ interv, onDone, onError }: { interv: Intervention; onDone: () => void; onError: (e: string) => void }) {
+  const [publishing, setPublishing] = useState(false)
+
+  async function handleDontPublish() {
+    await fetch(`/api/interventions/${interv.id}/terrain-step`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'set', step: 7 }),
+    })
+    onDone()
+  }
+
+  async function handlePublish() {
+    setPublishing(true)
+    try {
+      const res = await fetch('/api/publish/from-intervention', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ interventionId: interv.id }),
+      })
+      if (res.status === 404) {
+        // Fallback : rediriger vers /nouveau pour publier manuellement
+        onError('La publication directe depuis le wizard n\'est pas encore branchée. Utilise le bouton "Publier" depuis l\'historique.')
+        await handleDontPublish()
+        return
+      }
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Publication échouée')
+      onDone()
+    } catch (e) {
+      onError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setPublishing(false)
+    }
+  }
+
+  return (
+    <section className="space-y-5">
+      <header className="text-center">
+        <div className="text-5xl mb-2">🌐</div>
+        <h1 className="text-2xl font-black text-slate-800">Publier sur le site ?</h1>
+        <p className="text-sm text-slate-600 mt-2">Crée une page SEO sur lestechniciensdudebouchage.fr.</p>
+      </header>
+
+      <div className="grid grid-cols-1 gap-3">
+        <button
+          type="button"
+          onClick={handlePublish}
+          disabled={publishing}
+          className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-2xl py-5 font-black text-lg shadow-lg transition"
+        >
+          {publishing ? '⚙ Publication…' : '🌐 Oui, publier'}
+        </button>
+        <button
+          type="button"
+          onClick={handleDontPublish}
+          disabled={publishing}
+          className="bg-white border-2 border-slate-300 hover:bg-slate-50 text-slate-700 rounded-2xl py-4 font-bold text-base transition"
+        >
+          ✕ Non, ne pas publier
+        </button>
+      </div>
+    </section>
+  )
+}
+
+// ============================================================
+// ÉTAPE 7 — Terminé
+// ============================================================
+function StepTermine({ interv }: { interv: Intervention }) {
+  return (
+    <section className="space-y-6 text-center">
+      <div className="bg-emerald-50 border-2 border-emerald-200 rounded-2xl p-8">
+        <div className="text-7xl mb-3">🎉</div>
+        <h1 className="text-3xl font-black text-emerald-800">Intervention terminée !</h1>
+        <p className="text-sm text-emerald-700 mt-3">
+          Tout est sauvegardé. Le client recevra ses documents et les relances avis Google automatiquement.
+        </p>
+      </div>
+
+      <div className="flex flex-col gap-3">
+        <Link
+          href={`/intervention/${interv.id}`}
+          className="bg-[#0e2a52] hover:bg-[#0a2047] text-white rounded-2xl py-4 font-bold text-base shadow-lg transition"
+        >
+          📋 Voir la fiche intervention
+        </Link>
+        <Link
+          href="/planning"
+          className="bg-white border-2 border-slate-300 hover:bg-slate-50 text-slate-700 rounded-2xl py-4 font-bold text-base transition"
+        >
+          📅 Retour au planning
+        </Link>
+      </div>
+    </section>
+  )
+}

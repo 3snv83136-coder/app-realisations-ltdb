@@ -63,7 +63,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'RESEND_API_KEY manquante' }, { status: 500 })
   }
 
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL
+  const requestOrigin = req.nextUrl?.origin
+  const baseUrl = requestOrigin
+    || process.env.NEXT_PUBLIC_APP_URL
     || process.env.NEXTAUTH_URL
     || 'https://app-realisations.vercel.app'
   const lien = `${baseUrl.replace(/\/+$/, '')}/intervention/${intervention_id}`

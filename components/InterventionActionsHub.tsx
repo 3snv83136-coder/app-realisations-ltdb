@@ -94,12 +94,14 @@ export default function InterventionActionsHub({
         />
 
         <ActionTile
-          icon="💶"
-          title={hasFacture ? 'Voir / refacturer' : 'Aller à la facture'}
-          desc={hasFacture ? 'Une facture existe déjà' : 'Créer la facture depuis le rapport'}
+          icon={hasFacture ? '✓' : '💶'}
+          title={hasFacture ? 'Facture créée' : 'Aller à la facture'}
+          desc={hasFacture
+            ? 'Une facture est déjà liée à cette intervention. Pour la consulter ou la supprimer, va dans Historique.'
+            : 'Créer la facture depuis le rapport'}
           accent="amber"
-          disabled={!hasRapport}
-          onClick={onCreateFacture || (() => router.push('/facture'))}
+          disabled={!hasRapport || hasFacture}
+          onClick={hasFacture ? undefined : (onCreateFacture || (() => router.push('/facture')))}
         />
 
         <ActionTile

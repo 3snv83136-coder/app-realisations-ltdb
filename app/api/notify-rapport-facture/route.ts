@@ -30,7 +30,15 @@ async function fetchPdfAsBase64(url: string): Promise<string | null> {
 }
 
 export async function POST(req: NextRequest) {
-  let body: { interventionId?: string; clientEmail?: string; skipReviews?: boolean }
+  let body: {
+    interventionId?: string
+    clientEmail?: string
+    skipReviews?: boolean
+    /** PDF rapport en base64, fourni par le wizard Mode Terrain — bypass le besoin de pdf_rapport_url */
+    pdfRapportBase64?: string
+    /** PDF facture en base64, fourni par le wizard — bypass le besoin de facture.pdf_url */
+    pdfFactureBase64?: string
+  }
   try {
     body = await req.json()
   } catch {
@@ -49,13 +57,21 @@ export async function POST(req: NextRequest) {
 
   const { data: interv, error: intErr } = await sb
     .from('interventions')
-    .select('id, reference, type_intervention, ville, date_realisee, date_prevue, agence, client_id, technicien_id, pdf_rapport_url, rapport_json')
+    .select('id, reference, type_intervention, ville, date_realisee, date_prevue, agence, client_id, technicien_id, pdf_rapport_url, rapport_json, mail_envoye_at')
     .eq('id', interventionId)
     .single()
   if (intErr || !interv) {
     return NextResponse.json({ error: 'Intervention introuvable' }, { status: 404 })
   }
-  if (!interv.pdf_rapport_url) {
+  // Idempotence : si le mail a déjà été envoyé dans les 30 dernières minutes,
+  // on ne re-spamme pas Resend + relances avis. Retourne 200 OK silencieux.
+  if (interv.mail_envoye_at) {
+    const ageMs = Date.now() - new Date(interv.mail_envoye_at).getTime()
+    if (ageMs < 30 * 60 * 1000) {
+      return NextResponse.json({ ok: true, alreadySent: true, mail_envoye_at: interv.mail_envoye_at })
+    }
+  }
+  if (!interv.pdf_rapport_url && !body.pdfRapportBase64) {
     return NextResponse.json({ error: 'Aucun PDF rapport publié pour cette intervention. Publie le rapport d\'abord.' }, { status: 400 })
   }
 
@@ -70,7 +86,7 @@ export async function POST(req: NextRequest) {
   if (!facture) {
     return NextResponse.json({ error: 'Aucune facture trouvée pour cette intervention. Crée la facture d\'abord.' }, { status: 400 })
   }
-  if (!facture.pdf_url) {
+  if (!facture.pdf_url && !body.pdfFactureBase64) {
     return NextResponse.json({ error: 'La facture n\'a pas de PDF stocké.' }, { status: 400 })
   }
 
@@ -103,12 +119,14 @@ export async function POST(req: NextRequest) {
   if ('error' in ctx) return NextResponse.json({ error: ctx.error }, { status: ctx.status })
   const { resend, fromEmail, recipient } = ctx
 
+  // Priorité aux PDF fournis en base64 (wizard Mode Terrain).
+  // Fallback : fetch depuis les URLs Storage (flux historique /nouveau).
   const [rapportB64, factureB64] = await Promise.all([
-    fetchPdfAsBase64(interv.pdf_rapport_url),
-    fetchPdfAsBase64(facture.pdf_url),
+    body.pdfRapportBase64 || (interv.pdf_rapport_url ? fetchPdfAsBase64(interv.pdf_rapport_url) : null),
+    body.pdfFactureBase64 || (facture.pdf_url ? fetchPdfAsBase64(facture.pdf_url) : null),
   ])
-  if (!rapportB64) return NextResponse.json({ error: 'Impossible de télécharger le PDF rapport' }, { status: 502 })
-  if (!factureB64) return NextResponse.json({ error: 'Impossible de télécharger le PDF facture' }, { status: 502 })
+  if (!rapportB64) return NextResponse.json({ error: 'PDF rapport indisponible' }, { status: 502 })
+  if (!factureB64) return NextResponse.json({ error: 'PDF facture indisponible' }, { status: 502 })
 
   const dateInterv = interv.date_realisee || interv.date_prevue || ''
   const ville = interv.ville || ''
@@ -116,7 +134,19 @@ export async function POST(req: NextRequest) {
   const factureNum = facture.numero || ''
   const totalTTC = typeof facture.montant_ttc === 'number' ? facture.montant_ttc : null
 
-  const reviewUrl = process.env.GOOGLE_REVIEW_URL || 'https://www.google.com/maps/place/Les+Techniciens+du+Débouchage'
+  // URL avis Google : priorité table parametres > env var > fallback recherche Maps
+  let reviewUrl = process.env.GOOGLE_REVIEW_URL
+    || 'https://www.google.com/maps/place/Les+Techniciens+du+Débouchage'
+  try {
+    const { data: paramRow } = await sb
+      .from('parametres')
+      .select('valeur')
+      .eq('cle', 'google_review_url')
+      .maybeSingle()
+    if (paramRow?.valeur) reviewUrl = paramRow.valeur
+  } catch {
+    // best-effort, on garde le fallback
+  }
 
   // Planifie les relances avis (J+2, J+4, J+6) — même logique que /api/notify-client
   const skipReviews = !!body.skipReviews
@@ -173,6 +203,17 @@ export async function POST(req: NextRequest) {
       .from('documents')
       .update({ envoye_email: clientEmail, envoye_at: new Date().toISOString(), statut: facture.statut === 'paye' ? 'paye' : 'envoye' })
       .eq('id', facture.id)
+  } catch {}
+
+  // Marque l'intervention : mail envoyé + bump terrain_step à 6 (= envoi groupé OK)
+  try {
+    await sb
+      .from('interventions')
+      .update({
+        mail_envoye_at: new Date().toISOString(),
+        terrain_step: 6,
+      })
+      .eq('id', interventionId)
   } catch {}
 
   return NextResponse.json({

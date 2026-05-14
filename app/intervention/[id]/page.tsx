@@ -56,6 +56,13 @@ type InterventionDetail = {
   video_error: string | null
   video_youtube_id: string | null
   video_youtube_url: string | null
+  terrain_step: number | null
+  heure_debut_reelle: string | null
+  heure_fin_reelle: string | null
+  mail_envoye_at: string | null
+  avis_relance_at: string | null
+  avis_recu: boolean | null
+  photos_legendes: string[] | null
   created_at: string
   updated_at: string
 }
@@ -203,6 +210,22 @@ export default function InterventionDetailPage({ params }: { params: { id: strin
 
   useEffect(() => { load() }, [params.id])
 
+  // Recharge la fiche quand l'onglet redevient visible ou prend le focus.
+  // Garantit que hasFacture est à jour après suppression d'une facture
+  // dans un autre onglet/page (ex: /historique).
+  useEffect(() => {
+    function refresh() {
+      if (document.visibilityState === 'visible') load()
+    }
+    window.addEventListener('focus', refresh)
+    document.addEventListener('visibilitychange', refresh)
+    return () => {
+      window.removeEventListener('focus', refresh)
+      document.removeEventListener('visibilitychange', refresh)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [params.id])
+
   async function updateStatut(statut: Statut) {
     if (!intervention) return
     setActionInProgress(true); setError(''); setActionMsg('')
@@ -329,6 +352,26 @@ export default function InterventionDetailPage({ params }: { params: { id: strin
           <div className="bg-emerald-50 border border-emerald-200 text-emerald-700 p-3 rounded-xl text-sm">{actionMsg}</div>
         )}
 
+        {/* Mode Terrain — wizard linéaire mobile-first */}
+        {intervention.statut !== 'annulee' && (intervention.terrain_step ?? 0) < 7 && (
+          <Link
+            href={`/intervention/${intervention.id}/terrain`}
+            className="block bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white rounded-2xl p-5 shadow-lg transition"
+          >
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <div className="font-black text-lg">🚀 Mode Terrain</div>
+                <div className="text-xs opacity-90 mt-1">
+                  {(intervention.terrain_step ?? 0) === 0
+                    ? 'Wizard guidé : photo avant → travaux → photo après → rapport → facture → envoi'
+                    : `Reprise à l'étape ${(intervention.terrain_step ?? 0) + 1}/7`}
+                </div>
+              </div>
+              <div className="text-2xl">→</div>
+            </div>
+          </Link>
+        )}
+
         {/* Statut & actions */}
         <section className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 space-y-4">
           <div className="flex items-center justify-between flex-wrap gap-3">
@@ -339,15 +382,6 @@ export default function InterventionDetailPage({ params }: { params: { id: strin
               </span>
             </div>
             <div className="flex flex-wrap gap-2">
-              {intervention.statut === 'planifiee' && (
-                <button
-                  onClick={() => updateStatut('en_cours')}
-                  disabled={actionInProgress}
-                  className="bg-amber-500 hover:bg-amber-600 text-white px-4 py-2.5 rounded-xl font-bold text-sm disabled:opacity-50 transition"
-                >
-                  ▶ Démarrer
-                </button>
-              )}
               {intervention.statut !== 'annulee' && (
                 <button
                   onClick={goToRapport}
@@ -356,15 +390,6 @@ export default function InterventionDetailPage({ params }: { params: { id: strin
                   {intervention.rapport_json && Object.keys(intervention.rapport_json || {}).length > 0
                     ? '📄 Modifier le rapport'
                     : '📄 Aller au rapport'}
-                </button>
-              )}
-              {(intervention.statut === 'planifiee' || intervention.statut === 'en_cours') && (
-                <button
-                  onClick={() => updateStatut('terminee')}
-                  disabled={actionInProgress}
-                  className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 rounded-xl font-bold text-sm disabled:opacity-50 transition"
-                >
-                  ✓ Terminer
                 </button>
               )}
               {!editing && (
@@ -406,6 +431,8 @@ export default function InterventionDetailPage({ params }: { params: { id: strin
               </div>
               <div className="flex flex-wrap items-end gap-2">
                 <CreateFactureFromRapportButton
+                  disabled={hasFacture}
+                  disabledReason="Une facture est déjà liée à cette intervention. Supprime-la depuis l'historique pour pouvoir en recréer une."
                   source={{
                     rapport: intervention.rapport_json,
                     client_nom: client?.nom || null,

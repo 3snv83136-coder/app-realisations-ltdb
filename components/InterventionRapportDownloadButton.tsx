@@ -89,25 +89,27 @@ export default function InterventionRapportDownloadButton({
   }
 
   return (
-    <div className="inline-flex flex-col items-end gap-1">
-      <div className="inline-flex gap-1">
+    <div className="inline-flex flex-col items-end gap-1.5">
+      <div className="inline-flex gap-1.5 rounded-xl border border-slate-200 bg-white p-1 shadow-sm">
         <button
           type="button"
           onClick={() => trigger('preview')}
           disabled={loading}
-          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-50 text-xs font-bold transition disabled:opacity-50"
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 text-xs font-semibold transition disabled:opacity-50"
           title="Visualiser le rapport dans un nouvel onglet"
         >
-          👁 Voir
+          <span aria-hidden>👁</span>
+          <span>Aperçu</span>
         </button>
         <button
           type="button"
           onClick={() => trigger('download')}
           disabled={loading}
-          className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold transition disabled:opacity-50"
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#0e2a52] hover:bg-[#0a1f3d] text-white text-xs font-semibold transition disabled:opacity-50"
           title="Télécharger le rapport PDF"
         >
-          {loading ? '…' : '⬇ Rapport'}
+          <span aria-hidden>{loading ? '⏳' : '⬇'}</span>
+          <span>{loading ? 'Génération...' : 'Rapport PDF'}</span>
         </button>
       </div>
       {error && <span className="text-[10px] text-red-600">{error}</span>}

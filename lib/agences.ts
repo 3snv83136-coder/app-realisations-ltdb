@@ -5,6 +5,7 @@ export const AGENCES = [
   "Agence de Fréjus",
   "Agence d'Aix-en-Provence",
   "Agence de Brignoles",
+  "Agence de Lattes",
 ] as const
 
 export type Agence = typeof AGENCES[number]

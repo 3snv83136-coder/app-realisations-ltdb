@@ -25,6 +25,7 @@ export interface PersistFactureInput extends Common {
   /** true → l'email a été envoyé, false → simple sauvegarde brouillon. */
   emailSent?: boolean
   envoyeAt?: string | null
+  interventionId?: string | null
 }
 
 export async function persistFacture(p: PersistFactureInput): Promise<string | null> {
@@ -49,6 +50,7 @@ export async function persistFacture(p: PersistFactureInput): Promise<string | n
     tva_taux: typeof p.tvaTaux === 'number' ? p.tvaTaux : null,
     payload: p.facture,
     client_id: clientId,
+    intervention_id: p.interventionId || null,
     envoye_email: p.emailSent ? (p.clientEmail || null) : null,
     envoye_at: p.emailSent ? (p.envoyeAt || new Date().toISOString()) : null,
   })

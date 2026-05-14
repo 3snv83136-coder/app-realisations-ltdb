@@ -205,11 +205,19 @@ const s = StyleSheet.create({
 
   /* Footer */
   footer: {
-    paddingHorizontal: 40, paddingTop: 10, paddingBottom: 14,
+    paddingHorizontal: 40, paddingTop: 8, paddingBottom: 14,
     borderTopWidth: 1, borderTopColor: C.border,
-    flexDirection: 'row', justifyContent: 'space-between',
     backgroundColor: C.white,
   },
+  footerBankRow: {
+    flexDirection: 'row', justifyContent: 'space-between',
+    paddingBottom: 6, marginBottom: 6,
+    borderBottomWidth: 0.5, borderBottomColor: C.border,
+  },
+  footerBankCol: { fontSize: 7.5, color: C.text },
+  footerBankLbl: { color: C.muted, fontFamily: 'Helvetica' },
+  footerBankVal: { fontFamily: 'Helvetica-Bold', letterSpacing: 0.4 },
+  footerBottomRow: { flexDirection: 'row', justifyContent: 'space-between' },
   footerL: { color: C.muted, fontSize: 7.5, lineHeight: 1.4 },
   footerR: { color: C.muted, fontSize: 7.5, textAlign: 'right' },
 })
@@ -281,11 +289,25 @@ const Footer = ({ emetteur }: { emetteur: FactureEmetteurData }) => {
   ].filter(Boolean).join(' · ')
   return (
     <View style={s.footer} fixed>
-      <View>
-        <Text style={s.footerL}>{line1}</Text>
-        {line2 ? <Text style={s.footerL}>{line2}</Text> : null}
+      {/* Coordonnées bancaires (toujours visibles en pied de page) */}
+      <View style={s.footerBankRow}>
+        <Text style={s.footerBankCol}>
+          <Text style={s.footerBankLbl}>IBAN </Text>
+          <Text style={s.footerBankVal}>FR76 1695 8000 0152 7256 3725 930</Text>
+        </Text>
+        <Text style={s.footerBankCol}>
+          <Text style={s.footerBankLbl}>BIC </Text>
+          <Text style={s.footerBankVal}>QNTOFRP1XXX</Text>
+        </Text>
       </View>
-      <Text style={s.footerR} render={({ pageNumber, totalPages }) => `Page ${pageNumber} / ${totalPages}`} />
+      {/* Coordonnées société */}
+      <View style={s.footerBottomRow}>
+        <View>
+          <Text style={s.footerL}>{line1}</Text>
+          {line2 ? <Text style={s.footerL}>{line2}</Text> : null}
+        </View>
+        <Text style={s.footerR} render={({ pageNumber, totalPages }) => `Page ${pageNumber} / ${totalPages}`} />
+      </View>
     </View>
   )
 }
@@ -486,9 +508,11 @@ export default function FactureDownloadButton(props: DownloadButtonProps) {
         <button
           type="button"
           disabled={loading}
-          className="bg-blue-800 text-white px-4 py-2 rounded-lg hover:bg-blue-900 disabled:opacity-50 font-semibold"
+          className="inline-flex items-center gap-2 rounded-xl bg-[#0e2a52] px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#0a1f3d] active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-50"
+          title="Télécharger la facture en PDF"
         >
-          {loading ? 'Génération PDF...' : '⬇ Télécharger la facture PDF'}
+          <span aria-hidden>{loading ? '⏳' : '⬇'}</span>
+          <span>{loading ? 'Génération du PDF...' : 'Télécharger la facture PDF'}</span>
         </button>
       )}
     </PDFDownloadLink>
