@@ -10,14 +10,12 @@
  * Prérequis : serveur dev sur localhost:3000 + .env.local rempli.
  */
 import { createClient } from "@supabase/supabase-js"
-import { setGlobalDispatcher, Agent } from "undici"
 import fs from "node:fs"
 import path from "node:path"
 
-// Désactive le keep-alive HTTP : après la longue requête /api/generate (~90s),
-// undici réutilisait une connexion keep-alive déjà fermée par le serveur
-// → "other side closed". Connexions fraîches = test fiable en local.
-setGlobalDispatcher(new Agent({ keepAliveTimeout: 1, keepAliveMaxTimeout: 1, pipelining: 0 }))
+// Note : en local, après la longue requête /api/generate (~90s), le keep-alive
+// d'undici peut réutiliser une connexion morte ("other side closed"). Sur la
+// prod Vercel chaque route est une lambda isolée — pas de souci. Tester sur prod.
 
 // ── Charge .env.local ──
 const envFile = fs.readFileSync(path.resolve(process.cwd(), ".env.local"), "utf-8")

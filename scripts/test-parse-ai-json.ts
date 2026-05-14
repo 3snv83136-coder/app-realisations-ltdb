@@ -85,6 +85,33 @@ Cause probable identifiée.",
   eq(r.devis, null, "devis")
 })
 
+check("Closing bracket orphelin au milieu (cas réel DeepSeek)", () => {
+  // Le LLM insère un ] parasite après une valeur string, sans [ correspondant
+  const broken = `{
+  "objet": "Débouchage colonne EU",
+  "diagnostic": "Bouchon de graisse identifié au regard RDC."
+  ],
+  "travaux_realises": "Furet électrique puis hydrocurage.",
+  "devis": null
+}`
+  const r = parseAiJson(broken)
+  eq(r.objet, "Débouchage colonne EU", "objet")
+  eq(r.diagnostic, "Bouchon de graisse identifié au regard RDC.", "diagnostic")
+  eq(r.travaux_realises, "Furet électrique puis hydrocurage.", "travaux")
+  eq(r.devis, null, "devis")
+})
+
+check("Bracket mal apparié — ne crash pas, retourne un objet exploitable", () => {
+  // Input ambigu : le ] peut être un parasite OU un } mal typé. On ne peut
+  // pas deviner l'intention — l'important est de ne pas lever et de récupérer
+  // les données (peu importe leur niveau d'imbrication exact).
+  const broken = '{"localisation":{"zone":"RDC","config":"PVC"],"diagnostic":"ok"}'
+  const r = parseAiJson(broken)
+  if (typeof r !== "object" || r === null) throw new Error("pas un objet")
+  const flat = JSON.stringify(r)
+  if (!flat.includes("RDC") || !flat.includes("ok")) throw new Error("données perdues")
+})
+
 check("JSON vraiment irréparable lève une erreur", () => {
   try {
     parseAiJson("ceci n'est pas du json du tout {{{")

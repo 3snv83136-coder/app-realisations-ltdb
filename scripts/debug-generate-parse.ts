@@ -166,8 +166,43 @@ function diagnose(raw: string) {
   if (stack.length > 0) console.log(`⚠ TRONCATURE : ${stack.length} bloc(s) non fermé(s) — réponse coupée (max_tokens ?)`)
 }
 
+async function callOnce(): Promise<string> {
+  const msg = await deepseek.messages.create({
+    model: "deepseek-v4-pro",
+    max_tokens: 16000,
+    thinking: { type: "disabled" } as any,
+    messages: [{ role: "user", content: rapportPrompt }],
+  })
+  return extractText(msg)
+}
+
+async function loopUntilFailure() {
+  const { parseAiJson } = await import("../lib/parseAiJson")
+  const MAX = 20
+  for (let i = 1; i <= MAX; i++) {
+    process.stdout.write(`Essai ${i}/${MAX}… `)
+    const raw = await callOnce()
+    try {
+      parseAiJson(raw)
+      console.log(`OK (${raw.length} car)`)
+    } catch (e: any) {
+      console.log(`❌ ÉCHEC parseAiJson : ${e.message}`)
+      const file = path.resolve(process.cwd(), "scripts/.debug-raw-response.txt")
+      fs.writeFileSync(file, raw)
+      console.log(`\n💾 Raw fautif sauvé → ${file} (${raw.length} caractères)`)
+      diagnose(raw)
+      return
+    }
+  }
+  console.log(`\n✅ ${MAX} essais sans échec — parseAiJson tient.`)
+}
+
 async function main() {
-  console.log("🔬 Appel DeepSeek — PROMPT RAPPORT EXACT (model deepseek-v4-pro, max_tokens 16000)…")
+  console.log("🔬 Boucle DeepSeek jusqu'à capturer un échec parseAiJson (PROMPT RAPPORT EXACT)…\n")
+  await loopUntilFailure()
+}
+
+async function _legacyMain() {
   const msg = await deepseek.messages.create({
     model: "deepseek-v4-pro",
     max_tokens: 16000,

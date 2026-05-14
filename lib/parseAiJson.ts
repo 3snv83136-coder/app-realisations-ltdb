@@ -58,6 +58,37 @@ export function stripTrailingCommas(s: string): string {
   return out
 }
 
+/**
+ * Supprime les closing brackets orphelins ou mal appariés (hors chaînes).
+ * Mode d'échec LLM observé : un `]` (ou `}`) inséré au milieu sans `[`/`{`
+ * correspondant — ex. `"diagnostic": "texte." ], "travaux": ...`.
+ * On track la pile d'ouvrants : un fermant qui ne correspond pas au sommet
+ * (ou pile vide) est retiré plutôt que de casser tout le parsing.
+ */
+export function removeStrayClosers(s: string): string {
+  let out = ''
+  let inString = false
+  let escaped = false
+  const stack: string[] = []
+  for (let i = 0; i < s.length; i++) {
+    const c = s[i]
+    if (escaped) { out += c; escaped = false; continue }
+    if (c === '\\') { out += c; escaped = true; continue }
+    if (c === '"') { inString = !inString; out += c; continue }
+    if (inString) { out += c; continue }
+    if (c === '{' || c === '[') { stack.push(c); out += c; continue }
+    if (c === '}' || c === ']') {
+      const top = stack[stack.length - 1]
+      const matches = (c === '}' && top === '{') || (c === ']' && top === '[')
+      if (matches) { stack.pop(); out += c }
+      // sinon : fermant orphelin/mal apparié → on le retire
+      continue
+    }
+    out += c
+  }
+  return out
+}
+
 /** Ferme les chaînes / objets / tableaux ouverts en fin de réponse tronquée. */
 export function repairJson(s: string): string {
   let result = s
@@ -113,14 +144,17 @@ export function parseAiJson(raw: string): any {
   // Essai 3 — + retire les virgules traînantes
   const noTrailing = stripTrailingCommas(noCtrl)
   try { return JSON.parse(noTrailing) } catch {}
-  // Essai 4 — troncature : couper au dernier objet/tableau valide
-  const lastBrace = Math.max(noTrailing.lastIndexOf('}'), noTrailing.lastIndexOf(']'))
+  // Essai 4 — + retire les closing brackets orphelins/mal appariés
+  const noStray = stripTrailingCommas(removeStrayClosers(noTrailing))
+  try { return JSON.parse(noStray) } catch {}
+  // Essai 5 — troncature : couper au dernier objet/tableau valide
+  const lastBrace = Math.max(noStray.lastIndexOf('}'), noStray.lastIndexOf(']'))
   if (lastBrace > 0) {
     for (let i = lastBrace; i > 0; i--) {
-      try { return JSON.parse(noTrailing.slice(0, i + 1)) } catch {}
+      try { return JSON.parse(noStray.slice(0, i + 1)) } catch {}
     }
   }
-  // Essai 5 — réparation agressive : fermer chaînes/objets/tableaux ouverts
-  try { return JSON.parse(repairJson(noTrailing)) } catch {}
+  // Essai 6 — réparation agressive : fermer chaînes/objets/tableaux ouverts
+  try { return JSON.parse(repairJson(noStray)) } catch {}
   throw new Error('JSON invalide et irréparable')
 }
