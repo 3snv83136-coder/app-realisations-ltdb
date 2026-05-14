@@ -1,7 +1,6 @@
 'use client'
 import { useEffect, useState } from "react"
 import Link from "next/link"
-import { useRouter } from "next/navigation"
 
 type Tool = {
   href: string
@@ -28,87 +27,17 @@ const TOOLS: Tool[] = [
   { href: '/mail',         emoji: '📧', label: 'Mail',         desc: 'Emails envoyés',              bg: 'bg-gradient-to-br from-cyan-500 to-cyan-700',           text: 'white' },
 ]
 
-const DASHBOARD_CODE = '1004'
-const TECH_RAPPORT_CODE = '0901'
-
 export default function Home() {
-  const router = useRouter()
   const [skipAnimation, setSkipAnimation] = useState(false)
-  const [unlocked, setUnlocked] = useState(false)
-  const [codeChecked, setCodeChecked] = useState(false)
-  const [codeInput, setCodeInput] = useState('')
-  const [codeError, setCodeError] = useState('')
 
   useEffect(() => {
     if (typeof window === 'undefined') return
-    if (sessionStorage.getItem('ltdb_tech_only') === '1') {
-      router.replace('/nouveau')
-      return
-    }
-    if (sessionStorage.getItem('ltdb_dashboard_unlocked') === '1') {
-      setUnlocked(true)
-    }
-    setCodeChecked(true)
     if (sessionStorage.getItem('ltdb_seen_intro') === '1') {
       setSkipAnimation(true)
     } else {
       sessionStorage.setItem('ltdb_seen_intro', '1')
     }
-  }, [router])
-
-  function handleCodeSubmit(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault()
-    const value = codeInput.trim()
-    if (value === DASHBOARD_CODE) {
-      sessionStorage.setItem('ltdb_dashboard_unlocked', '1')
-      sessionStorage.removeItem('ltdb_tech_only')
-      setUnlocked(true); setCodeError('')
-      return
-    }
-    if (value === TECH_RAPPORT_CODE) {
-      sessionStorage.setItem('ltdb_tech_only', '1')
-      sessionStorage.removeItem('ltdb_dashboard_unlocked')
-      setCodeError('')
-      router.replace('/nouveau')
-      return
-    }
-    setCodeError('Code incorrect.')
-    setCodeInput('')
-  }
-
-  if (codeChecked && !unlocked) {
-    return (
-      <main className="relative min-h-screen flex items-center justify-center bg-slate-50 text-slate-900 px-4">
-        <div className="relative z-10 w-full max-w-sm bg-white border border-slate-200 rounded-2xl p-7 shadow-sm">
-          <div className="text-center mb-5">
-            <div className="mx-auto w-12 h-12 rounded-2xl bg-slate-100 flex items-center justify-center mb-3">
-              <svg className="w-6 h-6 text-slate-600" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z" /></svg>
-            </div>
-            <h1 className="text-xl font-bold tracking-tight">Tableau de bord</h1>
-            <p className="text-[11px] uppercase tracking-[0.2em] text-slate-500 mt-1 font-semibold">Code d&apos;accès requis</p>
-          </div>
-          <form onSubmit={handleCodeSubmit} className="space-y-3" autoComplete="off">
-            <input
-              type="password"
-              inputMode="numeric"
-              autoFocus
-              value={codeInput}
-              onChange={e => { setCodeInput(e.target.value); if (codeError) setCodeError('') }}
-              placeholder="••••"
-              className="w-full text-center text-2xl font-bold tracking-[0.6em] bg-slate-50 text-slate-900 rounded-xl px-4 py-4 outline-none border border-slate-200 focus:border-[#0e2a52] focus:ring-4 focus:ring-[#0e2a52]/10 placeholder:text-slate-300"
-            />
-            {codeError && <p className="text-red-600 text-sm text-center font-medium">{codeError}</p>}
-            <button
-              type="submit"
-              className="w-full bg-[#0e2a52] hover:bg-[#0a1f3d] active:scale-[0.98] transition-all text-white font-semibold py-3 rounded-xl"
-            >
-              Déverrouiller
-            </button>
-          </form>
-        </div>
-      </main>
-    )
-  }
+  }, [])
 
   return (
     <main className="relative min-h-screen bg-slate-50 text-slate-900">
