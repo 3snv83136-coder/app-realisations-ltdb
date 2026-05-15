@@ -32,8 +32,12 @@ async function emptyFolder(
  *   2. vide les dossiers Storage (PDFs + photos) `{interventionId}/...`
  *   3. supprime la ligne intervention
  *
- * Best-effort sur Storage : un échec sur les fichiers ne bloque pas la suppression DB
- * (les orphelins ne créent pas de bug fonctionnel, juste du stockage perdu).
+ * IMPORTANT : tous les DELETE Supabase utilisent `.select('id')` car le client
+ * peut renvoyer success sans rien supprimer (problème connu sur ce projet,
+ * cf fix `persist: DELETE vérifie la suppression réelle`).
+ *
+ * Best-effort sur Storage : un échec sur les fichiers ne bloque pas la
+ * suppression DB (orphelins → stockage perdu, pas de bug fonctionnel).
  */
 export async function cascadeDeleteIntervention(interventionId: string): Promise<CascadeDeleteResult> {
   const warnings: string[] = []
@@ -46,21 +50,32 @@ export async function cascadeDeleteIntervention(interventionId: string): Promise
     }
   }
 
-  const { data: docs, error: docListErr } = await sb
+  // 1. Liste les documents liés (pour le compte retourné), puis delete vérifié.
+  const { data: docsBefore, error: docListErr } = await sb
     .from('documents')
     .select('id')
     .eq('intervention_id', interventionId)
   if (docListErr) warnings.push(`list documents: ${docListErr.message}`)
-  const deletedDocs = docs?.length || 0
+  const expectedDocs = docsBefore?.length || 0
 
-  if (deletedDocs > 0) {
-    const { error: docDelErr } = await sb
+  let deletedDocs = 0
+  if (expectedDocs > 0) {
+    const { data: deletedRows, error: docDelErr } = await sb
       .from('documents')
       .delete()
       .eq('intervention_id', interventionId)
-    if (docDelErr) warnings.push(`delete documents: ${docDelErr.message}`)
+      .select('id')
+    if (docDelErr) {
+      warnings.push(`delete documents: ${docDelErr.message}`)
+    } else {
+      deletedDocs = deletedRows?.length || 0
+      if (deletedDocs < expectedDocs) {
+        warnings.push(`delete documents incomplet: ${deletedDocs}/${expectedDocs} effacés`)
+      }
+    }
   }
 
+  // 2. Storage best-effort.
   const folder = interventionId.replace(/[^a-zA-Z0-9_-]/g, '-').slice(0, 80)
   const [pdfRes, photoRes] = await Promise.all([
     emptyFolder(sb, PDFS_BUCKET, folder),
@@ -69,10 +84,14 @@ export async function cascadeDeleteIntervention(interventionId: string): Promise
   if (pdfRes.warning) warnings.push(pdfRes.warning)
   if (photoRes.warning) warnings.push(photoRes.warning)
 
-  const { error: intErr } = await sb
+  // 3. Delete intervention avec vérification — c'est le check critique : si
+  // 0 ligne effacée, on remonte une erreur claire (sinon le client filtre
+  // optimistiquement et la ligne revient au reload, c'est le bug).
+  const { data: deletedInts, error: intErr } = await sb
     .from('interventions')
     .delete()
     .eq('id', interventionId)
+    .select('id')
   if (intErr) {
     return {
       ok: false, intervention_id: interventionId,
@@ -80,6 +99,15 @@ export async function cascadeDeleteIntervention(interventionId: string): Promise
       deleted_photos: photoRes.count,
       deleted_pdfs: pdfRes.count,
       warnings: [...warnings, `delete intervention: ${intErr.message}`],
+    }
+  }
+  if (!deletedInts || deletedInts.length === 0) {
+    return {
+      ok: false, intervention_id: interventionId,
+      deleted_documents: deletedDocs,
+      deleted_photos: photoRes.count,
+      deleted_pdfs: pdfRes.count,
+      warnings: [...warnings, 'delete intervention: 0 ligne effacée (déjà supprimée ou ID invalide)'],
     }
   }
 
@@ -94,9 +122,9 @@ export async function cascadeDeleteIntervention(interventionId: string): Promise
 
 /**
  * Cascade hard delete depuis un document (facture / devis / attestation).
- *   - Si le document est lié à une intervention → cascade sur l'intervention complète
+ *   - Si lié à une intervention → cascade sur l'intervention complète
  *     (= efface aussi le rapport, les autres documents liés, les photos).
- *   - Sinon → supprime juste le document orphelin.
+ *   - Sinon → supprime juste le document orphelin avec vérification.
  */
 export async function cascadeDeleteDocument(documentId: string): Promise<
   | { kind: 'intervention'; result: CascadeDeleteResult }
@@ -127,7 +155,14 @@ export async function cascadeDeleteDocument(documentId: string): Promise<
       if (rmErr) warnings.push(`remove pdf: ${rmErr.message}`)
     }
   }
-  const { error: delErr } = await sb.from('documents').delete().eq('id', documentId)
+  const { data: deletedRows, error: delErr } = await sb
+    .from('documents')
+    .delete()
+    .eq('id', documentId)
+    .select('id')
   if (delErr) return { kind: 'document', ok: false, warnings: [...warnings, delErr.message] }
+  if (!deletedRows || deletedRows.length === 0) {
+    return { kind: 'document', ok: false, warnings: [...warnings, '0 ligne effacée (déjà supprimée ou ID invalide)'] }
+  }
   return { kind: 'document', ok: true, warnings }
 }

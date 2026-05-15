@@ -115,6 +115,14 @@ export default function RapportsPage() {
     router.push('/nouveau')
   }
 
+  async function reload() {
+    const res = await fetch('/api/historique?limit=500', { cache: 'no-store' })
+    const json = await res.json()
+    if (json.error) throw new Error(json.error)
+    const rows: RapportRow[] = (json.interventions || []).filter((i: RapportRow) => i.has_rapport)
+    setRapports(rows)
+  }
+
   async function supprimerRapport(r: RapportRow) {
     const label = r.reference ? `l'intervention ${r.reference}` : `cette intervention (${r.client_nom || 'sans client'})`
     const ok = confirm(
@@ -127,8 +135,10 @@ export default function RapportsPage() {
     try {
       const res = await fetch(`/api/interventions/${r.id}?hard=1`, { method: 'DELETE' })
       const data = await res.json().catch(() => ({}))
-      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`)
-      setRapports(prev => prev.filter(x => x.id !== r.id))
+      if (!res.ok) throw new Error(data.error || (data.warnings ? data.warnings.join('; ') : `HTTP ${res.status}`))
+      // Recharge depuis le serveur — garantit que la ligne n'est pas un fantôme
+      // côté UI si le cascade a échoué silencieusement.
+      await reload()
     } catch (e) {
       setError(`Erreur suppression : ${e instanceof Error ? e.message : String(e)}`)
     } finally {

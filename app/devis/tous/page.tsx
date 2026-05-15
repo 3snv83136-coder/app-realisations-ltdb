@@ -35,6 +35,14 @@ export default function TousLesDevisPage() {
   const [from, setFrom] = useState('')
   const [to, setTo] = useState('')
 
+  async function reload() {
+    const res = await fetch('/api/historique?limit=500', { cache: 'no-store' })
+    const json = await res.json()
+    if (json.error) throw new Error(json.error)
+    const rows: DevisRow[] = (json.documents || []).filter((d: DevisRow) => d.type === 'devis')
+    setDevis(rows)
+  }
+
   async function handleSupprimer(d: DevisRow) {
     const ref = d.numero || d.id.slice(0, 8)
     const cascadeNote = d.intervention_id
@@ -45,8 +53,8 @@ export default function TousLesDevisPage() {
     try {
       const res = await fetch(`/api/historique/${d.id}`, { method: 'DELETE' })
       const data = await res.json().catch(() => ({}))
-      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`)
-      setDevis(prev => prev.filter(x => x.id !== d.id))
+      if (!res.ok) throw new Error(data.error || (data.warnings ? data.warnings.join('; ') : `HTTP ${res.status}`))
+      await reload()
     } catch (e) {
       setError(`Erreur suppression : ${e instanceof Error ? e.message : String(e)}`)
     } finally {

@@ -125,9 +125,11 @@ export default function HistoriquePage() {
     try {
       const res = await fetch(`/api/historique/${d.id}`, { method: 'DELETE' })
       const data = await res.json().catch(() => ({}))
-      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`)
-      // Suppression confirmée par le serveur → on retire la ligne de l'UI
-      setDocuments(prev => prev.filter(x => x.id !== d.id))
+      if (!res.ok) throw new Error(data.error || (data.warnings ? data.warnings.join('; ') : `HTTP ${res.status}`))
+      // Recharge depuis le serveur : en cascade, l'intervention liée et les
+      // autres documents disparaissent aussi — un simple filtre client laisserait
+      // des fantômes affichés jusqu'au prochain reload.
+      await load()
     } catch (e: any) {
       setError(`Erreur suppression : ${e.message}`)
     } finally {
@@ -146,8 +148,8 @@ export default function HistoriquePage() {
     try {
       const res = await fetch(`/api/interventions/${i.id}?hard=1`, { method: 'DELETE' })
       const data = await res.json().catch(() => ({}))
-      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`)
-      setInterventions(prev => prev.filter(x => x.id !== i.id))
+      if (!res.ok) throw new Error(data.error || (data.warnings ? data.warnings.join('; ') : `HTTP ${res.status}`))
+      await load()
     } catch (e: any) {
       setError(`Erreur suppression intervention : ${e.message}`)
     } finally {
