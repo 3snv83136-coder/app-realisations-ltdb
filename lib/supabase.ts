@@ -210,6 +210,32 @@ export async function saveDocument(input: {
   return data?.id || null
 }
 
+/**
+ * Construit le patch à appliquer sur un client existant : ne réécrit que les
+ * champs non-null/non-vides fournis en entrée (préserve l'existant si l'input
+ * est vide). Indispensable pour que la saisie d'un email dans la modale
+ * intervention finisse bien dans la fiche client — sinon le PDF facture et
+ * l'étape envoi du wizard sortent sans nom ni mail.
+ */
+function buildClientPatch(input: {
+  nom?: string | null
+  email?: string | null
+  telephone?: string | null
+  adresse?: string | null
+  code_postal?: string | null
+  ville?: string | null
+}): Record<string, string> {
+  const patch: Record<string, string> = {}
+  const trim = (v: string | null | undefined) => (v || '').trim()
+  if (trim(input.nom)) patch.nom = trim(input.nom)
+  if (trim(input.email)) patch.email = trim(input.email)
+  if (trim(input.telephone)) patch.telephone = trim(input.telephone)
+  if (trim(input.adresse)) patch.adresse = trim(input.adresse)
+  if (trim(input.code_postal)) patch.code_postal = trim(input.code_postal)
+  if (trim(input.ville)) patch.ville = trim(input.ville)
+  return patch
+}
+
 export async function upsertClient(input: {
   nom?: string | null
   email?: string | null
@@ -223,7 +249,10 @@ export async function upsertClient(input: {
   const nom = (input.nom || '').trim()
   if (!nom) return null
 
-  // Cherche par email (le plus fiable) sinon par nom+ville
+  // Cherche un client existant : par email d'abord (le plus fiable), sinon
+  // par nom+ville. Si trouvé, on MERGE les nouvelles données non-vides au lieu
+  // de retourner aveuglément l'ancienne fiche.
+  let existingId: string | null = null
   if (input.email) {
     const { data: existing } = await sb
       .from('clients')
@@ -231,8 +260,9 @@ export async function upsertClient(input: {
       .eq('email', input.email)
       .limit(1)
       .maybeSingle()
-    if (existing?.id) return existing.id
-  } else {
+    if (existing?.id) existingId = existing.id
+  }
+  if (!existingId) {
     const { data: existing } = await sb
       .from('clients')
       .select('id')
@@ -240,7 +270,16 @@ export async function upsertClient(input: {
       .eq('ville', input.ville || '')
       .limit(1)
       .maybeSingle()
-    if (existing?.id) return existing.id
+    if (existing?.id) existingId = existing.id
+  }
+
+  if (existingId) {
+    const patch = buildClientPatch(input)
+    if (Object.keys(patch).length > 0) {
+      const { error } = await sb.from('clients').update(patch).eq('id', existingId)
+      if (error) console.error('[upsertClient update]', error)
+    }
+    return existingId
   }
 
   const { data, error } = await sb
@@ -260,4 +299,25 @@ export async function upsertClient(input: {
     return null
   }
   return data?.id || null
+}
+
+/**
+ * Met à jour les champs non-vides d'un client identifié explicitement par son ID.
+ * Utilisé quand l'UI a déjà résolu le client (autocomplete) mais que l'utilisateur
+ * a éventuellement modifié des champs (mail, tel, adresse).
+ */
+export async function patchClient(id: string, input: {
+  nom?: string | null
+  email?: string | null
+  telephone?: string | null
+  adresse?: string | null
+  code_postal?: string | null
+  ville?: string | null
+}): Promise<void> {
+  const sb = getSupabaseOrNull()
+  if (!sb || !id) return
+  const patch = buildClientPatch(input)
+  if (Object.keys(patch).length === 0) return
+  const { error } = await sb.from('clients').update(patch).eq('id', id)
+  if (error) console.error('[patchClient]', error)
 }

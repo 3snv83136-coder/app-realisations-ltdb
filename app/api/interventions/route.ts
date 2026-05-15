@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { getSupabaseOrNull, upsertClient } from "@/lib/supabase"
+import { getSupabaseOrNull, upsertClient, patchClient } from "@/lib/supabase"
 import { isCanalAcquisition } from "@/lib/canaux"
 
 export const dynamic = 'force-dynamic'
@@ -152,6 +152,18 @@ export async function POST(req: NextRequest) {
   let clientId: string | null = null
   if (body.client?.id) {
     clientId = body.client.id
+    // Si l'UI a déjà résolu le client (autocomplete) ET que l'utilisateur a
+    // saisi/modifié des champs dans la modale, on les applique sur la fiche
+    // existante. Sans ça, une correction (mail tapé après pick) était perdue
+    // et le wizard terrain affichait un nom/mail vide à l'étape envoi.
+    await patchClient(clientId, {
+      nom: body.client.nom ?? null,
+      email: body.client.email ?? null,
+      telephone: body.client.telephone ?? null,
+      adresse: body.client.adresse ?? null,
+      code_postal: body.client.code_postal ?? null,
+      ville: body.client.ville ?? null,
+    })
   } else if (body.client?.nom) {
     clientId = await upsertClient({
       nom: body.client.nom,
