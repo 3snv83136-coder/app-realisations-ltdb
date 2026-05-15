@@ -149,8 +149,12 @@ export default function PlanningPage() {
       const start = startOfWeekISO(now)
       const end = endOfWeekISO(now)
       rows = rows.filter(i => {
-        if (!i.date_prevue) return false
-        return i.date_prevue >= start && i.date_prevue <= end
+        // Une intervention compte dans la semaine si SA DATE PREVUE ou SA DATE REALISEE
+        // tombe dans la fenêtre. Sans le date_realisee fallback, une intervention finie
+        // aujourd'hui mais initialement planifiée la semaine d'avant disparaît du kanban.
+        const ref = i.date_prevue || i.date_realisee
+        if (!ref) return false
+        return ref >= start && ref <= end
       })
     }
     return rows

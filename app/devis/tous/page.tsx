@@ -29,10 +29,30 @@ export default function TousLesDevisPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [devis, setDevis] = useState<DevisRow[]>([])
+  const [deletingId, setDeletingId] = useState<string | null>(null)
   const [search, setSearch] = useState('')
   const [filterVille, setFilterVille] = useState<string>('')
   const [from, setFrom] = useState('')
   const [to, setTo] = useState('')
+
+  async function handleSupprimer(d: DevisRow) {
+    const ref = d.numero || d.id.slice(0, 8)
+    const cascadeNote = d.intervention_id
+      ? '\n\nLe devis est lié à une intervention : la suppression cascade aussi sur l\'intervention, le rapport, la facture et les photos.'
+      : ''
+    if (!confirm(`Supprimer le devis ${ref} ?${cascadeNote}\n\nAction irréversible.`)) return
+    setDeletingId(d.id); setError(null)
+    try {
+      const res = await fetch(`/api/historique/${d.id}`, { method: 'DELETE' })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`)
+      setDevis(prev => prev.filter(x => x.id !== d.id))
+    } catch (e) {
+      setError(`Erreur suppression : ${e instanceof Error ? e.message : String(e)}`)
+    } finally {
+      setDeletingId(null)
+    }
+  }
 
   useEffect(() => {
     let alive = true
@@ -162,18 +182,19 @@ export default function TousLesDevisPage() {
                   <th className="px-4 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider">Statut</th>
                   <th className="px-4 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider text-right hidden md:table-cell">Montant TTC</th>
                   <th className="px-4 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider text-right">PDF</th>
+                  <th className="px-2 py-3 w-10"></th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {filtered.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="px-4 py-12 text-center text-slate-400">
+                    <td colSpan={7} className="px-4 py-12 text-center text-slate-400">
                       Aucun devis trouvé
                     </td>
                   </tr>
                 ) : (
                   filtered.map(d => (
-                    <tr key={d.id} className="hover:bg-slate-50 transition-colors">
+                    <tr key={d.id} className={`hover:bg-slate-50 transition-colors ${deletingId === d.id ? 'opacity-50' : ''}`}>
                       <td className="px-4 py-3 font-semibold text-slate-700 whitespace-nowrap">
                         {d.numero || '—'}
                       </td>
@@ -211,6 +232,16 @@ export default function TousLesDevisPage() {
                         ) : (
                           <span className="text-xs text-slate-400 italic">—</span>
                         )}
+                      </td>
+                      <td className="px-2 py-3 text-center">
+                        <button
+                          type="button"
+                          onClick={() => handleSupprimer(d)}
+                          disabled={deletingId === d.id}
+                          className="text-slate-400 hover:text-red-600 text-lg leading-none px-1 disabled:opacity-30 disabled:cursor-wait"
+                          aria-label={`Supprimer devis ${d.numero || ''}`}
+                          title="Supprimer (cascade : intervention, rapport, facture, photos)"
+                        >{deletingId === d.id ? '…' : '×'}</button>
                       </td>
                     </tr>
                   ))

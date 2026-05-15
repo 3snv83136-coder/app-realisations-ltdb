@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getSupabaseOrNull, type DocumentStatut } from "@/lib/supabase"
+import { cascadeDeleteDocument } from "@/lib/cascadeDelete"
 
 export const dynamic = 'force-dynamic'
 
@@ -25,38 +26,74 @@ export async function GET(
     .maybeSingle()
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   if (!data) return NextResponse.json({ error: 'Document introuvable' }, { status: 404 })
-  return NextResponse.json({ document: data })
+
+  // Décoration client : indispensable pour que ResendEmailButton / DocumentDownloadButton
+  // puissent regénérer un PDF avec nom + adresse. Sans ça, les PDFs sortent vides.
+  let client_nom: string | null = null
+  let client_email: string | null = null
+  let client_adresse: string | null = null
+  let client_code_postal: string | null = null
+  let client_ville: string | null = null
+  if (data.client_id) {
+    const { data: c } = await sb
+      .from('clients')
+      .select('nom, email, adresse, code_postal, ville')
+      .eq('id', data.client_id)
+      .maybeSingle()
+    if (c) {
+      client_nom = c.nom || null
+      client_email = c.email || null
+      client_adresse = c.adresse || null
+      client_code_postal = c.code_postal || null
+      client_ville = c.ville || null
+    }
+  }
+
+  return NextResponse.json({
+    document: {
+      ...data,
+      client_nom, client_email, client_adresse, client_code_postal, client_ville,
+    },
+  })
 }
 
 export async function DELETE(
   _req: NextRequest,
   ctx: { params: { id: string } },
 ) {
-  const sb = getSupabaseOrNull()
-  if (!sb) {
-    return NextResponse.json({
-      error: 'Supabase non configuré (SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY manquants)',
-    }, { status: 500 })
-  }
-
   const id = ctx.params.id
-  if (!id) {
-    return NextResponse.json({ error: 'id manquant' }, { status: 400 })
+  if (!id) return NextResponse.json({ error: 'id manquant' }, { status: 400 })
+
+  // Cascade : si le document est lié à une intervention, on efface l'intervention
+  // complète (rapport + autres docs + photos + PDFs). Sinon, on efface juste le
+  // document orphelin (rare : devis sans intervention par ex).
+  const result = await cascadeDeleteDocument(id)
+
+  if (result.kind === 'intervention') {
+    if (!result.result.ok) {
+      return NextResponse.json({
+        error: 'Échec suppression en cascade',
+        warnings: result.result.warnings,
+      }, { status: 500 })
+    }
+    return NextResponse.json({
+      ok: true,
+      cascade: 'intervention',
+      intervention_id: result.result.intervention_id,
+      deleted_documents: result.result.deleted_documents,
+      deleted_photos: result.result.deleted_photos,
+      deleted_pdfs: result.result.deleted_pdfs,
+      warnings: result.result.warnings,
+    })
   }
 
-  const { data: deleted, error } = await sb
-    .from('documents')
-    .delete()
-    .eq('id', id)
-    .select('id')
-
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
+  if (!result.ok) {
+    const isNotFound = result.warnings.some(w => w.includes('introuvable'))
+    return NextResponse.json({
+      error: result.warnings.join('; ') || 'Suppression échouée',
+    }, { status: isNotFound ? 404 : 500 })
   }
-  if (!deleted || deleted.length === 0) {
-    return NextResponse.json({ error: 'Document introuvable (peut-être déjà supprimé)' }, { status: 404 })
-  }
-  return NextResponse.json({ ok: true })
+  return NextResponse.json({ ok: true, cascade: 'document', warnings: result.warnings })
 }
 
 /**

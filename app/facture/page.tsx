@@ -189,7 +189,10 @@ export default function FactureConsolePage() {
   }
 
   async function handleSupprimer(f: FactureRow) {
-    if (!confirm(`Supprimer définitivement la facture ${f.numero || ''} ? Cette action est irréversible.`)) return
+    const cascadeNote = f.intervention_id
+      ? '\n\n⚠ La facture est liée à une intervention : tout est effacé (intervention, rapport, devis, autres documents liés, photos).'
+      : ''
+    if (!confirm(`Supprimer définitivement la facture ${f.numero || ''} ?${cascadeNote}\n\nAction irréversible.`)) return
     setPendingId(f.id); setError(''); setInfo('')
     try {
       const res = await fetch(`/api/historique/${f.id}`, { method: 'DELETE' })

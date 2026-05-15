@@ -117,7 +117,10 @@ export default function HistoriquePage() {
   async function handleDeleteDoc(d: Document) {
     const label = d.type === 'facture' ? 'cette facture' : `ce ${d.type}`
     const ref = d.numero ? ` ${d.numero}` : ''
-    if (!confirm(`Supprimer ${label}${ref} ? Cette action est irréversible.`)) return
+    const cascadeNote = d.intervention_id
+      ? '\n\n⚠ Le document est lié à une intervention : tout est effacé (intervention, rapport, autres factures/devis liés, photos).'
+      : ''
+    if (!confirm(`Supprimer ${label}${ref} ?${cascadeNote}\n\nAction irréversible.`)) return
     setDeletingId(d.id); setError('')
     try {
       const res = await fetch(`/api/historique/${d.id}`, { method: 'DELETE' })
@@ -134,7 +137,11 @@ export default function HistoriquePage() {
 
   async function handleDeleteIntervention(i: Intervention) {
     const label = i.reference ? `l'intervention ${i.reference}` : 'cette intervention'
-    if (!confirm(`Supprimer ${label} ? Cette action est irréversible et supprime aussi le rapport associé.`)) return
+    if (!confirm(
+      `Supprimer ${label} ?\n\n` +
+      `Cela efface aussi : rapport, facture(s), devis, attestation(s) et photos liés.\n\n` +
+      `Action irréversible.`
+    )) return
     setDeletingId(i.id); setError('')
     try {
       const res = await fetch(`/api/interventions/${i.id}?hard=1`, { method: 'DELETE' })

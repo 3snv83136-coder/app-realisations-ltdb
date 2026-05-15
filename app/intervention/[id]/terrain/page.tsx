@@ -35,7 +35,15 @@ type Intervention = {
   prix_prevu: number | null
 }
 
-type Client = { id: string; nom: string | null; email: string | null; telephone: string | null } | null
+type Client = {
+  id: string
+  nom: string | null
+  email: string | null
+  telephone: string | null
+  adresse: string | null
+  code_postal: string | null
+  ville: string | null
+} | null
 
 export default function TerrainPage({ params }: { params: { id: string } }) {
   const router = useRouter()
@@ -931,10 +939,16 @@ function StepEnvoi({ interv, client, onSent, onError }: {
         import('@/components/FacturePDF'),
         import('@/lib/emetteur'),
       ])
+      // Adresse PDF : priorité à l'adresse de facturation du client (freshClient.adresse,
+      // mise à jour via le PATCH ci-dessus si l'utilisateur l'a complétée). Fallback sur
+      // l'adresse chantier — utile quand le client n'a pas d'adresse facturation distincte.
+      const adresseLine1 = freshClient?.adresse || freshInterv.adresse_chantier || ''
+      const adresseCP = freshClient?.code_postal || freshInterv.code_postal || ''
+      const adresseVille = freshClient?.ville || freshInterv.ville || ''
       const clientAdresseLignes: string[] = []
-      if (freshInterv.adresse_chantier) clientAdresseLignes.push(freshInterv.adresse_chantier)
-      if (freshInterv.code_postal || freshInterv.ville) {
-        clientAdresseLignes.push([freshInterv.code_postal, freshInterv.ville].filter(Boolean).join(' '))
+      if (adresseLine1) clientAdresseLignes.push(adresseLine1)
+      if (adresseCP || adresseVille) {
+        clientAdresseLignes.push([adresseCP, adresseVille].filter(Boolean).join(' '))
       }
       const pdfFactureBlob = await pdfElementToBlob(
         React.createElement(FactureDocument, {

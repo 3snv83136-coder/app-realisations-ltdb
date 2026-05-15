@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getSupabaseOrNull } from "@/lib/supabase"
 import { isCanalAcquisition } from "@/lib/canaux"
+import { cascadeDeleteIntervention } from "@/lib/cascadeDelete"
 
 export const dynamic = 'force-dynamic'
 
@@ -133,15 +134,24 @@ export async function DELETE(req: NextRequest, { params }: Params) {
   const hard = url.searchParams.get('hard') === '1'
 
   if (hard) {
-    // Suppression définitive — détache d'abord les documents liés
-    // (FK on delete set null déjà géré par le schema, mais on ne touche pas
-    // aux documents/factures pour préserver l'historique comptable).
-    const { error } = await sb
-      .from('interventions')
-      .delete()
-      .eq('id', params.id)
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-    return NextResponse.json({ ok: true, hard: true })
+    // Suppression définitive en cascade : intervention + documents liés + photos
+    // + PDFs Storage. Préférence utilisateur explicite (UI "Tout effacer").
+    const result = await cascadeDeleteIntervention(params.id)
+    if (!result.ok) {
+      return NextResponse.json({
+        error: 'Échec suppression en cascade',
+        warnings: result.warnings,
+      }, { status: 500 })
+    }
+    return NextResponse.json({
+      ok: true,
+      hard: true,
+      cascade: true,
+      deleted_documents: result.deleted_documents,
+      deleted_photos: result.deleted_photos,
+      deleted_pdfs: result.deleted_pdfs,
+      warnings: result.warnings,
+    })
   }
 
   // Soft delete : statut=annulee (par défaut, préserve l'historique)

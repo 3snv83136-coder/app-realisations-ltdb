@@ -47,6 +47,7 @@ export default function RapportsPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [rapports, setRapports] = useState<RapportRow[]>([])
+  const [deletingId, setDeletingId] = useState<string | null>(null)
 
   const [search, setSearch] = useState('')
   const [filterVille, setFilterVille] = useState<string>('')
@@ -112,6 +113,27 @@ export default function RapportsPage() {
       sessionStorage.setItem('ltdb_load_rapport_id', id)
     }
     router.push('/nouveau')
+  }
+
+  async function supprimerRapport(r: RapportRow) {
+    const label = r.reference ? `l'intervention ${r.reference}` : `cette intervention (${r.client_nom || 'sans client'})`
+    const ok = confirm(
+      `Supprimer ${label} ?\n\n` +
+      `Cela efface aussi : rapport, facture(s), devis, attestation(s) et photos liés.\n\n` +
+      `Action irréversible.`
+    )
+    if (!ok) return
+    setDeletingId(r.id); setError(null)
+    try {
+      const res = await fetch(`/api/interventions/${r.id}?hard=1`, { method: 'DELETE' })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`)
+      setRapports(prev => prev.filter(x => x.id !== r.id))
+    } catch (e) {
+      setError(`Erreur suppression : ${e instanceof Error ? e.message : String(e)}`)
+    } finally {
+      setDeletingId(null)
+    }
   }
 
   return (
@@ -215,6 +237,13 @@ export default function RapportsPage() {
                     onClick={() => modifierRapport(r.id)}
                     className="px-3 py-1.5 text-xs rounded-lg bg-[#0e2a52] text-white hover:bg-[#0a1f3d]"
                   >✏️ Modifier</button>
+                  <button
+                    onClick={() => supprimerRapport(r)}
+                    disabled={deletingId === r.id}
+                    className="px-3 py-1.5 text-xs rounded-lg border border-red-200 text-red-600 hover:bg-red-50 disabled:opacity-50"
+                    aria-label={`Supprimer ${r.reference || 'cette intervention'}`}
+                    title="Supprimer (cascade : rapport, facture, devis, photos)"
+                  >{deletingId === r.id ? '…' : '🗑'}</button>
                 </div>
               </div>
             </div>
