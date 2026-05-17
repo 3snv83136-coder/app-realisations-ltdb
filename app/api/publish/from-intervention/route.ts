@@ -120,7 +120,7 @@ export async function POST(req: NextRequest) {
   // 95 chars + une marge de sécurité. meta_description = max ~200, on garde 195.
   const truncate = (s: string, max: number) => {
     if (s.length <= max) return s
-    return s.slice(0, max - 1).trimEnd() + '…'
+    return s.slice(0, max - 3).trimEnd() + '...'
   }
   const rawTitle = seo.titre_h1 || `${interv.type_intervention || 'Intervention'} à ${ville}`
   const rawDesc = seo.meta_description || ''
@@ -136,7 +136,7 @@ export async function POST(req: NextRequest) {
   add('intervention_city', ville)
   add('postal_code', codePostal)
   add('intervention_date', dateIntervention)
-  add('description', truncate(rawDesc, 150))
+  add('description', truncate(rawDesc, 195))
   add('meta_keywords', Array.isArray(seo.meta_keywords) ? seo.meta_keywords.join(', ') : '')
   add('content', contentWithContainers)
   add('faq_json', JSON.stringify({
