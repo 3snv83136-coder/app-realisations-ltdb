@@ -148,14 +148,16 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'type_intervention requis' }, { status: 400 })
   }
 
-  // 1. Resolve client
+  // 1. Resolve client — IMPÉRATIF : pas de création d'intervention sans client.
+  // Sans ce verrou, une UI buggée (cache PWA stale, validation contournée) crée
+  // des interventions orphelines qui s'affichent "Client inconnu · —" et bloquent
+  // le wizard d'envoi.
   let clientId: string | null = null
   if (body.client?.id) {
     clientId = body.client.id
     // Si l'UI a déjà résolu le client (autocomplete) ET que l'utilisateur a
     // saisi/modifié des champs dans la modale, on les applique sur la fiche
-    // existante. Sans ça, une correction (mail tapé après pick) était perdue
-    // et le wizard terrain affichait un nom/mail vide à l'étape envoi.
+    // existante (merge non destructif via patchClient).
     await patchClient(clientId, {
       nom: body.client.nom ?? null,
       email: body.client.email ?? null,
@@ -164,7 +166,7 @@ export async function POST(req: NextRequest) {
       code_postal: body.client.code_postal ?? null,
       ville: body.client.ville ?? null,
     })
-  } else if (body.client?.nom) {
+  } else if (body.client?.nom && body.client.nom.trim()) {
     clientId = await upsertClient({
       nom: body.client.nom,
       email: body.client.email ?? null,
@@ -176,6 +178,11 @@ export async function POST(req: NextRequest) {
     if (!clientId) {
       return NextResponse.json({ error: 'Création du client impossible' }, { status: 500 })
     }
+  } else {
+    return NextResponse.json(
+      { error: 'Nom du client requis (envoyez body.client.nom ou body.client.id).' },
+      { status: 400 },
+    )
   }
 
   // 2. Reference (avec retry sur collision unique)
