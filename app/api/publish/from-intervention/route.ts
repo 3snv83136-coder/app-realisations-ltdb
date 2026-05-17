@@ -153,9 +153,14 @@ export async function POST(req: NextRequest) {
   fd.append('client_email', clientEmail)
   fd.append('client_adresse', `${adresse} ${codePostal} ${ville}`.trim())
   fd.append('intervention_id', interventionId)
-  fd.append('before_image', validPhotos[0].blob, validPhotos[0].filename)
-  fd.append('after_image', (validPhotos[1] || validPhotos[0]).blob, (validPhotos[1] || validPhotos[0]).filename)
-  validPhotos.slice(2).forEach((p, i) => fd.append(`extra_image_${i}`, p.blob, p.filename))
+  // Wrap les Blob en File explicite : certains parseurs multipart (Django
+  // notamment) discriminent en fonction de l'objet, et un Blob "nu" peut
+  // tomber dans un code path différent qui finit en 500 silencieux.
+  const toFile = (b: { blob: Blob; filename: string }) =>
+    new File([b.blob], b.filename, { type: b.blob.type || 'image/jpeg' })
+  fd.append('before_image', toFile(validPhotos[0]))
+  fd.append('after_image', toFile(validPhotos[1] || validPhotos[0]))
+  validPhotos.slice(2).forEach((p, i) => fd.append(`extra_image_${i}`, toFile(p)))
 
   // Forward au Django.
   let djResp: Response
