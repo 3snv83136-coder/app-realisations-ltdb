@@ -24,7 +24,7 @@ export async function POST(req: NextRequest) {
   const sb = getSupabaseOrNull()
   if (!sb) return NextResponse.json({ error: 'Supabase non configuré' }, { status: 500 })
 
-  let body: { interventionId?: string; skipFields?: string[] }
+  let body: { interventionId?: string; skipFields?: string[]; overrides?: Record<string, string> }
   try {
     body = await req.json()
   } catch {
@@ -33,6 +33,7 @@ export async function POST(req: NextRequest) {
   const interventionId = (body.interventionId || '').trim()
   if (!interventionId) return NextResponse.json({ error: 'interventionId requis' }, { status: 400 })
   const skipSet = new Set(body.skipFields || [])
+  const overrides = body.overrides || {}
 
   const { data: interv, error: intErr } = await sb
     .from('interventions')
@@ -128,7 +129,10 @@ export async function POST(req: NextRequest) {
   // Construit le FormData attendu par /api/gallery/publish/ Django.
   // skipSet permet de bypasser certains champs pour le debug (body.skipFields).
   const fd = new FormData()
-  const add = (k: string, v: string) => { if (!skipSet.has(k)) fd.append(k, v) }
+  const add = (k: string, v: string) => {
+    if (skipSet.has(k)) return
+    fd.append(k, overrides[k] !== undefined ? overrides[k] : v)
+  }
   add('title', truncate(rawTitle, 95))
   add('slug', seo.slug || '')
   add('service_type', interv.type_intervention || '')
