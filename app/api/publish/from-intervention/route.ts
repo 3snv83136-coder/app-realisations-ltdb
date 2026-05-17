@@ -161,9 +161,22 @@ export async function POST(req: NextRequest) {
   let data: unknown = null
   try { data = JSON.parse(txt) } catch { /* HTML d'erreur */ }
   if (!djResp.ok) {
-    console.error('[publish/from-intervention] Django error', djResp.status, txt.slice(0, 500))
+    // Log verbeux pour diagnostiquer un rejet Django : taille du content,
+    // types des fichiers, liste des champs envoyés.
+    const fieldSizes: Record<string, number | string> = {}
+    fd.forEach((v, k) => {
+      if (typeof v === 'string') fieldSizes[k] = v.length
+      else if (v instanceof Blob) fieldSizes[k] = `Blob(${v.size}b, ${v.type || 'no-type'})`
+    })
+    console.error('[publish/from-intervention] Django error', {
+      status: djResp.status,
+      contentType: djResp.headers.get('content-type'),
+      bodyFull: txt,
+      fieldSizes,
+      url: `${ltdbUrl}/api/gallery/publish/`,
+    })
     const msg = data && typeof data === 'object' && 'error' in data ? String((data as { error: string }).error) : `HTTP ${djResp.status}`
-    return NextResponse.json({ error: `LTDB : ${msg}`, bodyPreview: txt.slice(0, 400) }, { status: djResp.status })
+    return NextResponse.json({ error: `LTDB : ${msg}`, bodyPreview: txt.slice(0, 800), fieldSizes }, { status: djResp.status })
   }
 
   const slug = (data && typeof data === 'object' && 'slug' in data ? String((data as { slug: string }).slug) : '') || seo.slug || ''
