@@ -826,7 +826,6 @@ function StepEnvoi({ interv, client, onSent, onError }: {
   onSent: () => void
   onError: (e: string) => void
 }) {
-  const router = useRouter()
   const [email, setEmail] = useState(client?.email || '')
   const [nom, setNom] = useState(client?.nom || '')
   const [sending, setSending] = useState(false)
@@ -1012,13 +1011,34 @@ function StepEnvoi({ interv, client, onSent, onError }: {
     }
   }
 
-  function handlePublier() {
-    // Redirige vers /nouveau avec le rapport chargé — la page sait publier sur le site
-    if (typeof window !== 'undefined') {
-      sessionStorage.setItem('ltdb_load_rapport_id', interv.id)
-      sessionStorage.removeItem('ltdb_intervention_prefill')
+  async function handlePublier() {
+    // Publication directe : appelle /api/publish/from-intervention qui fait
+    // tout le travail server-side (récupère photos + rapport + seo, forward
+    // au Django). Avant on redirigeait sur /nouveau qui obligeait à recliquer
+    // sur Publier — l'utilisateur ne voyait jamais rien sur le site car il
+    // pensait que c'était fait.
+    if (sending) return
+    setSending(true); setSendingStep('🌐 Publication sur le site…')
+    try {
+      const res = await fetch('/api/publish/from-intervention', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ interventionId: interv.id }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`)
+      // Avance le wizard à l'étape 7 (terminé)
+      await fetch(`/api/interventions/${interv.id}/terrain-step`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'set', step: 7 }),
+      })
+      onSent()
+    } catch (e) {
+      onError(`Publication échouée : ${e instanceof Error ? e.message : String(e)}`)
+    } finally {
+      setSending(false); setSendingStep('')
     }
-    router.push('/nouveau')
   }
 
   return (
