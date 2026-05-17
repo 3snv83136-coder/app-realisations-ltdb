@@ -539,14 +539,18 @@ export default function NouveauPage() {
     // par un <style>. Cf. fix temporaire dans /api/publish/from-intervention.
     void REALISATION_PAGE_STYLE
     const contentWithContainers = `${resumeHtml}${seo.contenu_principal || ''}${galleryHtml}${faqHtml}`
-    formData.append('title', seo.titre_h1)
+    // Tronque title/description pour respecter les CharField Django
+    // (title max_length=100 côté backend ; description max ~200). DeepSeek
+    // dépasse parfois → 500 silencieux.
+    const truncate = (s: string, max: number) => s.length <= max ? s : s.slice(0, max - 1).trimEnd() + '…'
+    formData.append('title', truncate(seo.titre_h1 || '', 95))
     formData.append('slug', seo.slug || '')
     formData.append('service_type', typeIntervention)
     formData.append('location', ville)
     formData.append('intervention_city', ville)
     formData.append('postal_code', codePostal)
     formData.append('intervention_date', dateIntervention)
-    formData.append('description', seo.meta_description)
+    formData.append('description', truncate(seo.meta_description || '', 195))
     formData.append('meta_keywords', (seo.meta_keywords || []).join(', '))
     formData.append('content', contentWithContainers)
     formData.append('faq_json', JSON.stringify({ "@context": "https://schema.org", "@type": "FAQPage", "mainEntity": (Array.isArray(seo?.faq) ? seo.faq : []).map((f: any) => ({ "@type": "Question", "name": f?.question || '', "acceptedAnswer": { "@type": "Answer", "text": f?.reponse || '' } })) }))

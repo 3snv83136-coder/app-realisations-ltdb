@@ -112,16 +112,27 @@ export async function POST(req: NextRequest) {
   const adresse = interv.adresse_chantier || ''
   const dateIntervention = interv.date_realisee || interv.date_prevue || new Date().toISOString().slice(0, 10)
 
+  // Tronque les champs courts pour respecter les CharField Django.
+  // title = CharField(max_length=100) côté Django → DeepSeek génère parfois
+  // 108+ chars et le serveur renvoyait HTTP 500 silencieusement. On garde
+  // 95 chars + une marge de sécurité. meta_description = max ~200, on garde 195.
+  const truncate = (s: string, max: number) => {
+    if (s.length <= max) return s
+    return s.slice(0, max - 1).trimEnd() + '…'
+  }
+  const rawTitle = seo.titre_h1 || `${interv.type_intervention || 'Intervention'} à ${ville}`
+  const rawDesc = seo.meta_description || ''
+
   // Construit le FormData attendu par /api/gallery/publish/ Django.
   const fd = new FormData()
-  fd.append('title', seo.titre_h1 || `${interv.type_intervention || 'Intervention'} à ${ville}`)
+  fd.append('title', truncate(rawTitle, 95))
   fd.append('slug', seo.slug || '')
   fd.append('service_type', interv.type_intervention || '')
   fd.append('location', ville)
   fd.append('intervention_city', ville)
   fd.append('postal_code', codePostal)
   fd.append('intervention_date', dateIntervention)
-  fd.append('description', seo.meta_description || '')
+  fd.append('description', truncate(rawDesc, 195))
   fd.append('meta_keywords', Array.isArray(seo.meta_keywords) ? seo.meta_keywords.join(', ') : '')
   fd.append('content', contentWithContainers)
   fd.append('faq_json', JSON.stringify({
