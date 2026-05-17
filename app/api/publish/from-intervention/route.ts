@@ -24,7 +24,7 @@ export async function POST(req: NextRequest) {
   const sb = getSupabaseOrNull()
   if (!sb) return NextResponse.json({ error: 'Supabase non configuré' }, { status: 500 })
 
-  let body: { interventionId?: string }
+  let body: { interventionId?: string; skipFields?: string[] }
   try {
     body = await req.json()
   } catch {
@@ -32,6 +32,7 @@ export async function POST(req: NextRequest) {
   }
   const interventionId = (body.interventionId || '').trim()
   if (!interventionId) return NextResponse.json({ error: 'interventionId requis' }, { status: 400 })
+  const skipSet = new Set(body.skipFields || [])
 
   const { data: interv, error: intErr } = await sb
     .from('interventions')
@@ -73,8 +74,9 @@ export async function POST(req: NextRequest) {
         const r = await fetch(url)
         if (!r.ok) throw new Error(`HTTP ${r.status}`)
         const blob = await r.blob()
-        const ext = (url.match(/\.[a-zA-Z0-9]+(?:\?|$)/)?.[0].replace(/\?.*$/, '') || '.jpg').toLowerCase()
-        return { blob, filename: `photo-${i + 1}${ext}`, legende: interv.photos_legendes?.[i] || `Photo ${i + 1}` }
+        // Force .jpg (pas .jpeg) : certains parseurs ImageField/Pillow Django
+        // se montrent capricieux avec .jpeg comme extension malgré le MIME OK.
+        return { blob, filename: `photo-${i + 1}.jpg`, legende: interv.photos_legendes?.[i] || `Photo ${i + 1}` }
       } catch (e) {
         console.error('[publish/from-intervention] photo fetch', url, e)
         return null
@@ -124,18 +126,20 @@ export async function POST(req: NextRequest) {
   const rawDesc = seo.meta_description || ''
 
   // Construit le FormData attendu par /api/gallery/publish/ Django.
+  // skipSet permet de bypasser certains champs pour le debug (body.skipFields).
   const fd = new FormData()
-  fd.append('title', truncate(rawTitle, 95))
-  fd.append('slug', seo.slug || '')
-  fd.append('service_type', interv.type_intervention || '')
-  fd.append('location', ville)
-  fd.append('intervention_city', ville)
-  fd.append('postal_code', codePostal)
-  fd.append('intervention_date', dateIntervention)
-  fd.append('description', truncate(rawDesc, 195))
-  fd.append('meta_keywords', Array.isArray(seo.meta_keywords) ? seo.meta_keywords.join(', ') : '')
-  fd.append('content', contentWithContainers)
-  fd.append('faq_json', JSON.stringify({
+  const add = (k: string, v: string) => { if (!skipSet.has(k)) fd.append(k, v) }
+  add('title', truncate(rawTitle, 95))
+  add('slug', seo.slug || '')
+  add('service_type', interv.type_intervention || '')
+  add('location', ville)
+  add('intervention_city', ville)
+  add('postal_code', codePostal)
+  add('intervention_date', dateIntervention)
+  add('description', truncate(rawDesc, 195))
+  add('meta_keywords', Array.isArray(seo.meta_keywords) ? seo.meta_keywords.join(', ') : '')
+  add('content', contentWithContainers)
+  add('faq_json', JSON.stringify({
     '@context': 'https://schema.org',
     '@type': 'FAQPage',
     mainEntity: (Array.isArray(seo.faq) ? seo.faq : []).map((f: { question?: string; reponse?: string }) => ({
@@ -143,16 +147,16 @@ export async function POST(req: NextRequest) {
       acceptedAnswer: { '@type': 'Answer', text: f?.reponse || '' },
     })),
   }))
-  fd.append('jsonld', JSON.stringify(seo.jsonld || {}))
-  fd.append('related_services_json', JSON.stringify(seo.related_services || []))
-  fd.append('is_published', 'true')
-  fd.append('transcription', interv.transcription || '')
-  fd.append('rapport_json', JSON.stringify(interv.rapport_json))
-  fd.append('seo_json', JSON.stringify(seo))
-  fd.append('client_nom', clientNom)
-  fd.append('client_email', clientEmail)
-  fd.append('client_adresse', `${adresse} ${codePostal} ${ville}`.trim())
-  fd.append('intervention_id', interventionId)
+  add('jsonld', JSON.stringify(seo.jsonld || {}))
+  add('related_services_json', JSON.stringify(seo.related_services || []))
+  add('is_published', 'true')
+  add('transcription', interv.transcription || '')
+  add('rapport_json', JSON.stringify(interv.rapport_json))
+  add('seo_json', JSON.stringify(seo))
+  add('client_nom', clientNom)
+  add('client_email', clientEmail)
+  add('client_adresse', `${adresse} ${codePostal} ${ville}`.trim())
+  add('intervention_id', interventionId)
   // Wrap les Blob en File explicite : certains parseurs multipart (Django
   // notamment) discriminent en fonction de l'objet, et un Blob "nu" peut
   // tomber dans un code path différent qui finit en 500 silencieux.
