@@ -190,16 +190,17 @@ export default function InterventionDetailPage({ params }: { params: { id: strin
       setIntervention(data.intervention)
       setClient(data.client)
       setTechnicien(data.technicien)
-      // Vérifie en parallèle l'existence d'une facture liée à l'intervention
+      // Vérifie l'existence d'une facture liée via l'endpoint dédié (filtre côté
+      // DB par intervention_id). Avant on listait /api/historique?limit=500 mais
+      // le SELECT à 16 colonnes peut sauter une ligne sur Vercel (bug
+      // PostgREST/supabase-js déjà documenté), ce qui faisait croire qu'aucune
+      // facture n'existait alors qu'elle était bien là.
       try {
-        const docsRes = await fetch(`/api/historique?limit=500`, { cache: 'no-store' })
-        const docsJson = await docsRes.json()
-        const has = (docsJson.documents || []).some((d: { intervention_id: string | null; type: string }) =>
-          d.intervention_id === params.id && d.type === 'facture'
-        )
-        setHasFacture(has)
+        const factRes = await fetch(`/api/interventions/${params.id}/facture`, { cache: 'no-store' })
+        const factJson = await factRes.json()
+        setHasFacture(!!factJson?.facture)
       } catch {
-        // best-effort, on n'échoue pas le chargement principal
+        // best-effort
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
