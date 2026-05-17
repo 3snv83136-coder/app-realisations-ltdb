@@ -166,9 +166,11 @@ export async function POST(req: NextRequest) {
   // tomber dans un code path différent qui finit en 500 silencieux.
   const toFile = (b: { blob: Blob; filename: string }) =>
     new File([b.blob], b.filename, { type: b.blob.type || 'image/jpeg' })
-  fd.append('before_image', toFile(validPhotos[0]))
-  fd.append('after_image', toFile(validPhotos[1] || validPhotos[0]))
-  validPhotos.slice(2).forEach((p, i) => fd.append(`extra_image_${i}`, toFile(p)))
+  if (!skipSet.has('before_image')) fd.append('before_image', toFile(validPhotos[0]))
+  if (!skipSet.has('after_image')) fd.append('after_image', toFile(validPhotos[1] || validPhotos[0]))
+  if (!skipSet.has('extra_images')) {
+    validPhotos.slice(2).forEach((p, i) => fd.append(`extra_image_${i}`, toFile(p)))
+  }
 
   // Forward au Django.
   let djResp: Response
