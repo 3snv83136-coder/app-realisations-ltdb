@@ -133,6 +133,71 @@ export default function ClientsPage() {
   const [deletingKey, setDeletingKey] = useState<string | null>(null)
   const [deleteError, setDeleteError] = useState<string | null>(null)
 
+  const [editModal, setEditModal] = useState<{
+    open: boolean
+    id: string | null
+    form: { nom: string; email: string; telephone: string; adresse: string; code_postal: string; ville: string }
+    saving: boolean
+    error: string | null
+  }>({
+    open: false, id: null,
+    form: { nom: '', email: '', telephone: '', adresse: '', code_postal: '', ville: '' },
+    saving: false, error: null,
+  })
+
+  function openEditModal(d: ClientDossier) {
+    if (!d.client.id) {
+      setDeleteError(`"${d.client.nom}" n'est pas une fiche client enregistrée — rien à modifier. Crée d'abord une intervention liée pour qu'une fiche existe.`)
+      return
+    }
+    setEditModal({
+      open: true,
+      id: d.client.id,
+      form: {
+        nom: d.client.nom || '',
+        email: d.client.email || '',
+        telephone: d.client.telephone || '',
+        adresse: d.client.adresse || '',
+        code_postal: d.client.code_postal || '',
+        ville: d.client.ville || '',
+      },
+      saving: false, error: null,
+    })
+  }
+
+  async function saveEditClient() {
+    if (!editModal.id) return
+    const nom = editModal.form.nom.trim()
+    if (!nom) {
+      setEditModal(s => ({ ...s, error: 'Le nom est obligatoire.' }))
+      return
+    }
+    setEditModal(s => ({ ...s, saving: true, error: null }))
+    try {
+      const res = await fetch(`/api/clients/${editModal.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          nom,
+          email: editModal.form.email,
+          telephone: editModal.form.telephone,
+          adresse: editModal.form.adresse,
+          code_postal: editModal.form.code_postal,
+          ville: editModal.form.ville,
+        }),
+      })
+      const body = await res.json().catch(() => null)
+      if (!res.ok) throw new Error(body?.error || `HTTP ${res.status}`)
+      const updated = body?.client as Client | undefined
+      if (updated) {
+        setAllClients(prev => prev.map(c => c.id === updated.id ? { ...c, ...updated } : c))
+      }
+      setEditModal(s => ({ ...s, open: false, saving: false }))
+    } catch (e) {
+      setEditModal(s => ({ ...s, saving: false, error: e instanceof Error ? e.message : 'Échec' }))
+    }
+  }
+
   async function handleDeleteClient(d: ClientDossier) {
     setDeleteError(null)
     const id = d.client.id
@@ -543,6 +608,12 @@ export default function ClientsPage() {
                   <div className="border-t border-slate-100 bg-slate-50/50 p-4 sm:p-5 space-y-4">
                     <div className="flex flex-wrap gap-2">
                       <button
+                        onClick={() => openEditModal(d)}
+                        disabled={!d.client.id}
+                        title={d.client.id ? 'Modifier les coordonnées' : 'Pas de fiche enregistrée'}
+                        className="px-3 py-1.5 text-xs rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-40"
+                      >✏️ Modifier</button>
+                      <button
                         onClick={() => exportClientCsv(d)}
                         className="px-3 py-1.5 text-xs rounded-lg bg-white border border-slate-200 hover:bg-slate-100"
                       >📥 Exporter ce client (CSV)</button>
@@ -684,6 +755,110 @@ export default function ClientsPage() {
               <button onClick={submitSend} disabled={sendModal.sending} className="px-3 py-2 text-sm rounded-xl bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50">
                 {sendModal.sending ? 'Envoi…' : 'Envoyer'}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modale édition fiche client */}
+      {editModal.open && editModal.id && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4"
+          onClick={() => !editModal.saving && setEditModal(s => ({ ...s, open: false }))}
+        >
+          <div
+            className="bg-white rounded-2xl p-5 w-full max-w-lg shadow-xl"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="font-bold text-[#0e2a52]">Modifier la fiche client</h3>
+              <button
+                onClick={() => setEditModal(s => ({ ...s, open: false }))}
+                disabled={editModal.saving}
+                className="text-slate-400 hover:text-slate-700 text-xl leading-none"
+              >×</button>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <label className="block sm:col-span-2">
+                <span className="block text-xs font-medium text-slate-600 mb-1">Nom *</span>
+                <input
+                  type="text"
+                  value={editModal.form.nom}
+                  onChange={e => setEditModal(s => ({ ...s, form: { ...s.form, nom: e.target.value }, error: null }))}
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:border-[#0e2a52] outline-none text-sm"
+                  disabled={editModal.saving}
+                />
+              </label>
+              <label className="block">
+                <span className="block text-xs font-medium text-slate-600 mb-1">Email</span>
+                <input
+                  type="email"
+                  value={editModal.form.email}
+                  onChange={e => setEditModal(s => ({ ...s, form: { ...s.form, email: e.target.value } }))}
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:border-[#0e2a52] outline-none text-sm"
+                  disabled={editModal.saving}
+                />
+              </label>
+              <label className="block">
+                <span className="block text-xs font-medium text-slate-600 mb-1">Téléphone</span>
+                <input
+                  type="tel"
+                  value={editModal.form.telephone}
+                  onChange={e => setEditModal(s => ({ ...s, form: { ...s.form, telephone: e.target.value } }))}
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:border-[#0e2a52] outline-none text-sm"
+                  disabled={editModal.saving}
+                />
+              </label>
+              <label className="block sm:col-span-2">
+                <span className="block text-xs font-medium text-slate-600 mb-1">Adresse</span>
+                <input
+                  type="text"
+                  value={editModal.form.adresse}
+                  onChange={e => setEditModal(s => ({ ...s, form: { ...s.form, adresse: e.target.value } }))}
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:border-[#0e2a52] outline-none text-sm"
+                  disabled={editModal.saving}
+                />
+              </label>
+              <label className="block">
+                <span className="block text-xs font-medium text-slate-600 mb-1">Code postal</span>
+                <input
+                  type="text"
+                  value={editModal.form.code_postal}
+                  onChange={e => setEditModal(s => ({ ...s, form: { ...s.form, code_postal: e.target.value } }))}
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:border-[#0e2a52] outline-none text-sm"
+                  disabled={editModal.saving}
+                />
+              </label>
+              <label className="block">
+                <span className="block text-xs font-medium text-slate-600 mb-1">Ville</span>
+                <input
+                  type="text"
+                  value={editModal.form.ville}
+                  onChange={e => setEditModal(s => ({ ...s, form: { ...s.form, ville: e.target.value } }))}
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:border-[#0e2a52] outline-none text-sm"
+                  disabled={editModal.saving}
+                />
+              </label>
+            </div>
+
+            {editModal.error && (
+              <div className="mt-3 bg-red-50 border border-red-200 text-red-700 rounded-lg px-3 py-2 text-sm">
+                ⚠ {editModal.error}
+              </div>
+            )}
+
+            <div className="flex justify-end gap-2 mt-5">
+              <button
+                onClick={() => setEditModal(s => ({ ...s, open: false }))}
+                disabled={editModal.saving}
+                className="px-4 py-2 text-sm rounded-xl border border-slate-200 hover:bg-slate-50 disabled:opacity-50"
+              >Annuler</button>
+              <button
+                onClick={saveEditClient}
+                disabled={editModal.saving || !editModal.form.nom.trim()}
+                className="px-4 py-2 text-sm rounded-xl bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
+              >{editModal.saving ? 'Enregistrement…' : 'Enregistrer'}</button>
             </div>
           </div>
         </div>
