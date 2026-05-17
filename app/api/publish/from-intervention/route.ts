@@ -175,8 +175,12 @@ export async function POST(req: NextRequest) {
   // tomber dans un code path différent qui finit en 500 silencieux.
   const toFile = (b: { blob: Blob; filename: string }) =>
     new File([b.blob], b.filename, { type: b.blob.type || 'image/jpeg' })
+  // Debug : si skipFields contient "use_same_image", on duplique la 1ère photo
+  // pour before et after — permet d'isoler si le bug vient de la combinaison
+  // de 2 images différentes ou d'une image spécifique.
+  const useSameImage = skipSet.has('use_same_image')
   if (!skipSet.has('before_image')) fd.append('before_image', toFile(validPhotos[0]))
-  if (!skipSet.has('after_image')) fd.append('after_image', toFile(validPhotos[1] || validPhotos[0]))
+  if (!skipSet.has('after_image')) fd.append('after_image', toFile(useSameImage ? validPhotos[0] : (validPhotos[1] || validPhotos[0])))
   if (!skipSet.has('extra_images')) {
     validPhotos.slice(2).forEach((p, i) => fd.append(`extra_image_${i}`, toFile(p)))
   }
