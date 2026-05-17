@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getSupabaseOrNull } from "@/lib/supabase"
+import { REALISATION_PAGE_STYLE } from "@/lib/realisationPageCss"
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
@@ -98,7 +99,10 @@ export async function POST(req: NextRequest) {
   const resumeHtml = seo.resume_rich_snippet
     ? `<section class="content-block resume-block"><h2>Résumé de l'intervention</h2><p>${escapeHtml(seo.resume_rich_snippet)}</p></section>`
     : ''
-  const contentWithContainers = `${resumeHtml}${seo.contenu_principal || ''}${galleryHtml}${faqHtml}`
+  // Préfixe le contenu d'un <style> qui transporte le design de la maquette
+  // validée. Le template Django ne porte pas ces styles ; les inliner garantit
+  // que la page publiée ressemble à l'aperçu de l'app (FAQ, encadrés, hero…).
+  const contentWithContainers = `${REALISATION_PAGE_STYLE}${resumeHtml}${seo.contenu_principal || ''}${galleryHtml}${faqHtml}`
 
   const ville = interv.ville || ''
   const codePostal = interv.code_postal || ''
