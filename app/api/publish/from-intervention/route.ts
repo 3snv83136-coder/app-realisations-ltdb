@@ -136,7 +136,7 @@ export async function POST(req: NextRequest) {
   add('intervention_city', ville)
   add('postal_code', codePostal)
   add('intervention_date', dateIntervention)
-  add('description', truncate(rawDesc, 195))
+  add('description', truncate(rawDesc, 150))
   add('meta_keywords', Array.isArray(seo.meta_keywords) ? seo.meta_keywords.join(', ') : '')
   add('content', contentWithContainers)
   add('faq_json', JSON.stringify({
