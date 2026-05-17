@@ -53,17 +53,25 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Aucune photo — au moins une est requise pour publier.' }, { status: 400 })
   }
 
-  // Client (optionnel mais on remonte ce qu'on a)
+  // Client : on remonte aussi l'adresse pour pouvoir basculer sur la fiche
+  // quand l'intervention n'a pas d'adresse chantier (cas fréquent quand le
+  // chantier est chez le client).
   let clientNom = ''
   let clientEmail = ''
+  let clientAdresse: string | null = null
+  let clientVille: string | null = null
+  let clientCp: string | null = null
   if (interv.client_id) {
     const { data: c } = await sb
       .from('clients')
-      .select('nom, email')
+      .select('nom, email, adresse, ville, code_postal')
       .eq('id', interv.client_id)
       .maybeSingle()
     clientNom = c?.nom || ''
     clientEmail = c?.email || ''
+    clientAdresse = c?.adresse || null
+    clientVille = c?.ville || null
+    clientCp = c?.code_postal || null
   }
 
   // Technicien : Django LTDB exige le champ technicien_name NOT NULL en base
@@ -130,9 +138,12 @@ export async function POST(req: NextRequest) {
   void REALISATION_PAGE_STYLE
   const contentWithContainers = `${resumeHtml}${seo.contenu_principal || ''}${galleryHtml}${faqHtml}`
 
-  const ville = interv.ville || ''
-  const codePostal = interv.code_postal || ''
-  const adresse = interv.adresse_chantier || ''
+  // Fallback adresse client quand l'intervention n'a pas de chantier renseigné.
+  // Évite les UPDATE manuels et les "Champs manquants: location" côté Django
+  // pour les interventions dont seul le client porte l'adresse.
+  const ville = interv.ville || clientVille || ''
+  const codePostal = interv.code_postal || clientCp || ''
+  const adresse = interv.adresse_chantier || clientAdresse || ''
   const dateIntervention = interv.date_realisee || interv.date_prevue || new Date().toISOString().slice(0, 10)
 
   // Tronque les champs courts pour respecter les CharField Django.
