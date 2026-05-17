@@ -99,10 +99,13 @@ export async function POST(req: NextRequest) {
   const resumeHtml = seo.resume_rich_snippet
     ? `<section class="content-block resume-block"><h2>Résumé de l'intervention</h2><p>${escapeHtml(seo.resume_rich_snippet)}</p></section>`
     : ''
-  // Préfixe le contenu d'un <style> qui transporte le design de la maquette
-  // validée. Le template Django ne porte pas ces styles ; les inliner garantit
-  // que la page publiée ressemble à l'aperçu de l'app (FAQ, encadrés, hero…).
-  const contentWithContainers = `${REALISATION_PAGE_STYLE}${resumeHtml}${seo.contenu_principal || ''}${galleryHtml}${faqHtml}`
+  // CSS embed désactivé : Django renvoie HTTP 500 quand le content commence
+  // par un <style> (probablement le sanitizer/parser HTML côté backend).
+  // Tant qu'on n'a pas trouvé une voie compatible, on s'en passe — Django
+  // utilise son propre template pour le rendu, FAQ comprise (intégrée dans
+  // le HTML via faqHtml ci-dessus).
+  void REALISATION_PAGE_STYLE
+  const contentWithContainers = `${resumeHtml}${seo.contenu_principal || ''}${galleryHtml}${faqHtml}`
 
   const ville = interv.ville || ''
   const codePostal = interv.code_postal || ''

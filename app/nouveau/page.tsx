@@ -535,10 +535,10 @@ export default function NouveauPage() {
     const resumeHtml = seo.resume_rich_snippet
       ? `<section class="content-block resume-block"><h2>Résumé de l'intervention</h2><p>${escapeHtml(seo.resume_rich_snippet)}</p></section>`
       : ''
-    // Préfixe le contenu d'un <style> embarqué pour que la page publiée
-    // ressemble à l'aperçu (mockup validé). Sans ça, Django rend le HTML brut
-    // sans les styles content-block/faq-block/photo-grid.
-    const contentWithContainers = `${REALISATION_PAGE_STYLE}${resumeHtml}${seo.contenu_principal || ''}${galleryHtml}${faqHtml}`
+    // CSS embed désactivé : Django renvoie HTTP 500 quand le content commence
+    // par un <style>. Cf. fix temporaire dans /api/publish/from-intervention.
+    void REALISATION_PAGE_STYLE
+    const contentWithContainers = `${resumeHtml}${seo.contenu_principal || ''}${galleryHtml}${faqHtml}`
     formData.append('title', seo.titre_h1)
     formData.append('slug', seo.slug || '')
     formData.append('service_type', typeIntervention)
