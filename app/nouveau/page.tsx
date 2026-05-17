@@ -564,6 +564,8 @@ export default function NouveauPage() {
     formData.append('client_email', clientEmail || '')
     formData.append('client_adresse', `${adresse || ''} ${codePostal || ''} ${ville || ''}`.trim())
     if (interventionId) formData.append('intervention_id', interventionId)
+    // Django LTDB exige technicien_name NOT NULL (sinon IntegrityError 500).
+    formData.append('technicien_name', technicienNom || '')
     formData.append('before_image', photos[0].file)
     formData.append('after_image', (photos[1] || photos[0]).file)
     photos.slice(2).forEach((p, i) => formData.append(`extra_image_${i}`, p.file))

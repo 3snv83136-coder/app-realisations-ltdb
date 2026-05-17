@@ -35,7 +35,7 @@ export async function POST(req: NextRequest) {
 
   const { data: interv, error: intErr } = await sb
     .from('interventions')
-    .select('id, reference, type_intervention, ville, code_postal, adresse_chantier, date_realisee, date_prevue, client_id, rapport_json, seo_json, transcription, photos_urls, photos_legendes, publie_slug')
+    .select('id, reference, type_intervention, ville, code_postal, adresse_chantier, date_realisee, date_prevue, client_id, technicien_id, rapport_json, seo_json, transcription, photos_urls, photos_legendes, publie_slug')
     .eq('id', interventionId)
     .maybeSingle()
   if (intErr) return NextResponse.json({ error: intErr.message }, { status: 500 })
@@ -64,6 +64,19 @@ export async function POST(req: NextRequest) {
       .maybeSingle()
     clientNom = c?.nom || ''
     clientEmail = c?.email || ''
+  }
+
+  // Technicien : Django LTDB exige le champ technicien_name NOT NULL en base
+  // (commit Django a904cfb). Sans ça, le serializer accepte sans valeur et
+  // create() écrit null → IntegrityError 500. Fallback vide si pas de tech.
+  let technicienNom = ''
+  if (interv.technicien_id) {
+    const { data: t } = await sb
+      .from('techniciens')
+      .select('nom')
+      .eq('id', interv.technicien_id)
+      .maybeSingle()
+    technicienNom = t?.nom || ''
   }
 
   // Récupère les photos depuis Storage en passant par le endpoint de transformation
@@ -163,6 +176,7 @@ export async function POST(req: NextRequest) {
   fd.append('client_email', clientEmail)
   fd.append('client_adresse', `${adresse} ${codePostal} ${ville}`.trim())
   fd.append('intervention_id', interventionId)
+  fd.append('technicien_name', technicienNom)
   // Wrap les Blob en File explicite : certains parseurs multipart (Django
   // notamment) discriminent en fonction de l'objet, et un Blob "nu" peut
   // tomber dans un code path différent qui finit en 500 silencieux.
