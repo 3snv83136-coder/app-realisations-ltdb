@@ -68,15 +68,24 @@ export async function POST(req: NextRequest) {
     clientEmail = c?.email || ''
   }
 
-  // Récupère les photos depuis Storage en parallèle.
+  // Récupère les photos depuis Storage en passant par le endpoint de transformation
+  // Supabase pour les compresser. Sans ça, 2 photos iPhone ~1MB chacune dépassent
+  // la limite de taille de body côté Django LTDB (~2MB) → HTTP 500 silencieux
+  // sur l'endpoint /api/gallery/publish/. width=1280 + quality=70 ramène chaque
+  // image à ~300-400KB.
+  const toRenderUrl = (url: string) => {
+    // /storage/v1/object/public/<bucket>/<path> → /storage/v1/render/image/public/<bucket>/<path>
+    const transformed = url.replace('/storage/v1/object/public/', '/storage/v1/render/image/public/')
+    const sep = transformed.includes('?') ? '&' : '?'
+    return `${transformed}${sep}width=1280&quality=70`
+  }
+
   const photoBlobs = await Promise.all(
     photosUrls.map(async (url, i) => {
       try {
-        const r = await fetch(url)
+        const r = await fetch(toRenderUrl(url))
         if (!r.ok) throw new Error(`HTTP ${r.status}`)
         const blob = await r.blob()
-        // Force .jpg (pas .jpeg) : certains parseurs ImageField/Pillow Django
-        // se montrent capricieux avec .jpeg comme extension malgré le MIME OK.
         return { blob, filename: `photo-${i + 1}.jpg`, legende: interv.photos_legendes?.[i] || `Photo ${i + 1}` }
       } catch (e) {
         console.error('[publish/from-intervention] photo fetch', url, e)
