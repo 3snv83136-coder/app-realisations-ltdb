@@ -24,7 +24,7 @@ export async function POST(req: NextRequest) {
   const sb = getSupabaseOrNull()
   if (!sb) return NextResponse.json({ error: 'Supabase non configuré' }, { status: 500 })
 
-  let body: { interventionId?: string; skipFields?: string[]; overrides?: Record<string, string> }
+  let body: { interventionId?: string }
   try {
     body = await req.json()
   } catch {
@@ -32,8 +32,6 @@ export async function POST(req: NextRequest) {
   }
   const interventionId = (body.interventionId || '').trim()
   if (!interventionId) return NextResponse.json({ error: 'interventionId requis' }, { status: 400 })
-  const skipSet = new Set(body.skipFields || [])
-  const overrides = body.overrides || {}
 
   const { data: interv, error: intErr } = await sb
     .from('interventions')
@@ -136,23 +134,18 @@ export async function POST(req: NextRequest) {
   const rawDesc = seo.meta_description || ''
 
   // Construit le FormData attendu par /api/gallery/publish/ Django.
-  // skipSet permet de bypasser certains champs pour le debug (body.skipFields).
   const fd = new FormData()
-  const add = (k: string, v: string) => {
-    if (skipSet.has(k)) return
-    fd.append(k, overrides[k] !== undefined ? overrides[k] : v)
-  }
-  add('title', truncate(rawTitle, 95))
-  add('slug', seo.slug || '')
-  add('service_type', interv.type_intervention || '')
-  add('location', ville)
-  add('intervention_city', ville)
-  add('postal_code', codePostal)
-  add('intervention_date', dateIntervention)
-  add('description', truncate(rawDesc, 195))
-  add('meta_keywords', Array.isArray(seo.meta_keywords) ? seo.meta_keywords.join(', ') : '')
-  add('content', contentWithContainers)
-  add('faq_json', JSON.stringify({
+  fd.append('title', truncate(rawTitle, 95))
+  fd.append('slug', seo.slug || '')
+  fd.append('service_type', interv.type_intervention || '')
+  fd.append('location', ville)
+  fd.append('intervention_city', ville)
+  fd.append('postal_code', codePostal)
+  fd.append('intervention_date', dateIntervention)
+  fd.append('description', truncate(rawDesc, 195))
+  fd.append('meta_keywords', Array.isArray(seo.meta_keywords) ? seo.meta_keywords.join(', ') : '')
+  fd.append('content', contentWithContainers)
+  fd.append('faq_json', JSON.stringify({
     '@context': 'https://schema.org',
     '@type': 'FAQPage',
     mainEntity: (Array.isArray(seo.faq) ? seo.faq : []).map((f: { question?: string; reponse?: string }) => ({
@@ -160,30 +153,24 @@ export async function POST(req: NextRequest) {
       acceptedAnswer: { '@type': 'Answer', text: f?.reponse || '' },
     })),
   }))
-  add('jsonld', JSON.stringify(seo.jsonld || {}))
-  add('related_services_json', JSON.stringify(seo.related_services || []))
-  add('is_published', 'true')
-  add('transcription', interv.transcription || '')
-  add('rapport_json', JSON.stringify(interv.rapport_json))
-  add('seo_json', JSON.stringify(seo))
-  add('client_nom', clientNom)
-  add('client_email', clientEmail)
-  add('client_adresse', `${adresse} ${codePostal} ${ville}`.trim())
-  add('intervention_id', interventionId)
+  fd.append('jsonld', JSON.stringify(seo.jsonld || {}))
+  fd.append('related_services_json', JSON.stringify(seo.related_services || []))
+  fd.append('is_published', 'true')
+  fd.append('transcription', interv.transcription || '')
+  fd.append('rapport_json', JSON.stringify(interv.rapport_json))
+  fd.append('seo_json', JSON.stringify(seo))
+  fd.append('client_nom', clientNom)
+  fd.append('client_email', clientEmail)
+  fd.append('client_adresse', `${adresse} ${codePostal} ${ville}`.trim())
+  fd.append('intervention_id', interventionId)
   // Wrap les Blob en File explicite : certains parseurs multipart (Django
   // notamment) discriminent en fonction de l'objet, et un Blob "nu" peut
   // tomber dans un code path différent qui finit en 500 silencieux.
   const toFile = (b: { blob: Blob; filename: string }) =>
     new File([b.blob], b.filename, { type: b.blob.type || 'image/jpeg' })
-  // Debug : si skipFields contient "use_same_image", on duplique la 1ère photo
-  // pour before et after — permet d'isoler si le bug vient de la combinaison
-  // de 2 images différentes ou d'une image spécifique.
-  const useSameImage = skipSet.has('use_same_image')
-  if (!skipSet.has('before_image')) fd.append('before_image', toFile(validPhotos[0]))
-  if (!skipSet.has('after_image')) fd.append('after_image', toFile(useSameImage ? validPhotos[0] : (validPhotos[1] || validPhotos[0])))
-  if (!skipSet.has('extra_images')) {
-    validPhotos.slice(2).forEach((p, i) => fd.append(`extra_image_${i}`, toFile(p)))
-  }
+  fd.append('before_image', toFile(validPhotos[0]))
+  fd.append('after_image', toFile(validPhotos[1] || validPhotos[0]))
+  validPhotos.slice(2).forEach((p, i) => fd.append(`extra_image_${i}`, toFile(p)))
 
   // Forward au Django.
   let djResp: Response
