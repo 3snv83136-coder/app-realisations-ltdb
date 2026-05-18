@@ -11,6 +11,8 @@ type Tool = {
   bg: string
   /** Couleur du texte par-dessus */
   text: 'white' | 'black'
+  /** Lien externe (ouvre dans un nouvel onglet) */
+  external?: boolean
 }
 
 const TOOLS: Tool[] = [
@@ -25,6 +27,7 @@ const TOOLS: Tool[] = [
   { href: '/statistiques', emoji: '📊', label: 'Statistiques', desc: 'Canaux d’acquisition',        bg: 'bg-gradient-to-br from-rose-500 to-rose-700',           text: 'white' },
   { href: '/comptabilite', emoji: '💼', label: 'Comptabilité', desc: 'Bilan, FEC, exports',         bg: 'bg-gradient-to-br from-violet-500 to-violet-700',       text: 'white' },
   { href: '/mail',         emoji: '📧', label: 'Mail',         desc: 'Emails envoyés',              bg: 'bg-gradient-to-br from-cyan-500 to-cyan-700',           text: 'white' },
+  { href: 'https://adsconstructor.vercel.app/', emoji: '📢', label: 'ADS MY SELF', desc: 'Constructeur de pubs', bg: 'bg-gradient-to-br from-orange-500 to-pink-600', text: 'white', external: true },
 ]
 
 export default function Home() {
@@ -66,12 +69,9 @@ export default function Home() {
               {TOOLS.map(t => {
                 const textColor = t.text === 'white' ? 'text-white' : 'text-black'
                 const descColor = t.text === 'white' ? 'text-white/80' : 'text-black/70'
-                return (
-                  <Link
-                    key={t.href}
-                    href={t.href}
-                    className={`group relative rounded-3xl overflow-hidden aspect-square flex flex-col justify-end p-5 sm:p-6 shadow-md hover:shadow-2xl hover:-translate-y-1 transition-all duration-300 ${t.bg}`}
-                  >
+                const tileClass = `group relative rounded-3xl overflow-hidden aspect-square flex flex-col justify-end p-5 sm:p-6 shadow-md hover:shadow-2xl hover:-translate-y-1 transition-all duration-300 ${t.bg}`
+                const inner = (
+                  <>
                     {/* Emoji géant en fond */}
                     <span
                       aria-hidden
@@ -89,6 +89,26 @@ export default function Home() {
                         {t.desc}
                       </div>
                     </div>
+                  </>
+                )
+
+                if (t.external) {
+                  return (
+                    <a
+                      key={t.href}
+                      href={t.href}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className={tileClass}
+                    >
+                      {inner}
+                    </a>
+                  )
+                }
+
+                return (
+                  <Link key={t.href} href={t.href} className={tileClass}>
+                    {inner}
                   </Link>
                 )
               })}
