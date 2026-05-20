@@ -19,6 +19,14 @@ const nextConfig = {
       "@rspack/binding-linux-x64-gnu",
       "esbuild",
     ],
+    // remotion/ est passé à @remotion/bundler via un chemin string
+    // (lib/video-render.ts) : Next ne le trace pas statiquement, donc les
+    // fichiers (Root.tsx, scenes/, assets/) manquent dans la fonction
+    // serverless → "Can't resolve './Root' in /var/task/remotion". On force
+    // leur inclusion dans le bundle de la route de génération vidéo.
+    outputFileTracingIncludes: {
+      "/api/generate-video": ["./remotion/**/*"],
+    },
   },
   webpack: (config) => {
     config.module.rules.push({
