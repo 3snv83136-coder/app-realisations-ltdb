@@ -11,12 +11,18 @@ export const maxDuration = 30
  * À l'envoi réussi : met à jour `envoye_at` du document (mais conserve son statut).
  */
 export async function POST(req: NextRequest) {
+  let body: any
+  try {
+    body = await req.json()
+  } catch {
+    return NextResponse.json({ error: 'JSON invalide' }, { status: 400 })
+  }
   const {
     documentId,
     clientEmail, clientNom, technicienNom, ville, dateFacture,
     numero, totalTTC, echeance, agence, pdfBase64, pdfFilename,
     daysOverdue, dueDate,
-  } = await req.json()
+  } = body
 
   const ctx = initResend(clientEmail)
   if ('error' in ctx) return NextResponse.json({ error: ctx.error }, { status: ctx.status })

@@ -6,11 +6,17 @@ import { persistFacture } from "@/lib/persist"
 export const maxDuration = 30
 
 export async function POST(req: NextRequest) {
+  let body: any
+  try {
+    body = await req.json()
+  } catch {
+    return NextResponse.json({ error: 'JSON invalide' }, { status: 400 })
+  }
   const {
     clientEmail, clientNom, technicienNom, ville, dateFacture,
     numero, totalTTC, echeance, agence, pdfBase64, pdfFilename,
     facture, totalHT, tvaTaux, clientAdresse, clientCP,
-  } = await req.json()
+  } = body
 
   const ctx = initResend(clientEmail)
   if ('error' in ctx) return NextResponse.json({ error: ctx.error }, { status: ctx.status })

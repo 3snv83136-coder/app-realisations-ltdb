@@ -37,7 +37,12 @@ function parseJson(raw: string) {
 }
 
 export async function POST(req: NextRequest) {
-  const body = await req.json()
+  let body: any
+  try {
+    body = await req.json()
+  } catch {
+    return NextResponse.json({ error: 'JSON invalide' }, { status: 400 })
+  }
   const {
     transcription,
     client_nom,
@@ -175,7 +180,8 @@ Réponds UNIQUEMENT avec ce JSON (sans markdown, sans backticks) :
   data.numero = data.numero || numeroFallback
   data.date_facture = data.date_facture || datePourIA
   data.echeance = typeof data.echeance === 'string' && data.echeance.trim() ? data.echeance.trim() : 'À réception'
-  data.tva_taux = Number(data.tva_taux) === 20 ? 20 : 10
+  // Accepte 0 / 10 / 20 (le 0 % — auto-liquidation / franchise — est légitime).
+  data.tva_taux = [0, 10, 20].includes(Number(data.tva_taux)) ? Number(data.tva_taux) : 10
   data.mode_reglement = typeof data.mode_reglement === 'string' ? data.mode_reglement : ''
   data.observations = typeof data.observations === 'string' ? data.observations : ''
   data.recommandation = typeof data.recommandation === 'string' ? data.recommandation : ''

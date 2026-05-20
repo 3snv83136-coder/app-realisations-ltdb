@@ -6,10 +6,16 @@ import { persistDevis } from "@/lib/persist"
 export const maxDuration = 30
 
 export async function POST(req: NextRequest) {
+  let body: any
+  try {
+    body = await req.json()
+  } catch {
+    return NextResponse.json({ error: 'JSON invalide' }, { status: 400 })
+  }
   const {
     clientEmail, clientNom, technicienNom, ville, dateDevis, numero, totalTTC, validiteJours, pdfBase64, pdfFilename,
     devis, totalHT, tvaTaux, agence, clientAdresse, clientCP,
-  } = await req.json()
+  } = body
 
   const ctx = initResend(clientEmail)
   if ('error' in ctx) return NextResponse.json({ error: ctx.error }, { status: ctx.status })

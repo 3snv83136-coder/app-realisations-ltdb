@@ -83,10 +83,22 @@ export async function PUT(req: NextRequest, { params }: Params) {
     return NextResponse.json({ error: 'JSON invalide' }, { status: 400 })
   }
 
+  // Champs texte : trim + '' → null. Évite de stocker des chaînes vides et
+  // qu'un PUT partiel mal formé n'écrase une colonne avec du vide brut. Les
+  // autres champs (statut, ids, nombres, urgence) passent tels quels.
+  const TEXT_FIELDS = new Set([
+    'agence', 'type_intervention', 'adresse_chantier', 'ville', 'code_postal',
+    'date_prevue', 'heure_prevue', 'notes_internes', 'date_realisee',
+  ])
   const update: Record<string, unknown> = {}
   for (const [k, v] of Object.entries(body)) {
-    if (!UPDATABLE.has(k)) continue
-    update[k] = v
+    if (!UPDATABLE.has(k) || v === undefined) continue
+    if (typeof v === 'string' && TEXT_FIELDS.has(k)) {
+      const trimmed = v.trim()
+      update[k] = trimmed === '' ? null : trimmed
+    } else {
+      update[k] = v
+    }
   }
 
   if (typeof update.statut === 'string' && !ALLOWED_STATUTS.has(update.statut)) {

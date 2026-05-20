@@ -293,7 +293,12 @@ async function notifyTechBestEffort(req: NextRequest, interventionId: string, te
   const origin = new URL(req.url).origin
   await fetch(`${origin}/api/notify-technicien`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      // Appel interne serveur→serveur : pas de cookie de session, le
+      // middleware d'auth l'autorise via ce header secret partagé.
+      'x-internal-auth': process.env.NEXTAUTH_SECRET || '',
+    },
     body: JSON.stringify({
       intervention_id: interventionId,
       technicien_email: tech.email,

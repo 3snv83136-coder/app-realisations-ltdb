@@ -16,7 +16,13 @@ function signStopPayload(payload: string, exp: number, secret: string): string {
 }
 
 export async function POST(req: NextRequest) {
-  const { clientEmail, clientNom, technicienNom, ville, dateIntervention, pdfBase64, pdfFilename } = await req.json()
+  let body: any
+  try {
+    body = await req.json()
+  } catch {
+    return NextResponse.json({ error: 'JSON invalide' }, { status: 400 })
+  }
+  const { clientEmail, clientNom, technicienNom, ville, dateIntervention, pdfBase64, pdfFilename } = body
 
   if (!clientEmail || typeof clientEmail !== 'string' || !EMAIL_RE.test(clientEmail)) {
     return NextResponse.json({ error: 'Email client invalide' }, { status: 400 })

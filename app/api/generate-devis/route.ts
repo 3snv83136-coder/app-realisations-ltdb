@@ -186,7 +186,9 @@ Réponds UNIQUEMENT avec ce JSON (sans markdown, sans backticks) :
   data.numero = data.numero || numeroFallback
   data.date_devis = data.date_devis || datePourIA
   data.validite_jours = Number(data.validite_jours) || 30
-  data.tva_taux = Number(data.tva_taux) || 10
+  // Accepte 0 / 10 / 20 (le 0 % — auto-liquidation / franchise — ne doit pas
+  // être avalé par `|| 10`). Toute autre valeur → 10 % par défaut.
+  data.tva_taux = [0, 10, 20].includes(Number(data.tva_taux)) ? Number(data.tva_taux) : 10
   data.tva_reduite_attestation = data.tva_taux === 10 ? (data.tva_reduite_attestation !== false) : false
   data.conditions = data.conditions && typeof data.conditions === 'object' ? data.conditions : {}
   data.modalites = data.modalites && typeof data.modalites === 'object' ? data.modalites : { acompte_pct: 30 }

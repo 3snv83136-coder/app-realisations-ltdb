@@ -11,10 +11,16 @@ const VARIANT_LABELS: Record<string, string> = {
 }
 
 export async function POST(req: NextRequest) {
+  let body: any
+  try {
+    body = await req.json()
+  } catch {
+    return NextResponse.json({ error: 'JSON invalide' }, { status: 400 })
+  }
   const {
     clientEmail, clientNom, technicienNom, ville, dateAttestation, numero, variante, pdfBase64, pdfFilename,
     attestation, agence, clientAdresse, clientCP,
-  } = await req.json()
+  } = body
 
   const ctx = initResend(clientEmail)
   if ('error' in ctx) return NextResponse.json({ error: ctx.error }, { status: ctx.status })
