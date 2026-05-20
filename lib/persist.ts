@@ -149,14 +149,6 @@ export async function persistRapport(p: PersistRapportInput): Promise<PersistRap
   const sb = getSupabaseOrNull()
   if (!sb) return { ok: false, error: 'Supabase non configuré (SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY manquants côté serveur)' }
 
-  const clientId = await upsertClient({
-    nom: p.clientNom ?? undefined,
-    email: p.clientEmail ?? undefined,
-    adresse: p.clientAdresse ?? undefined,
-    ville: p.ville ?? undefined,
-    code_postal: p.codePostal ?? undefined,
-  })
-
   // Postgres `date` exige YYYY-MM-DD strict. Toute autre forme (ex: "5 mai 2026")
   // doit être convertie en null pour ne pas faire échouer l'insert.
   const dateIso = (() => {
@@ -164,6 +156,56 @@ export async function persistRapport(p: PersistRapportInput): Promise<PersistRap
     if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw
     return null
   })()
+
+  // ─── UPDATE d'une intervention existante (wizard Mode Terrain) ───
+  // On ne met à jour QUE les champs liés au rapport. client_id / adresse_chantier
+  // / ville / code_postal sont déjà renseignés à la création de l'intervention.
+  // Les écraser avec null ici — cas du wizard Mode Terrain qui n'envoie pas les
+  // infos client à save-rapport — faisait disparaître le client à l'étape
+  // d'envoi (nom/email vides) ET cassait la publication (location vide → rejet
+  // Django). On ne touche ces champs que si de nouvelles valeurs sont fournies.
+  if (p.interventionId) {
+    const update: Record<string, unknown> = {
+      rapport_json: p.rapport,
+      seo_json: p.seo || null,
+      statut: 'terminee',
+    }
+    if (p.transcription != null) update.transcription = p.transcription
+    if (p.typeIntervention) update.type_intervention = p.typeIntervention
+    if (dateIso) update.date_realisee = dateIso
+    if (p.publishedSlug) update.publie_slug = p.publishedSlug
+    if (p.clientAdresse) update.adresse_chantier = p.clientAdresse
+    if (p.ville) update.ville = p.ville
+    if (p.codePostal) update.code_postal = p.codePostal
+    // client_id : uniquement si un client a pu être résolu depuis des infos
+    // explicitement fournies — sinon on conserve le lien existant.
+    if (p.clientNom && p.clientNom.trim()) {
+      const cid = await upsertClient({
+        nom: p.clientNom,
+        email: p.clientEmail ?? undefined,
+        adresse: p.clientAdresse ?? undefined,
+        ville: p.ville ?? undefined,
+        code_postal: p.codePostal ?? undefined,
+      })
+      if (cid) update.client_id = cid
+    }
+
+    const { error } = await sb.from('interventions').update(update).eq('id', p.interventionId)
+    if (error) {
+      console.error('[persistRapport:update]', error)
+      return { ok: false, error: `Update intervention ${p.interventionId} : ${error.message}` }
+    }
+    return { ok: true, id: p.interventionId, mode: 'update' }
+  }
+
+  // ─── INSERT d'une nouvelle intervention (flux sans intervention liée) ───
+  const clientId = await upsertClient({
+    nom: p.clientNom ?? undefined,
+    email: p.clientEmail ?? undefined,
+    adresse: p.clientAdresse ?? undefined,
+    ville: p.ville ?? undefined,
+    code_postal: p.codePostal ?? undefined,
+  })
 
   const baseRow = {
     client_id: clientId,
@@ -177,15 +219,6 @@ export async function persistRapport(p: PersistRapportInput): Promise<PersistRap
     rapport_json: p.rapport,
     seo_json: p.seo || null,
     publie_slug: p.publishedSlug || null,
-  }
-
-  if (p.interventionId) {
-    const { error } = await sb.from('interventions').update(baseRow).eq('id', p.interventionId)
-    if (error) {
-      console.error('[persistRapport:update]', error)
-      return { ok: false, error: `Update intervention ${p.interventionId} : ${error.message}` }
-    }
-    return { ok: true, id: p.interventionId, mode: 'update' }
   }
 
   const baseRef: string | null = (p.rapport as any)?.reference || null

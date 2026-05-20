@@ -863,24 +863,23 @@ function StepEnvoi({ interv, client, onSent, onError }: {
         throw new Error('Rapport non sauvegardé. Reviens à l\'étape rapport.')
       }
 
-      // ── 1bis. Synchronise la fiche client si le nom/email a été saisi ou modifié ──
-      // (cas fréquent : intervention créée sans client complet — le technicien
-      // complète directement ici plutôt que de quitter le wizard).
-      const clientId = freshClient?.id || interv.client_id
-      const needsClientUpdate = clientId && (
-        (freshClient?.nom || '').trim() !== clientNom ||
-        (freshClient?.email || '').trim() !== email.trim()
-      )
-      if (needsClientUpdate) {
-        setSendingStep('👤 Mise à jour de la fiche client…')
-        await fetchJsonWithRetry(`/api/clients/${clientId}`, {
-          method: 'PATCH',
+      // ── 1bis. (Re)lie le client à l'intervention ──
+      // link-client gère les deux cas : client déjà lié → patch non destructif ;
+      // aucun client lié → upsert + rattachement. Indispensable pour les
+      // interventions arrivées ici sans client (bug historique du wipe) — sans
+      // ça le nom saisi ne serait jamais persisté ni visible à la publication.
+      setSendingStep('👤 Mise à jour de la fiche client…')
+      const linkData = await fetchJsonWithRetry<{ client: Client }>(
+        `/api/interventions/${interv.id}/link-client`,
+        {
+          method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ nom: clientNom, email: email.trim() }),
           retries: 3,
           timeoutMs: 15_000,
-        })
-      }
+        },
+      )
+      const effectiveClient = linkData.client || freshClient
 
       // ── 2. Charge la dernière facture (payload complet pour le PDF) ──
       const factData = await fetchJsonWithRetry<{ facture: { id: string; numero?: string; payload: any; pdf_url?: string | null } | null }>(
@@ -941,9 +940,9 @@ function StepEnvoi({ interv, client, onSent, onError }: {
       // Adresse PDF : priorité à l'adresse de facturation du client (freshClient.adresse,
       // mise à jour via le PATCH ci-dessus si l'utilisateur l'a complétée). Fallback sur
       // l'adresse chantier — utile quand le client n'a pas d'adresse facturation distincte.
-      const adresseLine1 = freshClient?.adresse || freshInterv.adresse_chantier || ''
-      const adresseCP = freshClient?.code_postal || freshInterv.code_postal || ''
-      const adresseVille = freshClient?.ville || freshInterv.ville || ''
+      const adresseLine1 = effectiveClient?.adresse || freshInterv.adresse_chantier || ''
+      const adresseCP = effectiveClient?.code_postal || freshInterv.code_postal || ''
+      const adresseVille = effectiveClient?.ville || freshInterv.ville || ''
       const clientAdresseLignes: string[] = []
       if (adresseLine1) clientAdresseLignes.push(adresseLine1)
       if (adresseCP || adresseVille) {
@@ -1020,6 +1019,17 @@ function StepEnvoi({ interv, client, onSent, onError }: {
     if (sending) return
     setSending(true); setSendingStep('🌐 Publication sur le site…')
     try {
+      // Rattache le client si le nom est saisi : la publication lit le client
+      // côté serveur — sans rattachement la page sortirait sans nom client.
+      if (nom.trim()) {
+        try {
+          await fetch(`/api/interventions/${interv.id}/link-client`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ nom: nom.trim(), email: email.trim() }),
+          })
+        } catch { /* best-effort : ne bloque pas la publication */ }
+      }
       const res = await fetch('/api/publish/from-intervention', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
