@@ -3,6 +3,7 @@
  * Pattern unifié pour Facebook, Instagram, TikTok (YouTube déjà couvert par lib/youtube.ts).
  */
 import { getSupabase } from "./supabase"
+import { getTelPrincipal } from "./parametres"
 
 // ============================================================================
 // Types communs
@@ -273,11 +274,11 @@ async function refreshTikTokToken(): Promise<string> {
 // Metadata builder (shared by all publish routes)
 // ============================================================================
 
-export function buildSocialMetadata(opts: {
+export async function buildSocialMetadata(opts: {
   typeIntervention?: string | null
   ville?: string | null
   rapport?: any
-}): { title: string; description: string } {
+}): Promise<{ title: string; description: string }> {
   const type = opts.typeIntervention || "Intervention plomberie"
   const ville = opts.ville || "Var"
   const title = `${type} à ${ville} — LTDB Plombier 24h/24`
@@ -287,11 +288,13 @@ export function buildSocialMetadata(opts: {
     opts.rapport?.resume ||
     `Intervention de ${type.toLowerCase()} réalisée à ${ville} par Les Techniciens du Débouchage.`
 
+  const tel = await getTelPrincipal()
+
   const description = [
     summary,
     "",
     "🔧 Les Techniciens du Débouchage — Var (83)",
-    "📞 07 83 63 68 35 · lestechniciensdudebouchage.fr",
+    `📞 ${tel} · lestechniciensdudebouchage.fr`,
     "📍 Toulon, Hyères, Fréjus, Draguignan et tout le Var",
     "",
     "#debouchage #plomberie #var #ltdb #urgence",

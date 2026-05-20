@@ -3,6 +3,7 @@ import crypto from "crypto"
 import { escapeHtml, initResend } from "@/lib/email-utils"
 import { fmtEUR } from "@/lib/format"
 import { getSupabaseOrNull } from "@/lib/supabase"
+import { getTelPrincipal } from "@/lib/parametres"
 
 export const maxDuration = 60
 
@@ -151,6 +152,7 @@ export async function POST(req: NextRequest) {
   }
 
   // Planifie les relances avis (J+2, J+4, J+6) — même logique que /api/notify-client
+  const tel = await getTelPrincipal()
   const skipReviews = !!body.skipReviews
   const days = [2, 4, 6]
   const followUps = skipReviews ? [] : await Promise.all(
@@ -160,7 +162,7 @@ export async function POST(req: NextRequest) {
         from: `Les Techniciens du Débouchage <${fromEmail}>`,
         to: recipient,
         subject: relanceSubject(d, (clientNom || 'Client').split(' ').slice(-1)[0]),
-        html: emailRelance({ clientNom, technicienNom, ville, reviewUrl, jour: d }),
+        html: emailRelance({ clientNom, technicienNom, ville, reviewUrl, jour: d, tel }),
         scheduledAt,
       })
     })
@@ -185,7 +187,7 @@ export async function POST(req: NextRequest) {
     subject,
     html: emailCombine({
       clientNom, technicienNom, ville, dateIntervention: dateInterv,
-      reference, factureNumero: factureNum, totalTTC, reviewUrl, stopUrl,
+      reference, factureNumero: factureNum, totalTTC, reviewUrl, stopUrl, tel,
     }),
     attachments: [
       { filename: `rapport-${reference}.pdf`, content: rapportB64 },
@@ -231,9 +233,9 @@ function relanceSubject(jour: number, prenom: string) {
   return `Dernière chance — partagez votre expérience`
 }
 
-function emailCombine({ clientNom, technicienNom, ville, dateIntervention, reference, factureNumero, totalTTC, reviewUrl, stopUrl }: {
+function emailCombine({ clientNom, technicienNom, ville, dateIntervention, reference, factureNumero, totalTTC, reviewUrl, stopUrl, tel }: {
   clientNom: string; technicienNom: string; ville: string; dateIntervention: string;
-  reference: string; factureNumero: string; totalTTC: number | null; reviewUrl: string; stopUrl: string;
+  reference: string; factureNumero: string; totalTTC: number | null; reviewUrl: string; stopUrl: string; tel: string;
 }) {
   const cn = escapeHtml(clientNom || 'Madame, Monsieur')
   const tn = escapeHtml(technicienNom)
@@ -261,7 +263,7 @@ function emailCombine({ clientNom, technicienNom, ville, dateIntervention, refer
           <li>📝 Votre rapport d'intervention détaillé (réf. ${ref})</li>
           <li>🧾 Votre facture${num ? ` ${num}` : ''}${ttc ? ` — ${ttc} TTC` : ''}</li>
         </ul>
-        <p>Pour tout règlement ou question : <strong>07 83 63 68 35</strong>.</p>
+        <p>Pour tout règlement ou question : <strong>${escapeHtml(tel)}</strong>.</p>
 
         <div style="margin:30px 0;padding:20px;background:#fef0e0;border-left:4px solid #e67e22;border-radius:4px">
           <p style="margin:0 0 10px;font-weight:bold;color:#a04e09">Votre avis compte</p>
@@ -273,7 +275,7 @@ function emailCombine({ clientNom, technicienNom, ville, dateIntervention, refer
         <p style="margin-top:30px;font-size:13px;color:#666">Cordialement,<br><strong>${tn}</strong> — Expert en assainissement<br>Les Techniciens du Débouchage</p>
       </td></tr>
       <tr><td style="background:#0e2a52;color:#a0c0ff;padding:18px;text-align:center;font-size:11px">
-        Les Techniciens du Débouchage · 07 83 63 68 35 · lestechniciensdudebouchage.fr
+        Les Techniciens du Débouchage · ${escapeHtml(tel)} · lestechniciensdudebouchage.fr
       </td></tr>
     </table>
   </td></tr>
@@ -281,7 +283,7 @@ function emailCombine({ clientNom, technicienNom, ville, dateIntervention, refer
 </body></html>`
 }
 
-function emailRelance({ clientNom, technicienNom, ville, reviewUrl, jour }: { clientNom: string; technicienNom: string; ville: string; reviewUrl: string; jour: number }) {
+function emailRelance({ clientNom, technicienNom, ville, reviewUrl, jour, tel }: { clientNom: string; technicienNom: string; ville: string; reviewUrl: string; jour: number; tel: string }) {
   const cn = escapeHtml(clientNom || 'Madame, Monsieur')
   const tn = escapeHtml(technicienNom)
   const v = escapeHtml(ville)
@@ -311,7 +313,7 @@ function emailRelance({ clientNom, technicienNom, ville, reviewUrl, jour }: { cl
         <p style="font-size:13px;color:#666">Merci pour votre confiance,<br><strong>${tn}</strong> — Expert en assainissement</p>
       </td></tr>
       <tr><td style="background:#0e2a52;color:#a0c0ff;padding:14px;text-align:center;font-size:11px">
-        Les Techniciens du Débouchage · 07 83 63 68 35
+        Les Techniciens du Débouchage · ${escapeHtml(tel)}
       </td></tr>
     </table>
   </td></tr>

@@ -1,6 +1,7 @@
 'use client'
 import React from "react"
 import { Document, Page, Text, View, Image, StyleSheet, PDFDownloadLink } from "@react-pdf/renderer"
+import { TEL_PRINCIPAL_FALLBACK } from "@/lib/parametres"
 
 /* ============ CHARTE FRANCE-ADPT-LIKE ============ */
 const C = {
@@ -408,7 +409,7 @@ const Header = ({ phone }: { phone?: string }) => (
       <Text style={s.brandName}>LTDB</Text>
       <Text style={s.brandTag}>Débouchage · Curage · Inspection caméra · Assainissement</Text>
     </View>
-    <Text style={s.headerPhone}>Tél. {phone || '07 83 63 68 35'}</Text>
+    <Text style={s.headerPhone}>Tél. {phone || TEL_PRINCIPAL_FALLBACK}</Text>
   </View>
 )
 
@@ -419,7 +420,7 @@ const Footer = () => (
         Les Techniciens du Débouchage · Intervention et assainissement dans le Var
       </Text>
       <Text style={s.footerL}>
-        Tél. 07 83 63 68 35 · contact@lestechniciensdudebouchage.fr · www.lestechniciensdudebouchage.fr
+        Tél. {TEL_PRINCIPAL_FALLBACK} · contact@lestechniciensdudebouchage.fr · www.lestechniciensdudebouchage.fr
       </Text>
     </View>
     <Text style={s.footerR} render={({ pageNumber, totalPages }) => `Page ${pageNumber} / ${totalPages}`} />

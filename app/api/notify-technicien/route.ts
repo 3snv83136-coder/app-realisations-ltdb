@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { Resend } from "resend"
 import { EMAIL_RE, escapeHtml, getResendFromEmail, getResendRecipient } from "@/lib/email-utils"
+import { getTelPrincipal } from "@/lib/parametres"
 
 export const maxDuration = 30
 
@@ -76,12 +77,15 @@ export async function POST(req: NextRequest) {
 
   const subject = `${urgence ? '🚨 URGENT — ' : ''}Nouvelle intervention${ville ? ` à ${ville}` : ''}${date_prevue ? ` (${fmtDateFREmpty(date_prevue)})` : ''}`
 
+  const tel = await getTelPrincipal()
+
   const result = await resend.emails.send({
     from: `Les Techniciens du Débouchage <${fromEmail}>`,
     to: recipient,
     subject,
     html: emailTechHtml({
       lien,
+      tel,
       technicienNom: technicien_nom || 'Technicien',
       clientNom: client_nom,
       clientTelephone: client_telephone,
@@ -112,6 +116,7 @@ export async function POST(req: NextRequest) {
 
 function emailTechHtml(p: {
   lien: string
+  tel: string
   technicienNom: string
   clientNom?: string | null
   clientTelephone?: string | null
@@ -195,7 +200,7 @@ function emailTechHtml(p: {
         <p style="margin-top:30px;font-size:13px;color:#666">À bientôt sur le terrain,<br>L&rsquo;équipe LTDB</p>
       </td></tr>
       <tr><td style="background:#0e2a52;color:#a0c0ff;padding:18px;text-align:center;font-size:11px">
-        Les Techniciens du Débouchage · 07 83 63 68 35 · lestechniciensdudebouchage.fr
+        Les Techniciens du Débouchage · ${escapeHtml(p.tel)} · lestechniciensdudebouchage.fr
       </td></tr>
     </table>
   </td></tr>

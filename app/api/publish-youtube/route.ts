@@ -39,7 +39,7 @@ export async function POST(req: NextRequest) {
   await sb.from("interventions").update({ video_status: "uploading", video_error: null }).eq("id", interventionId)
 
   try {
-    const meta = buildVideoMetadata({
+    const meta = await buildVideoMetadata({
       typeIntervention: intervention.type_intervention,
       ville: intervention.ville,
       reference: intervention.reference,

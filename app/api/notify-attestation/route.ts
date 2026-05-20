@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { escapeHtml, initResend } from "@/lib/email-utils"
 import { persistAttestation } from "@/lib/persist"
+import { getTelPrincipal } from "@/lib/parametres"
 
 export const maxDuration = 30
 
@@ -37,11 +38,13 @@ export async function POST(req: NextRequest) {
     ? `Votre attestation ${numero} — ${variantLabel}`
     : `Votre attestation d'inspection — ${variantLabel}`
 
+  const tel = await getTelPrincipal()
+
   const result = await resend.emails.send({
     from: `Les Techniciens du Débouchage <${fromEmail}>`,
     to: recipient,
     subject,
-    html: emailAttestation({ clientNom, technicienNom: tech, ville, dateAttestation, variantLabel, numero }),
+    html: emailAttestation({ clientNom, technicienNom: tech, ville, dateAttestation, variantLabel, numero, tel }),
     attachments,
   })
 
@@ -78,8 +81,8 @@ export async function POST(req: NextRequest) {
   })
 }
 
-function emailAttestation({ clientNom, technicienNom, ville, dateAttestation, variantLabel, numero }: {
-  clientNom?: string; technicienNom: string; ville?: string; dateAttestation?: string; variantLabel: string; numero?: string;
+function emailAttestation({ clientNom, technicienNom, ville, dateAttestation, variantLabel, numero, tel }: {
+  clientNom?: string; technicienNom: string; ville?: string; dateAttestation?: string; variantLabel: string; numero?: string; tel: string;
 }) {
   const cn = escapeHtml(clientNom || 'Madame, Monsieur')
   const tn = escapeHtml(technicienNom)
@@ -101,11 +104,11 @@ function emailAttestation({ clientNom, technicienNom, ville, dateAttestation, va
         <p>Bonjour ${cn},</p>
         <p>Suite à l'inspection${v ? ` réalisée à <strong>${v}</strong>` : ''}${di ? ` le <strong>${di}</strong>` : ''}, vous trouverez ci-joint votre <strong>attestation officielle</strong> (variante : ${vl}).</p>
         <p>Ce document peut être transmis à votre notaire, à votre syndic ou à toute partie qui en ferait la demande dans le cadre d'une transaction immobilière ou d'un suivi technique.</p>
-        <p>Pour toute question, n'hésitez pas à nous contacter au <strong>07 83 63 68 35</strong>.</p>
+        <p>Pour toute question, n'hésitez pas à nous contacter au <strong>${escapeHtml(tel)}</strong>.</p>
         <p style="margin-top:30px;font-size:13px;color:#666">Cordialement,<br><strong>${tn}</strong> — Expert en assainissement<br>Les Techniciens du Débouchage</p>
       </td></tr>
       <tr><td style="background:#0f2e5c;color:#a0c0ff;padding:18px;text-align:center;font-size:11px">
-        Les Techniciens du Débouchage · 07 83 63 68 35 · lestechniciensdudebouchage.fr
+        Les Techniciens du Débouchage · ${escapeHtml(tel)} · lestechniciensdudebouchage.fr
       </td></tr>
     </table>
   </td></tr>

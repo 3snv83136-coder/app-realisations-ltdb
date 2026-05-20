@@ -2,6 +2,7 @@
 import React from "react"
 import { Document, Page, Text, View, Image, StyleSheet, PDFDownloadLink } from "@react-pdf/renderer"
 import { GRAVITE_LABELS, GLOSSAIRE, findDefaut } from "@/lib/camera-defauts"
+import { TEL_PRINCIPAL_FALLBACK } from "@/lib/parametres"
 
 /* ============ CHARTE ============ */
 const C = {
@@ -261,7 +262,7 @@ const Header = () => (
     <View style={s.headerRight}>
       <Text style={s.headerMetaBold}>Rapport d&apos;inspection caméra</Text>
       <Text style={s.headerMeta}>700 Av. du 15ème Corps · 83000 Toulon</Text>
-      <Text style={s.headerMeta}>Tél. 07 83 63 68 35</Text>
+      <Text style={s.headerMeta}>Tél. {TEL_PRINCIPAL_FALLBACK}</Text>
     </View>
   </View>
 )
@@ -270,7 +271,7 @@ const Footer = ({ numero }: { numero: string }) => (
   <View style={s.footer} fixed>
     <View>
       <Text style={s.footerL}>LTDB · Rapport ITV {numero}</Text>
-      <Text style={s.footerL}>contact@lestechniciensdudebouchage.fr · 07 83 63 68 35</Text>
+      <Text style={s.footerL}>contact@lestechniciensdudebouchage.fr · {TEL_PRINCIPAL_FALLBACK}</Text>
     </View>
     <Text style={s.footerR} render={({ pageNumber, totalPages }) => `Page ${pageNumber} / ${totalPages}`} />
   </View>
@@ -345,7 +346,7 @@ export function InspectionDocument({ data }: InspectionPDFProps) {
               <Text style={s.partyName}>Les Techniciens du Débouchage</Text>
               <Text style={s.partyLine}>700 Avenue du 15ème Corps</Text>
               <Text style={s.partyLine}>83000 Toulon</Text>
-              <Text style={s.partyLine}>Tél. 07 83 63 68 35</Text>
+              <Text style={s.partyLine}>Tél. {TEL_PRINCIPAL_FALLBACK}</Text>
               <Text style={s.partyLine}>contact@lestechniciensdudebouchage.fr</Text>
             </View>
             <View style={s.partyCol}>

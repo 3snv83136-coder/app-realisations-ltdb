@@ -2,6 +2,7 @@
 import dynamic from "next/dynamic"
 import { useState, useEffect } from "react"
 import type { PDFProps } from "@/components/RealisationPDF"
+import { TEL_PRINCIPAL_FALLBACK } from "@/lib/parametres"
 
 const PDFPreviewModal = dynamic(() => import("@/components/PDFPreviewModal"), { ssr: false })
 const PDFDownloadButton = dynamic(() => import("@/components/RealisationPDF"), { ssr: false })
@@ -14,7 +15,7 @@ const sampleData: PDFProps = {
   dateIntervention: "2026-04-20",
   typeIntervention: "Débouchage canalisation",
   technicienNom: "Julien Moreau",
-  phone: "06 42 18 55 03",
+  phone: TEL_PRINCIPAL_FALLBACK,
   reference: "LTDB-20260420",
   photos: [],
   rapport: {

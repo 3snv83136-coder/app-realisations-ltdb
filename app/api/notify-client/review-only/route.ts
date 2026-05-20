@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { Resend } from "resend"
 import { EMAIL_RE, escapeHtml, getResendFromEmail, getResendRecipient } from "@/lib/email-utils"
+import { getTelPrincipal } from "@/lib/parametres"
 
 /**
  * Envoie UNIQUEMENT un email de demande d'avis Google (sans rapport en pièce jointe,
@@ -29,11 +30,13 @@ export async function POST(req: NextRequest) {
     || 'https://www.google.com/maps/place/Les+Techniciens+du+Débouchage'
   const tech = technicienNom || 'votre technicien'
 
+  const tel = await getTelPrincipal()
+
   const result = await resend.emails.send({
     from: `Les Techniciens du Débouchage <${fromEmail}>`,
     to: recipient,
     subject: 'Votre avis nous serait précieux',
-    html: emailReviewOnly({ clientNom, technicienNom: tech, ville, reviewUrl }),
+    html: emailReviewOnly({ clientNom, technicienNom: tech, ville, reviewUrl, tel }),
   })
 
   if (result.error) {
@@ -45,11 +48,12 @@ export async function POST(req: NextRequest) {
   return NextResponse.json({ ok: true, id: result.data?.id })
 }
 
-function emailReviewOnly({ clientNom, technicienNom, ville, reviewUrl }: {
+function emailReviewOnly({ clientNom, technicienNom, ville, reviewUrl, tel }: {
   clientNom?: string | null
   technicienNom: string
   ville?: string | null
   reviewUrl: string
+  tel: string
 }) {
   const cn = escapeHtml(clientNom || 'Madame, Monsieur')
   const tn = escapeHtml(technicienNom)
@@ -75,7 +79,7 @@ function emailReviewOnly({ clientNom, technicienNom, ville, reviewUrl }: {
         <p style="font-size:13px;color:#666">Merci pour votre confiance,<br><strong>${tn}</strong> — Expert en assainissement<br>Les Techniciens du Débouchage</p>
       </td></tr>
       <tr><td style="background:#0e2a52;color:#a0c0ff;padding:14px;text-align:center;font-size:11px">
-        Les Techniciens du Débouchage · 07 83 63 68 35 · lestechniciensdudebouchage.fr
+        Les Techniciens du Débouchage · ${escapeHtml(tel)} · lestechniciensdudebouchage.fr
       </td></tr>
     </table>
   </td></tr>

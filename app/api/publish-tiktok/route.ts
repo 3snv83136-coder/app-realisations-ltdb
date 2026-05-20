@@ -31,7 +31,7 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const meta = buildSocialMetadata({
+    const meta = await buildSocialMetadata({
       typeIntervention: intervention.type_intervention,
       ville: intervention.ville,
       rapport: intervention.rapport_json,

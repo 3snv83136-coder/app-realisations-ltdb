@@ -1,6 +1,7 @@
 import { google, youtube_v3 } from "googleapis"
 import { OAuth2Client } from "google-auth-library"
 import { getSupabase } from "./supabase"
+import { getTelPrincipal } from "./parametres"
 import { Readable } from "node:stream"
 
 const SCOPES = ["https://www.googleapis.com/auth/youtube.upload"]
@@ -121,12 +122,12 @@ export async function uploadVideoToYouTube(input: YouTubeUploadInput): Promise<{
   return { videoId, url: `https://www.youtube.com/watch?v=${videoId}` }
 }
 
-export function buildVideoMetadata(opts: {
+export async function buildVideoMetadata(opts: {
   typeIntervention?: string | null
   ville?: string | null
   reference?: string | null
   rapport?: any
-}): { title: string; description: string; tags: string[] } {
+}): Promise<{ title: string; description: string; tags: string[] }> {
   const type = opts.typeIntervention || "Intervention plomberie"
   const ville = opts.ville || "Var"
   const ref = opts.reference ? ` · Réf ${opts.reference}` : ""
@@ -137,11 +138,13 @@ export function buildVideoMetadata(opts: {
     opts.rapport?.resume ||
     `Intervention de ${type.toLowerCase()} réalisée à ${ville} par Les Techniciens du Débouchage.`
 
+  const tel = await getTelPrincipal()
+
   const description = [
     summary,
     "",
     "🔧 Les Techniciens du Débouchage — Var (83) — 24h/24, 7j/7",
-    "📞 07 83 63 68 35",
+    `📞 ${tel}`,
     "🌐 https://lestechniciensdudebouchage.fr",
     "📍 Toulon, Hyères, Fréjus, Draguignan, Brignoles et tout le Var",
     "",

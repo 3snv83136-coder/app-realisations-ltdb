@@ -1,5 +1,6 @@
 'use client'
 import { useMemo } from "react"
+import { TEL_PRINCIPAL_FALLBACK } from "@/lib/parametres"
 
 type Props = {
   open: boolean
@@ -78,7 +79,7 @@ export default function SitePreviewModal({ open, onClose, seo, ville, photos }: 
   <header class="hero">
     <div class="eyebrow">Réalisation · ${escape(ville)}</div>
     <h1>${escape(seo.titre_h1 || '')}</h1>
-    <div class="meta">Les Techniciens du Débouchage · 07 83 63 68 35</div>
+    <div class="meta">Les Techniciens du Débouchage · ${escape(TEL_PRINCIPAL_FALLBACK)}</div>
   </header>
   ${seo.meta_description ? `<div class="meta-desc">${escape(seo.meta_description)}</div>` : ''}
   ${resume}
@@ -87,7 +88,7 @@ export default function SitePreviewModal({ open, onClose, seo, ville, photos }: 
   ${faq}
   <div class="contact-strip">
     <p>Un problème de canalisation à ${escape(ville)} ou dans le Var ?</p>
-    <p class="tel">07 83 63 68 35</p>
+    <p class="tel">${escape(TEL_PRINCIPAL_FALLBACK)}</p>
     <p style="opacity:.8;font-size:14px">Les Techniciens du Débouchage</p>
   </div>
   <footer>Aperçu — lestechniciensdudebouchage.fr</footer>

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { escapeHtml, initResend } from "@/lib/email-utils"
 import { fmtEUR } from "@/lib/format"
 import { getSupabaseOrNull } from "@/lib/supabase"
+import { getTelPrincipal } from "@/lib/parametres"
 
 export const maxDuration = 30
 
@@ -37,13 +38,15 @@ export async function POST(req: NextRequest) {
     ? `Relance — Facture ${numero} en attente de règlement`
     : `Relance — Facture en attente de règlement`
 
+  const tel = await getTelPrincipal()
+
   const result = await resend.emails.send({
     from: `Les Techniciens du Débouchage <${fromEmail}>`,
     to: recipient,
     subject,
     html: emailRelance({
       clientNom, technicienNom: tech, ville, dateFacture, numero,
-      totalTTC, echeance, agence, daysOverdue, dueDate,
+      totalTTC, echeance, agence, daysOverdue, dueDate, tel,
     }),
     attachments,
   })
@@ -72,11 +75,11 @@ export async function POST(req: NextRequest) {
 
 function emailRelance({
   clientNom, technicienNom, ville, dateFacture, numero, totalTTC,
-  echeance, agence, daysOverdue, dueDate,
+  echeance, agence, daysOverdue, dueDate, tel,
 }: {
   clientNom?: string; technicienNom: string; ville?: string; dateFacture?: string;
   numero?: string; totalTTC?: number; echeance?: string; agence?: string;
-  daysOverdue?: number; dueDate?: string;
+  daysOverdue?: number; dueDate?: string; tel: string;
 }) {
   const cn = escapeHtml(clientNom || 'Madame, Monsieur')
   const tn = escapeHtml(technicienNom)
@@ -114,11 +117,11 @@ function emailRelance({
               <td style="padding:14px 20px;text-align:right;color:#b91c1c;font-size:14px;font-weight:bold;border-top:1px solid #e2e8f0">${daysOverdue} jour${daysOverdue! > 1 ? 's' : ''}</td></tr>` : ''}
         </table>` : ''}
         <p style="font-size:14px">Si le règlement vient de nous parvenir, merci de ne pas tenir compte de cet email. Dans le cas contraire, merci de procéder au paiement dans les meilleurs délais.</p>
-        <p style="font-size:14px">Pour toute question ou pour régler par téléphone, contactez-nous au <strong>07 83 63 68 35</strong> ou répondez à ce mail.</p>
+        <p style="font-size:14px">Pour toute question ou pour régler par téléphone, contactez-nous au <strong>${escapeHtml(tel)}</strong> ou répondez à ce mail.</p>
         <p style="margin-top:30px;font-size:13px;color:#666">Cordialement,<br><strong>${tn}</strong>${ag ? ` — ${ag}` : ''}<br>Les Techniciens du Débouchage</p>
       </td></tr>
       <tr><td style="background:#0e2a52;color:#a0c0ff;padding:18px;text-align:center;font-size:11px">
-        Les Techniciens du Débouchage · 07 83 63 68 35 · lestechniciensdudebouchage.fr
+        Les Techniciens du Débouchage · ${escapeHtml(tel)} · lestechniciensdudebouchage.fr
       </td></tr>
     </table>
   </td></tr>

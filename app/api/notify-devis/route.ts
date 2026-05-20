@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { escapeHtml, initResend } from "@/lib/email-utils"
 import { fmtEUR } from "@/lib/format"
 import { persistDevis } from "@/lib/persist"
+import { getTelPrincipal } from "@/lib/parametres"
 
 export const maxDuration = 30
 
@@ -30,11 +31,13 @@ export async function POST(req: NextRequest) {
     ? `Votre devis ${numero}${ville ? ` — ${ville}` : ''}`
     : `Votre devis${ville ? ` — ${ville}` : ''}`
 
+  const tel = await getTelPrincipal()
+
   const result = await resend.emails.send({
     from: `Les Techniciens du Débouchage <${fromEmail}>`,
     to: recipient,
     subject,
-    html: emailDevis({ clientNom, technicienNom: tech, ville, dateDevis, numero, totalTTC, validiteJours }),
+    html: emailDevis({ clientNom, technicienNom: tech, ville, dateDevis, numero, totalTTC, validiteJours, tel }),
     attachments,
   })
 
@@ -71,9 +74,9 @@ export async function POST(req: NextRequest) {
   })
 }
 
-function emailDevis({ clientNom, technicienNom, ville, dateDevis, numero, totalTTC, validiteJours }: {
+function emailDevis({ clientNom, technicienNom, ville, dateDevis, numero, totalTTC, validiteJours, tel }: {
   clientNom?: string; technicienNom: string; ville?: string; dateDevis?: string;
-  numero?: string; totalTTC?: number; validiteJours?: number;
+  numero?: string; totalTTC?: number; validiteJours?: number; tel: string;
 }) {
   const cn = escapeHtml(clientNom || 'Madame, Monsieur')
   const tn = escapeHtml(technicienNom)
@@ -100,11 +103,11 @@ function emailDevis({ clientNom, technicienNom, ville, dateDevis, numero, totalT
               <td style="background:#f8fafc;padding:16px 20px;text-align:right;color:#0e2a52;font-size:18px;font-weight:bold">${ttc}</td></tr>
         </table>` : ''}
         <p style="font-size:14px">Devis valable <strong>${valid}</strong>.</p>
-        <p>Pour valider ou poser une question, contactez-nous au <strong>07 83 63 68 35</strong> ou répondez à ce mail.</p>
+        <p>Pour valider ou poser une question, contactez-nous au <strong>${escapeHtml(tel)}</strong> ou répondez à ce mail.</p>
         <p style="margin-top:30px;font-size:13px;color:#666">Cordialement,<br><strong>${tn}</strong> — Expert en assainissement<br>Les Techniciens du Débouchage</p>
       </td></tr>
       <tr><td style="background:#0e2a52;color:#a0c0ff;padding:18px;text-align:center;font-size:11px">
-        Les Techniciens du Débouchage · 07 83 63 68 35 · lestechniciensdudebouchage.fr
+        Les Techniciens du Débouchage · ${escapeHtml(tel)} · lestechniciensdudebouchage.fr
       </td></tr>
     </table>
   </td></tr>

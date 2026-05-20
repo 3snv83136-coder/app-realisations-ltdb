@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { escapeHtml, initResend } from "@/lib/email-utils"
+import { getTelPrincipal } from "@/lib/parametres"
 
 type IntervSummary = {
   reference: string | null
@@ -65,7 +66,8 @@ export async function POST(req: NextRequest) {
   const caTotal = typeof body.caTotal === 'number' ? body.caTotal : 0
   const caPaye = typeof body.caPaye === 'number' ? body.caPaye : 0
 
-  const html = renderRecap({ clientNom, ville, interventions, documents, caTotal, caPaye })
+  const tel = await getTelPrincipal()
+  const html = renderRecap({ clientNom, ville, interventions, documents, caTotal, caPaye, tel })
 
   const result = await ctx.resend.emails.send({
     from: `Les Techniciens du Débouchage <${ctx.fromEmail}>`,
@@ -83,10 +85,10 @@ export async function POST(req: NextRequest) {
   return NextResponse.json({ ok: true, id: result.data?.id })
 }
 
-function renderRecap({ clientNom, ville, interventions, documents, caTotal, caPaye }: {
+function renderRecap({ clientNom, ville, interventions, documents, caTotal, caPaye, tel }: {
   clientNom: string; ville: string;
   interventions: IntervSummary[]; documents: DocSummary[];
-  caTotal: number; caPaye: number;
+  caTotal: number; caPaye: number; tel: string;
 }): string {
   const cn = escapeHtml(clientNom)
   const v = escapeHtml(ville)
@@ -158,11 +160,11 @@ function renderRecap({ clientNom, ville, interventions, documents, caTotal, caPa
         </table>
 
         <p style="margin:24px 0 0;font-size:12px;color:#666">
-          Pour toute question : 07 83 63 68 35 · contact@lestechniciensdudebouchage.fr
+          Pour toute question : ${escapeHtml(tel)} · contact@lestechniciensdudebouchage.fr
         </p>
       </td></tr>
       <tr><td style="background:#0e2a52;color:#a0c0ff;padding:14px;text-align:center;font-size:11px">
-        Les Techniciens du Débouchage · 07 83 63 68 35
+        Les Techniciens du Débouchage · ${escapeHtml(tel)}
       </td></tr>
     </table>
   </td></tr>
