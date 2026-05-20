@@ -44,7 +44,7 @@ export default function LoginPage() {
       setError('Identifiant ou mot de passe incorrect.')
       setLoading(false)
     } else {
-      router.push('/nouveau')
+      router.push('/')
     }
   }
 
