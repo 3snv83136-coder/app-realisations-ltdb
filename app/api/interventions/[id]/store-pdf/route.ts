@@ -56,13 +56,15 @@ export async function POST(req: NextRequest, { params }: Params) {
 
   let factureId: string | null = null
   if (kind === 'facture') {
+    // range(0, 0) au lieu de limit(1) : limit + order drop silencieusement la
+    // ligne la plus récente sur supabase-js (bug documenté, cf. /api/historique).
     const { data: facs } = await sb
       .from('documents')
       .select('id')
       .eq('intervention_id', interventionId)
       .eq('type', 'facture')
       .order('created_at', { ascending: false })
-      .limit(1)
+      .range(0, 0)
     factureId = facs?.[0]?.id || null
     if (!factureId) {
       return NextResponse.json({ error: 'Aucune facture trouvée pour cette intervention' }, { status: 404 })

@@ -75,13 +75,15 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Aucun PDF rapport publié pour cette intervention. Publie le rapport d\'abord.' }, { status: 400 })
   }
 
+  // range(0, 0) au lieu de limit(1) : limit + order drop silencieusement la
+  // ligne la plus récente sur supabase-js (bug documenté, cf. /api/historique).
   const { data: factures } = await sb
     .from('documents')
     .select('id, numero, montant_ht, montant_ttc, date_emission, echeance, statut, agence, pdf_url')
     .eq('intervention_id', interventionId)
     .eq('type', 'facture')
     .order('created_at', { ascending: false })
-    .limit(1)
+    .range(0, 0)
   const facture = factures && factures[0]
   if (!facture) {
     return NextResponse.json({ error: 'Aucune facture trouvée pour cette intervention. Crée la facture d\'abord.' }, { status: 400 })

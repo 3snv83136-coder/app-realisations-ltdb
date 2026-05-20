@@ -104,7 +104,11 @@ export default function TerrainPage({ params }: { params: { id: string } }) {
   if (loading) {
     return <div className="min-h-screen bg-slate-50 flex items-center justify-center text-slate-500">Chargement…</div>
   }
-  if (error || !interv) {
+  // Écran d'erreur plein écran UNIQUEMENT si l'intervention n'a pas pu être
+  // chargée. Une erreur d'étape (envoi, facture…) ne doit pas faire disparaître
+  // tout le wizard : elle s'affiche en bandeau inline et l'utilisateur peut
+  // réessayer sans recharger la page.
+  if (!interv) {
     return (
       <div className="min-h-screen bg-slate-50 p-6">
         <div className="bg-red-50 border border-red-200 text-red-700 p-4 rounded-xl">{error || 'Intervention introuvable'}</div>
