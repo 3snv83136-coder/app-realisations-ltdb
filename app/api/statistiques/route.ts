@@ -36,7 +36,7 @@ export async function GET(req: NextRequest) {
   let query = sb
     .from('interventions')
     .select('id, ville, code_postal, date_prevue, date_realisee, canal_acquisition, prix_prevu, statut')
-    .limit(5000)
+    .range(0, 4999)
 
   if (from) query = query.gte('date_prevue', from)
   if (to) query = query.lte('date_prevue', to)

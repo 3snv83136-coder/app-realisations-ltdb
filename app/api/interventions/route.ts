@@ -79,7 +79,9 @@ export async function GET(req: NextRequest) {
     .select('id, reference, client_id, technicien_id, agence, type_intervention, adresse_chantier, ville, code_postal, date_prevue, heure_prevue, duree_estimee_min, date_realisee, urgence, statut, prix_prevu, notes_internes, publie_slug, canal_acquisition, created_at, updated_at')
     .order('date_prevue', { ascending: true, nullsFirst: false })
     .order('heure_prevue', { ascending: true, nullsFirst: false })
-    .limit(limit)
+    // range() au lieu de limit() : limit + order drop la ligne la plus
+    // récente sur supabase-js (bug documenté, cf. /api/historique).
+    .range(0, limit - 1)
 
   if (statut) query = query.eq('statut', statut)
   if (technicien_id) query = query.eq('technicien_id', technicien_id)

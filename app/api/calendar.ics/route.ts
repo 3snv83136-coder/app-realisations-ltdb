@@ -78,7 +78,7 @@ export async function GET(req: NextRequest) {
     .from('interventions')
     .select('id, reference, type_intervention, adresse_chantier, ville, code_postal, date_prevue, heure_prevue, duree_estimee_min, urgence, statut, notes_internes, agence, client_id, technicien_id, updated_at')
     .order('date_prevue', { ascending: true })
-    .limit(2000)
+    .range(0, 1999)
 
   if (error) {
     return new NextResponse(`Erreur Supabase : ${error.message}`, { status: 500 })

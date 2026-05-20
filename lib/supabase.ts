@@ -16,6 +16,15 @@ export function getSupabase(): SupabaseClient {
   }
   cached = createClient(url, key, {
     auth: { persistSession: false, autoRefreshToken: false },
+    global: {
+      // Force `no-store` sur tous les fetch de supabase-js. Sans ça, le Data
+      // Cache de Next.js met en cache les lectures PostgREST (postgrest-js
+      // passe par le `fetch` instrumenté par Next) et renvoie des données
+      // périmées — vérifié : GET /api/interventions/[id]/facture continuait
+      // de renvoyer une facture supprimée 2 min plus tôt. L'app est un outil
+      // d'admin : les lectures doivent toujours être fraîches.
+      fetch: (input, init) => fetch(input, { ...init, cache: 'no-store' }),
+    },
   })
   return cached
 }

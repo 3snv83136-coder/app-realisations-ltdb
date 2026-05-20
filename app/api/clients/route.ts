@@ -30,7 +30,7 @@ export async function GET(req: NextRequest) {
       .select('id, nom, email, telephone, adresse, code_postal, ville')
       .not('telephone', 'is', null)
       .order('nom', { ascending: true })
-      .limit(1000)
+      .range(0, 999)
     if (candErr) {
       return NextResponse.json({ error: candErr.message, clients: [] }, { status: 500 })
     }
@@ -52,7 +52,7 @@ export async function GET(req: NextRequest) {
     .from('clients')
     .select('id, nom, email, telephone, adresse, code_postal, ville')
     .order('nom', { ascending: true })
-    .limit(limit)
+    .range(0, limit - 1)
 
   if (q) {
     // Recherche dans nom OU email OU ville (insensible à la casse)
