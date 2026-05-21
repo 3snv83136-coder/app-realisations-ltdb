@@ -138,6 +138,98 @@ export interface FactureFournisseur {
   created_at: string
 }
 
+// ---------------------------------------------------------------------
+// Module « Accord d'Intervention » (migration 005)
+// ---------------------------------------------------------------------
+
+export type AccordStatut =
+  | 'BROUILLON' | 'EN_ATTENTE_SMS' | 'VALIDE' | 'REFUSE' | 'ANNULE'
+
+export type CanalValidation = 'SIGNATURE' | 'SMS'
+
+/** Catalogue des prix — source de vérité unique (règle R2). */
+export interface Tarif {
+  id: string
+  type: string
+  label: string
+  prix_min: number
+  prix_max: number
+  unite: string
+  actif: boolean
+  created_at: string
+  updated_at: string
+}
+
+/** Ligne de devis : valeurs gelées (recopiées de `tarifs`) au moment de l'accord. */
+export interface LigneDevis {
+  id: string
+  accord_id: string
+  tarif_type: string | null
+  label: string
+  prix_unitaire: number
+  unite: string
+  quantite: number
+  total_ligne: number
+  urgent: boolean
+  position: number
+  created_at: string
+}
+
+/** Accord d'intervention signé avant travaux (devis gelé + consentement + preuve). */
+export interface AccordIntervention {
+  id: string
+  reference: string | null
+  intervention_id: string | null
+  client_id: string | null
+
+  // Client : recopié (gelé) depuis la fiche au moment de l'accord
+  client_nom: string
+  client_adresse: string | null
+  client_ville: string | null
+  client_code_postal: string | null
+  client_telephone: string | null
+  client_email: string | null
+
+  // Devis (TVA non applicable en franchise en base : total_ht = total_ttc)
+  frais_deplacement: number
+  total_ht: number
+  taux_tva: number
+  total_tva: number
+  total_ttc: number
+  devis_gratuit: boolean
+  validite_jours: number
+
+  // Caractère urgent / consentement
+  intervention_urgente: boolean
+  demande_expresse: boolean
+  renonciation_retractation: boolean
+  a_travaux_non_urgents: boolean
+
+  // Validation
+  canal_validation: CanalValidation | null
+  signature_image: string | null
+  sms_token: string | null
+  sms_envoye_at: string | null
+  valide_at: string | null
+  statut: AccordStatut
+  motif_refus: string | null
+
+  // Preuve
+  pdf_url: string | null
+  ip_client: string | null
+  user_agent: string | null
+
+  // Envoi de la copie au client
+  copie_envoyee_at: string | null
+
+  // Sync hors-ligne
+  local_id: string | null
+  synced_at: string | null
+
+  created_at: string
+  updated_at: string
+}
+
 // =====================================================================
 // Helpers — upsert client par nom+email (évite les doublons)
 // =====================================================================

@@ -384,6 +384,15 @@ export default function InterventionDetailPage({ params }: { params: { id: strin
             </div>
             <div className="flex flex-wrap gap-2">
               {intervention.statut !== 'annulee' && (
+                <Link
+                  href={`/accord/nouveau?intervention=${intervention.id}`}
+                  className="bg-red-600 hover:bg-red-700 text-white px-4 py-2.5 rounded-xl font-bold text-sm transition"
+                  title="Devis + accord signé à faire valider avant les travaux"
+                >
+                  🤝 Créer l&apos;accord
+                </Link>
+              )}
+              {intervention.statut !== 'annulee' && (
                 <button
                   onClick={goToRapport}
                   className="bg-[#0e2a52] hover:bg-[#0a2047] text-white px-4 py-2.5 rounded-xl font-bold text-sm transition"

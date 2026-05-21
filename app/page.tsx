@@ -16,6 +16,7 @@ type Tool = {
 }
 
 const TOOLS: Tool[] = [
+  { href: '/accord',       emoji: '🤝', label: 'Accord',       desc: 'Accord signé avant travaux',  bg: 'bg-gradient-to-br from-red-500 to-red-700',             text: 'white' },
   { href: '/planning',     emoji: '📅', label: 'Planning',     desc: 'Prendre RDV, dispatcher',     bg: 'bg-gradient-to-br from-blue-500 to-blue-700',           text: 'white' },
   { href: '/nouveau',      emoji: '📝', label: 'Rapport',      desc: 'Rédiger sur place',           bg: 'bg-gradient-to-br from-slate-700 to-slate-900',         text: 'white' },
   { href: '/inspection',   emoji: '📹', label: 'Caméra',       desc: 'Inspection NF EN 13508-2',    bg: 'bg-gradient-to-br from-sky-400 to-sky-600',             text: 'white' },
