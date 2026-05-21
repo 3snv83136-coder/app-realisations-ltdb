@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getSupabaseOrNull } from "@/lib/supabase"
-import { getTelPrincipal } from "@/lib/parametres"
 import { createGmbPost } from "@/lib/gmb"
 
 export const dynamic = "force-dynamic"
@@ -46,15 +45,11 @@ export async function POST(req: NextRequest) {
     seo.resume_rich_snippet ||
     seo.meta_description ||
     `${type} réalisée à ${ville} par Les Techniciens du Débouchage.`
-  const tel = await getTelPrincipal()
 
-  const summary = [
-    `${type} à ${ville}`,
-    "",
-    resume,
-    "",
-    `📞 ${tel} — Les Techniciens du Débouchage · dépannage 24h/24 dans le Var.`,
-  ].join("\n")
+  // Texte sobre et factuel : pas de numéro de téléphone, pas d'URL ni de ton
+  // promotionnel dans le corps — règlement « contenu » des posts Google Business
+  // (le lien part dans le bouton callToAction, pas dans le texte).
+  const summary = [`${type} à ${ville}`, "", resume].join("\n")
 
   const photos: string[] = Array.isArray(interv.photos_urls) ? interv.photos_urls : []
   const photoUrl = photos[0] || null
