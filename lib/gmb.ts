@@ -11,21 +11,28 @@ import { getParametre } from "./parametres"
 const SCOPES = ["https://www.googleapis.com/auth/business.manage"]
 const PLATFORM = "gmb"
 
-function buildOAuthClient(): OAuth2Client {
-  const clientId = process.env.GMB_CLIENT_ID
-  const clientSecret = process.env.GMB_CLIENT_SECRET
-  const redirectUri = process.env.GMB_REDIRECT_URI
+/**
+ * Identifiants OAuth GMB — lus en priorité depuis la table `parametres`
+ * (source unique de vérité, valable en local et sur Vercel), repli sur l'env.
+ */
+async function buildOAuthClient(): Promise<OAuth2Client> {
+  const clientId = (await getParametre("GMB_CLIENT_ID", "")) || process.env.GMB_CLIENT_ID || ""
+  const clientSecret =
+    (await getParametre("GMB_CLIENT_SECRET", "")) || process.env.GMB_CLIENT_SECRET || ""
+  const redirectUri =
+    (await getParametre("GMB_REDIRECT_URI", "")) || process.env.GMB_REDIRECT_URI || ""
   if (!clientId || !clientSecret || !redirectUri) {
     throw new Error(
-      "OAuth GMB non configuré (GMB_CLIENT_ID / GMB_CLIENT_SECRET / GMB_REDIRECT_URI)",
+      "OAuth GMB non configuré (paramètres GMB_CLIENT_ID / GMB_CLIENT_SECRET / GMB_REDIRECT_URI)",
     )
   }
   return new google.auth.OAuth2(clientId, clientSecret, redirectUri)
 }
 
 /** URL de consentement Google à ouvrir pour connecter le compte Business Profile. */
-export function getAuthUrl(): string {
-  return buildOAuthClient().generateAuthUrl({
+export async function getAuthUrl(): Promise<string> {
+  const oauth = await buildOAuthClient()
+  return oauth.generateAuthUrl({
     access_type: "offline",
     prompt: "consent",
     scope: SCOPES,
@@ -35,7 +42,7 @@ export function getAuthUrl(): string {
 
 /** Échange le code OAuth contre les jetons et les stocke dans `social_tokens`. */
 export async function exchangeCodeAndStore(code: string): Promise<{ email?: string }> {
-  const oauth = buildOAuthClient()
+  const oauth = await buildOAuthClient()
   const { tokens } = await oauth.getToken(code)
   if (!tokens.refresh_token) {
     throw new Error(
@@ -84,7 +91,7 @@ export async function getAuthenticatedClient(): Promise<OAuth2Client> {
   if (!data?.refresh_token) {
     throw new Error("Aucun compte Google Business connecté — connecte-le via /api/oauth/gmb")
   }
-  const oauth = buildOAuthClient()
+  const oauth = await buildOAuthClient()
   oauth.setCredentials({ refresh_token: data.refresh_token })
   return oauth
 }
