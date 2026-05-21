@@ -70,3 +70,88 @@ export async function exchangeCodeAndStore(code: string): Promise<{ email?: stri
   if (error) throw new Error(`DB upsert social_tokens: ${error.message}`)
   return { email }
 }
+
+/** Client OAuth prêt à l'emploi (refresh_token chargé depuis social_tokens). */
+export async function getAuthenticatedClient(): Promise<OAuth2Client> {
+  const sb = getSupabase()
+  const { data, error } = await sb
+    .from("social_tokens")
+    .select("refresh_token")
+    .eq("platform", PLATFORM)
+    .maybeSingle()
+  if (error) throw new Error(`DB lecture social_tokens: ${error.message}`)
+  if (!data?.refresh_token) {
+    throw new Error("Aucun compte Google Business connecté — connecte-le via /api/oauth/gmb")
+  }
+  const oauth = buildOAuthClient()
+  oauth.setCredentials({ refresh_token: data.refresh_token })
+  return oauth
+}
+
+/** Access token valide pour appeler les API Business Profile. */
+async function getAccessToken(): Promise<string> {
+  const { token } = await (await getAuthenticatedClient()).getAccessToken()
+  if (!token) throw new Error("Impossible d'obtenir un access token GMB")
+  return token
+}
+
+export type GmbLocation = {
+  account: string // "accounts/123…"
+  accountName: string
+  location: string // "locations/456…"
+  title: string
+  address: string | null
+}
+
+/**
+ * Liste les comptes Google Business et leurs fiches (établissements).
+ * Account Management API v1 + Business Information API v1.
+ */
+export async function listGmbLocations(): Promise<GmbLocation[]> {
+  const token = await getAccessToken()
+  const headers = { Authorization: `Bearer ${token}` }
+
+  const accRes = await fetch(
+    "https://mybusinessaccountmanagement.googleapis.com/v1/accounts",
+    { headers },
+  )
+  if (!accRes.ok) {
+    throw new Error(
+      `API comptes GMB : HTTP ${accRes.status} — ${(await accRes.text()).slice(0, 300)}`,
+    )
+  }
+  const accJson = (await accRes.json()) as {
+    accounts?: Array<{ name: string; accountName?: string }>
+  }
+  const accounts = accJson.accounts || []
+
+  const readMask = encodeURIComponent("name,title,storefrontAddress")
+  const out: GmbLocation[] = []
+  for (const acc of accounts) {
+    const locRes = await fetch(
+      `https://mybusinessbusinessinformation.googleapis.com/v1/${acc.name}/locations?readMask=${readMask}&pageSize=100`,
+      { headers },
+    )
+    if (!locRes.ok) continue
+    const locJson = (await locRes.json()) as {
+      locations?: Array<{
+        name: string
+        title?: string
+        storefrontAddress?: { addressLines?: string[]; locality?: string }
+      }>
+    }
+    for (const loc of locJson.locations || []) {
+      const a = loc.storefrontAddress
+      out.push({
+        account: acc.name,
+        accountName: acc.accountName || acc.name,
+        location: loc.name,
+        title: loc.title || "(sans nom)",
+        address: a
+          ? [...(a.addressLines || []), a.locality].filter(Boolean).join(", ") || null
+          : null,
+      })
+    }
+  }
+  return out
+}
