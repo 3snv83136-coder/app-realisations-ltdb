@@ -87,6 +87,28 @@ export async function POST(req: NextRequest) {
     technicienNom = t?.nom || ''
   }
 
+  // Localisation effective (fallback sur la fiche client quand l'intervention
+  // n'a pas de chantier renseigné) + base de nommage SEO des photos :
+  // « <service>-<ville> » → ex. debouchage-wc-toulon.
+  const ville = interv.ville || clientVille || ''
+  const codePostal = interv.code_postal || clientCp || ''
+  const adresse = interv.adresse_chantier || clientAdresse || ''
+  const slugify = (s: string) =>
+    (s || '')
+      .toLowerCase()
+      .replace(/[àâä]/g, 'a')
+      .replace(/[éèêë]/g, 'e')
+      .replace(/[îï]/g, 'i')
+      .replace(/[ôö]/g, 'o')
+      .replace(/[ùûü]/g, 'u')
+      .replace(/ç/g, 'c')
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+  const nomBase =
+    [slugify(interv.type_intervention || 'intervention'), slugify(ville)]
+      .filter(Boolean)
+      .join('-') || 'realisation'
+
   // Récupère les photos depuis Storage en passant par le endpoint de transformation
   // Supabase pour les compresser. Sans ça, 2 photos iPhone ~1MB chacune dépassent
   // la limite de taille de body côté Django LTDB (~2MB) → HTTP 500 silencieux
@@ -105,7 +127,7 @@ export async function POST(req: NextRequest) {
         const r = await fetch(toRenderUrl(url))
         if (!r.ok) throw new Error(`HTTP ${r.status}`)
         const blob = await r.blob()
-        return { blob, filename: `photo-${i + 1}.jpg`, legende: interv.photos_legendes?.[i] || `Photo ${i + 1}` }
+        return { blob, filename: `${nomBase}-${i + 1}.jpg`, legende: interv.photos_legendes?.[i] || `Photo ${i + 1}` }
       } catch (e) {
         console.error('[publish/from-intervention] photo fetch', url, e)
         return null
@@ -122,7 +144,11 @@ export async function POST(req: NextRequest) {
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;').replace(/'/g, '&#39;')
   const galleryHtml = validPhotos.length > 1
-    ? `<section class="content-block gallery-block"><h2>Photos de l'intervention</h2><p>Ces photos documentent les étapes clés sur site (avant, pendant, après).</p><div class="photo-grid">${validPhotos.map((p, i) => `<figure class="photo-card"><img src="{PHOTO_${i + 1}_URL}" alt="${escapeHtml(p.legende)}" loading="lazy"><figcaption>${escapeHtml(p.legende)}</figcaption></figure>`).join('')}</div></section>`
+    ? `<section class="content-block gallery-block"><h2>Photos de l'intervention</h2><p>Ces photos documentent les étapes clés sur site (avant, pendant, après).</p><div class="photo-grid">${validPhotos.map((p, i) => {
+        const legendePropre = /^photo \d+$/i.test(p.legende) ? '' : p.legende
+        const alt = `${interv.type_intervention || 'Intervention'} à ${ville}${legendePropre ? ` — ${legendePropre}` : ''}`
+        return `<figure class="photo-card"><img src="{PHOTO_${i + 1}_URL}" alt="${escapeHtml(alt)}" loading="lazy"><figcaption>${escapeHtml(p.legende)}</figcaption></figure>`
+      }).join('')}</div></section>`
     : ''
   const faqHtml = Array.isArray(seo.faq) && seo.faq.length > 0
     ? `<section class="content-block faq-block"><h2>Questions fréquentes</h2>${seo.faq.map((f: { question?: string; reponse?: string }) => `<details class="faq-item"><summary>${escapeHtml(f?.question || '')}</summary><div class="faq-answer"><p>${escapeHtml(f?.reponse || '')}</p></div></details>`).join('')}</section>`
@@ -138,12 +164,6 @@ export async function POST(req: NextRequest) {
   void REALISATION_PAGE_STYLE
   const contentWithContainers = `${resumeHtml}${seo.contenu_principal || ''}${galleryHtml}${faqHtml}`
 
-  // Fallback adresse client quand l'intervention n'a pas de chantier renseigné.
-  // Évite les UPDATE manuels et les "Champs manquants: location" côté Django
-  // pour les interventions dont seul le client porte l'adresse.
-  const ville = interv.ville || clientVille || ''
-  const codePostal = interv.code_postal || clientCp || ''
-  const adresse = interv.adresse_chantier || clientAdresse || ''
   const dateIntervention = interv.date_realisee || interv.date_prevue || new Date().toISOString().slice(0, 10)
 
   // Tronque les champs courts pour respecter les CharField Django.
@@ -196,6 +216,22 @@ export async function POST(req: NextRequest) {
   fd.append('before_image', toFile(validPhotos[0]))
   fd.append('after_image', toFile(validPhotos[1] || validPhotos[0]))
   validPhotos.slice(2).forEach((p, i) => fd.append(`extra_image_${i}`, toFile(p)))
+
+  // Métadonnées photos structurées — permet à Django de renommer chaque
+  // fichier (SEO : activité + ville) et d'écrire des alt / ImageObject précis,
+  // au lieu de déduire depuis le seul nom de fichier multipart.
+  fd.append('photos_nom_base', nomBase)
+  fd.append(
+    'photos_json',
+    JSON.stringify(
+      validPhotos.map((p, i) => ({
+        field: i === 0 ? 'before_image' : i === 1 ? 'after_image' : `extra_image_${i - 2}`,
+        ordre: i,
+        filename: p.filename,
+        legende: p.legende,
+      })),
+    ),
+  )
 
   // Forward au Django.
   let djResp: Response
