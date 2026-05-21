@@ -44,9 +44,9 @@ export default function Home() {
   }, [])
 
   return (
-    <main className="relative min-h-screen bg-slate-50 text-slate-900">
+    <main className="relative min-h-screen bg-[#0a1f3d] text-slate-100">
       {/* Header — bleu marine sobre */}
-      <header className="bg-[#0e2a52] text-white">
+      <header className="bg-[#0e2a52] text-white border-b border-white/10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-5 sm:py-6 flex items-center justify-between gap-4">
           <div className={`flex items-baseline gap-3 ${skipAnimation ? '' : 'ltdb-drop'}`}>
             <h1 className="text-2xl sm:text-3xl font-black tracking-tight leading-none">LTDB</h1>
@@ -65,7 +65,7 @@ export default function Home() {
         {/* Tools grid — tuiles compactes, effet loupe au survol */}
         <div className={`px-4 sm:px-6 pt-6 sm:pt-8 pb-12 ${skipAnimation ? '' : 'buttons-reveal'}`}>
           <div className="max-w-7xl mx-auto">
-            <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500 font-semibold mb-4 px-1">Modules</div>
+            <div className="text-[11px] uppercase tracking-[0.18em] text-white/55 font-semibold mb-4 px-1">Modules</div>
             <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-2.5 sm:gap-3">
               {TOOLS.map(t => {
                 const textColor = t.text === 'white' ? 'text-white' : 'text-black'
