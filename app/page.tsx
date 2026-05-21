@@ -33,6 +33,10 @@ const TOOLS: Tool[] = [
 
 export default function Home() {
   const [skipAnimation, setSkipAnimation] = useState(false)
+  // Animation « serpent » : une vague ludique parcourt les tuiles, déclenchée 3 s
+  // après l'arrivée sur le dashboard.
+  const [snake, setSnake] = useState(false)
+  const [cols, setCols] = useState(6)
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -41,6 +45,15 @@ export default function Home() {
     } else {
       sessionStorage.setItem('ltdb_seen_intro', '1')
     }
+  }, [])
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      const w = window.innerWidth
+      setCols(w >= 1024 ? 6 : w >= 640 ? 4 : 3)
+      setSnake(true)
+    }, 3000)
+    return () => clearTimeout(timer)
   }, [])
 
   return (
@@ -67,10 +80,17 @@ export default function Home() {
           <div className="max-w-7xl mx-auto">
             <div className="text-[11px] uppercase tracking-[0.18em] text-white/55 font-semibold mb-4 px-1">Modules</div>
             <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-2.5 sm:gap-3">
-              {TOOLS.map(t => {
+              {TOOLS.map((t, i) => {
                 const textColor = t.text === 'white' ? 'text-white' : 'text-black'
+                // Ordre « serpent » : balayage en boustrophédon (→ puis ← puis →).
+                const row = Math.floor(i / cols)
+                const serp = row % 2 === 0 ? i : row * cols + (cols - 1 - (i % cols))
+                // Délai négatif → le décalage entre tuiles est conservé à chaque boucle.
+                const snakeStyle = snake
+                  ? { animationDelay: `${(serp * 0.1 - 3).toFixed(2)}s` }
+                  : undefined
                 // Effet loupe : la tuile survolée grossit et passe au-dessus de ses voisines.
-                const tileClass = `group relative rounded-2xl overflow-hidden h-[104px] flex flex-col justify-end p-3 shadow-sm transition-all duration-200 ease-out hover:shadow-xl hover:scale-[1.13] hover:z-10 ${t.bg}`
+                const tileClass = `group relative rounded-2xl overflow-hidden h-[104px] flex flex-col justify-end p-3 shadow-sm transition-all duration-200 ease-out hover:shadow-xl hover:scale-[1.13] hover:z-10 ${snake ? 'snake-tile ' : ''}${t.bg}`
                 const inner = (
                   <>
                     {/* Emoji en filigrane */}
@@ -99,6 +119,7 @@ export default function Home() {
                       rel="noopener noreferrer"
                       title={t.desc}
                       className={tileClass}
+                      style={snakeStyle}
                     >
                       {inner}
                     </a>
@@ -106,7 +127,7 @@ export default function Home() {
                 }
 
                 return (
-                  <Link key={t.href} href={t.href} title={t.desc} className={tileClass}>
+                  <Link key={t.href} href={t.href} title={t.desc} className={tileClass} style={snakeStyle}>
                     {inner}
                   </Link>
                 )
@@ -125,12 +146,22 @@ export default function Home() {
         .buttons-reveal { opacity: 0; animation: softFadeUp 0.4s ease-out 0.15s forwards; }
         .dashboard-reveal { opacity: 0; animation: softFadeUp 0.4s ease-out 0.25s forwards; }
 
+        /* Animation « serpent » : une vague ondule à travers la grille, en boucle.
+           Chaque tuile a un animationDelay négatif (inline) → la vague se décale
+           de tuile en tuile et le décalage est conservé à chaque répétition. */
+        @keyframes ltdbSnake {
+          0%, 16%, 100% { top: 0; }
+          8%            { top: -10px; }
+        }
+        .snake-tile { animation: ltdbSnake 3s ease-in-out infinite; }
+
         @media (prefers-reduced-motion: reduce) {
           .ltdb-drop, .buttons-reveal, .dashboard-reveal {
             animation: none !important;
             opacity: 1 !important;
             transform: none !important;
           }
+          .snake-tile { animation: none !important; top: 0 !important; }
         }
       `}</style>
     </main>
