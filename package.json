@@ -33,6 +33,10 @@
     "remotion": "^4.0.459",
     "resend": "^6.10.0"
   },
+  "optionalDependencies": {
+    "@remotion/compositor-linux-x64-gnu": "^4.0.459",
+    "@remotion/compositor-linux-x64-musl": "^4.0.459"
+  },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",
     "@types/node": "^20",

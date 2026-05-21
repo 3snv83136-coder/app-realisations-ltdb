@@ -24,8 +24,14 @@ const nextConfig = {
     // fichiers (Root.tsx, scenes/, assets/) manquent dans la fonction
     // serverless → "Can't resolve './Root' in /var/task/remotion". On force
     // leur inclusion dans le bundle de la route de génération vidéo.
+    // Binaires natifs (remotion, ffmpeg, ffprobe) : Next ne les trace pas
+    // automatiquement depuis les packages externalisés → ENOENT sur Vercel.
     outputFileTracingIncludes: {
-      "/api/generate-video": ["./remotion/**/*"],
+      "/api/generate-video": [
+        "./remotion/**/*",
+        "./node_modules/@remotion/compositor-linux-x64-gnu/**/*",
+        "./node_modules/@remotion/compositor-linux-x64-musl/**/*",
+      ],
     },
   },
   webpack: (config) => {

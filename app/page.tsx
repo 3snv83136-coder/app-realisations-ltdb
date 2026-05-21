@@ -31,6 +31,15 @@ const TOOLS: Tool[] = [
   { href: 'https://adsconstructor.vercel.app/', emoji: '📢', label: 'ADS MY SELF', desc: 'Constructeur de pubs', bg: 'bg-gradient-to-br from-orange-500 to-pink-600', text: 'white', external: true },
 ]
 
+/** Grille 5×5 : les 13 tuiles forment un « M » (MONDOR / LTDB). */
+const M_GRID: { row: number; col: number }[] = [
+  { row: 1, col: 1 }, { row: 1, col: 5 }, // jambes haut
+  { row: 2, col: 1 }, { row: 2, col: 5 },
+  { row: 3, col: 1 }, { row: 3, col: 3 }, { row: 3, col: 5 }, // creux du M
+  { row: 4, col: 1 }, { row: 4, col: 2 }, { row: 4, col: 4 }, { row: 4, col: 5 }, // diagonales intérieures
+  { row: 5, col: 1 }, { row: 5, col: 5 }, // pieds
+]
+
 type Scatter = { tx: number; ty: number; rot: number; order: number }
 
 /**
@@ -93,8 +102,15 @@ export default function Home() {
         <div className="px-4 sm:px-6 pt-6 sm:pt-8 pb-12">
           <div className="max-w-7xl mx-auto">
             <div className="text-[11px] uppercase tracking-[0.18em] text-white/55 font-semibold mb-4 px-1">Modules</div>
-            <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-2.5 sm:gap-3">
+            <div
+              className="grid gap-2.5 sm:gap-3 max-w-3xl mx-auto"
+              style={{
+                gridTemplateColumns: 'repeat(5, minmax(0, 1fr))',
+                gridTemplateRows: 'repeat(5, minmax(88px, 1fr))',
+              }}
+            >
               {TOOLS.map((t, i) => {
+                const pos = M_GRID[i]
                 const textColor = t.text === 'white' ? 'text-white' : 'text-black'
                 const sc = scatter?.[i]
                 // 'pending' : tuile masquée le temps de décider de l'intro (zéro flash).
@@ -105,15 +121,18 @@ export default function Home() {
                     ? 'tile-in'
                     : ''
                 // Position de départ dispersée + délai d'arrivée (ordre mélangé).
-                const tileStyle: React.CSSProperties | undefined =
-                  sc && tilesIntro === 'play'
-                    ? ({
+                const tileStyle: React.CSSProperties = {
+                  gridRow: pos.row,
+                  gridColumn: pos.col,
+                  ...(sc && tilesIntro === 'play'
+                    ? {
                         '--tx': `${sc.tx}px`,
                         '--ty': `${sc.ty}px`,
                         '--rot': `${sc.rot}deg`,
                         animationDelay: `${(sc.order * 0.07).toFixed(3)}s`,
-                      } as React.CSSProperties)
-                    : undefined
+                      }
+                    : {}),
+                } as React.CSSProperties
                 // Effet loupe : la tuile survolée grossit et passe au-dessus de ses voisines.
                 const tileClass = `group relative rounded-2xl overflow-hidden h-[104px] flex flex-col justify-end p-3 shadow-sm transition-all duration-200 ease-out hover:shadow-xl hover:scale-[1.13] hover:z-10 ${introClass} ${t.bg}`
                 const inner = (
