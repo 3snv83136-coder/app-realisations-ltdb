@@ -7,7 +7,11 @@ function loadUsers() {
   for (let i = 1; i <= 5; i++) {
     const entry = process.env[`AUTH_USER_${i}`]
     if (entry) {
-      const [name, hash] = entry.split(':')
+      const [name, raw] = entry.split(':')
+      // Le hash bcrypt peut être stocké avec les "$" remplacés par "_" : dans les
+      // fichiers .env, dotenv-expand interprète les "$" et corrompt le hash.
+      let hash = raw || ''
+      if (hash && !hash.startsWith('$2')) hash = hash.replace(/_/g, '$')
       if (name && hash) users.push({ id: String(i), name, hash })
     }
   }
