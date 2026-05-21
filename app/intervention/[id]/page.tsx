@@ -116,6 +116,7 @@ export default function InterventionDetailPage({ params }: { params: { id: strin
   const [techniciensError, setTechniciensError] = useState('')
   const [hasFacture, setHasFacture] = useState(false)
   const [form, setForm] = useState<Partial<InterventionDetail>>({})
+  const [clientForm, setClientForm] = useState<Partial<ClientDetail>>({})
 
   function startEdit() {
     if (!intervention) return
@@ -133,6 +134,18 @@ export default function InterventionDetailPage({ params }: { params: { id: strin
       agence: intervention.agence,
       notes_internes: intervention.notes_internes,
     })
+    setClientForm(
+      client
+        ? {
+            nom: client.nom,
+            telephone: client.telephone,
+            email: client.email,
+            adresse: client.adresse,
+            code_postal: client.code_postal,
+            ville: client.ville,
+          }
+        : {},
+    )
     setActionMsg(''); setError('')
     setEditing(true)
     if (techniciens.length === 0) {
@@ -149,27 +162,60 @@ export default function InterventionDetailPage({ params }: { params: { id: strin
     }
   }
 
-  function cancelEdit() { setEditing(false); setForm({}) }
+  function cancelEdit() { setEditing(false); setForm({}); setClientForm({}) }
 
   async function saveEdit() {
     if (!intervention) return
     setSaving(true); setError(''); setActionMsg('')
     try {
+      // Diff intervention
       const payload: Record<string, unknown> = {}
       const original: any = intervention
       for (const [k, v] of Object.entries(form)) {
         const orig = k === 'heure_prevue' ? (original[k] ? String(original[k]).slice(0, 5) : null) : original[k]
         if (v !== orig) payload[k] = v === '' ? null : v
       }
-      if (Object.keys(payload).length === 0) { setEditing(false); setSaving(false); return }
-      const res = await fetch(`/api/interventions/${intervention.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`)
-      setIntervention(data.intervention)
+
+      // Diff coordonnées client (modifiables depuis la fiche intervention :
+      // le tel/mail manque souvent à la prise de RDV).
+      const clientPatch: Record<string, unknown> = {}
+      if (client) {
+        const origClient: any = client
+        for (const [k, v] of Object.entries(clientForm)) {
+          const norm = typeof v === 'string' && v.trim() !== '' ? v.trim() : null
+          const orig = origClient[k] ?? null
+          if (norm !== orig) clientPatch[k] = norm
+        }
+      }
+
+      const nbIntervention = Object.keys(payload).length
+      const nbClient = Object.keys(clientPatch).length
+      if (nbIntervention === 0 && nbClient === 0) {
+        setEditing(false); setSaving(false); return
+      }
+
+      if (nbIntervention > 0) {
+        const res = await fetch(`/api/interventions/${intervention.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        })
+        const data = await res.json()
+        if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`)
+        setIntervention(data.intervention)
+      }
+
+      if (nbClient > 0 && client) {
+        const res = await fetch(`/api/clients/${client.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(clientPatch),
+        })
+        const data = await res.json()
+        if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`)
+        setClient(data.client)
+      }
+
       setActionMsg('Modifications enregistrées')
       setEditing(false)
       // recharge le client/technicien si technicien changé
@@ -597,7 +643,32 @@ export default function InterventionDetailPage({ params }: { params: { id: strin
         {/* Client */}
         <section className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 space-y-3">
           <h2 className="text-sm font-bold uppercase tracking-wider text-slate-500">Client</h2>
-          {client ? (
+          {editing && client ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-blue-50 rounded-xl p-3 border border-blue-200">
+              <EditField label="Nom">
+                <input value={clientForm.nom || ''} onChange={e => setClientForm(f => ({ ...f, nom: e.target.value }))} className={editInputCls} />
+              </EditField>
+              <EditField label="Téléphone">
+                <input value={clientForm.telephone || ''} onChange={e => setClientForm(f => ({ ...f, telephone: e.target.value }))} className={editInputCls} inputMode="tel" placeholder="Compléter le téléphone…" />
+              </EditField>
+              <div className="sm:col-span-2">
+                <EditField label="Email">
+                  <input value={clientForm.email || ''} onChange={e => setClientForm(f => ({ ...f, email: e.target.value }))} className={editInputCls} inputMode="email" placeholder="Compléter l'email…" />
+                </EditField>
+              </div>
+              <div className="sm:col-span-2">
+                <EditField label="Adresse client">
+                  <input value={clientForm.adresse || ''} onChange={e => setClientForm(f => ({ ...f, adresse: e.target.value }))} className={editInputCls} />
+                </EditField>
+              </div>
+              <EditField label="Code postal">
+                <input value={clientForm.code_postal || ''} onChange={e => setClientForm(f => ({ ...f, code_postal: e.target.value }))} className={editInputCls} inputMode="numeric" />
+              </EditField>
+              <EditField label="Ville">
+                <input value={clientForm.ville || ''} onChange={e => setClientForm(f => ({ ...f, ville: e.target.value }))} className={editInputCls} />
+              </EditField>
+            </div>
+          ) : client ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
               <InfoCell label="Nom" value={client.nom} />
               <InfoCell label="Téléphone" value={client.telephone ? <a href={`tel:${client.telephone}`} className="text-blue-600 hover:underline font-bold">{client.telephone}</a> : '—'} />
