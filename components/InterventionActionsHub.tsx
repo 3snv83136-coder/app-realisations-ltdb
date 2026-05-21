@@ -29,6 +29,8 @@ export default function InterventionActionsHub({
   const [email, setEmail] = useState(clientEmail || '')
   const [sending, setSending] = useState(false)
   const [status, setStatus] = useState<string | null>(null)
+  const [gmbBusy, setGmbBusy] = useState(false)
+  const [gmbStatus, setGmbStatus] = useState<string | null>(null)
 
   async function sendCombined() {
     if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) {
@@ -63,6 +65,27 @@ export default function InterventionActionsHub({
       sessionStorage.setItem('ltdb_load_rapport_id', interventionId)
     }
     router.push('/nouveau')
+  }
+
+  async function publishGmb() {
+    setGmbBusy(true); setGmbStatus(null)
+    try {
+      const res = await fetch('/api/publish-gmb', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ interventionId }),
+      })
+      const j = await res.json()
+      if (!res.ok || j.error) {
+        setGmbStatus('⚠️ ' + (j.error || 'Erreur publication'))
+      } else {
+        setGmbStatus('Publié sur Google Business ✓')
+      }
+    } catch (e) {
+      setGmbStatus('⚠️ ' + (e instanceof Error ? e.message : 'Erreur réseau'))
+    } finally {
+      setGmbBusy(false)
+    }
   }
 
   const sendDisabled = !hasRapport || !hasFacture
@@ -113,6 +136,17 @@ export default function InterventionActionsHub({
           {...(publieSlug
             ? { href: `${publicBaseUrl}/${publieSlug}`, externalHref: true }
             : { onClick: gotoPublish })}
+        />
+
+        <ActionTile
+          icon="📍"
+          title="Publier sur Google Business"
+          desc={gmbBusy
+            ? 'Publication en cours…'
+            : gmbStatus || 'Crée un post sur la fiche Google Business'}
+          accent="blue"
+          disabled={!hasRapport || gmbBusy}
+          onClick={publishGmb}
         />
 
         <ActionTile
@@ -171,12 +205,13 @@ function StatusPill({ ok, label }: { ok: boolean; label: string }) {
   )
 }
 
-type ActionAccent = 'emerald' | 'amber' | 'sky' | 'violet'
+type ActionAccent = 'emerald' | 'amber' | 'sky' | 'violet' | 'blue'
 const ACCENT: Record<ActionAccent, { bg: string; text: string; border: string; hover: string }> = {
   emerald: { bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200', hover: 'hover:bg-emerald-100' },
   amber:   { bg: 'bg-amber-50',   text: 'text-amber-700',   border: 'border-amber-200',   hover: 'hover:bg-amber-100' },
   sky:     { bg: 'bg-sky-50',     text: 'text-sky-700',     border: 'border-sky-200',     hover: 'hover:bg-sky-100' },
   violet:  { bg: 'bg-violet-50',  text: 'text-violet-700',  border: 'border-violet-200',  hover: 'hover:bg-violet-100' },
+  blue:    { bg: 'bg-blue-50',    text: 'text-blue-700',    border: 'border-blue-200',    hover: 'hover:bg-blue-100' },
 }
 
 type ActionTileProps = {
