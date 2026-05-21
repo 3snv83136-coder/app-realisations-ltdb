@@ -31,22 +31,6 @@ const TOOLS: Tool[] = [
   { href: 'https://adsconstructor.vercel.app/', emoji: '📢', label: 'ADS MY SELF', desc: 'Constructeur de pubs', bg: 'bg-gradient-to-br from-orange-500 to-pink-600', text: 'white', external: true },
 ]
 
-const GRID_ROWS = 5
-const GRID_COLS = 5
-
-/** Tire n cases distinctes au hasard dans la grille 5×5. */
-function genRandomGrid(n: number): { row: number; col: number }[] {
-  const cells: { row: number; col: number }[] = []
-  for (let r = 1; r <= GRID_ROWS; r++) {
-    for (let c = 1; c <= GRID_COLS; c++) cells.push({ row: r, col: c })
-  }
-  for (let i = cells.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1))
-    ;[cells[i], cells[j]] = [cells[j], cells[i]]
-  }
-  return cells.slice(0, n)
-}
-
 type Scatter = { tx: number; ty: number; rot: number; order: number }
 
 /**
@@ -73,11 +57,9 @@ export default function Home() {
   // Entrée des tuiles : 'pending' avant la décision, 'play' = animation, 'skip' = déjà vue.
   const [tilesIntro, setTilesIntro] = useState<'pending' | 'play' | 'skip'>('pending')
   const [scatter, setScatter] = useState<Scatter[] | null>(null)
-  const [gridLayout, setGridLayout] = useState<{ row: number; col: number }[] | null>(null)
 
   useEffect(() => {
     if (typeof window === 'undefined') return
-    setGridLayout(genRandomGrid(TOOLS.length))
     if (sessionStorage.getItem('ltdb_seen_intro') === '1') {
       setSkipAnimation(true)
       setTilesIntro('skip')
@@ -111,36 +93,25 @@ export default function Home() {
         <div className="px-4 sm:px-6 pt-6 sm:pt-8 pb-12">
           <div className="max-w-7xl mx-auto">
             <div className="text-[11px] uppercase tracking-[0.18em] text-white/55 font-semibold mb-4 px-1">Modules</div>
-            <div
-              className="grid gap-2.5 sm:gap-3 max-w-3xl mx-auto"
-              style={{
-                gridTemplateColumns: `repeat(${GRID_COLS}, minmax(0, 1fr))`,
-                gridTemplateRows: `repeat(${GRID_ROWS}, minmax(88px, 1fr))`,
-              }}
-            >
+            <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-2.5 sm:gap-3">
               {TOOLS.map((t, i) => {
-                const pos = gridLayout?.[i]
                 const textColor = t.text === 'white' ? 'text-white' : 'text-black'
                 const sc = scatter?.[i]
-                // 'pending' ou grille pas encore tirée : pas de flash.
                 const introClass =
-                  tilesIntro === 'pending' || !pos
+                  tilesIntro === 'pending'
                     ? 'opacity-0'
                     : sc && tilesIntro === 'play'
                     ? 'tile-in'
                     : ''
-                // Position de départ dispersée + délai d'arrivée (ordre mélangé).
-                const tileStyle: React.CSSProperties = {
-                  ...(pos ? { gridRow: pos.row, gridColumn: pos.col } : {}),
-                  ...(sc && tilesIntro === 'play'
-                    ? {
+                const tileStyle: React.CSSProperties | undefined =
+                  sc && tilesIntro === 'play'
+                    ? ({
                         '--tx': `${sc.tx}px`,
                         '--ty': `${sc.ty}px`,
                         '--rot': `${sc.rot}deg`,
                         animationDelay: `${(sc.order * 0.07).toFixed(3)}s`,
-                      }
-                    : {}),
-                } as React.CSSProperties
+                      } as React.CSSProperties)
+                    : undefined
                 // Effet loupe : la tuile survolée grossit et passe au-dessus de ses voisines.
                 const tileClass = `group relative rounded-2xl overflow-hidden h-[104px] flex flex-col justify-end p-3 shadow-sm transition-all duration-200 ease-out hover:shadow-xl hover:scale-[1.13] hover:z-10 ${introClass} ${t.bg}`
                 const inner = (
