@@ -205,3 +205,48 @@ export async function createGmbPost(
   const json = (await res.json()) as { name?: string; searchUrl?: string }
   return { name: json.name || "", searchUrl: json.searchUrl || null }
 }
+
+export type GmbPost = {
+  name: string
+  summary: string
+  state: string
+  createTime: string
+  searchUrl: string | null
+  photoUrl: string | null
+}
+
+/** Liste les posts publiés sur la fiche Google Business (API v4 `localPosts.list`). */
+export async function listGmbPosts(): Promise<GmbPost[]> {
+  const location = (await getParametre("GMB_LOCATION", "")).trim()
+  if (!location) {
+    throw new Error("parametres.GMB_LOCATION non défini — récupère la fiche via /api/gmb/locations")
+  }
+  const token = await getAccessToken()
+  const res = await fetch(
+    `https://mybusiness.googleapis.com/v4/${location}/localPosts?pageSize=100`,
+    { headers: { Authorization: `Bearer ${token}` } },
+  )
+  if (!res.ok) {
+    throw new Error(
+      `Liste des posts GMB : HTTP ${res.status} — ${(await res.text()).slice(0, 300)}`,
+    )
+  }
+  const json = (await res.json()) as {
+    localPosts?: Array<{
+      name?: string
+      summary?: string
+      state?: string
+      createTime?: string
+      searchUrl?: string
+      media?: Array<{ googleUrl?: string; sourceUrl?: string }>
+    }>
+  }
+  return (json.localPosts || []).map(p => ({
+    name: p.name || "",
+    summary: p.summary || "",
+    state: p.state || "",
+    createTime: p.createTime || "",
+    searchUrl: p.searchUrl || null,
+    photoUrl: p.media?.[0]?.googleUrl || p.media?.[0]?.sourceUrl || null,
+  }))
+}

@@ -29,6 +29,7 @@ const TOOLS: Tool[] = [
   { href: '/comptabilite', emoji: '💼', label: 'Comptabilité', desc: 'Bilan, FEC, exports',         bg: 'bg-gradient-to-br from-violet-500 to-violet-700',       text: 'white' },
   { href: '/mail',         emoji: '📧', label: 'Mail',         desc: 'Emails envoyés',              bg: 'bg-gradient-to-br from-cyan-500 to-cyan-700',           text: 'white' },
   { href: 'https://adsconstructor.vercel.app/', emoji: '📢', label: 'ADS MY SELF', desc: 'Constructeur de pubs', bg: 'bg-gradient-to-br from-orange-500 to-pink-600', text: 'white', external: true },
+  { href: '/post-gmb',     emoji: '📍', label: 'Post GMB',     desc: 'Posts Google Business envoyés', bg: 'bg-gradient-to-br from-indigo-500 to-indigo-700',       text: 'white' },
 ]
 
 type Scatter = { tx: number; ty: number; rot: number; order: number }
