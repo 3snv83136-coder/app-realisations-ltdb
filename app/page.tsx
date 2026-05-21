@@ -76,10 +76,10 @@ export default function Home() {
   }, [])
 
   return (
-    <main className="relative min-h-screen bg-[#0a1f3d] text-slate-100">
-      {/* Header — bleu marine sobre */}
-      <header className="bg-[#0e2a52] text-white border-b border-white/10">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-5 sm:py-6 flex items-center justify-between gap-4">
+    <main className="relative flex flex-col h-dvh max-h-dvh overflow-hidden bg-[#0a1f3d] text-slate-100">
+      {/* Header compact — laisse la place aux tuiles */}
+      <header className="shrink-0 bg-[#0e2a52] text-white border-b border-white/10">
+        <div className="px-3 sm:px-5 py-3 sm:py-4 flex items-center justify-between gap-4">
           <div className={`flex items-baseline gap-3 ${skipAnimation ? '' : 'ltdb-drop'}`}>
             <h1 className="text-2xl sm:text-3xl font-black tracking-tight leading-none">LTDB</h1>
             <div className="hidden sm:block text-[10px] uppercase tracking-[0.25em] text-white/60 font-semibold">
@@ -92,18 +92,17 @@ export default function Home() {
         </div>
       </header>
 
-      <div className="relative z-10 flex flex-col min-h-[calc(100dvh-4.5rem)]">
+      <div className="relative z-10 flex flex-col flex-1 min-h-0">
 
-        {/* Tools grid — tuiles denses, remplissent l’écran */}
-        <div className="px-3 sm:px-5 pt-5 sm:pt-6 pb-8 flex-1">
-          <div className="max-w-[1600px] mx-auto w-full">
-            <div className="text-[11px] uppercase tracking-[0.18em] text-white/55 font-semibold mb-3 px-1">
-              Modules · {TOOLS.length}
-            </div>
-            <div
-              className="grid gap-2 sm:gap-2.5"
-              style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 148px), 1fr))' }}
-            >
+        {/* Grille plein écran — chaque tuile s’étire en hauteur */}
+        <div className="flex flex-col flex-1 min-h-0 px-2 sm:px-3 pt-2 pb-2 sm:pb-3">
+          <div className="shrink-0 text-[10px] uppercase tracking-[0.18em] text-white/50 font-semibold mb-1.5 px-0.5">
+            Modules · {TOOLS.length}
+          </div>
+          <div
+            className="flex-1 min-h-0 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-1.5 sm:gap-2"
+            style={{ gridAutoRows: '1fr' }}
+          >
               {TOOLS.map((t, i) => {
                 const textColor = t.text === 'white' ? 'text-white' : 'text-black'
                 const sc = scatter?.[i]
@@ -123,21 +122,21 @@ export default function Home() {
                       } as React.CSSProperties)
                     : undefined
                 // Effet loupe : la tuile survolée grossit et passe au-dessus de ses voisines.
-                const tileClass = `group relative rounded-2xl overflow-hidden min-h-[118px] sm:min-h-[128px] flex flex-col justify-end p-3 sm:p-3.5 shadow-sm transition-all duration-200 ease-out hover:shadow-xl hover:scale-[1.08] hover:z-10 ${introClass} ${t.bg}`
+                const tileClass = `group relative h-full min-h-0 rounded-xl sm:rounded-2xl overflow-hidden flex flex-col justify-end p-4 sm:p-5 shadow-sm transition-all duration-200 ease-out hover:shadow-xl hover:scale-[1.04] hover:z-10 ${introClass} ${t.bg}`
                 const inner = (
                   <>
                     <span
                       aria-hidden
-                      className="pointer-events-none select-none absolute -top-2 -right-1 text-[56px] sm:text-[64px] leading-none opacity-20 transition-transform duration-200 group-hover:scale-110"
+                      className="pointer-events-none select-none absolute top-1 right-0 sm:-right-1 text-[4.5rem] sm:text-[5.5rem] lg:text-[6.5rem] leading-none opacity-20 transition-transform duration-200 group-hover:scale-105"
                     >
                       {t.emoji}
                     </span>
 
                     <div className={`relative z-10 ${textColor}`}>
-                      <div className="text-sm sm:text-[15px] font-extrabold leading-tight tracking-tight drop-shadow-sm">
+                      <div className="text-base sm:text-lg lg:text-xl font-extrabold leading-tight tracking-tight drop-shadow-sm">
                         {t.label}
                       </div>
-                      <p className="mt-1 text-[10px] sm:text-[11px] leading-snug opacity-80 line-clamp-2 font-medium">
+                      <p className="mt-1.5 text-xs sm:text-sm leading-snug opacity-85 line-clamp-2 font-medium">
                         {t.desc}
                       </p>
                     </div>
@@ -166,7 +165,6 @@ export default function Home() {
                   </Link>
                 )
               })}
-            </div>
           </div>
         </div>
       </div>
