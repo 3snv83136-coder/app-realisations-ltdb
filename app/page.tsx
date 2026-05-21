@@ -31,14 +31,21 @@ const TOOLS: Tool[] = [
   { href: 'https://adsconstructor.vercel.app/', emoji: '📢', label: 'ADS MY SELF', desc: 'Constructeur de pubs', bg: 'bg-gradient-to-br from-orange-500 to-pink-600', text: 'white', external: true },
 ]
 
-/** Grille 5×5 : les 13 tuiles forment un « M » (MONDOR / LTDB). */
-const M_GRID: { row: number; col: number }[] = [
-  { row: 1, col: 1 }, { row: 1, col: 5 }, // jambes haut
-  { row: 2, col: 1 }, { row: 2, col: 5 },
-  { row: 3, col: 1 }, { row: 3, col: 3 }, { row: 3, col: 5 }, // creux du M
-  { row: 4, col: 1 }, { row: 4, col: 2 }, { row: 4, col: 4 }, { row: 4, col: 5 }, // diagonales intérieures
-  { row: 5, col: 1 }, { row: 5, col: 5 }, // pieds
-]
+const GRID_ROWS = 5
+const GRID_COLS = 5
+
+/** Tire n cases distinctes au hasard dans la grille 5×5. */
+function genRandomGrid(n: number): { row: number; col: number }[] {
+  const cells: { row: number; col: number }[] = []
+  for (let r = 1; r <= GRID_ROWS; r++) {
+    for (let c = 1; c <= GRID_COLS; c++) cells.push({ row: r, col: c })
+  }
+  for (let i = cells.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1))
+    ;[cells[i], cells[j]] = [cells[j], cells[i]]
+  }
+  return cells.slice(0, n)
+}
 
 type Scatter = { tx: number; ty: number; rot: number; order: number }
 
@@ -66,9 +73,11 @@ export default function Home() {
   // Entrée des tuiles : 'pending' avant la décision, 'play' = animation, 'skip' = déjà vue.
   const [tilesIntro, setTilesIntro] = useState<'pending' | 'play' | 'skip'>('pending')
   const [scatter, setScatter] = useState<Scatter[] | null>(null)
+  const [gridLayout, setGridLayout] = useState<{ row: number; col: number }[] | null>(null)
 
   useEffect(() => {
     if (typeof window === 'undefined') return
+    setGridLayout(genRandomGrid(TOOLS.length))
     if (sessionStorage.getItem('ltdb_seen_intro') === '1') {
       setSkipAnimation(true)
       setTilesIntro('skip')
@@ -105,25 +114,24 @@ export default function Home() {
             <div
               className="grid gap-2.5 sm:gap-3 max-w-3xl mx-auto"
               style={{
-                gridTemplateColumns: 'repeat(5, minmax(0, 1fr))',
-                gridTemplateRows: 'repeat(5, minmax(88px, 1fr))',
+                gridTemplateColumns: `repeat(${GRID_COLS}, minmax(0, 1fr))`,
+                gridTemplateRows: `repeat(${GRID_ROWS}, minmax(88px, 1fr))`,
               }}
             >
               {TOOLS.map((t, i) => {
-                const pos = M_GRID[i]
+                const pos = gridLayout?.[i]
                 const textColor = t.text === 'white' ? 'text-white' : 'text-black'
                 const sc = scatter?.[i]
-                // 'pending' : tuile masquée le temps de décider de l'intro (zéro flash).
+                // 'pending' ou grille pas encore tirée : pas de flash.
                 const introClass =
-                  tilesIntro === 'pending'
+                  tilesIntro === 'pending' || !pos
                     ? 'opacity-0'
                     : sc && tilesIntro === 'play'
                     ? 'tile-in'
                     : ''
                 // Position de départ dispersée + délai d'arrivée (ordre mélangé).
                 const tileStyle: React.CSSProperties = {
-                  gridRow: pos.row,
-                  gridColumn: pos.col,
+                  ...(pos ? { gridRow: pos.row, gridColumn: pos.col } : {}),
                   ...(sc && tilesIntro === 'play'
                     ? {
                         '--tx': `${sc.tx}px`,
