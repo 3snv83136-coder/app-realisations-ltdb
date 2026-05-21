@@ -62,32 +62,29 @@ export default function Home() {
 
       <div className="relative z-10">
 
-        {/* Tools grid — tuiles carrées colorées avec emoji en fond */}
+        {/* Tools grid — tuiles compactes, effet loupe au survol */}
         <div className={`px-4 sm:px-6 pt-6 sm:pt-8 pb-12 ${skipAnimation ? '' : 'buttons-reveal'}`}>
           <div className="max-w-7xl mx-auto">
             <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500 font-semibold mb-4 px-1">Modules</div>
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
+            <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-2.5 sm:gap-3">
               {TOOLS.map(t => {
                 const textColor = t.text === 'white' ? 'text-white' : 'text-black'
-                const descColor = t.text === 'white' ? 'text-white/80' : 'text-black/70'
-                const tileClass = `group relative rounded-3xl overflow-hidden aspect-square flex flex-col justify-end p-5 sm:p-6 shadow-md hover:shadow-2xl hover:-translate-y-1 transition-all duration-300 ${t.bg}`
+                // Effet loupe : la tuile survolée grossit et passe au-dessus de ses voisines.
+                const tileClass = `group relative rounded-2xl overflow-hidden h-[104px] flex flex-col justify-end p-3 shadow-sm transition-all duration-200 ease-out hover:shadow-xl hover:scale-[1.13] hover:z-10 ${t.bg}`
                 const inner = (
                   <>
-                    {/* Emoji géant en fond */}
+                    {/* Emoji en filigrane */}
                     <span
                       aria-hidden
-                      className="pointer-events-none select-none absolute -top-4 -right-4 sm:-top-6 sm:-right-6 text-[140px] sm:text-[170px] leading-none opacity-25 group-hover:opacity-30 group-hover:scale-110 transition-all duration-500"
+                      className="pointer-events-none select-none absolute -top-3 -right-2 text-[60px] leading-none opacity-20 transition-transform duration-200 group-hover:scale-110"
                     >
                       {t.emoji}
                     </span>
 
-                    {/* Texte */}
+                    {/* Libellé */}
                     <div className={`relative z-10 ${textColor}`}>
-                      <div className="text-xl sm:text-2xl font-black leading-tight tracking-tight drop-shadow-sm">
+                      <div className="text-sm font-extrabold leading-tight tracking-tight drop-shadow-sm">
                         {t.label}
-                      </div>
-                      <div className={`text-xs sm:text-sm mt-1 leading-snug ${descColor}`}>
-                        {t.desc}
                       </div>
                     </div>
                   </>
@@ -100,6 +97,7 @@ export default function Home() {
                       href={t.href}
                       target="_blank"
                       rel="noopener noreferrer"
+                      title={t.desc}
                       className={tileClass}
                     >
                       {inner}
@@ -108,7 +106,7 @@ export default function Home() {
                 }
 
                 return (
-                  <Link key={t.href} href={t.href} className={tileClass}>
+                  <Link key={t.href} href={t.href} title={t.desc} className={tileClass}>
                     {inner}
                   </Link>
                 )
