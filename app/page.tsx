@@ -31,29 +31,43 @@ const TOOLS: Tool[] = [
   { href: 'https://adsconstructor.vercel.app/', emoji: '📢', label: 'ADS MY SELF', desc: 'Constructeur de pubs', bg: 'bg-gradient-to-br from-orange-500 to-pink-600', text: 'white', external: true },
 ]
 
+type Scatter = { tx: number; ty: number; rot: number; order: number }
+
+/**
+ * Positions de départ dispersées + ordre d'arrivée mélangé : les tuiles entrent
+ * une par une, en désordre, et rejoignent leur place dans la grille.
+ */
+function genScatter(n: number): Scatter[] {
+  const order = Array.from({ length: n }, (_, i) => i)
+  for (let i = order.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1))
+    ;[order[i], order[j]] = [order[j], order[i]]
+  }
+  const rnd = (min: number, max: number) => Math.round(min + Math.random() * (max - min))
+  return order.map(rank => ({
+    tx: rnd(-300, 300),
+    ty: rnd(-170, 170),
+    rot: rnd(-30, 30),
+    order: rank,
+  }))
+}
+
 export default function Home() {
   const [skipAnimation, setSkipAnimation] = useState(false)
-  // Animation « serpent » : une vague ludique parcourt les tuiles, déclenchée 3 s
-  // après l'arrivée sur le dashboard.
-  const [snake, setSnake] = useState(false)
-  const [cols, setCols] = useState(6)
+  // Entrée des tuiles : 'pending' avant la décision, 'play' = animation, 'skip' = déjà vue.
+  const [tilesIntro, setTilesIntro] = useState<'pending' | 'play' | 'skip'>('pending')
+  const [scatter, setScatter] = useState<Scatter[] | null>(null)
 
   useEffect(() => {
     if (typeof window === 'undefined') return
     if (sessionStorage.getItem('ltdb_seen_intro') === '1') {
       setSkipAnimation(true)
+      setTilesIntro('skip')
     } else {
       sessionStorage.setItem('ltdb_seen_intro', '1')
+      setScatter(genScatter(TOOLS.length))
+      setTilesIntro('play')
     }
-  }, [])
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      const w = window.innerWidth
-      setCols(w >= 1024 ? 6 : w >= 640 ? 4 : 3)
-      setSnake(true)
-    }, 3000)
-    return () => clearTimeout(timer)
   }, [])
 
   return (
@@ -75,22 +89,33 @@ export default function Home() {
 
       <div className="relative z-10">
 
-        {/* Tools grid — tuiles compactes, effet loupe au survol */}
-        <div className={`px-4 sm:px-6 pt-6 sm:pt-8 pb-12 ${skipAnimation ? '' : 'buttons-reveal'}`}>
+        {/* Tools grid — tuiles compactes, entrée mélangée + effet loupe au survol */}
+        <div className="px-4 sm:px-6 pt-6 sm:pt-8 pb-12">
           <div className="max-w-7xl mx-auto">
             <div className="text-[11px] uppercase tracking-[0.18em] text-white/55 font-semibold mb-4 px-1">Modules</div>
             <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-2.5 sm:gap-3">
               {TOOLS.map((t, i) => {
                 const textColor = t.text === 'white' ? 'text-white' : 'text-black'
-                // Ordre « serpent » : balayage en boustrophédon (→ puis ← puis →).
-                const row = Math.floor(i / cols)
-                const serp = row % 2 === 0 ? i : row * cols + (cols - 1 - (i % cols))
-                // Délai négatif → le décalage entre tuiles est conservé à chaque boucle.
-                const snakeStyle = snake
-                  ? { animationDelay: `${(serp * 0.1 - 3).toFixed(2)}s` }
-                  : undefined
+                const sc = scatter?.[i]
+                // 'pending' : tuile masquée le temps de décider de l'intro (zéro flash).
+                const introClass =
+                  tilesIntro === 'pending'
+                    ? 'opacity-0'
+                    : sc && tilesIntro === 'play'
+                    ? 'tile-in'
+                    : ''
+                // Position de départ dispersée + délai d'arrivée (ordre mélangé).
+                const tileStyle: React.CSSProperties | undefined =
+                  sc && tilesIntro === 'play'
+                    ? ({
+                        '--tx': `${sc.tx}px`,
+                        '--ty': `${sc.ty}px`,
+                        '--rot': `${sc.rot}deg`,
+                        animationDelay: `${(sc.order * 0.07).toFixed(3)}s`,
+                      } as React.CSSProperties)
+                    : undefined
                 // Effet loupe : la tuile survolée grossit et passe au-dessus de ses voisines.
-                const tileClass = `group relative rounded-2xl overflow-hidden h-[104px] flex flex-col justify-end p-3 shadow-sm transition-all duration-200 ease-out hover:shadow-xl hover:scale-[1.13] hover:z-10 ${snake ? 'snake-tile ' : ''}${t.bg}`
+                const tileClass = `group relative rounded-2xl overflow-hidden h-[104px] flex flex-col justify-end p-3 shadow-sm transition-all duration-200 ease-out hover:shadow-xl hover:scale-[1.13] hover:z-10 ${introClass} ${t.bg}`
                 const inner = (
                   <>
                     {/* Emoji en filigrane */}
@@ -119,7 +144,7 @@ export default function Home() {
                       rel="noopener noreferrer"
                       title={t.desc}
                       className={tileClass}
-                      style={snakeStyle}
+                      style={tileStyle}
                     >
                       {inner}
                     </a>
@@ -127,7 +152,7 @@ export default function Home() {
                 }
 
                 return (
-                  <Link key={t.href} href={t.href} title={t.desc} className={tileClass} style={snakeStyle}>
+                  <Link key={t.href} href={t.href} title={t.desc} className={tileClass} style={tileStyle}>
                     {inner}
                   </Link>
                 )
@@ -142,31 +167,29 @@ export default function Home() {
           from { opacity: 0; transform: translateY(8px); }
           to   { opacity: 1; transform: translateY(0); }
         }
-        .ltdb-drop      { opacity: 0; animation: softFadeUp 0.4s ease-out 0.05s forwards; }
-        .buttons-reveal { opacity: 0; animation: softFadeUp 0.4s ease-out 0.15s forwards; }
-        .dashboard-reveal { opacity: 0; animation: softFadeUp 0.4s ease-out 0.25s forwards; }
+        .ltdb-drop { opacity: 0; animation: softFadeUp 0.4s ease-out 0.05s forwards; }
 
-        /* Animation « serpent » : une vague ondule à travers la grille, en boucle.
-           Chaque tuile a un animationDelay négatif (inline) → la vague se décale
-           de tuile en tuile et le décalage est conservé à chaque répétition. */
-        @keyframes ltdbSnake {
-          0%, 24%, 100% { top: 0; }
-          9%            { top: -16px; }
-          17%           { top: -4px; }
-          21%           { top: -9px; }
+        /* Entrée des tuiles : chaque tuile arrive d'une position dispersée
+           (variables --tx/--ty/--rot inline) et se range à sa place.
+           fill-mode backwards → masquée pendant le délai, puis libère le
+           transform à la fin (l'effet loupe au survol reste opérationnel). */
+        @keyframes tileIn {
+          0% {
+            opacity: 0;
+            transform: translate(var(--tx, 0), var(--ty, 0)) rotate(var(--rot, 0deg)) scale(0.5);
+          }
+          100% {
+            opacity: 1;
+            transform: translate(0, 0) rotate(0deg) scale(1);
+          }
         }
-        .snake-tile { animation: ltdbSnake 3s ease-in-out infinite; }
+        .tile-in { animation: tileIn 0.6s cubic-bezier(0.34, 1.25, 0.45, 1) backwards; }
 
         @media (prefers-reduced-motion: reduce) {
-          .ltdb-drop, .buttons-reveal, .dashboard-reveal {
-            animation: none !important;
-            opacity: 1 !important;
-            transform: none !important;
-          }
-          .snake-tile { animation: none !important; top: 0 !important; }
+          .ltdb-drop { animation: none !important; opacity: 1 !important; transform: none !important; }
+          .tile-in { animation: none !important; }
         }
       `}</style>
     </main>
   )
 }
-
