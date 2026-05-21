@@ -150,8 +150,10 @@ export default function Home() {
            Chaque tuile a un animationDelay négatif (inline) → la vague se décale
            de tuile en tuile et le décalage est conservé à chaque répétition. */
         @keyframes ltdbSnake {
-          0%, 16%, 100% { top: 0; }
-          8%            { top: -10px; }
+          0%, 24%, 100% { top: 0; }
+          9%            { top: -16px; }
+          17%           { top: -4px; }
+          21%           { top: -9px; }
         }
         .snake-tile { animation: ltdbSnake 3s ease-in-out infinite; }
 
