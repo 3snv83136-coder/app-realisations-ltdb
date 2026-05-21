@@ -16,20 +16,24 @@ type Tool = {
 }
 
 const TOOLS: Tool[] = [
-  { href: '/accord',       emoji: '🤝', label: 'Accord',       desc: 'Accord signé avant travaux',  bg: 'bg-gradient-to-br from-red-500 to-red-700',             text: 'white' },
-  { href: '/planning',     emoji: '📅', label: 'Planning',     desc: 'Prendre RDV, dispatcher',     bg: 'bg-gradient-to-br from-blue-500 to-blue-700',           text: 'white' },
-  { href: '/nouveau',      emoji: '📝', label: 'Rapport',      desc: 'Rédiger sur place',           bg: 'bg-gradient-to-br from-slate-700 to-slate-900',         text: 'white' },
-  { href: '/inspection',   emoji: '📹', label: 'Caméra',       desc: 'Inspection NF EN 13508-2',    bg: 'bg-gradient-to-br from-sky-400 to-sky-600',             text: 'white' },
-  { href: '/devis',        emoji: '📋', label: 'Devis',        desc: 'Établir un devis',            bg: 'bg-gradient-to-br from-amber-400 to-amber-600',         text: 'white' },
-  { href: '/facture',      emoji: '🧾', label: 'Facturation',  desc: 'Suivi, paiements & relances', bg: 'bg-gradient-to-br from-emerald-500 to-emerald-700',     text: 'white' },
-  { href: '/attestation',  emoji: '✅', label: 'Attestation',  desc: 'Raccordement / SPANC',        bg: 'bg-gradient-to-br from-[#a18249] to-[#6e5530]',         text: 'white' },
-  { href: '/historique',   emoji: '📚', label: 'Historique',   desc: 'Tout retrouver',              bg: 'bg-gradient-to-br from-slate-400 to-slate-600',         text: 'white' },
-  { href: '/clients',      emoji: '👥', label: 'Clients',      desc: 'Annuaire, dossier, envoi',    bg: 'bg-gradient-to-br from-teal-500 to-teal-700',           text: 'white' },
-  { href: '/statistiques', emoji: '📊', label: 'Statistiques', desc: 'Canaux d’acquisition',        bg: 'bg-gradient-to-br from-rose-500 to-rose-700',           text: 'white' },
-  { href: '/comptabilite', emoji: '💼', label: 'Comptabilité', desc: 'Bilan, FEC, exports',         bg: 'bg-gradient-to-br from-violet-500 to-violet-700',       text: 'white' },
-  { href: '/mail',         emoji: '📧', label: 'Mail',         desc: 'Emails envoyés',              bg: 'bg-gradient-to-br from-cyan-500 to-cyan-700',           text: 'white' },
+  { href: '/accord',            emoji: '🤝', label: 'Accord',          desc: 'Accords signés avant travaux',     bg: 'bg-gradient-to-br from-red-500 to-red-700',         text: 'white' },
+  { href: '/accord/nouveau',    emoji: '✍️', label: 'Nouvel accord',   desc: 'Créer un accord client',           bg: 'bg-gradient-to-br from-red-400 to-rose-600',        text: 'white' },
+  { href: '/planning',          emoji: '📅', label: 'Planning',        desc: 'RDV, dispatch, tournées',          bg: 'bg-gradient-to-br from-blue-500 to-blue-700',       text: 'white' },
+  { href: '/nouveau',           emoji: '📝', label: 'Rapport',         desc: 'Rédiger sur le terrain',           bg: 'bg-gradient-to-br from-slate-700 to-slate-900',     text: 'white' },
+  { href: '/rapports',          emoji: '📄', label: 'Rapports',        desc: 'Liste et publication',             bg: 'bg-gradient-to-br from-slate-500 to-slate-700',     text: 'white' },
+  { href: '/inspection',        emoji: '📹', label: 'Caméra',          desc: 'Inspection NF EN 13508-2',       bg: 'bg-gradient-to-br from-sky-400 to-sky-600',         text: 'white' },
+  { href: '/devis',             emoji: '📋', label: 'Devis',           desc: 'Établir un devis',                 bg: 'bg-gradient-to-br from-amber-400 to-amber-600',     text: 'white' },
+  { href: '/devis/tous',        emoji: '📑', label: 'Tous les devis',  desc: 'Historique et suivi devis',        bg: 'bg-gradient-to-br from-yellow-500 to-orange-600',   text: 'white' },
+  { href: '/facture',           emoji: '🧾', label: 'Facturation',     desc: 'Suivi, paiements, relances',       bg: 'bg-gradient-to-br from-emerald-500 to-emerald-700', text: 'white' },
+  { href: '/facture/nouvelle',  emoji: '➕', label: 'Nouvelle facture', desc: 'Créer une facture',                bg: 'bg-gradient-to-br from-lime-500 to-green-700',     text: 'white' },
+  { href: '/attestation',       emoji: '✅', label: 'Attestation',     desc: 'Raccordement / SPANC',             bg: 'bg-gradient-to-br from-[#a18249] to-[#6e5530]',     text: 'white' },
+  { href: '/historique',        emoji: '📚', label: 'Historique',      desc: 'Interventions passées',            bg: 'bg-gradient-to-br from-slate-400 to-slate-600',     text: 'white' },
+  { href: '/clients',           emoji: '👥', label: 'Clients',         desc: 'Annuaire, dossier, envoi',         bg: 'bg-gradient-to-br from-teal-500 to-teal-700',       text: 'white' },
+  { href: '/statistiques',      emoji: '📊', label: 'Statistiques',    desc: 'Canaux d’acquisition',             bg: 'bg-gradient-to-br from-rose-500 to-rose-700',       text: 'white' },
+  { href: '/comptabilite',      emoji: '💼', label: 'Comptabilité',    desc: 'Bilan, FEC, exports',              bg: 'bg-gradient-to-br from-violet-500 to-violet-700',   text: 'white' },
+  { href: '/mail',              emoji: '📧', label: 'Mail',            desc: 'Emails envoyés',                   bg: 'bg-gradient-to-br from-cyan-500 to-cyan-700',       text: 'white' },
+  { href: '/post-gmb',          emoji: '📍', label: 'Post GMB',        desc: 'Posts Google Business',            bg: 'bg-gradient-to-br from-indigo-500 to-indigo-700',   text: 'white' },
   { href: 'https://adsconstructor.vercel.app/', emoji: '📢', label: 'ADS MY SELF', desc: 'Constructeur de pubs', bg: 'bg-gradient-to-br from-orange-500 to-pink-600', text: 'white', external: true },
-  { href: '/post-gmb',     emoji: '📍', label: 'Post GMB',     desc: 'Posts Google Business envoyés', bg: 'bg-gradient-to-br from-indigo-500 to-indigo-700',       text: 'white' },
 ]
 
 type Scatter = { tx: number; ty: number; rot: number; order: number }
@@ -88,13 +92,18 @@ export default function Home() {
         </div>
       </header>
 
-      <div className="relative z-10">
+      <div className="relative z-10 flex flex-col min-h-[calc(100dvh-4.5rem)]">
 
-        {/* Tools grid — tuiles compactes, entrée mélangée + effet loupe au survol */}
-        <div className="px-4 sm:px-6 pt-6 sm:pt-8 pb-12">
-          <div className="max-w-7xl mx-auto">
-            <div className="text-[11px] uppercase tracking-[0.18em] text-white/55 font-semibold mb-4 px-1">Modules</div>
-            <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-2.5 sm:gap-3">
+        {/* Tools grid — tuiles denses, remplissent l’écran */}
+        <div className="px-3 sm:px-5 pt-5 sm:pt-6 pb-8 flex-1">
+          <div className="max-w-[1600px] mx-auto w-full">
+            <div className="text-[11px] uppercase tracking-[0.18em] text-white/55 font-semibold mb-3 px-1">
+              Modules · {TOOLS.length}
+            </div>
+            <div
+              className="grid gap-2 sm:gap-2.5"
+              style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 148px), 1fr))' }}
+            >
               {TOOLS.map((t, i) => {
                 const textColor = t.text === 'white' ? 'text-white' : 'text-black'
                 const sc = scatter?.[i]
@@ -114,22 +123,23 @@ export default function Home() {
                       } as React.CSSProperties)
                     : undefined
                 // Effet loupe : la tuile survolée grossit et passe au-dessus de ses voisines.
-                const tileClass = `group relative rounded-2xl overflow-hidden h-[104px] flex flex-col justify-end p-3 shadow-sm transition-all duration-200 ease-out hover:shadow-xl hover:scale-[1.13] hover:z-10 ${introClass} ${t.bg}`
+                const tileClass = `group relative rounded-2xl overflow-hidden min-h-[118px] sm:min-h-[128px] flex flex-col justify-end p-3 sm:p-3.5 shadow-sm transition-all duration-200 ease-out hover:shadow-xl hover:scale-[1.08] hover:z-10 ${introClass} ${t.bg}`
                 const inner = (
                   <>
-                    {/* Emoji en filigrane */}
                     <span
                       aria-hidden
-                      className="pointer-events-none select-none absolute -top-3 -right-2 text-[60px] leading-none opacity-20 transition-transform duration-200 group-hover:scale-110"
+                      className="pointer-events-none select-none absolute -top-2 -right-1 text-[56px] sm:text-[64px] leading-none opacity-20 transition-transform duration-200 group-hover:scale-110"
                     >
                       {t.emoji}
                     </span>
 
-                    {/* Libellé */}
                     <div className={`relative z-10 ${textColor}`}>
-                      <div className="text-sm font-extrabold leading-tight tracking-tight drop-shadow-sm">
+                      <div className="text-sm sm:text-[15px] font-extrabold leading-tight tracking-tight drop-shadow-sm">
                         {t.label}
                       </div>
+                      <p className="mt-1 text-[10px] sm:text-[11px] leading-snug opacity-80 line-clamp-2 font-medium">
+                        {t.desc}
+                      </p>
                     </div>
                   </>
                 )
@@ -137,7 +147,7 @@ export default function Home() {
                 if (t.external) {
                   return (
                     <a
-                      key={t.href}
+                      key={`${t.href}-${t.label}`}
                       href={t.href}
                       target="_blank"
                       rel="noopener noreferrer"
@@ -151,7 +161,7 @@ export default function Home() {
                 }
 
                 return (
-                  <Link key={t.href} href={t.href} title={t.desc} className={tileClass} style={tileStyle}>
+                  <Link key={`${t.href}-${t.label}`} href={t.href} title={t.desc} className={tileClass} style={tileStyle}>
                     {inner}
                   </Link>
                 )
