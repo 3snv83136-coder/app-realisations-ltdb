@@ -1,6 +1,7 @@
 import { google } from "googleapis"
 import { OAuth2Client } from "google-auth-library"
 import { getSupabase } from "./supabase"
+import { getParametre } from "./parametres"
 
 /**
  * OAuth Google Business Profile (GMB).
@@ -154,4 +155,53 @@ export async function listGmbLocations(): Promise<GmbLocation[]> {
     }
   }
   return out
+}
+
+export type GmbPostInput = {
+  summary: string
+  photoUrl?: string | null
+  ctaUrl?: string | null
+}
+
+/**
+ * Crée un post local sur la fiche Google Business (API v4 `localPosts.create`).
+ * Cible la fiche définie dans `parametres.GMB_LOCATION`.
+ */
+export async function createGmbPost(
+  input: GmbPostInput,
+): Promise<{ name: string; searchUrl: string | null }> {
+  const location = (await getParametre("GMB_LOCATION", "")).trim()
+  if (!location) {
+    throw new Error(
+      "parametres.GMB_LOCATION non défini — récupère la fiche via /api/gmb/locations",
+    )
+  }
+  const summary = input.summary.trim().slice(0, 1490)
+  if (!summary) throw new Error("Le texte du post est vide")
+
+  const token = await getAccessToken()
+  const body: Record<string, unknown> = {
+    languageCode: "fr",
+    summary,
+    topicType: "STANDARD",
+  }
+  if (input.ctaUrl) {
+    body.callToAction = { actionType: "LEARN_MORE", url: input.ctaUrl }
+  }
+  if (input.photoUrl) {
+    body.media = [{ mediaFormat: "PHOTO", sourceUrl: input.photoUrl }]
+  }
+
+  const res = await fetch(`https://mybusiness.googleapis.com/v4/${location}/localPosts`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  })
+  if (!res.ok) {
+    throw new Error(
+      `Création du post GMB : HTTP ${res.status} — ${(await res.text()).slice(0, 400)}`,
+    )
+  }
+  const json = (await res.json()) as { name?: string; searchUrl?: string }
+  return { name: json.name || "", searchUrl: json.searchUrl || null }
 }
