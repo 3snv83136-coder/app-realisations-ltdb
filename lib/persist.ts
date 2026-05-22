@@ -66,6 +66,7 @@ export interface PersistDevisInput extends Common {
   validiteJours?: number | null
   emailSent?: boolean
   envoyeAt?: string | null
+  interventionId?: string | null
 }
 
 export async function persistDevis(p: PersistDevisInput): Promise<string | null> {
@@ -88,6 +89,7 @@ export async function persistDevis(p: PersistDevisInput): Promise<string | null>
     tva_taux: typeof p.tvaTaux === 'number' ? p.tvaTaux : null,
     payload: p.devis,
     client_id: clientId,
+    intervention_id: p.interventionId || null,
     envoye_email: p.emailSent ? (p.clientEmail || null) : null,
     envoye_at: p.emailSent ? (p.envoyeAt || new Date().toISOString()) : null,
   })

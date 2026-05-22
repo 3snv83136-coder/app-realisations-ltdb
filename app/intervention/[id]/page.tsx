@@ -7,7 +7,7 @@ import AppTabs from "@/components/AppTabs"
 import VilleCombobox from "@/components/VilleCombobox"
 import { fmtDateFR, fmtEUR } from "@/lib/format"
 import { CANAUX_ACQUISITION, canalIcon, canalLabel } from "@/lib/canaux"
-import { TYPES_INTERVENTION } from "@/lib/types-intervention"
+import { TYPES_INTERVENTION, isDevisIntervention } from "@/lib/types-intervention"
 
 const InterventionMap = dynamic(() => import('@/components/InterventionMap'), { ssr: false })
 const InterventionRapportDownloadButton = dynamic(
@@ -115,6 +115,7 @@ export default function InterventionDetailPage({ params }: { params: { id: strin
   const [techniciens, setTechniciens] = useState<TechnicienDetail[]>([])
   const [techniciensError, setTechniciensError] = useState('')
   const [hasFacture, setHasFacture] = useState(false)
+  const [hasDevis, setHasDevis] = useState(false)
   const [form, setForm] = useState<Partial<InterventionDetail>>({})
   const [clientForm, setClientForm] = useState<Partial<ClientDetail>>({})
 
@@ -236,6 +237,7 @@ export default function InterventionDetailPage({ params }: { params: { id: strin
       setIntervention(data.intervention)
       setClient(data.client)
       setTechnicien(data.technicien)
+      setHasDevis(!!data.has_devis)
       // Vérifie l'existence d'une facture liée via l'endpoint dédié (filtre côté
       // DB par intervention_id). Avant on listait /api/historique?limit=500 mais
       // le SELECT à 16 colonnes peut sauter une ligne sur Vercel (bug
@@ -256,6 +258,18 @@ export default function InterventionDetailPage({ params }: { params: { id: strin
   }
 
   useEffect(() => { load() }, [params.id])
+
+  // Intervention « Devis » : pas de mode terrain → génération devis directe
+  useEffect(() => {
+    if (!intervention || loading) return
+    if (!isDevisIntervention(intervention.type_intervention)) return
+    if (hasDevis) return
+    if (intervention.statut === 'annulee' || intervention.statut === 'terminee') return
+    const key = `ltdb_devis_redirect_${intervention.id}`
+    if (typeof sessionStorage !== 'undefined' && sessionStorage.getItem(key) === '1') return
+    sessionStorage.setItem(key, '1')
+    router.replace(`/devis?intervention=${intervention.id}`)
+  }, [intervention, loading, hasDevis, router, params.id])
 
   // Recharge la fiche quand l'onglet redevient visible ou prend le focus.
   // Garantit que hasFacture est à jour après suppression d'une facture
@@ -399,8 +413,10 @@ export default function InterventionDetailPage({ params }: { params: { id: strin
           <div className="bg-emerald-50 border border-emerald-200 text-emerald-700 p-3 rounded-xl text-sm">{actionMsg}</div>
         )}
 
-        {/* Mode Terrain — wizard linéaire mobile-first */}
-        {intervention.statut !== 'annulee' && (intervention.terrain_step ?? 0) < 7 && (
+        {/* Mode Terrain — masqué pour les interventions de type Devis */}
+        {intervention.statut !== 'annulee'
+          && !isDevisIntervention(intervention.type_intervention)
+          && (intervention.terrain_step ?? 0) < 7 && (
           <Link
             href={`/intervention/${intervention.id}/terrain`}
             className="block bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white rounded-2xl p-5 shadow-lg transition"
@@ -412,6 +428,23 @@ export default function InterventionDetailPage({ params }: { params: { id: strin
                   {(intervention.terrain_step ?? 0) === 0
                     ? 'Wizard guidé : photo avant → travaux → photo après → rapport → facture → envoi'
                     : `Reprise à l'étape ${(intervention.terrain_step ?? 0) + 1}/7`}
+                </div>
+              </div>
+              <div className="text-2xl">→</div>
+            </div>
+          </Link>
+        )}
+
+        {isDevisIntervention(intervention.type_intervention) && intervention.statut !== 'annulee' && (
+          <Link
+            href={`/devis?intervention=${intervention.id}`}
+            className="block bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white rounded-2xl p-5 shadow-lg transition"
+          >
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <div className="font-black text-lg">📋 {hasDevis ? 'Modifier / renvoyer le devis' : 'Générer le devis'}</div>
+                <div className="text-xs opacity-90 mt-1">
+                  Pas de mode terrain — établir le devis, envoi immédiat ou relances sur 3 semaines (-10 % semaine 3)
                 </div>
               </div>
               <div className="text-2xl">→</div>

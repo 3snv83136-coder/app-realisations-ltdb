@@ -1,80 +1,159 @@
 import { NextRequest, NextResponse } from "next/server"
 import { escapeHtml, initResend } from "@/lib/email-utils"
+import { planifierDevisAvecRelances } from "@/lib/devis-relance"
 import { fmtEUR } from "@/lib/format"
 import { persistDevis } from "@/lib/persist"
 import { getTelPrincipal } from "@/lib/parametres"
 
 export const maxDuration = 30
 
+function getBaseUrl(req: NextRequest): string {
+  const configured = process.env.APP_BASE_URL
+    || process.env.NEXTAUTH_URL
+    || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "")
+  if (configured) return configured.replace(/\/+$/, "")
+  return req.nextUrl.origin.replace(/\/+$/, "")
+}
+
 export async function POST(req: NextRequest) {
-  let body: any
+  let body: Record<string, unknown>
   try {
     body = await req.json()
   } catch {
     return NextResponse.json({ error: 'JSON invalide' }, { status: 400 })
   }
+
+  const clientEmail = typeof body.clientEmail === 'string' ? body.clientEmail : undefined
+  if (!clientEmail) {
+    return NextResponse.json({ error: 'Email client manquant' }, { status: 400 })
+  }
   const {
-    clientEmail, clientNom, technicienNom, ville, dateDevis, numero, totalTTC, validiteJours, pdfBase64, pdfFilename,
+    clientNom, technicienNom, ville, dateDevis, numero, totalTTC, validiteJours, pdfBase64, pdfFilename,
     devis, totalHT, tvaTaux, agence, clientAdresse, clientCP,
-  } = body
+    interventionId, planRelances, premierEnvoiAt,
+  } = body as {
+    clientNom?: string
+    technicienNom?: string
+    ville?: string
+    dateDevis?: string
+    numero?: string
+    totalTTC?: number
+    validiteJours?: number
+    pdfBase64?: string
+    pdfFilename?: string
+    devis?: object
+    totalHT?: number
+    tvaTaux?: number
+    agence?: string
+    clientAdresse?: string
+    clientCP?: string
+    interventionId?: string
+    planRelances?: boolean
+    premierEnvoiAt?: string
+  }
 
   const ctx = initResend(clientEmail)
   if ('error' in ctx) return NextResponse.json({ error: ctx.error }, { status: ctx.status })
-  const { resend, fromEmail, recipient } = ctx
 
-  const tech = technicienNom || 'votre technicien'
-  const attachments = pdfBase64 && pdfFilename
-    ? [{ filename: pdfFilename, content: pdfBase64 }]
-    : undefined
+  const avecRelances = planRelances !== false
 
-  const subject = numero
-    ? `Votre devis ${numero}${ville ? ` — ${ville}` : ''}`
-    : `Votre devis${ville ? ` — ${ville}` : ''}`
+  try {
+    let immediateId: string | undefined
+    let reminderIds: string[] = []
+    let reminderErrors: string[] = []
 
-  const tel = await getTelPrincipal()
-
-  const result = await resend.emails.send({
-    from: `Les Techniciens du Débouchage <${fromEmail}>`,
-    to: recipient,
-    subject,
-    html: emailDevis({ clientNom, technicienNom: tech, ville, dateDevis, numero, totalTTC, validiteJours, tel }),
-    attachments,
-  })
-
-  if (result.error) {
-    return NextResponse.json({
-      error: `Resend a rejeté l'envoi : ${result.error.message || JSON.stringify(result.error)}`,
-      hint: result.error.name === 'validation_error'
-        ? "Vérifie que ton domaine est bien vérifié sur https://resend.com/domains, ou définis RESEND_TEST_EMAIL pour rediriger les envois en attendant."
-        : undefined,
-    }, { status: 500 })
-  }
-
-  let docId: string | null = null
-  let persistError: string | null = null
-  if (devis) {
-    try {
-      docId = await persistDevis({
-        devis, clientNom, clientEmail, clientAdresse, clientCP, ville,
-        agence, numero, totalHT, totalTTC, tvaTaux, validiteJours,
-        emailSent: true,
+    if (avecRelances) {
+      const out = await planifierDevisAvecRelances({
+        baseUrl: getBaseUrl(req),
+        clientEmail,
+        clientNom,
+        technicienNom,
+        ville,
+        dateDevis,
+        numero,
+        totalTTC,
+        validiteJours,
+        pdfBase64,
+        pdfFilename,
+        premierEnvoiAt,
       })
-      if (!docId) persistError = "Sauvegarde DB impossible (vérifie les logs serveur)"
-    } catch (e: any) {
-      persistError = e?.message || 'Erreur de sauvegarde DB'
-      console.error('[notify-devis] persist', e)
+      immediateId = out.immediateId
+      reminderIds = out.reminderIds
+      reminderErrors = out.reminderErrors
+    } else {
+      const { resend, fromEmail, recipient } = ctx
+      const tech = technicienNom || 'votre technicien'
+      const tel = await getTelPrincipal()
+      const attachments = pdfBase64 && pdfFilename
+        ? [{ filename: pdfFilename, content: pdfBase64 }]
+        : undefined
+      const subject = numero
+        ? `Votre devis ${numero}${ville ? ` — ${ville}` : ''}`
+        : `Votre devis${ville ? ` — ${ville}` : ''}`
+      const result = await resend.emails.send({
+        from: `Les Techniciens du Débouchage <${fromEmail}>`,
+        to: recipient,
+        subject,
+        html: emailDevisSimple({ clientNom, technicienNom: tech, ville, dateDevis, numero, totalTTC, validiteJours, tel }),
+        attachments,
+      })
+      if (result.error) {
+        return NextResponse.json({ error: result.error.message || 'Envoi échoué' }, { status: 500 })
+      }
+      immediateId = result.data?.id
     }
-  }
 
-  return NextResponse.json({
-    ok: true,
-    id: result.data?.id,
-    docId,
-    ...(persistError ? { warning: `Email envoyé mais le devis n'a PAS été enregistré en base : ${persistError}` } : {}),
-  })
+    let docId: string | null = null
+    let persistError: string | null = null
+    if (devis) {
+      try {
+        docId = await persistDevis({
+          devis,
+          clientNom,
+          clientEmail,
+          clientAdresse,
+          clientCP,
+          ville,
+          agence,
+          numero,
+          totalHT,
+          totalTTC,
+          tvaTaux,
+          validiteJours,
+          emailSent: true,
+          interventionId: interventionId || null,
+        })
+        if (!docId) persistError = "Sauvegarde DB impossible (vérifie les logs serveur)"
+      } catch (e: unknown) {
+        persistError = e instanceof Error ? e.message : 'Erreur de sauvegarde DB'
+        console.error('[notify-devis] persist', e)
+      }
+    }
+
+    if (interventionId) {
+      const { getSupabaseOrNull } = await import('@/lib/supabase')
+      const sb = getSupabaseOrNull()
+      if (sb) {
+        await sb.from('interventions').update({ statut: 'en_cours' }).eq('id', interventionId)
+      }
+    }
+
+    return NextResponse.json({
+      ok: true,
+      id: immediateId,
+      docId,
+      relances_planifiees: avecRelances,
+      reminders_ids: reminderIds,
+      ...(reminderErrors.length ? { reminder_errors: reminderErrors } : {}),
+      ...(persistError ? { warning: `Email planifié mais devis non enregistré : ${persistError}` } : {}),
+    })
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e)
+    return NextResponse.json({ error: msg }, { status: 500 })
+  }
 }
 
-function emailDevis({ clientNom, technicienNom, ville, dateDevis, numero, totalTTC, validiteJours, tel }: {
+function emailDevisSimple({ clientNom, technicienNom, ville, dateDevis, numero, totalTTC, validiteJours, tel }: {
   clientNom?: string; technicienNom: string; ville?: string; dateDevis?: string;
   numero?: string; totalTTC?: number; validiteJours?: number; tel: string;
 }) {

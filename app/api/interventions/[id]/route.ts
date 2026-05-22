@@ -65,7 +65,20 @@ export async function GET(_req: NextRequest, { params }: Params) {
     technicien = t || null
   }
 
-  return NextResponse.json({ intervention, client, technicien })
+  const { data: devisDoc } = await sb
+    .from('documents')
+    .select('id')
+    .eq('intervention_id', id)
+    .eq('type', 'devis')
+    .limit(1)
+    .maybeSingle()
+
+  return NextResponse.json({
+    intervention,
+    client,
+    technicien,
+    has_devis: !!devisDoc?.id,
+  })
 }
 
 export async function PUT(req: NextRequest, { params }: Params) {

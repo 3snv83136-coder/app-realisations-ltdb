@@ -17,6 +17,11 @@ export const TYPES_INTERVENTION = [
 
 export type TypeIntervention = typeof TYPES_INTERVENTION[number]
 
+/** Intervention créée pour établir un devis (pas de mode terrain). */
+export function isDevisIntervention(type: string | null | undefined): boolean {
+  return type === 'Devis'
+}
+
 /**
  * Détecte un type d'intervention dans un texte libre (objet d'un rapport / devis).
  * Recherche par mots-clés. Renvoie le type matché, sinon null.

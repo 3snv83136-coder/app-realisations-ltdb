@@ -33,7 +33,7 @@ const TOOLS: Tool[] = [
   { href: 'https://adsconstructor.vercel.app/', emoji: '📢', label: 'ADS MY SELF', desc: 'Constructeur de pubs', bg: 'bg-gradient-to-br from-orange-500 to-pink-600', text: 'white', external: true },
 ]
 
-const PRIMARY_HREFS = new Set(['/accord', '/planning', '/post-gmb', '/mail', '/historique'])
+const PRIMARY_HREFS = new Set(['/accord', '/planning'])
 const PRIMARY_TOOLS = TOOLS.filter((t) => PRIMARY_HREFS.has(t.href))
 const MORE_TOOLS = TOOLS.filter((t) => !PRIMARY_HREFS.has(t.href))
 
@@ -56,18 +56,19 @@ function genScatter(n: number): Scatter[] {
 
 function ToolTile({
   t,
-  compact,
+  featured,
   introClass,
   tileStyle,
 }: {
   t: Tool
-  compact?: boolean
+  /** Tuiles principales (Accord, Planning) — pleine hauteur, texte large */
+  featured?: boolean
   introClass: string
   tileStyle?: React.CSSProperties
 }) {
   const textColor = t.text === 'white' ? 'text-white' : 'text-black'
-  const tileClass = compact
-    ? `group relative h-full min-h-0 rounded-xl overflow-hidden flex flex-col justify-end p-2.5 sm:p-3 shadow-sm transition-all duration-200 ease-out hover:shadow-lg hover:scale-[1.05] hover:z-10 ${introClass} ${t.bg}`
+  const tileClass = featured
+    ? `group relative h-full min-h-0 rounded-2xl overflow-hidden flex flex-col justify-end p-5 sm:p-6 shadow-md transition-all duration-200 ease-out hover:shadow-2xl hover:scale-[1.02] hover:z-10 ${introClass} ${t.bg}`
     : `group relative h-full min-h-[96px] rounded-xl sm:rounded-2xl overflow-hidden flex flex-col justify-end p-3.5 sm:p-4 shadow-sm transition-all duration-200 ease-out hover:shadow-xl hover:scale-[1.03] hover:z-10 ${introClass} ${t.bg}`
 
   const inner = (
@@ -75,8 +76,8 @@ function ToolTile({
       <span
         aria-hidden
         className={
-          compact
-            ? 'pointer-events-none select-none absolute -top-1 -right-1 text-[2.75rem] sm:text-[3.25rem] leading-none opacity-20 transition-transform duration-200 group-hover:scale-105'
+          featured
+            ? 'pointer-events-none select-none absolute -top-2 -right-2 text-[5rem] sm:text-[6.5rem] lg:text-[7.5rem] leading-none opacity-20 transition-transform duration-200 group-hover:scale-105'
             : 'pointer-events-none select-none absolute top-0 right-0 text-[3.5rem] sm:text-[4.5rem] leading-none opacity-20 transition-transform duration-200 group-hover:scale-105'
         }
       >
@@ -85,16 +86,22 @@ function ToolTile({
       <div className={`relative z-10 ${textColor}`}>
         <div
           className={
-            compact
-              ? 'text-xs sm:text-sm font-extrabold leading-tight tracking-tight drop-shadow-sm'
+            featured
+              ? 'text-xl sm:text-2xl lg:text-3xl font-extrabold leading-tight tracking-tight drop-shadow-sm'
               : 'text-sm sm:text-base font-extrabold leading-tight tracking-tight drop-shadow-sm'
           }
         >
           {t.label}
         </div>
-        {!compact && (
-          <p className="mt-1 text-[10px] sm:text-xs leading-snug opacity-85 line-clamp-2 font-medium">{t.desc}</p>
-        )}
+        <p
+          className={
+            featured
+              ? 'mt-2 text-sm sm:text-base leading-snug opacity-90 line-clamp-2 font-medium'
+              : 'mt-1 text-[10px] sm:text-xs leading-snug opacity-85 line-clamp-2 font-medium'
+          }
+        >
+          {t.desc}
+        </p>
       </div>
     </>
   )
@@ -178,13 +185,13 @@ export default function Home() {
           Accès rapide
         </div>
 
-        {/* 5 modules principaux — tuiles compactes */}
-        <div className="shrink-0 grid grid-cols-2 sm:grid-cols-5 gap-1.5 sm:gap-2 h-[76px] sm:h-[88px]">
+        {/* Accord + Planning — grandes tuiles */}
+        <div className="shrink-0 grid grid-cols-2 gap-2 sm:gap-3 flex-[2] min-h-[140px] sm:min-h-[180px]">
           {PRIMARY_TOOLS.map((t, i) => (
             <ToolTile
               key={`${t.href}-${t.label}`}
               t={t}
-              compact
+              featured
               introClass={tileIntro(i)}
               tileStyle={tileStyle(i)}
             />

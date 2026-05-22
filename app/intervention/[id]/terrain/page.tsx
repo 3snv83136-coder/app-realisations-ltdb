@@ -8,6 +8,7 @@ import TerrainPhotoCapture from "@/components/terrain/TerrainPhotoCapture"
 import TerrainOceanLoader from "@/components/terrain/TerrainOceanLoader"
 import { proxyImageUrl } from "@/lib/proxyImageUrl"
 import { fetchJsonWithRetry, fetchWithRetry } from "@/lib/fetchWithRetry"
+import { isDevisIntervention } from "@/lib/types-intervention"
 
 const VoiceRecorder = dynamic(() => import("@/components/VoiceRecorder"), { ssr: false })
 
@@ -58,6 +59,10 @@ export default function TerrainPage({ params }: { params: { id: string } }) {
       const res = await fetch(`/api/interventions/${params.id}`, { cache: 'no-store' })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`)
+      if (isDevisIntervention(data.intervention?.type_intervention)) {
+        router.replace(`/devis?intervention=${params.id}`)
+        return
+      }
       setInterv(data.intervention)
       setClient(data.client)
     } catch (e) {

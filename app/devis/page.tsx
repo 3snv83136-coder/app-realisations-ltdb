@@ -1,7 +1,8 @@
 'use client'
-import { useState, useEffect } from "react"
+import { Suspense, useState, useEffect } from "react"
 import { useSession } from "next-auth/react"
-import { useRouter } from "next/navigation"
+import Link from "next/link"
+import { useRouter, useSearchParams } from "next/navigation"
 import dynamic from "next/dynamic"
 import VoiceRecorder from "@/components/VoiceRecorder"
 import AppTabs from "@/components/AppTabs"
@@ -14,6 +15,7 @@ import type { DevisPDFProps, DevisLineData, ClientData, DevisData } from "@/comp
 import { LTDB_EMETTEUR } from "@/lib/emetteur"
 import { fmtDateISOtoFR } from "@/lib/format"
 import { detectTypeIntervention } from "@/lib/types-intervention"
+import DevisEnvoiPanel from "@/components/DevisEnvoiPanel"
 
 const DevisDownloadButton = dynamic(() => import("@/components/DevisPDF"), { ssr: false })
 const SaveDocumentButton = dynamic(() => import("@/components/SaveDocumentButton"), { ssr: false })
@@ -21,8 +23,20 @@ const SaveDocumentButton = dynamic(() => import("@/components/SaveDocumentButton
 type Step = 'capture' | 'extracting' | 'generating' | 'preview'
 
 export default function DevisPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center text-slate-500">Chargement…</div>
+    }>
+      <DevisPageContent />
+    </Suspense>
+  )
+}
+
+function DevisPageContent() {
   useSession()
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const interventionId = searchParams.get('intervention')
   const [step, setStep] = useState<Step>('capture')
   const [error, setError] = useState('')
 
@@ -39,87 +53,46 @@ export default function DevisPage() {
   // Résultat IA (éditable)
   const [devis, setDevis] = useState<DevisData | null>(null)
 
-  // Envoi email
   const [clientEmail, setClientEmail] = useState('')
-  const [emailSending, setEmailSending] = useState(false)
   const [emailSent, setEmailSent] = useState(false)
-  const [emailError, setEmailError] = useState('')
+  const [prefillLoading, setPrefillLoading] = useState(!!interventionId)
 
   useUnsavedChangesWarning(
     (step === 'capture' && (transcription.trim() !== '' || clientNom.trim() !== '')) ||
     (step === 'preview' && devis !== null && !emailSent)
   )
 
-  async function handleSendToClient() {
-    if (!devis) return
-    if (!clientEmail) { setEmailError('Renseigne l\'email du client.'); return }
-    const missing: string[] = []
-    if (!clientNom.trim()) missing.push('nom')
-    if (!clientAdresse.trim()) missing.push('adresse')
-    if (!clientVille.trim()) missing.push('ville')
-    if (missing.length) {
-      setEmailError(`Champs client incomplets : ${missing.join(', ')}. Complète-les avant l'envoi.`)
+  useEffect(() => {
+    if (!interventionId) {
+      setPrefillLoading(false)
       return
     }
-    setEmailSending(true); setEmailError(''); setEmailSent(false)
-    try {
-      const totalHT = devis.lignes.reduce((s, l) => s + (Number(l.pu_ht) || 0) * (Number(l.qte) || 0), 0)
-      const totalTTC = totalHT * (1 + ((devis.tva_taux ?? 10) / 100))
-      const technicienNom = typeof window !== 'undefined' ? (localStorage.getItem('ltdb_technicien') || '') : ''
-      const client: ClientData = {
-        nom: clientNom || '—',
-        adresseLignes: [
-          clientAdresse || '',
-          [clientCP, clientVille].filter(Boolean).join(' '),
-        ].filter(Boolean),
-        adresseChantier: adresseChantier || undefined,
+    let cancelled = false
+    ;(async () => {
+      try {
+        const res = await fetch(`/api/interventions/${interventionId}`, { cache: 'no-store' })
+        const data = await res.json()
+        if (cancelled || !res.ok) return
+        const c = data.client
+        const itv = data.intervention
+        if (c?.nom) setClientNom(c.nom)
+        if (c?.email) setClientEmail(c.email)
+        if (c?.adresse) setClientAdresse(c.adresse)
+        if (c?.code_postal) setClientCP(c.code_postal)
+        if (c?.ville) setClientVille(c.ville)
+        if (itv?.adresse_chantier) setAdresseChantier(itv.adresse_chantier)
+        else if (c?.adresse) setAdresseChantier(c.adresse)
+        if (itv?.ville && !c?.ville) setClientVille(itv.ville)
+        if (itv?.code_postal && !c?.code_postal) setClientCP(itv.code_postal)
+        setReferenceDossier(itv?.reference ? `Intervention ${itv.reference}` : '')
+      } catch {
+        /* best-effort */
+      } finally {
+        if (!cancelled) setPrefillLoading(false)
       }
-      const [{ DevisDocument }, { pdfDocumentToBase64 }, React] = await Promise.all([
-        import('@/components/DevisPDF'),
-        import('@/lib/pdfToBase64'),
-        import('react'),
-      ])
-      const pdfBase64 = await pdfDocumentToBase64(
-        React.createElement(DevisDocument, {
-          emetteur: LTDB_EMETTEUR,
-          client,
-          devis,
-          phone: LTDB_EMETTEUR.telephone,
-        })
-      )
-      const filename = `devis-${devis.numero || 'sans-numero'}.pdf`.replace(/\s+/g, '-')
-      const res = await fetch('/api/notify-devis', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          clientEmail,
-          clientNom,
-          technicienNom,
-          ville: clientVille,
-          dateDevis,
-          numero: devis.numero,
-          totalTTC,
-          validiteJours: devis.validite_jours,
-          pdfBase64,
-          pdfFilename: filename,
-          // Champs persistance DB
-          devis,
-          totalHT,
-          tvaTaux: devis.tva_taux ?? 10,
-          clientAdresse,
-          clientCP,
-        }),
-      })
-      const data = await res.json().catch(() => ({}))
-      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`)
-      if (data.warning) setEmailError(data.warning)
-      else setEmailSent(true)
-    } catch (e: any) {
-      setEmailError(`Erreur envoi : ${e.message || e}`)
-    } finally {
-      setEmailSending(false)
-    }
-  }
+    })()
+    return () => { cancelled = true }
+  }, [interventionId])
 
   async function handleExtractClient() {
     if (!transcription || transcription.trim().length < 10) return
@@ -370,32 +343,30 @@ export default function DevisPage() {
             </div>
           )}
 
-          {/* Envoi au client */}
-          <section className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 space-y-3">
-            <h2 className="font-bold text-[#0e2a52]">Envoyer le devis au client</h2>
-            <p className="text-xs text-slate-500">Le PDF sera joint à un email présentant le devis et le total TTC.</p>
-            <div className="flex flex-col sm:flex-row gap-2">
-              <input
-                type="email"
-                inputMode="email"
-                autoComplete="email"
-                value={clientEmail}
-                onChange={e => setClientEmail(e.target.value)}
-                placeholder="email@client.com"
-                className="flex-1 border-2 border-slate-200 focus:border-[#0e2a52] outline-none rounded-lg px-3 py-2 text-sm"
-                disabled={emailSending}
-              />
-              <button
-                onClick={handleSendToClient}
-                disabled={emailSending || !clientEmail}
-                className="bg-[#0e2a52] text-white font-semibold rounded-lg px-4 py-2 text-sm hover:bg-[#0a2047] disabled:opacity-50 disabled:cursor-not-allowed transition"
-              >
-                {emailSending ? 'Envoi…' : '✉ Envoyer le PDF'}
-              </button>
+          {interventionId && (
+            <div className="bg-blue-50 border border-blue-200 text-blue-900 rounded-xl px-4 py-3 text-sm">
+              📋 Devis lié à l&apos;intervention — pas de mode terrain.{' '}
+              <Link href={`/intervention/${interventionId}`} className="font-bold underline">
+                Retour fiche
+              </Link>
             </div>
-            {emailSent && <p className="text-sm text-emerald-700">✓ Devis envoyé à <strong>{clientEmail}</strong></p>}
-            {emailError && <p className="text-sm text-red-600">{emailError}</p>}
-          </section>
+          )}
+
+          <DevisEnvoiPanel
+            devis={devis}
+            clientEmail={clientEmail}
+            onClientEmailChange={setClientEmail}
+            clientNom={clientNom}
+            clientAdresse={clientAdresse}
+            clientCP={clientCP}
+            clientVille={clientVille}
+            dateDevis={dateDevis}
+            totalHT={total}
+            totalTTC={ttc}
+            tvaTaux={tvaTaux}
+            interventionId={interventionId}
+            onSent={() => setEmailSent(true)}
+          />
 
           {/* Client */}
           <section className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 space-y-3">
@@ -619,6 +590,16 @@ export default function DevisPage() {
       <DevisTabs current="nouveau" />
 
       <main className="max-w-3xl mx-auto px-4 py-5 space-y-4">
+        {interventionId && (
+          <div className="bg-blue-50 border border-blue-200 text-blue-900 rounded-xl px-4 py-3 text-sm">
+            {prefillLoading ? 'Chargement client…' : (
+              <>
+                Intervention devis — client pré-rempli.{' '}
+                <Link href={`/intervention/${interventionId}`} className="font-bold underline">Fiche</Link>
+              </>
+            )}
+          </div>
+        )}
         <div className="text-center">
           <h1 className="text-2xl font-black text-[#0e2a52]">Nouveau devis</h1>
           <p className="text-sm text-slate-500 mt-1">Dicte les travaux, les quantités et les prix — on s&apos;occupe du reste.</p>
