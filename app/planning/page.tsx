@@ -68,10 +68,18 @@ const STATUT_LABEL: Record<Statut, string> = {
 }
 
 const STATUT_BADGE: Record<Statut, string> = {
-  planifiee: 'bg-blue-100 text-blue-700',
-  en_cours: 'bg-amber-100 text-amber-700',
+  planifiee: 'bg-red-100 text-red-700',
+  en_cours: 'bg-blue-100 text-blue-700',
   terminee: 'bg-emerald-100 text-emerald-700',
   annulee: 'bg-slate-200 text-slate-600',
+}
+
+/** Bordure gauche des cartes kanban : rouge à venir · bleu en cours · vert terminée */
+const CARD_STATUT_ACCENT: Record<Statut, string> = {
+  planifiee: 'border-l-4 border-l-red-500',
+  en_cours: 'border-l-4 border-l-blue-500',
+  terminee: 'border-l-4 border-l-emerald-500',
+  annulee: 'border-l-4 border-l-slate-400',
 }
 
 function fmtHeure(t: string | null): string {
@@ -292,8 +300,8 @@ export default function PlanningPage() {
 type ColumnDef = { key: Statut; label: string; emoji: string; accent: string; subAccent: string }
 
 const KANBAN_COLUMNS: ColumnDef[] = [
-  { key: 'planifiee', label: 'À venir',    emoji: '📅', accent: 'border-blue-200',    subAccent: 'bg-blue-50 text-blue-700' },
-  { key: 'en_cours',  label: 'En cours',   emoji: '⚙',  accent: 'border-amber-200',   subAccent: 'bg-amber-50 text-amber-700' },
+  { key: 'planifiee', label: 'À venir',    emoji: '📅', accent: 'border-red-200',     subAccent: 'bg-red-50 text-red-700' },
+  { key: 'en_cours',  label: 'En cours',   emoji: '⚙',  accent: 'border-blue-200',    subAccent: 'bg-blue-50 text-blue-700' },
   { key: 'terminee',  label: 'Terminées',  emoji: '✅', accent: 'border-emerald-200', subAccent: 'bg-emerald-50 text-emerald-700' },
 ]
 
@@ -389,7 +397,7 @@ function InterventionCard({
   return (
     <Link
       href={`/intervention/${i.id}`}
-      className="block bg-white rounded-xl border border-slate-200 hover:border-[#0e2a52] hover:shadow-md transition p-3 group"
+      className={`block bg-white rounded-xl border border-slate-200 hover:border-[#0e2a52] hover:shadow-md transition p-3 group ${CARD_STATUT_ACCENT[i.statut]}`}
     >
       <div className="flex items-start justify-between gap-2 mb-1.5">
         <div className="min-w-0 flex-1">

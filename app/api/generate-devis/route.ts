@@ -76,11 +76,24 @@ INFOS CONNUES :
 - Date du devis : ${datePourIA}
 - Référence dossier : ${reference_dossier || '(aucune)'}
 
-⛔ RÈGLES DE FIDÉLITÉ
-- N'invente AUCUN prix qui ne soit pas dans la dictée. Si le technicien n'a pas cité de prix pour une prestation, mets "pu_ht": 0 et laisse l'utilisateur corriger.
+⛔ RÈGLES DE FIDÉLITÉ (ABSOLUES)
+- N'invente AUCUN prix, prestation, dimension, matériau, durée, lieu ou fait technique absent de la dictée.
+- Si le technicien n'a pas cité de prix pour une prestation, mets "pu_ht": 0 et laisse l'utilisateur corriger.
 - N'invente AUCUNE prestation absente de la dictée.
+- Tu peux REFORMULER et ÉTOFFER professionnellement ce qui est déjà dans la dictée (vocabulaire métier EU/EP, hydrocurage, etc.) — sans ajouter d'éléments nouveaux.
 - Si le technicien donne un prix pour un ensemble ("300 € pour pomper la fosse"), mets qte=1, unite="forfait", pu_ht=300.
 - Unités possibles : "forfait", "ml" (mètre linéaire), "m²", "m³", "u" (unité), "h" (heure), "j" (jour). Choisis celle qui correspond au contexte.
+
+📊 CONSTATS TECHNIQUES (sections obligatoires)
+- "constats_conformes" : UNIQUEMENT ce que le technicien affirme explicitement en bon état / conforme / fonctionnel / sans anomalie. Ne mets JAMAIS de constat conforme par défaut pour combler.
+  Chaque entrée : { "intitule": "titre court", "localisation": "zone précise ou \"\" ", "description": "2 à 4 phrases professionnelles développant le constat positif" }
+  Si rien n'est dit → [].
+- "constats_critiques" : UNIQUEMENT dysfonctionnements graves, urgences, risques majeurs ou non-conformités explicitement décrits par le technicien.
+  Même structure, descriptions en 2 à 4 phrases (gravité, conséquences, urgence si mentionnée).
+  Si rien de critique → [].
+- "non_garantie" : paragraphe OBLIGATOIRE (5 à 7 phrases minimum) intitulé conceptuellement « Non garantie suite à notre intervention ».
+  Développe les limites de garantie : reprends toute exclusion ou réserve citée par le technicien ; précise que l'intervention ne garantit pas l'état latent des parties de réseau non inspectées ou non traitées ; absence de garantie sur récidive si la cause racine n'est pas éliminée ; réserves sur accessibilité et parties hors périmètre chiffré.
+  Le cadre juridique général est autorisé — pas de défauts ou faits spécifiques inventés.
 
 📋 STRUCTURATION EN SECTIONS
 Regroupe les lignes en 2 à 5 sections cohérentes numérotées. Exemples :
@@ -138,7 +151,14 @@ Réponds UNIQUEMENT avec ce JSON (sans markdown, sans backticks) :
     "modes_paiement": ["Chèque", "Virement bancaire", "Carte bancaire", "Espèces (dans la limite légale)"]
   },
   "client_nom_detecte": "si un nom client est identifiable dans la dictée, mets-le ici, sinon chaîne vide",
-  "client_adresse_detectee": "si une adresse client est identifiable dans la dictée, mets-la ici, sinon chaîne vide"
+  "client_adresse_detectee": "si une adresse client est identifiable dans la dictée, mets-la ici, sinon chaîne vide",
+  "constats_conformes": [
+    { "intitule": "", "localisation": "", "description": "" }
+  ],
+  "constats_critiques": [
+    { "intitule": "", "localisation": "", "description": "" }
+  ],
+  "non_garantie": "paragraphe complet sur les limites de garantie après intervention"
 }`
 
   let msg
@@ -196,6 +216,19 @@ Réponds UNIQUEMENT avec ce JSON (sans markdown, sans backticks) :
   if (!Array.isArray(data.modalites.modes_paiement) || data.modalites.modes_paiement.length === 0) {
     data.modalites.modes_paiement = ['Chèque', 'Virement bancaire', 'Carte bancaire', 'Espèces (dans la limite légale)']
   }
+
+  const normConstat = (row: any) => ({
+    intitule: typeof row?.intitule === 'string' ? row.intitule.trim() : '',
+    localisation: typeof row?.localisation === 'string' ? row.localisation.trim() : '',
+    description: typeof row?.description === 'string' ? row.description.trim() : '',
+  })
+  data.constats_conformes = Array.isArray(data.constats_conformes)
+    ? data.constats_conformes.map(normConstat).filter((r: { intitule: string; description: string }) => r.intitule || r.description)
+    : []
+  data.constats_critiques = Array.isArray(data.constats_critiques)
+    ? data.constats_critiques.map(normConstat).filter((r: { intitule: string; description: string }) => r.intitule || r.description)
+    : []
+  data.non_garantie = typeof data.non_garantie === 'string' ? data.non_garantie.trim() : ''
 
   return NextResponse.json({ devis: data })
 }

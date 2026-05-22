@@ -28,6 +28,7 @@ const nextConfig = {
     // automatiquement depuis les packages externalisés → ENOENT sur Vercel.
     outputFileTracingIncludes: {
       "/api/generate-video": [
+        "./build/**/*",
         "./remotion/**/*",
         "./node_modules/@remotion/compositor-linux-x64-gnu/**/*",
         "./node_modules/@remotion/compositor-linux-x64-musl/**/*",

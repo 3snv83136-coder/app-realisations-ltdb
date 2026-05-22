@@ -11,7 +11,7 @@ import VilleCombobox from "@/components/VilleCombobox"
 import ClientAutocomplete from "@/components/ClientAutocomplete"
 import PrestationsCombobox from "@/components/PrestationsCombobox"
 import { useUnsavedChangesWarning } from "@/lib/useUnsavedChangesWarning"
-import type { DevisPDFProps, DevisLineData, ClientData, DevisData } from "@/components/DevisPDF"
+import type { DevisPDFProps, DevisLineData, DevisConstatItem, ClientData, DevisData } from "@/components/DevisPDF"
 import { LTDB_EMETTEUR } from "@/lib/emetteur"
 import { fmtDateISOtoFR } from "@/lib/format"
 import { detectTypeIntervention } from "@/lib/types-intervention"
@@ -244,8 +244,38 @@ function DevisPageContent() {
         acompte_pct: 30,
         modes_paiement: ['Chèque', 'Virement bancaire', 'Carte bancaire', 'Espèces (dans la limite légale)'],
       },
+      constats_conformes: [],
+      constats_critiques: [],
+      non_garantie: '',
     })
     setStep('preview')
+  }
+
+  function updateConstat(
+    kind: 'conformes' | 'critiques',
+    index: number,
+    patch: Partial<DevisConstatItem>,
+  ) {
+    if (!devis) return
+    const key = kind === 'conformes' ? 'constats_conformes' : 'constats_critiques'
+    const rows = [...(devis[key] || [])]
+    rows[index] = { ...rows[index], ...patch }
+    setDevis({ ...devis, [key]: rows })
+  }
+
+  function addConstat(kind: 'conformes' | 'critiques') {
+    if (!devis) return
+    const key = kind === 'conformes' ? 'constats_conformes' : 'constats_critiques'
+    setDevis({
+      ...devis,
+      [key]: [...(devis[key] || []), { intitule: '', localisation: '', description: '' }],
+    })
+  }
+
+  function removeConstat(kind: 'conformes' | 'critiques', index: number) {
+    if (!devis) return
+    const key = kind === 'conformes' ? 'constats_conformes' : 'constats_critiques'
+    setDevis({ ...devis, [key]: (devis[key] || []).filter((_, i) => i !== index) })
   }
 
   const total = devis?.lignes.reduce((s, l) => s + (Number(l.pu_ht) || 0) * (Number(l.qte) || 0), 0) || 0
@@ -260,7 +290,7 @@ function DevisPageContent() {
         <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-8 max-w-md w-full text-center">
           <div className="inline-block animate-spin rounded-full h-12 w-12 border-4 border-blue-200 border-t-[#0e2a52] mb-4" />
           <h2 className="text-xl font-black text-[#0e2a52]">Analyse de la dictée…</h2>
-          <p className="text-sm text-slate-500 mt-2">L&apos;IA structure le devis (objet, lignes, conditions, TVA).</p>
+          <p className="text-sm text-slate-500 mt-2">L&apos;IA structure le devis (constats, objet, lignes, conditions, TVA).</p>
         </div>
       </div>
     )
@@ -418,6 +448,77 @@ function DevisPageContent() {
               rows={3}
               className="w-full border-2 border-slate-200 focus:border-blue-500 outline-none rounded-lg px-3 py-2 text-sm transition-colors"
             />
+          </section>
+
+          {/* Constats conforme / critique / non garantie */}
+          <section className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 space-y-4">
+            <h2 className="font-bold text-[#0e2a52]">Constats techniques</h2>
+            <p className="text-xs text-slate-500">
+              Générés depuis la dictée — à compléter si besoin. Ne pas inventer de faits absents de la dictée.
+            </p>
+
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-bold text-teal-800">Conforme</h3>
+                <button type="button" onClick={() => addConstat('conformes')} className="text-xs font-semibold text-teal-700 hover:text-teal-900">+ Ajouter</button>
+              </div>
+              {(devis.constats_conformes || []).length === 0 ? (
+                <p className="text-xs text-slate-400 italic">Aucun constat conforme (normal si non mentionné dans la dictée).</p>
+              ) : (
+                (devis.constats_conformes || []).map((row, i) => (
+                  <div key={i} className="border border-teal-200 rounded-xl p-3 space-y-2 bg-teal-50/40">
+                    <div className="flex justify-between items-center">
+                      <span className="text-xs font-bold text-teal-800">#{i + 1}</span>
+                      <button type="button" onClick={() => removeConstat('conformes', i)} className="text-red-500 text-lg leading-none" aria-label="Supprimer">×</button>
+                    </div>
+                    <Field label="Intitulé" value={row.intitule} onChange={v => updateConstat('conformes', i, { intitule: v })} />
+                    <Field label="Localisation" value={row.localisation || ''} onChange={v => updateConstat('conformes', i, { localisation: v })} />
+                    <label className="block text-sm">
+                      <span className="text-xs uppercase tracking-wide text-slate-500">Description</span>
+                      <textarea value={row.description} onChange={e => updateConstat('conformes', i, { description: e.target.value })} rows={3} className="w-full border border-slate-200 rounded-lg px-3 py-2 mt-1 text-sm" />
+                    </label>
+                  </div>
+                ))
+              )}
+            </div>
+
+            <div className="space-y-3 pt-2 border-t border-slate-100">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-bold text-red-800">Critique</h3>
+                <button type="button" onClick={() => addConstat('critiques')} className="text-xs font-semibold text-red-700 hover:text-red-900">+ Ajouter</button>
+              </div>
+              {(devis.constats_critiques || []).length === 0 ? (
+                <p className="text-xs text-slate-400 italic">Aucun constat critique (normal si non mentionné).</p>
+              ) : (
+                (devis.constats_critiques || []).map((row, i) => (
+                  <div key={i} className="border border-red-200 rounded-xl p-3 space-y-2 bg-red-50/40">
+                    <div className="flex justify-between items-center">
+                      <span className="text-xs font-bold text-red-800">#{i + 1}</span>
+                      <button type="button" onClick={() => removeConstat('critiques', i)} className="text-red-500 text-lg leading-none" aria-label="Supprimer">×</button>
+                    </div>
+                    <Field label="Intitulé" value={row.intitule} onChange={v => updateConstat('critiques', i, { intitule: v })} />
+                    <Field label="Localisation" value={row.localisation || ''} onChange={v => updateConstat('critiques', i, { localisation: v })} />
+                    <label className="block text-sm">
+                      <span className="text-xs uppercase tracking-wide text-slate-500">Description</span>
+                      <textarea value={row.description} onChange={e => updateConstat('critiques', i, { description: e.target.value })} rows={3} className="w-full border border-slate-200 rounded-lg px-3 py-2 mt-1 text-sm" />
+                    </label>
+                  </div>
+                ))
+              )}
+            </div>
+
+            <div className="pt-2 border-t border-slate-100">
+              <label className="block text-sm">
+                <span className="text-sm font-bold text-[#0e2a52]">Non garantie suite à notre intervention</span>
+                <textarea
+                  value={devis.non_garantie || ''}
+                  onChange={e => setDevis({ ...devis, non_garantie: e.target.value })}
+                  rows={5}
+                  placeholder="Limites de garantie après intervention…"
+                  className="w-full border-2 border-slate-200 focus:border-blue-500 outline-none rounded-lg px-3 py-2 mt-1 text-sm"
+                />
+              </label>
+            </div>
           </section>
 
           {/* Lignes */}

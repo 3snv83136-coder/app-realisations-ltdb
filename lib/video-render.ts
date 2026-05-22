@@ -1,8 +1,14 @@
 import path from "node:path"
 import os from "node:os"
 import fs from "node:fs/promises"
+import fsSync from "node:fs"
 import { bundle } from "@remotion/bundler"
 import { renderMedia, selectComposition } from "@remotion/renderer"
+import {
+  isVercelServerless,
+  REMOTION_PROJECT_ROOT,
+  withWritableRemotionCache,
+} from "@/lib/remotion-serverless-env"
 
 export type VideoFormat = "vertical" | "horizontal" | "square"
 
@@ -22,52 +28,71 @@ export type RenderInput = {
   enableMusic?: boolean
 }
 
+const PREBUNDLE_DIR = path.join(REMOTION_PROJECT_ROOT, "build")
+
 let bundlePromise: Promise<string> | null = null
 
+function getPrebuiltServeUrl(): string | null {
+  const fromEnv = process.env.REMOTION_SERVE_URL?.trim()
+  if (fromEnv) return fromEnv
+
+  const indexHtml = path.join(PREBUNDLE_DIR, "index.html")
+  if (fsSync.existsSync(indexHtml)) {
+    return PREBUNDLE_DIR
+  }
+  return null
+}
+
 function getBundle(): Promise<string> {
+  const prebuilt = getPrebuiltServeUrl()
+  if (prebuilt) return Promise.resolve(prebuilt)
+
   if (bundlePromise) return bundlePromise
   bundlePromise = bundle({
-    entryPoint: path.resolve(process.cwd(), "remotion/index.ts"),
-    publicDir: path.resolve(process.cwd(), "remotion/assets"),
+    entryPoint: path.join(REMOTION_PROJECT_ROOT, "remotion/index.ts"),
+    publicDir: path.join(REMOTION_PROJECT_ROOT, "remotion/assets"),
+    enableCaching: !isVercelServerless(),
     onProgress: () => {},
   })
   return bundlePromise
 }
 
 export async function renderVideoLocal(input: RenderInput): Promise<{ filePath: string; bytes: number }> {
-  const serveUrl = await getBundle()
-  const inputProps = {
-    format: input.format,
-    photos: input.photos,
-    ville: input.ville,
-    typeIntervention: input.typeIntervention,
-    clientNom: input.clientNom,
-    dateRealisee: input.dateRealisee,
-    enableMusic: input.enableMusic ?? true,
-  }
+  return withWritableRemotionCache(async () => {
+    const serveUrl = await getBundle()
+    const inputProps = {
+      format: input.format,
+      photos: input.photos,
+      ville: input.ville,
+      typeIntervention: input.typeIntervention,
+      clientNom: input.clientNom,
+      dateRealisee: input.dateRealisee,
+      enableMusic: input.enableMusic ?? true,
+    }
 
-  const composition = await selectComposition({
-    serveUrl,
-    id: COMPOSITION_ID[input.format],
-    inputProps,
+    const composition = await selectComposition({
+      serveUrl,
+      id: COMPOSITION_ID[input.format],
+      inputProps,
+    })
+
+    const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "ltdb-video-"))
+    const filePath = path.join(tmpDir, `${input.format}.mp4`)
+
+    await renderMedia({
+      composition,
+      serveUrl,
+      codec: "h264",
+      outputLocation: filePath,
+      inputProps,
+      overwrite: true,
+      videoBitrate: "3M",
+      x264Preset: "veryfast",
+    })
+
+    const stat = await fs.stat(filePath)
+    return { filePath, bytes: stat.size }
   })
-
-  const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "ltdb-video-"))
-  const filePath = path.join(tmpDir, `${input.format}.mp4`)
-
-  await renderMedia({
-    composition,
-    serveUrl,
-    codec: "h264",
-    outputLocation: filePath,
-    inputProps,
-    overwrite: true,
-    videoBitrate: "3M",
-    x264Preset: "veryfast",
-  })
-
-  const stat = await fs.stat(filePath)
-  return { filePath, bytes: stat.size }
 }
 
 export async function renderVideo(input: RenderInput) {

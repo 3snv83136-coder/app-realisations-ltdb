@@ -88,6 +88,10 @@ const s = StyleSheet.create({
     backgroundColor: C.red, paddingVertical: 8, paddingHorizontal: 14,
     marginTop: 14, marginBottom: 0,
   },
+  bandTeal: {
+    backgroundColor: '#0d9488', paddingVertical: 8, paddingHorizontal: 14,
+    marginTop: 14, marginBottom: 0,
+  },
   bandTxt: {
     color: C.white, fontSize: 10, fontFamily: 'Helvetica-Bold',
     letterSpacing: 0.5, textTransform: 'uppercase',
@@ -101,6 +105,17 @@ const s = StyleSheet.create({
     marginBottom: 10,
   },
   objetText: { color: C.text, fontSize: 9.5, lineHeight: 1.5 },
+
+  /* Constats (conforme / critique / non garantie) */
+  constatItem: {
+    borderWidth: 1, borderColor: C.border, borderTopWidth: 0,
+    paddingVertical: 10, paddingHorizontal: 12,
+    marginBottom: 0,
+  },
+  constatItemLast: { marginBottom: 10 },
+  constatTitle: { fontFamily: 'Helvetica-Bold', fontSize: 9.5, color: C.navy, marginBottom: 4 },
+  constatLoc: { fontSize: 8.5, color: C.muted, marginBottom: 4 },
+  constatDesc: { fontSize: 9, color: C.text, lineHeight: 1.45 },
 
   /* Devis table */
   devisTable: {
@@ -229,6 +244,12 @@ const s = StyleSheet.create({
 })
 
 /* ============ TYPES ============ */
+export interface DevisConstatItem {
+  intitule: string
+  localisation?: string
+  description: string
+}
+
 export interface DevisLineData {
   section?: string            // Titre de section (ex: "1. Suppression de la fosse septique")
   designation: string         // Désignation principale
@@ -264,6 +285,9 @@ export interface DevisData {
   tva_reduite_attestation?: boolean   // si true, affiche paragraphe attestation
   conditions?: DevisConditions
   modalites?: DevisModalites
+  constats_conformes?: DevisConstatItem[]
+  constats_critiques?: DevisConstatItem[]
+  non_garantie?: string
 }
 
 export interface EmetteurData {
@@ -434,6 +458,64 @@ export function DevisDocument({ emetteur, client, devis, phone }: DevisPDFProps)
               </View>
               <View style={s.objetBox}>
                 <Text style={s.objetText}>{devis.objet}</Text>
+              </View>
+            </View>
+          ) : null}
+
+          {/* ===== Constats conformes ===== */}
+          {(devis.constats_conformes?.length ?? 0) > 0 ? (
+            <View>
+              <View style={s.bandTeal} wrap={false}>
+                <Text style={s.bandTxt}>Conforme</Text>
+              </View>
+              {devis.constats_conformes!.map((row, i) => (
+                <View
+                  key={i}
+                  style={[
+                    s.constatItem,
+                    i === devis.constats_conformes!.length - 1 ? s.constatItemLast : {},
+                  ]}
+                  wrap={false}
+                >
+                  <Text style={s.constatTitle}>{row.intitule}</Text>
+                  {row.localisation ? <Text style={s.constatLoc}>{row.localisation}</Text> : null}
+                  <Text style={s.constatDesc}>{row.description}</Text>
+                </View>
+              ))}
+            </View>
+          ) : null}
+
+          {/* ===== Constats critiques ===== */}
+          {(devis.constats_critiques?.length ?? 0) > 0 ? (
+            <View>
+              <View style={s.bandRed} wrap={false}>
+                <Text style={s.bandTxt}>Critique</Text>
+              </View>
+              {devis.constats_critiques!.map((row, i) => (
+                <View
+                  key={i}
+                  style={[
+                    s.constatItem,
+                    i === devis.constats_critiques!.length - 1 ? s.constatItemLast : {},
+                  ]}
+                  wrap={false}
+                >
+                  <Text style={s.constatTitle}>{row.intitule}</Text>
+                  {row.localisation ? <Text style={s.constatLoc}>{row.localisation}</Text> : null}
+                  <Text style={s.constatDesc}>{row.description}</Text>
+                </View>
+              ))}
+            </View>
+          ) : null}
+
+          {/* ===== Non garantie ===== */}
+          {devis.non_garantie ? (
+            <View wrap={false}>
+              <View style={s.bandNavy}>
+                <Text style={s.bandTxt}>Non garantie suite à notre intervention</Text>
+              </View>
+              <View style={s.objetBox}>
+                <Text style={s.objetText}>{devis.non_garantie}</Text>
               </View>
             </View>
           ) : null}
