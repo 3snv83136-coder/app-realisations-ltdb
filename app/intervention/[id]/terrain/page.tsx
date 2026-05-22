@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useState, useRef } from "react"
+import { useEffect, useState, useRef } from 'react'
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import dynamic from "next/dynamic"
@@ -34,6 +34,9 @@ type Intervention = {
   photos_legendes: string[] | null
   publie_slug: string | null
   prix_prevu: number | null
+  video_urls?: { horizontal?: string; vertical?: string; square?: string } | null
+  video_youtube_url?: string | null
+  video_status?: string | null
 }
 
 type Client = {
@@ -155,9 +158,12 @@ export default function TerrainPage({ params }: { params: { id: string } }) {
         {step === 2 && <StepEnCours interv={interv} onPhotoUploaded={load} onTerminer={() => callTerrainAction('fin')} onError={setError} onSkipToRapport={() => setStep(3)} />}
         {step === 3 && <StepRapport interv={interv} onSaved={load} onError={setError} />}
         {step === 4 && <StepFacture interv={interv} client={client} onCreated={load} onError={setError} />}
-        {step === 5 && <StepEnvoi interv={interv} client={client} onSent={load} onError={setError} />}
-        {step === 6 && <StepPublier interv={interv} onDone={() => setStep(7)} onError={setError} />}
-        {step >= 7 && <StepTermine interv={interv} />}
+        {(step === 5 || step === 6) && (
+          <TerrainDiffusionPanel interv={interv} client={client} onRefresh={load} onError={setError} />
+        )}
+        {step >= 7 && (
+          <StepTermine interv={interv} client={client} onRefresh={load} onError={setError} />
+        )}
       </main>
     </div>
   )
@@ -827,28 +833,54 @@ function StepFacture({ interv, client, onCreated, onError }: {
 }
 
 // ============================================================
-// ÉTAPE 5 — Envoi groupé + publication
+// ÉTAPE 5–6 — Diffusion (mail, site, GMB, YouTube) — actions indépendantes
 // ============================================================
-function StepEnvoi({ interv, client, onSent, onError }: {
+type DiffusionAction = 'mail' | 'site' | 'gmb' | 'youtube' | null
+
+function TerrainDiffusionPanel({ interv, client, onRefresh, onError }: {
   interv: Intervention
   client: Client
-  onSent: () => void
+  onRefresh: () => void | Promise<void>
   onError: (e: string) => void
 }) {
   const [email, setEmail] = useState(client?.email || '')
   const [nom, setNom] = useState(client?.nom || '')
-  const [sending, setSending] = useState(false)
-  const [sendingStep, setSendingStep] = useState<string>('')
-  // Ref guard contre la double-soumission : couvre le gap entre le clic
-  // et le re-render qui propage `sending=true` au bouton.
-  const sendingRef = useRef(false)
+  const [busy, setBusy] = useState<DiffusionAction>(null)
+  const [progress, setProgress] = useState('')
+  const [gmbOk, setGmbOk] = useState(false)
+  const [youtubeUrl, setYoutubeUrl] = useState(interv.video_youtube_url || '')
+  const mailRef = useRef(false)
 
-  async function handleSend() {
-    // ── Guard double-soumission : sync, indépendant du re-render React ──
-    if (sendingRef.current || sending) return
-    sendingRef.current = true
-    setSending(true)
-    setSendingStep('⚙ Vérifications…')
+  useEffect(() => {
+    setEmail(client?.email || '')
+    setNom(client?.nom || '')
+  }, [client?.email, client?.nom])
+
+  useEffect(() => {
+    setYoutubeUrl(interv.video_youtube_url || '')
+  }, [interv.video_youtube_url])
+
+  const mailDone = !!interv.mail_envoye_at
+  const siteDone = !!interv.publie_slug
+  const hasPhotos = !!(interv.photos_urls && interv.photos_urls.length > 0)
+
+  async function linkClientBestEffort() {
+    if (!nom.trim()) return
+    try {
+      await fetch(`/api/interventions/${interv.id}/link-client`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nom: nom.trim(), email: email.trim() }),
+      })
+    } catch { /* best-effort */ }
+  }
+
+  async function handleSendMail() {
+    if (mailRef.current || busy) return
+    mailRef.current = true
+    setBusy('mail')
+    setProgress('⚙ Vérifications…')
+    onError('')
 
     try {
       if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
@@ -872,12 +904,7 @@ function StepEnvoi({ interv, client, onSent, onError }: {
         throw new Error('Rapport non sauvegardé. Reviens à l\'étape rapport.')
       }
 
-      // ── 1bis. (Re)lie le client à l'intervention ──
-      // link-client gère les deux cas : client déjà lié → patch non destructif ;
-      // aucun client lié → upsert + rattachement. Indispensable pour les
-      // interventions arrivées ici sans client (bug historique du wipe) — sans
-      // ça le nom saisi ne serait jamais persisté ni visible à la publication.
-      setSendingStep('👤 Mise à jour de la fiche client…')
+      setProgress('👤 Mise à jour de la fiche client…')
       const linkData = await fetchJsonWithRetry<{ client: Client }>(
         `/api/interventions/${interv.id}/link-client`,
         {
@@ -900,8 +927,7 @@ function StepEnvoi({ interv, client, onSent, onError }: {
       }
       const facturePayload = factData.facture.payload
 
-      // ── 3. Génère PDF rapport côté client (Blob direct, pas de base64) ──
-      setSendingStep('📄 Génération du PDF rapport…')
+      setProgress('📄 Génération du PDF rapport…')
       const [{ RealisationDocument }, { pdfElementToBlob }, React] = await Promise.all([
         import('@/components/RealisationPDF'),
         import('@/lib/pdfToBase64'),
@@ -928,8 +954,7 @@ function StepEnvoi({ interv, client, onSent, onError }: {
         throw new Error('PDF rapport vide — relance la génération.')
       }
 
-      // ── 4. Upload PDF rapport → Storage (multipart : pas de limite 4.5MB) ──
-      setSendingStep('☁ Upload du rapport…')
+      setProgress('☁ Upload du rapport…')
       const fdRapport = new FormData()
       fdRapport.append('kind', 'rapport')
       fdRapport.append('pdf', pdfRapportBlob, `rapport-${interv.id}.pdf`)
@@ -940,8 +965,7 @@ function StepEnvoi({ interv, client, onSent, onError }: {
         timeoutMs: 60_000,
       })
 
-      // ── 5. Génère PDF facture côté client ──
-      setSendingStep('🧾 Génération du PDF facture…')
+      setProgress('🧾 Génération du PDF facture…')
       const [{ FactureDocument }, { ltdbFactureEmetteur }] = await Promise.all([
         import('@/components/FacturePDF'),
         import('@/lib/emetteur'),
@@ -971,8 +995,7 @@ function StepEnvoi({ interv, client, onSent, onError }: {
         throw new Error('PDF facture vide — relance la génération.')
       }
 
-      // ── 6. Upload PDF facture → Storage ──
-      setSendingStep('☁ Upload de la facture…')
+      setProgress('☁ Upload de la facture…')
       const fdFacture = new FormData()
       fdFacture.append('kind', 'facture')
       fdFacture.append('pdf', pdfFactureBlob, `facture-${interv.id}.pdf`)
@@ -983,8 +1006,7 @@ function StepEnvoi({ interv, client, onSent, onError }: {
         timeoutMs: 60_000,
       })
 
-      // ── 7. Envoi mail : body MINUSCULE, route lit les PDFs depuis Storage ──
-      setSendingStep('✉ Envoi du mail au client…')
+      setProgress('✉ Envoi du mail au client…')
       await fetchJsonWithRetry('/api/notify-rapport-facture', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -996,7 +1018,6 @@ function StepEnvoi({ interv, client, onSent, onError }: {
         timeoutMs: 90_000,
       })
 
-      // ── 8. Statut intervention → terminée (remplace l'ancien bouton "Terminer") ──
       try {
         await fetchWithRetry(`/api/interventions/${interv.id}`, {
           method: 'PUT',
@@ -1005,40 +1026,26 @@ function StepEnvoi({ interv, client, onSent, onError }: {
           retries: 2,
           timeoutMs: 15_000,
         })
-      } catch {
-        // best-effort : le mail est parti, ne pas bloquer l'utilisateur
-      }
+      } catch { /* best-effort */ }
 
-      onSent()
+      setProgress('✓ Mail envoyé')
+      await onRefresh()
     } catch (e) {
       onError(e instanceof Error ? e.message : String(e))
     } finally {
-      setSending(false)
-      setSendingStep('')
-      sendingRef.current = false
+      setBusy(null)
+      setProgress('')
+      mailRef.current = false
     }
   }
 
-  async function handlePublier() {
-    // Publication directe : appelle /api/publish/from-intervention qui fait
-    // tout le travail server-side (récupère photos + rapport + seo, forward
-    // au Django). Avant on redirigeait sur /nouveau qui obligeait à recliquer
-    // sur Publier — l'utilisateur ne voyait jamais rien sur le site car il
-    // pensait que c'était fait.
-    if (sending) return
-    setSending(true); setSendingStep('🌐 Publication sur le site…')
+  async function handlePublishSite() {
+    if (busy) return
+    setBusy('site')
+    setProgress('🌐 Publication sur le site…')
+    onError('')
     try {
-      // Rattache le client si le nom est saisi : la publication lit le client
-      // côté serveur — sans rattachement la page sortirait sans nom client.
-      if (nom.trim()) {
-        try {
-          await fetch(`/api/interventions/${interv.id}/link-client`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ nom: nom.trim(), email: email.trim() }),
-          })
-        } catch { /* best-effort : ne bloque pas la publication */ }
-      }
+      await linkClientBestEffort()
       const res = await fetch('/api/publish/from-intervention', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1046,26 +1053,90 @@ function StepEnvoi({ interv, client, onSent, onError }: {
       })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`)
-      // Avance le wizard à l'étape 7 (terminé)
-      await fetch(`/api/interventions/${interv.id}/terrain-step`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'set', step: 7 }),
-      })
-      onSent()
+      setProgress('✓ Publié sur le site')
+      await onRefresh()
     } catch (e) {
-      onError(`Publication échouée : ${e instanceof Error ? e.message : String(e)}`)
+      onError(`Publication site : ${e instanceof Error ? e.message : String(e)}`)
     } finally {
-      setSending(false); setSendingStep('')
+      setBusy(null)
     }
   }
+
+  async function handlePublishGmb() {
+    if (busy) return
+    setBusy('gmb')
+    setProgress('📍 Publication Google Business…')
+    onError('')
+    try {
+      await linkClientBestEffort()
+      const res = await fetch('/api/publish-gmb', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ interventionId: interv.id }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`)
+      setGmbOk(true)
+      setProgress('✓ Post GMB publié')
+    } catch (e) {
+      onError(`Post GMB : ${e instanceof Error ? e.message : String(e)}`)
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  async function handlePublishYoutube() {
+    if (busy) return
+    if (!hasPhotos) {
+      onError('Ajoute des photos à l\'intervention avant de publier sur YouTube.')
+      return
+    }
+    setBusy('youtube')
+    onError('')
+    try {
+      let horizontal = interv.video_urls?.horizontal
+      if (!horizontal) {
+        setProgress('🎬 Génération vidéo 16:9 (~3 min)…')
+        const genRes = await fetch('/api/generate-video', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ interventionId: interv.id }),
+        })
+        const genData = await genRes.json().catch(() => ({}))
+        if (!genRes.ok) throw new Error(genData.error || `Génération vidéo HTTP ${genRes.status}`)
+        horizontal = genData.video_urls?.horizontal
+        if (!horizontal) throw new Error('Vidéo 16:9 non produite.')
+        await onRefresh()
+      }
+      setProgress('▶ Upload YouTube…')
+      const res = await fetch('/api/publish-youtube', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ interventionId: interv.id }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`)
+      setYoutubeUrl(data.url || '')
+      setProgress('✓ Vidéo sur YouTube')
+      await onRefresh()
+    } catch (e) {
+      onError(`YouTube : ${e instanceof Error ? e.message : String(e)}`)
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  const actionBtn = (done: boolean, color: string) =>
+    `w-full disabled:opacity-50 text-white rounded-2xl py-4 font-black text-base shadow-lg transition ${done ? 'ring-2 ring-emerald-300 ' : ''}${color}`
 
   return (
     <section className="space-y-5">
       <header className="text-center">
-        <div className="text-5xl mb-2">✉</div>
-        <h1 className="text-2xl font-black text-slate-800">Envoyer & publier</h1>
-        <p className="text-sm text-slate-600 mt-2">Mail au client + publication SEO sur le site.</p>
+        <div className="text-5xl mb-2">🚀</div>
+        <h1 className="text-2xl font-black text-slate-800">Diffusion</h1>
+        <p className="text-sm text-slate-600 mt-2">
+          Déclenche chaque action à ton rythme — la page reste ouverte.
+        </p>
       </header>
 
       <div className="bg-white rounded-2xl border-2 border-slate-200 p-5 space-y-3">
@@ -1102,93 +1173,57 @@ function StepEnvoi({ interv, client, onSent, onError }: {
         </div>
       </div>
 
+      {progress && (
+        <div className="bg-blue-50 border border-blue-200 text-blue-800 rounded-xl px-4 py-3 text-sm font-semibold text-center">
+          {progress}
+        </div>
+      )}
+
       <div className="space-y-3">
         <button
           type="button"
-          onClick={handleSend}
-          disabled={sending || !email || !nom.trim()}
-          className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white rounded-2xl py-5 font-black text-lg shadow-lg transition"
+          onClick={handleSendMail}
+          disabled={!!busy || !email || !nom.trim()}
+          className={actionBtn(mailDone, 'bg-emerald-600 hover:bg-emerald-700')}
         >
-          {sending ? (sendingStep || '⚙ Envoi en cours…') : '✉ Tout envoyer au client'}
+          {busy === 'mail' ? (progress || '⚙ Envoi…') : mailDone ? '✓ Mail envoyé au client' : '✉ Envoyer par mail'}
         </button>
 
         <button
           type="button"
-          onClick={handlePublier}
-          disabled={sending}
-          className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-2xl py-5 font-black text-lg shadow-lg transition"
+          onClick={handlePublishSite}
+          disabled={!!busy}
+          className={actionBtn(siteDone, 'bg-blue-600 hover:bg-blue-700')}
         >
-          🌐 Publier sur le site
+          {busy === 'site' ? (progress || '⚙ Publication…') : siteDone ? '✓ Publié sur le site' : '🌐 Publier sur le site'}
         </button>
-      </div>
-    </section>
-  )
-}
 
-// ============================================================
-// ÉTAPE 6 — Publier ?
-// ============================================================
-function StepPublier({ interv, onDone, onError }: { interv: Intervention; onDone: () => void; onError: (e: string) => void }) {
-  const [publishing, setPublishing] = useState(false)
-
-  async function handleDontPublish() {
-    await fetch(`/api/interventions/${interv.id}/terrain-step`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'set', step: 7 }),
-    })
-    onDone()
-  }
-
-  async function handlePublish() {
-    setPublishing(true)
-    try {
-      const res = await fetch('/api/publish/from-intervention', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ interventionId: interv.id }),
-      })
-      if (res.status === 404) {
-        // Fallback : rediriger vers /nouveau pour publier manuellement
-        onError('La publication directe depuis le wizard n\'est pas encore branchée. Utilise le bouton "Publier" depuis l\'historique.')
-        await handleDontPublish()
-        return
-      }
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error || 'Publication échouée')
-      onDone()
-    } catch (e) {
-      onError(e instanceof Error ? e.message : String(e))
-    } finally {
-      setPublishing(false)
-    }
-  }
-
-  return (
-    <section className="space-y-5">
-      <header className="text-center">
-        <div className="text-5xl mb-2">🌐</div>
-        <h1 className="text-2xl font-black text-slate-800">Publier sur le site ?</h1>
-        <p className="text-sm text-slate-600 mt-2">Crée une page SEO sur lestechniciensdudebouchage.fr.</p>
-      </header>
-
-      <div className="grid grid-cols-1 gap-3">
         <button
           type="button"
-          onClick={handlePublish}
-          disabled={publishing}
-          className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-2xl py-5 font-black text-lg shadow-lg transition"
+          onClick={handlePublishGmb}
+          disabled={!!busy}
+          className={actionBtn(gmbOk, 'bg-indigo-600 hover:bg-indigo-700')}
         >
-          {publishing ? '⚙ Publication…' : '🌐 Oui, publier'}
+          {busy === 'gmb' ? (progress || '⚙ GMB…') : gmbOk ? '✓ Post Google Business publié' : '📍 Post GMB'}
         </button>
+
         <button
           type="button"
-          onClick={handleDontPublish}
-          disabled={publishing}
-          className="bg-white border-2 border-slate-300 hover:bg-slate-50 text-slate-700 rounded-2xl py-4 font-bold text-base transition"
+          onClick={handlePublishYoutube}
+          disabled={!!busy || !hasPhotos}
+          className={actionBtn(!!youtubeUrl, 'bg-red-600 hover:bg-red-700')}
+          title={!hasPhotos ? 'Photos requises pour la vidéo' : undefined}
         >
-          ✕ Non, ne pas publier
+          {busy === 'youtube' ? (progress || '⚙ YouTube…') : youtubeUrl ? '✓ Post YouTube publié' : '▶ Post YouTube'}
         </button>
+        {!hasPhotos && (
+          <p className="text-xs text-amber-700 font-semibold text-center">YouTube : ajoute des photos (étapes 0 ou 2).</p>
+        )}
+        {youtubeUrl && (
+          <a href={youtubeUrl} target="_blank" rel="noopener noreferrer" className="block text-center text-sm font-semibold text-red-700 hover:underline">
+            Voir sur YouTube →
+          </a>
+        )}
       </div>
     </section>
   )
@@ -1197,27 +1232,34 @@ function StepPublier({ interv, onDone, onError }: { interv: Intervention; onDone
 // ============================================================
 // ÉTAPE 7 — Terminé
 // ============================================================
-function StepTermine({ interv }: { interv: Intervention }) {
+function StepTermine({ interv, client, onRefresh, onError }: {
+  interv: Intervention
+  client: Client
+  onRefresh: () => void | Promise<void>
+  onError: (e: string) => void
+}) {
   return (
-    <section className="space-y-6 text-center">
-      <div className="bg-emerald-50 border-2 border-emerald-200 rounded-2xl p-8">
-        <div className="text-7xl mb-3">🎉</div>
-        <h1 className="text-3xl font-black text-emerald-800">Intervention terminée !</h1>
-        <p className="text-sm text-emerald-700 mt-3">
-          Tout est sauvegardé. Le client recevra ses documents et les relances avis Google automatiquement.
+    <section className="space-y-6">
+      <div className="bg-emerald-50 border-2 border-emerald-200 rounded-2xl p-6 text-center">
+        <div className="text-6xl mb-2">🎉</div>
+        <h1 className="text-2xl font-black text-emerald-800">Intervention terminée</h1>
+        <p className="text-sm text-emerald-700 mt-2">
+          Tu peux encore déclencher mail, site, GMB ou YouTube ci-dessous.
         </p>
       </div>
+
+      <TerrainDiffusionPanel interv={interv} client={client} onRefresh={onRefresh} onError={onError} />
 
       <div className="flex flex-col gap-3">
         <Link
           href={`/intervention/${interv.id}`}
-          className="bg-[#0e2a52] hover:bg-[#0a2047] text-white rounded-2xl py-4 font-bold text-base shadow-lg transition"
+          className="bg-[#0e2a52] hover:bg-[#0a2047] text-white rounded-2xl py-4 font-bold text-base shadow-lg transition text-center"
         >
           📋 Voir la fiche intervention
         </Link>
         <Link
           href="/planning"
-          className="bg-white border-2 border-slate-300 hover:bg-slate-50 text-slate-700 rounded-2xl py-4 font-bold text-base transition"
+          className="bg-white border-2 border-slate-300 hover:bg-slate-50 text-slate-700 rounded-2xl py-4 font-bold text-base transition text-center"
         >
           📅 Retour au planning
         </Link>

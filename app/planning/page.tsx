@@ -200,9 +200,6 @@ export default function PlanningPage() {
       </nav>
 
       <main className="max-w-7xl mx-auto px-4 py-5 space-y-4">
-        {/* Synchronisation Google Calendar */}
-        <CalendarSubscribePanel />
-
         {/* Filtres */}
         <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 grid grid-cols-2 sm:grid-cols-4 gap-3">
           <FilterSelect
@@ -273,6 +270,8 @@ export default function PlanningPage() {
             onRefresh={loadAll}
           />
         )}
+
+        <CalendarSubscribePanel />
       </main>
 
       {showForm && (

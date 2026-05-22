@@ -49,7 +49,6 @@ export default function InterventionActionsHub({
         setStatus(j.error || 'Erreur envoi')
       } else {
         setStatus(`Envoyé ✓ (relances avis programmées J+2/J+4/J+6)`)
-        setTimeout(() => { setSendOpen(false); setStatus(null) }, 2200)
       }
     } catch (e) {
       setStatus(e instanceof Error ? e.message : 'Erreur réseau')

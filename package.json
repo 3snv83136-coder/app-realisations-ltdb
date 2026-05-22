@@ -11,7 +11,8 @@
     "remotion:studio": "remotion studio",
     "remotion:render:vertical": "remotion render InterventionVertical out/video-vertical.mp4",
     "remotion:render:horizontal": "remotion render InterventionHorizontal out/video-horizontal.mp4",
-    "remotion:render:square": "remotion render InterventionSquare out/video-square.mp4"
+    "remotion:render:square": "remotion render InterventionSquare out/video-square.mp4",
+    "test:remotion": "tsx scripts/test-remotion-bundle.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.86.1",

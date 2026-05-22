@@ -27,7 +27,7 @@ const nextConfig = {
         "./node_modules/@remotion/compositor-darwin-*/**/*",
         "./node_modules/@remotion/compositor-win32-*/**/*",
         "./remotion/**/*",
-        "./build/**/*.map",
+        // Ne pas exclure build/**/*.map : @remotion/renderer lit bundle.js.map au runtime.
       ],
     },
   },

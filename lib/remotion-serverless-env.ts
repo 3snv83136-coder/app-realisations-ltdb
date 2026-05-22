@@ -2,9 +2,13 @@ import fs from "node:fs"
 import os from "node:os"
 import path from "node:path"
 
-/** Racine du projet (stable même si process.chdir() est appelé). */
+/**
+ * Racine du projet (stable même si process.chdir() est appelé pour le cache Chrome).
+ * Sur Vercel le bundle précompilé vit dans /var/task/build.
+ */
 export const REMOTION_PROJECT_ROOT = path.resolve(
-  process.env.REMOTION_PROJECT_ROOT ?? process.cwd(),
+  process.env.REMOTION_PROJECT_ROOT
+    ?? (process.env.VERCEL === "1" ? "/var/task" : process.cwd()),
 )
 
 export function isVercelServerless(): boolean {
