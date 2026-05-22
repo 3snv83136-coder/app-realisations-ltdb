@@ -13,6 +13,7 @@ export const CANAUX_ACQUISITION = [
   { key: 'google_adwords', label: 'Google Adwords',  icon: '💰' },
   { key: 'bouche_oreille', label: 'Bouche-à-oreille', icon: '👄' },
   { key: 'prescription',   label: 'Prescription',    icon: '🔗' },
+  { key: 'client_fidel',   label: 'Client fidèle',   icon: '⭐' },
 ] as const
 
 export type CanalAcquisition = typeof CANAUX_ACQUISITION[number]['key']
