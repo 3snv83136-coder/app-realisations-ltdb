@@ -7,11 +7,8 @@ type Tool = {
   emoji: string
   label: string
   desc: string
-  /** Fond du container (gradient ou couleur vive) */
   bg: string
-  /** Couleur du texte par-dessus */
   text: 'white' | 'black'
-  /** Lien externe (ouvre dans un nouvel onglet) */
   external?: boolean
 }
 
@@ -36,12 +33,12 @@ const TOOLS: Tool[] = [
   { href: 'https://adsconstructor.vercel.app/', emoji: '📢', label: 'ADS MY SELF', desc: 'Constructeur de pubs', bg: 'bg-gradient-to-br from-orange-500 to-pink-600', text: 'white', external: true },
 ]
 
+const PRIMARY_HREFS = new Set(['/accord', '/planning', '/post-gmb', '/mail', '/historique'])
+const PRIMARY_TOOLS = TOOLS.filter((t) => PRIMARY_HREFS.has(t.href))
+const MORE_TOOLS = TOOLS.filter((t) => !PRIMARY_HREFS.has(t.href))
+
 type Scatter = { tx: number; ty: number; rot: number; order: number }
 
-/**
- * Positions de départ dispersées + ordre d'arrivée mélangé : les tuiles entrent
- * une par une, en désordre, et rejoignent leur place dans la grille.
- */
 function genScatter(n: number): Scatter[] {
   const order = Array.from({ length: n }, (_, i) => i)
   for (let i = order.length - 1; i > 0; i--) {
@@ -49,19 +46,86 @@ function genScatter(n: number): Scatter[] {
     ;[order[i], order[j]] = [order[j], order[i]]
   }
   const rnd = (min: number, max: number) => Math.round(min + Math.random() * (max - min))
-  return order.map(rank => ({
-    tx: rnd(-300, 300),
-    ty: rnd(-170, 170),
-    rot: rnd(-30, 30),
+  return order.map((rank) => ({
+    tx: rnd(-200, 200),
+    ty: rnd(-80, 80),
+    rot: rnd(-20, 20),
     order: rank,
   }))
 }
 
+function ToolTile({
+  t,
+  compact,
+  introClass,
+  tileStyle,
+}: {
+  t: Tool
+  compact?: boolean
+  introClass: string
+  tileStyle?: React.CSSProperties
+}) {
+  const textColor = t.text === 'white' ? 'text-white' : 'text-black'
+  const tileClass = compact
+    ? `group relative h-full min-h-0 rounded-xl overflow-hidden flex flex-col justify-end p-2.5 sm:p-3 shadow-sm transition-all duration-200 ease-out hover:shadow-lg hover:scale-[1.05] hover:z-10 ${introClass} ${t.bg}`
+    : `group relative h-full min-h-[96px] rounded-xl sm:rounded-2xl overflow-hidden flex flex-col justify-end p-3.5 sm:p-4 shadow-sm transition-all duration-200 ease-out hover:shadow-xl hover:scale-[1.03] hover:z-10 ${introClass} ${t.bg}`
+
+  const inner = (
+    <>
+      <span
+        aria-hidden
+        className={
+          compact
+            ? 'pointer-events-none select-none absolute -top-1 -right-1 text-[2.75rem] sm:text-[3.25rem] leading-none opacity-20 transition-transform duration-200 group-hover:scale-105'
+            : 'pointer-events-none select-none absolute top-0 right-0 text-[3.5rem] sm:text-[4.5rem] leading-none opacity-20 transition-transform duration-200 group-hover:scale-105'
+        }
+      >
+        {t.emoji}
+      </span>
+      <div className={`relative z-10 ${textColor}`}>
+        <div
+          className={
+            compact
+              ? 'text-xs sm:text-sm font-extrabold leading-tight tracking-tight drop-shadow-sm'
+              : 'text-sm sm:text-base font-extrabold leading-tight tracking-tight drop-shadow-sm'
+          }
+        >
+          {t.label}
+        </div>
+        {!compact && (
+          <p className="mt-1 text-[10px] sm:text-xs leading-snug opacity-85 line-clamp-2 font-medium">{t.desc}</p>
+        )}
+      </div>
+    </>
+  )
+
+  if (t.external) {
+    return (
+      <a
+        href={t.href}
+        target="_blank"
+        rel="noopener noreferrer"
+        title={t.desc}
+        className={tileClass}
+        style={tileStyle}
+      >
+        {inner}
+      </a>
+    )
+  }
+
+  return (
+    <Link href={t.href} title={t.desc} className={tileClass} style={tileStyle}>
+      {inner}
+    </Link>
+  )
+}
+
 export default function Home() {
   const [skipAnimation, setSkipAnimation] = useState(false)
-  // Entrée des tuiles : 'pending' avant la décision, 'play' = animation, 'skip' = déjà vue.
   const [tilesIntro, setTilesIntro] = useState<'pending' | 'play' | 'skip'>('pending')
   const [scatter, setScatter] = useState<Scatter[] | null>(null)
+  const [moreOpen, setMoreOpen] = useState(false)
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -70,14 +134,31 @@ export default function Home() {
       setTilesIntro('skip')
     } else {
       sessionStorage.setItem('ltdb_seen_intro', '1')
-      setScatter(genScatter(TOOLS.length))
+      setScatter(genScatter(PRIMARY_TOOLS.length))
       setTilesIntro('play')
     }
   }, [])
 
+  const tileIntro = (i: number) =>
+    tilesIntro === 'pending'
+      ? 'opacity-0'
+      : scatter?.[i] && tilesIntro === 'play'
+        ? 'tile-in'
+        : ''
+
+  const tileStyle = (i: number): React.CSSProperties | undefined => {
+    const sc = scatter?.[i]
+    if (!sc || tilesIntro !== 'play') return undefined
+    return {
+      '--tx': `${sc.tx}px`,
+      '--ty': `${sc.ty}px`,
+      '--rot': `${sc.rot}deg`,
+      animationDelay: `${(sc.order * 0.07).toFixed(3)}s`,
+    } as React.CSSProperties
+  }
+
   return (
     <main className="relative flex flex-col h-dvh max-h-dvh overflow-hidden bg-[#0a1f3d] text-slate-100">
-      {/* Header compact — laisse la place aux tuiles */}
       <header className="shrink-0 bg-[#0e2a52] text-white border-b border-white/10">
         <div className="px-3 sm:px-5 py-3 sm:py-4 flex items-center justify-between gap-4">
           <div className={`flex items-baseline gap-3 ${skipAnimation ? '' : 'ltdb-drop'}`}>
@@ -92,94 +173,70 @@ export default function Home() {
         </div>
       </header>
 
-      <div className="relative z-10 flex flex-col flex-1 min-h-0">
+      <div className="relative z-10 flex flex-col flex-1 min-h-0 px-2 sm:px-3 pt-2 pb-2 sm:pb-3 gap-2">
+        <div className="shrink-0 text-[10px] uppercase tracking-[0.18em] text-white/50 font-semibold px-0.5">
+          Accès rapide
+        </div>
 
-        {/* Grille plein écran — chaque tuile s’étire en hauteur */}
-        <div className="flex flex-col flex-1 min-h-0 px-2 sm:px-3 pt-2 pb-2 sm:pb-3">
-          <div className="shrink-0 text-[10px] uppercase tracking-[0.18em] text-white/50 font-semibold mb-1.5 px-0.5">
-            Modules · {TOOLS.length}
-          </div>
-          <div
-            className="flex-1 min-h-0 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-1.5 sm:gap-2"
-            style={{ gridAutoRows: '1fr' }}
+        {/* 5 modules principaux — tuiles compactes */}
+        <div className="shrink-0 grid grid-cols-2 sm:grid-cols-5 gap-1.5 sm:gap-2 h-[76px] sm:h-[88px]">
+          {PRIMARY_TOOLS.map((t, i) => (
+            <ToolTile
+              key={`${t.href}-${t.label}`}
+              t={t}
+              compact
+              introClass={tileIntro(i)}
+              tileStyle={tileStyle(i)}
+            />
+          ))}
+        </div>
+
+        {/* Autres modules — panneau déroulant */}
+        <div className="flex flex-col flex-1 min-h-0 rounded-xl sm:rounded-2xl border border-white/10 bg-[#0e2a52]/60 overflow-hidden">
+          <button
+            type="button"
+            onClick={() => setMoreOpen((o) => !o)}
+            className="shrink-0 w-full flex items-center justify-between gap-3 px-4 py-3 sm:py-3.5 text-left hover:bg-white/5 transition-colors"
+            aria-expanded={moreOpen}
           >
-              {TOOLS.map((t, i) => {
-                const textColor = t.text === 'white' ? 'text-white' : 'text-black'
-                const sc = scatter?.[i]
-                const introClass =
-                  tilesIntro === 'pending'
-                    ? 'opacity-0'
-                    : sc && tilesIntro === 'play'
-                    ? 'tile-in'
-                    : ''
-                const tileStyle: React.CSSProperties | undefined =
-                  sc && tilesIntro === 'play'
-                    ? ({
-                        '--tx': `${sc.tx}px`,
-                        '--ty': `${sc.ty}px`,
-                        '--rot': `${sc.rot}deg`,
-                        animationDelay: `${(sc.order * 0.07).toFixed(3)}s`,
-                      } as React.CSSProperties)
-                    : undefined
-                // Effet loupe : la tuile survolée grossit et passe au-dessus de ses voisines.
-                const tileClass = `group relative h-full min-h-0 rounded-xl sm:rounded-2xl overflow-hidden flex flex-col justify-end p-4 sm:p-5 shadow-sm transition-all duration-200 ease-out hover:shadow-xl hover:scale-[1.04] hover:z-10 ${introClass} ${t.bg}`
-                const inner = (
-                  <>
-                    <span
-                      aria-hidden
-                      className="pointer-events-none select-none absolute top-1 right-0 sm:-right-1 text-[4.5rem] sm:text-[5.5rem] lg:text-[6.5rem] leading-none opacity-20 transition-transform duration-200 group-hover:scale-105"
-                    >
-                      {t.emoji}
-                    </span>
+            <span className="text-sm sm:text-base font-bold text-white">
+              Autres modules
+              <span className="ml-2 text-white/50 font-semibold tabular-nums">{MORE_TOOLS.length}</span>
+            </span>
+            <span
+              className={`text-white/70 text-lg leading-none transition-transform duration-200 ${moreOpen ? 'rotate-180' : ''}`}
+              aria-hidden
+            >
+              ▼
+            </span>
+          </button>
 
-                    <div className={`relative z-10 ${textColor}`}>
-                      <div className="text-base sm:text-lg lg:text-xl font-extrabold leading-tight tracking-tight drop-shadow-sm">
-                        {t.label}
-                      </div>
-                      <p className="mt-1.5 text-xs sm:text-sm leading-snug opacity-85 line-clamp-2 font-medium">
-                        {t.desc}
-                      </p>
-                    </div>
-                  </>
-                )
-
-                if (t.external) {
-                  return (
-                    <a
-                      key={`${t.href}-${t.label}`}
-                      href={t.href}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      title={t.desc}
-                      className={tileClass}
-                      style={tileStyle}
-                    >
-                      {inner}
-                    </a>
-                  )
-                }
-
-                return (
-                  <Link key={`${t.href}-${t.label}`} href={t.href} title={t.desc} className={tileClass} style={tileStyle}>
-                    {inner}
-                  </Link>
-                )
-              })}
-          </div>
+          {moreOpen && (
+            <div className="flex-1 min-h-0 overflow-y-auto p-2 sm:p-2.5 border-t border-white/10">
+              <div
+                className="grid gap-1.5 sm:gap-2"
+                style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 140px), 1fr))' }}
+              >
+                {MORE_TOOLS.map((t) => (
+                  <ToolTile
+                    key={`${t.href}-${t.label}`}
+                    t={t}
+                    introClass={tilesIntro === 'pending' ? 'opacity-0' : ''}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
       <style jsx>{`
         @keyframes softFadeUp {
           from { opacity: 0; transform: translateY(8px); }
-          to   { opacity: 1; transform: translateY(0); }
+          to { opacity: 1; transform: translateY(0); }
         }
         .ltdb-drop { opacity: 0; animation: softFadeUp 0.4s ease-out 0.05s forwards; }
 
-        /* Entrée des tuiles : chaque tuile arrive d'une position dispersée
-           (variables --tx/--ty/--rot inline) et se range à sa place.
-           fill-mode backwards → masquée pendant le délai, puis libère le
-           transform à la fin (l'effet loupe au survol reste opérationnel). */
         @keyframes tileIn {
           0% {
             opacity: 0;
