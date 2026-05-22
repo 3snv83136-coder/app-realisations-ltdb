@@ -2,7 +2,6 @@ import path from "node:path"
 import os from "node:os"
 import fs from "node:fs/promises"
 import fsSync from "node:fs"
-import { bundle } from "@remotion/bundler"
 import { renderMedia, selectComposition } from "@remotion/renderer"
 import {
   isVercelServerless,
@@ -43,17 +42,19 @@ function getPrebuiltServeUrl(): string | null {
   return null
 }
 
-function getBundle(): Promise<string> {
+async function getBundle(): Promise<string> {
   const prebuilt = getPrebuiltServeUrl()
-  if (prebuilt) return Promise.resolve(prebuilt)
+  if (prebuilt) return prebuilt
 
-  if (bundlePromise) return bundlePromise
-  bundlePromise = bundle({
-    entryPoint: path.join(REMOTION_PROJECT_ROOT, "remotion/index.ts"),
-    publicDir: path.join(REMOTION_PROJECT_ROOT, "remotion/assets"),
-    enableCaching: !isVercelServerless(),
-    onProgress: () => {},
-  })
+  if (isVercelServerless()) {
+    throw new Error(
+      "Bundle Remotion introuvable (dossier build/). Vérifiez que « remotion bundle » s’exécute avant next build.",
+    )
+  }
+
+  if (!bundlePromise) {
+    bundlePromise = import("./video-render-dev-bundle").then((m) => m.bundleRemotionProject())
+  }
   return bundlePromise
 }
 

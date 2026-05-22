@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev -H 0.0.0.0",
-    "build": "remotion bundle && next build",
+    "build": "remotion bundle && rm -rf node_modules/.cache && next build",
     "start": "next start",
     "lint": "next lint",
     "remotion:studio": "remotion studio",
