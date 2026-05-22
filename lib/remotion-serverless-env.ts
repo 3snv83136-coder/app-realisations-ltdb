@@ -11,8 +11,17 @@ export const REMOTION_PROJECT_ROOT = path.resolve(
     ?? (process.env.VERCEL === "1" ? "/var/task" : process.cwd()),
 )
 
+/** Vercel / AWS Lambda : pas de Chrome système avec libnspr4. */
 export function isVercelServerless(): boolean {
-  return process.env.VERCEL === "1"
+  if (process.env.REMOTION_FORCE_LOCAL_CHROME === "1") return false
+  if (process.env.VERCEL === "1" || process.env.VERCEL_ENV) return true
+  if (process.env.AWS_EXECUTION_ENV?.includes("AWS_Lambda")) return true
+  // Fallback fiable : déploiement Next sur Vercel = /var/task
+  try {
+    return process.platform === "linux" && fs.existsSync("/var/task")
+  } catch {
+    return false
+  }
 }
 
 /**

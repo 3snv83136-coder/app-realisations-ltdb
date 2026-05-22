@@ -60,10 +60,20 @@ export async function renderVideoLocal(input: RenderInput): Promise<{ filePath: 
     }
 
     const serverlessChrome = await getServerlessChromiumConfig()
+    if (!serverlessChrome && REMOTION_PROJECT_ROOT.startsWith("/var/task")) {
+      throw new Error(
+        "Rendu vidéo sur Vercel : Chromium serverless non initialisé. " +
+          "Ajoutez AWS_LAMBDA_JS_RUNTIME=nodejs22.x dans Vercel → Environment Variables puis redeploy.",
+      )
+    }
     const renderOpts = serverlessChrome
       ? {
           browserExecutable: serverlessChrome.browserExecutable,
-          chromiumOptions: { args: serverlessChrome.chromiumArgs },
+          chromiumOptions: {
+            args: serverlessChrome.chromiumArgs,
+            enableMultiProcessOnLinux: false,
+            disableWebSecurity: true,
+          },
           chromeMode: "chrome-for-testing" as const,
         }
       : {}

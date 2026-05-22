@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import fs from "node:fs/promises"
 import { getSupabase } from "@/lib/supabase"
-import { renderVideo, type VideoFormat } from "@/lib/video-render-prod"
+import type { VideoFormat } from "@/lib/video-render-prod"
 import { uploadVideoToStorage } from "@/lib/video-storage"
 
 export const dynamic = "force-dynamic"
@@ -15,6 +15,9 @@ type Body = {
 }
 
 export async function POST(req: NextRequest) {
+  // Avant chargement de @remotion/renderer (via video-render-prod)
+  process.env.AWS_LAMBDA_JS_RUNTIME ??= "nodejs22.x"
+
   let body: Body
   try {
     body = await req.json()
@@ -60,6 +63,7 @@ export async function POST(req: NextRequest) {
   const result: Partial<Record<VideoFormat, string>> = { ...(intervention.video_urls || {}) }
 
   try {
+    const { renderVideo } = await import("@/lib/video-render-prod")
     for (const format of formats) {
       const { filePath } = await renderVideo({
         format,

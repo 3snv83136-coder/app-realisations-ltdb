@@ -16,13 +16,32 @@ export async function getServerlessChromiumConfig(): Promise<ServerlessChromiumC
   if (!isVercelServerless()) return null
   if (cached) return cached
 
-  // @sparticuz/chromium lit cette variable à l'import du module
-  if (!process.env.AWS_LAMBDA_JS_RUNTIME) {
-    process.env.AWS_LAMBDA_JS_RUNTIME = "nodejs22.x"
+  // Doit exister AVANT l'import de @sparticuz/chromium (extrait al2023.tar.br)
+  process.env.AWS_LAMBDA_JS_RUNTIME ??= "nodejs22.x"
+
+  let chromium: typeof import("@sparticuz/chromium").default
+  try {
+    chromium = (await import("@sparticuz/chromium")).default
+  } catch (e) {
+    throw new Error(
+      `Module @sparticuz/chromium introuvable sur le serveur : ${e instanceof Error ? e.message : e}`,
+    )
   }
 
-  const chromium = (await import("@sparticuz/chromium")).default
-  const executablePath = await chromium.executablePath()
+  let executablePath: string
+  try {
+    executablePath = await chromium.executablePath()
+  } catch (e) {
+    throw new Error(
+      `Extraction Chromium serverless échouée (vérifiez AWS_LAMBDA_JS_RUNTIME=nodejs22.x et le tracing Vercel) : ${
+        e instanceof Error ? e.message : e
+      }`,
+    )
+  }
+
+  if (!executablePath || !executablePath.includes("chromium")) {
+    throw new Error(`Chemin Chromium serverless invalide : ${executablePath}`)
+  }
   const execDir = path.dirname(executablePath)
 
   const libPaths = [
