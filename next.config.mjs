@@ -5,12 +5,14 @@ const nextConfig = {
     serverComponentsExternalPackages: [
       "@remotion/renderer",
       "@remotion/compositor-linux-x64-gnu",
+      "@sparticuz/chromium",
     ],
     // Bundle Remotion précompilé au build (build/) — pas de @remotion/bundler en prod.
     outputFileTracingIncludes: {
       "/api/generate-video": [
         "./build/**/*",
         "./node_modules/@remotion/compositor-linux-x64-gnu/**/*",
+        "./node_modules/@sparticuz/chromium/**/*",
       ],
     },
     outputFileTracingExcludes: {

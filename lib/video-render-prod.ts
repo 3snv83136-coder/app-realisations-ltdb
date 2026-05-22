@@ -8,6 +8,7 @@ import {
   REMOTION_PROJECT_ROOT,
   withWritableRemotionCache,
 } from "@/lib/remotion-serverless-env"
+import { getServerlessChromiumConfig } from "@/lib/remotion-vercel-chrome"
 
 export type VideoFormat = "vertical" | "horizontal" | "square"
 
@@ -58,10 +59,20 @@ export async function renderVideoLocal(input: RenderInput): Promise<{ filePath: 
       enableMusic: input.enableMusic ?? true,
     }
 
+    const serverlessChrome = await getServerlessChromiumConfig()
+    const renderOpts = serverlessChrome
+      ? {
+          browserExecutable: serverlessChrome.browserExecutable,
+          chromiumOptions: { args: serverlessChrome.chromiumArgs },
+          chromeMode: "chrome-for-testing" as const,
+        }
+      : {}
+
     const composition = await selectComposition({
       serveUrl,
       id: COMPOSITION_ID[input.format],
       inputProps,
+      ...renderOpts,
     })
 
     const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "ltdb-video-"))
@@ -76,6 +87,7 @@ export async function renderVideoLocal(input: RenderInput): Promise<{ filePath: 
       overwrite: true,
       videoBitrate: "3M",
       x264Preset: "veryfast",
+      ...renderOpts,
     })
 
     const stat = await fs.stat(filePath)

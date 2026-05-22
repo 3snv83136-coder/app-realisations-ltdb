@@ -21,6 +21,7 @@
     "@remotion/cli": "^4.0.459",
     "@remotion/player": "^4.0.459",
     "@remotion/renderer": "^4.0.459",
+    "@sparticuz/chromium": "^131.0.1",
     "@supabase/supabase-js": "^2.105.1",
     "@types/leaflet": "^1.9.21",
     "bcryptjs": "^3.0.3",
