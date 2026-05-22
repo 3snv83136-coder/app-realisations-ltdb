@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import fs from "node:fs/promises"
 import { getSupabase } from "@/lib/supabase"
-import { renderVideo, type VideoFormat } from "@/lib/video-render"
+import { renderVideo, type VideoFormat } from "@/lib/video-render-prod"
 import { uploadVideoToStorage } from "@/lib/video-storage"
 
 export const dynamic = "force-dynamic"
