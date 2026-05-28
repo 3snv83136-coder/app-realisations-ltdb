@@ -37,11 +37,10 @@ export default function LoginPage() {
     const form = new FormData(e.currentTarget)
     const result = await signIn('credentials', {
       username: form.get('username') as string,
-      password: form.get('password') as string,
       redirect: false,
     })
     if (result?.error) {
-      setError('Identifiant ou mot de passe incorrect.')
+      setError('Identifiant inconnu.')
       setLoading(false)
     } else {
       router.push('/')
@@ -140,16 +139,8 @@ export default function LoginPage() {
           <input
             name="username"
             type="text"
-            placeholder="Identifiant"
+            placeholder="Identifiant technicien"
             autoComplete="username"
-            required
-            className="w-full rounded-xl border-2 border-slate-200 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-500/15"
-          />
-          <input
-            name="password"
-            type="password"
-            placeholder="Mot de passe"
-            autoComplete="current-password"
             required
             className="w-full rounded-xl border-2 border-slate-200 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-500/15"
           />

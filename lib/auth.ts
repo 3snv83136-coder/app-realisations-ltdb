@@ -1,19 +1,14 @@
 import NextAuth from "next-auth"
 import Credentials from "next-auth/providers/credentials"
-import bcrypt from "bcryptjs"
 
 function loadUsers() {
-  const users: { id: string; name: string; hash: string }[] = []
+  const users: { id: string; name: string }[] = []
   for (let i = 1; i <= 5; i++) {
     const entry = process.env[`AUTH_USER_${i}`]
-    if (entry) {
-      const [name, raw] = entry.split(':')
-      // Le hash bcrypt peut être stocké avec les "$" remplacés par "_" : dans les
-      // fichiers .env, dotenv-expand interprète les "$" et corrompt le hash.
-      let hash = raw || ''
-      if (hash && !hash.startsWith('$2')) hash = hash.replace(/_/g, '$')
-      if (name && hash) users.push({ id: String(i), name, hash })
-    }
+    if (!entry) continue
+    // Format « nom » ou « nom:hash » (le hash est ignoré — connexion sans mot de passe)
+    const name = entry.includes(':') ? entry.split(':')[0] : entry
+    if (name?.trim()) users.push({ id: String(i), name: name.trim() })
   }
   return users
 }
@@ -23,15 +18,12 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     Credentials({
       credentials: {
         username: { label: "Identifiant", type: "text" },
-        password: { label: "Mot de passe", type: "password" },
       },
       async authorize(credentials) {
-        const { username, password } = credentials as { username: string; password: string }
-        const users = loadUsers()
-        const user = users.find(u => u.name === username)
+        const username = (credentials?.username as string | undefined)?.trim()
+        if (!username) return null
+        const user = loadUsers().find(u => u.name === username)
         if (!user) return null
-        const valid = await bcrypt.compare(password, user.hash)
-        if (!valid) return null
         return { id: user.id, name: user.name }
       },
     }),
