@@ -7,7 +7,7 @@ import TerrainStepper from "@/components/terrain/TerrainStepper"
 import TerrainPhotoCapture from "@/components/terrain/TerrainPhotoCapture"
 import TerrainOceanLoader from "@/components/terrain/TerrainOceanLoader"
 import DevisEnvoiPanel from "@/components/DevisEnvoiPanel"
-import type { DevisData } from "@/components/DevisPDF"
+import type { DevisData, DevisLineData } from "@/components/DevisPDF"
 import { joinNomPrenom } from "@/lib/rapportToDevis"
 import { proxyImageUrl } from "@/lib/proxyImageUrl"
 import { fetchJsonWithRetry, fetchWithRetry } from "@/lib/fetchWithRetry"
@@ -878,7 +878,18 @@ function StepDevisOption({ interv, client, onContinue, onError }: {
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`)
       const p = data.prefill
-      setDevis(p.devis)
+      const lignes: DevisLineData[] = (p.devis?.lignes?.length
+        ? p.devis.lignes
+        : [{ designation: '', description: '', qte: 1, unite: 'forfait', pu_ht: 0 }]
+      ).map((l: DevisLineData) => ({
+        designation: l.designation || '',
+        description: l.description || '',
+        qte: Number(l.qte) || 1,
+        unite: l.unite || 'forfait',
+        pu_ht: Number(l.pu_ht) || 0,
+        section: l.section,
+      }))
+      setDevis({ ...p.devis, lignes })
       setPrenom(p.client_prenom || '')
       setNomFamille(p.client_nom_famille || '')
       setEmail(p.client_email || client?.email || '')
@@ -894,15 +905,40 @@ function StepDevisOption({ interv, client, onContinue, onError }: {
   }
 
   const clientNom = joinNomPrenom(prenom, nomFamille)
-  const tvaTaux = devis?.tva_taux === 0 || devis?.tva_taux === 20 ? devis.tva_taux : 10
-  const totalHT = (devis?.lignes || []).reduce(
+  const tvaTaux: 0 | 10 | 20 = devis?.tva_taux === 0 || devis?.tva_taux === 20 ? devis.tva_taux : 10
+  const lignes = devis?.lignes || []
+  const totalHT = lignes.reduce(
     (s, l) => s + (Number(l.qte) || 0) * (Number(l.pu_ht) || 0),
     0,
   )
-  const totalTTC = totalHT * (1 + tvaTaux / 100)
+  const totalTVA = totalHT * (tvaTaux / 100)
+  const totalTTC = totalHT + totalTVA
   const dateDevis = devis?.date_devis
     ? devis.date_devis.split('-').reverse().join('/')
     : ''
+
+  function updateLigne(i: number, patch: Partial<DevisLineData>) {
+    if (!devis) return
+    setDevis({
+      ...devis,
+      lignes: devis.lignes.map((l, idx) => (idx === i ? { ...l, ...patch } : l)),
+    })
+  }
+  function ajouterLigne() {
+    if (!devis) return
+    setDevis({
+      ...devis,
+      lignes: [...devis.lignes, { designation: '', description: '', qte: 1, unite: 'forfait', pu_ht: 0 }],
+    })
+  }
+  function supprimerLigne(i: number) {
+    if (!devis) return
+    setDevis({ ...devis, lignes: devis.lignes.filter((_, idx) => idx !== i) })
+  }
+  function setTva(t: 0 | 10 | 20) {
+    if (!devis) return
+    setDevis({ ...devis, tva_taux: t })
+  }
 
   if (phase === 'ask') {
     return (
@@ -1013,23 +1049,126 @@ function StepDevisOption({ interv, client, onContinue, onError }: {
         </div>
       </div>
 
-      <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 text-sm space-y-1">
-        {(devis.lignes || []).map((l, i) => (
-          <div key={i} className="flex justify-between gap-2">
-            <span className="text-slate-700">{l.designation}</span>
-            <span className="tabular-nums text-slate-500">
+      <div className="bg-white rounded-2xl border-2 border-slate-200 p-4 space-y-2">
+        <label className="block text-xs uppercase tracking-wider text-slate-500 font-bold">Objet du devis</label>
+        <input
+          value={devis.objet || ''}
+          onChange={e => setDevis({ ...devis, objet: e.target.value })}
+          placeholder="Travaux complémentaires…"
+          className="w-full border-2 border-slate-200 focus:border-amber-500 outline-none rounded-lg px-3 py-2 text-sm"
+        />
+      </div>
+
+      <div className="bg-white rounded-2xl border-2 border-slate-200 p-4 space-y-3">
+        <div className="flex items-center justify-between">
+          <h2 className="text-sm font-bold uppercase tracking-wider text-slate-500">Prestations</h2>
+          <button
+            type="button"
+            onClick={ajouterLigne}
+            className="text-xs font-bold bg-amber-100 text-amber-800 hover:bg-amber-200 rounded-lg px-3 py-1.5 transition"
+          >
+            + Ajouter
+          </button>
+        </div>
+
+        {lignes.length === 0 && (
+          <p className="text-sm text-slate-400 italic text-center py-3">Aucune ligne — clique « + Ajouter ».</p>
+        )}
+
+        {lignes.map((l, i) => (
+          <div key={i} className="bg-slate-50 border-2 border-slate-200 rounded-xl p-3 space-y-2">
+            <div className="flex items-start gap-2">
+              <input
+                value={l.designation}
+                onChange={e => updateLigne(i, { designation: e.target.value })}
+                placeholder="Prestation (ex. Pompage fosse)"
+                className="flex-1 border-2 border-slate-200 focus:border-amber-500 outline-none rounded-lg px-3 py-2 text-sm font-bold bg-white"
+              />
+              <button
+                type="button"
+                onClick={() => supprimerLigne(i)}
+                className="text-red-600 hover:bg-red-50 rounded-lg w-9 h-9 flex items-center justify-center flex-shrink-0"
+                title="Supprimer"
+              >
+                ✕
+              </button>
+            </div>
+            <input
+              value={l.description || ''}
+              onChange={e => updateLigne(i, { description: e.target.value })}
+              placeholder="Précisions (facultatif)"
+              className="w-full border border-slate-200 focus:border-amber-500 outline-none rounded-lg px-3 py-1.5 text-xs bg-white"
+            />
+            <div className="grid grid-cols-12 gap-2">
+              <input
+                type="number"
+                inputMode="decimal"
+                min="0"
+                step="0.5"
+                value={l.qte}
+                onChange={e => updateLigne(i, { qte: Number(e.target.value) || 0 })}
+                className="col-span-3 border-2 border-slate-200 focus:border-amber-500 outline-none rounded-lg px-2 py-2 text-sm text-center bg-white"
+                aria-label="Quantité"
+              />
+              <select
+                value={l.unite || 'forfait'}
+                onChange={e => updateLigne(i, { unite: e.target.value })}
+                className="col-span-4 border-2 border-slate-200 focus:border-amber-500 outline-none rounded-lg px-2 py-2 text-sm bg-white"
+              >
+                {UNITES.map(u => <option key={u} value={u}>{u}</option>)}
+              </select>
+              <input
+                type="number"
+                inputMode="decimal"
+                min="0"
+                step="0.01"
+                value={l.pu_ht}
+                onChange={e => updateLigne(i, { pu_ht: Number(e.target.value) || 0 })}
+                placeholder="Prix HT"
+                className="col-span-5 border-2 border-slate-200 focus:border-amber-500 outline-none rounded-lg px-2 py-2 text-sm text-right tabular-nums bg-white"
+                aria-label="Prix unitaire HT"
+              />
+            </div>
+            <div className="text-right text-sm font-bold tabular-nums text-slate-700">
               {(Number(l.qte) * Number(l.pu_ht)).toFixed(2)} € HT
-            </span>
+            </div>
           </div>
         ))}
-        <div className="flex justify-between font-bold border-t border-slate-200 pt-2 mt-2">
-          <span>Total TTC</span>
-          <span className="tabular-nums">{totalTTC.toFixed(2)} €</span>
+      </div>
+
+      <div className="bg-white rounded-2xl border-2 border-slate-200 p-4 space-y-2">
+        <label className="block text-xs uppercase tracking-wider text-slate-500 font-bold">TVA</label>
+        <div className="flex gap-2">
+          {([0, 10, 20] as const).map(t => (
+            <button
+              key={t}
+              type="button"
+              onClick={() => setTva(t)}
+              className={`flex-1 py-2 rounded-lg font-bold text-sm ${tvaTaux === t ? 'bg-amber-500 text-white' : 'bg-slate-100 text-slate-700'}`}
+            >
+              {t}%
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="bg-amber-50 border-2 border-amber-200 rounded-2xl p-4 space-y-1">
+        <div className="flex justify-between text-sm">
+          <span className="text-slate-600">Total HT</span>
+          <span className="font-bold tabular-nums">{totalHT.toFixed(2)} €</span>
+        </div>
+        <div className="flex justify-between text-sm">
+          <span className="text-slate-600">TVA ({tvaTaux}%)</span>
+          <span className="font-bold tabular-nums">{totalTVA.toFixed(2)} €</span>
+        </div>
+        <div className="flex justify-between border-t border-amber-300 pt-2 mt-1">
+          <span className="font-black">Total TTC</span>
+          <span className="font-black tabular-nums">{totalTTC.toFixed(2)} €</span>
         </div>
       </div>
 
       <DevisEnvoiPanel
-        devis={{ ...devis, tva_taux: tvaTaux }}
+        devis={{ ...devis, tva_taux: tvaTaux, lignes: lignes.filter(l => l.designation.trim()) }}
         clientEmail={email}
         onClientEmailChange={setEmail}
         clientNom={clientNom || '—'}
