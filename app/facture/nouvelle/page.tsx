@@ -56,6 +56,7 @@ export default function FacturePage() {
   const [emailSending, setEmailSending] = useState(false)
   const [emailSent, setEmailSent] = useState(false)
   const [emailError, setEmailError] = useState('')
+  const [emailInfo, setEmailInfo] = useState('')
 
   useUnsavedChangesWarning(
     (step === 'capture' && (transcription.trim() !== '' || clientNom.trim() !== '')) ||
@@ -98,7 +99,7 @@ export default function FacturePage() {
       setEmailError(`Champs client incomplets : ${missing.join(', ')}. Complète-les avant l'envoi.`)
       return
     }
-    setEmailSending(true); setEmailError(''); setEmailSent(false)
+    setEmailSending(true); setEmailError(''); setEmailInfo(''); setEmailSent(false)
     try {
       const totalHT = facture.lignes.reduce((sum, l) => {
         if (l.inclus) return sum
@@ -155,7 +156,14 @@ export default function FacturePage() {
       const data = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`)
       if (data.warning) setEmailError(data.warning)
-      else setEmailSent(true)
+      else {
+        setEmailSent(true)
+        if (data.relances_planifiees) {
+          setEmailInfo(
+            `${data.relances_planifiees} relance(s) hebdomadaire(s) planifiée(s) (ton cordial → ferme) tant que la facture n'est pas marquée réglée.`,
+          )
+        }
+      }
     } catch (e: any) {
       setEmailError(`Erreur envoi : ${e.message || e}`)
     } finally {
@@ -382,6 +390,7 @@ export default function FacturePage() {
               </button>
             </div>
             {emailSent && <p className="text-sm text-emerald-700">✓ Facture envoyée à <strong>{clientEmail}</strong></p>}
+            {emailInfo && <p className="text-sm text-blue-700">{emailInfo}</p>}
             {emailError && <p className="text-sm text-red-600">{emailError}</p>}
           </section>
 

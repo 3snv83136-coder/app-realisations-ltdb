@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from "next/server"
 import { escapeHtml, initResend } from "@/lib/email-utils"
 import { fmtEUR } from "@/lib/format"
+import {
+  isFactureReglee,
+  planifierFactureRelances,
+  SEMAINES_RELANCE_FACTURE,
+} from "@/lib/facture-relance"
 import { persistFacture } from "@/lib/persist"
 import { getTelPrincipal } from "@/lib/parametres"
 
@@ -53,12 +58,44 @@ export async function POST(req: NextRequest) {
 
   let docId: string | null = null
   let persistError: string | null = null
+  let relanceIds: string[] = []
+  let relanceErrors: string[] = []
+
+  const reglee = isFactureReglee(echeance)
+  const baseUrl =
+    process.env.NEXTAUTH_URL ||
+    process.env.NEXT_PUBLIC_APP_URL ||
+    new URL(req.url).origin
+
+  if (facture && !reglee) {
+    try {
+      const rel = await planifierFactureRelances({
+        baseUrl,
+        clientEmail: recipient,
+        clientNom,
+        technicienNom: tech,
+        ville,
+        dateFacture,
+        numero,
+        totalTTC,
+        echeance,
+        anchorAt: new Date().toISOString(),
+      })
+      relanceIds = rel.reminderIds
+      relanceErrors = rel.reminderErrors
+    } catch (e: any) {
+      relanceErrors.push(e?.message || "Planification relances échouée")
+      console.error("[notify-facture] relances", e)
+    }
+  }
+
   if (facture) {
     try {
       docId = await persistFacture({
         facture, clientNom, clientEmail, clientAdresse, clientCP, ville,
         agence, numero, totalHT, totalTTC, tvaTaux, echeance,
         emailSent: true,
+        relanceIds: reglee ? [] : relanceIds,
       })
       if (!docId) persistError = "Sauvegarde DB impossible (vérifie les logs serveur)"
     } catch (e: any) {
@@ -71,6 +108,14 @@ export async function POST(req: NextRequest) {
     ok: true,
     id: result.data?.id,
     docId,
+    ...(reglee
+      ? {}
+      : {
+          relances_planifiees: relanceIds.length,
+          relances_semaines: SEMAINES_RELANCE_FACTURE,
+          relance_ids: relanceIds,
+          ...(relanceErrors.length ? { relance_warnings: relanceErrors } : {}),
+        }),
     ...(persistError ? { warning: `Email envoyé mais la facture n'a PAS été enregistrée en base : ${persistError}` } : {}),
   })
 }

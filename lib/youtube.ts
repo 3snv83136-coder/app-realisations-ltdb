@@ -29,7 +29,20 @@ export function getAuthUrl(): string {
 
 export async function exchangeCodeAndStore(code: string): Promise<{ email?: string }> {
   const oauth = buildOAuthClient()
-  const { tokens } = await oauth.getToken(code)
+  let tokens
+  try {
+    const res = await oauth.getToken(code)
+    tokens = res.tokens
+  } catch (e) {
+    if (isInvalidGrant(e)) {
+      throw new Error(
+        "invalid_grant à la connexion — vérifie que l’URI de redirection Google est exactement " +
+          `${process.env.GOOGLE_REDIRECT_URI || "(GOOGLE_REDIRECT_URI manquant)"} ` +
+          "et qu’elle correspond au client OAuth utilisé sur Vercel.",
+      )
+    }
+    throw e
+  }
   if (!tokens.refresh_token) {
     throw new Error("Refresh token absent — révoque l'accès et relance avec prompt=consent")
   }
@@ -63,6 +76,18 @@ export async function exchangeCodeAndStore(code: string): Promise<{ email?: stri
   return { email }
 }
 
+function isInvalidGrant(err: unknown): boolean {
+  const msg = err instanceof Error ? err.message : String(err)
+  const code = (err as { code?: string })?.code
+  return code === "invalid_grant" || msg.includes("invalid_grant")
+}
+
+/** Supprime le jeton YouTube obsolète (ex. après changement GOOGLE_CLIENT_* sur Vercel). */
+export async function clearYouTubeToken(): Promise<void> {
+  const sb = getSupabase()
+  await sb.from("social_tokens").delete().eq("platform", PLATFORM)
+}
+
 async function getAuthenticatedClient(): Promise<OAuth2Client> {
   const sb = getSupabase()
   const { data, error } = await sb
@@ -71,10 +96,24 @@ async function getAuthenticatedClient(): Promise<OAuth2Client> {
     .eq("platform", PLATFORM)
     .maybeSingle()
   if (error) throw new Error(`DB lecture social_tokens: ${error.message}`)
-  if (!data?.refresh_token) throw new Error("Aucun token YouTube — connecte le compte via /api/oauth/google")
+  if (!data?.refresh_token) {
+    throw new Error("Aucun token YouTube — connecte le compte via /api/oauth/google")
+  }
 
   const oauth = buildOAuthClient()
   oauth.setCredentials({ refresh_token: data.refresh_token })
+  try {
+    const { credentials } = await oauth.refreshAccessToken()
+    oauth.setCredentials(credentials)
+  } catch (e) {
+    if (isInvalidGrant(e)) {
+      await clearYouTubeToken()
+      throw new Error(
+        "Connexion YouTube expirée (invalid_grant). Clique « Connecter » sous YouTube pour relier le compte Google.",
+      )
+    }
+    throw e
+  }
   return oauth
 }
 

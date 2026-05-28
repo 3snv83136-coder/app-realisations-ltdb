@@ -19,9 +19,14 @@ export async function getServerlessChromiumConfig(): Promise<ServerlessChromiumC
   // Doit exister AVANT l'import de @sparticuz/chromium (extrait al2023.tar.br)
   process.env.AWS_LAMBDA_JS_RUNTIME ??= "nodejs22.x"
 
-  let chromium: typeof import("@sparticuz/chromium").default
+  type SparticuzChromium = {
+    executablePath: () => Promise<string>
+    args: string[]
+  }
+  let chromium: SparticuzChromium
   try {
-    chromium = (await import("@sparticuz/chromium")).default
+    const mod = await import("@sparticuz/chromium")
+    chromium = ((mod as { default?: SparticuzChromium }).default ?? mod) as SparticuzChromium
   } catch (e) {
     throw new Error(
       `Module @sparticuz/chromium introuvable sur le serveur : ${e instanceof Error ? e.message : e}`,
@@ -51,7 +56,7 @@ export async function getServerlessChromiumConfig(): Promise<ServerlessChromiumC
     process.env.LD_LIBRARY_PATH,
   ].filter(Boolean) as string[]
 
-  process.env.LD_LIBRARY_PATH = [...new Set(libPaths)].join(":")
+  process.env.LD_LIBRARY_PATH = Array.from(new Set(libPaths)).join(":")
 
   cached = {
     browserExecutable: executablePath,

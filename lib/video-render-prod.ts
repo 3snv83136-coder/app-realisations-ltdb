@@ -74,7 +74,6 @@ export async function renderVideoLocal(input: RenderInput): Promise<{ filePath: 
             enableMultiProcessOnLinux: false,
             disableWebSecurity: true,
           },
-          chromeMode: "chrome-for-testing" as const,
         }
       : {}
 

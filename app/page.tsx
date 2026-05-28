@@ -68,7 +68,7 @@ function ToolTile({
 }) {
   const textColor = t.text === 'white' ? 'text-white' : 'text-black'
   const tileClass = featured
-    ? `group relative h-full min-h-0 rounded-2xl overflow-hidden flex flex-col justify-end p-5 sm:p-6 shadow-md transition-all duration-200 ease-out hover:shadow-2xl hover:scale-[1.02] hover:z-10 ${introClass} ${t.bg}`
+    ? `group relative h-full min-h-0 rounded-xl sm:rounded-2xl overflow-hidden flex flex-col justify-end p-3 sm:p-5 lg:p-6 shadow-md transition-all duration-200 ease-out hover:shadow-2xl hover:scale-[1.02] hover:z-10 ${introClass} ${t.bg}`
     : `group relative h-full min-h-[96px] rounded-xl sm:rounded-2xl overflow-hidden flex flex-col justify-end p-3.5 sm:p-4 shadow-sm transition-all duration-200 ease-out hover:shadow-xl hover:scale-[1.03] hover:z-10 ${introClass} ${t.bg}`
 
   const inner = (
@@ -77,7 +77,7 @@ function ToolTile({
         aria-hidden
         className={
           featured
-            ? 'pointer-events-none select-none absolute -top-2 -right-2 text-[5rem] sm:text-[6.5rem] lg:text-[7.5rem] leading-none opacity-20 transition-transform duration-200 group-hover:scale-105'
+            ? 'pointer-events-none select-none absolute -top-1 -right-1 text-[3.25rem] sm:text-[5.5rem] lg:text-[7.5rem] leading-none opacity-20 transition-transform duration-200 group-hover:scale-105'
             : 'pointer-events-none select-none absolute top-0 right-0 text-[3.5rem] sm:text-[4.5rem] leading-none opacity-20 transition-transform duration-200 group-hover:scale-105'
         }
       >
@@ -87,7 +87,7 @@ function ToolTile({
         <div
           className={
             featured
-              ? 'text-xl sm:text-2xl lg:text-3xl font-extrabold leading-tight tracking-tight drop-shadow-sm'
+              ? 'text-base sm:text-2xl lg:text-3xl font-extrabold leading-tight tracking-tight drop-shadow-sm'
               : 'text-sm sm:text-base font-extrabold leading-tight tracking-tight drop-shadow-sm'
           }
         >
@@ -96,7 +96,7 @@ function ToolTile({
         <p
           className={
             featured
-              ? 'mt-2 text-sm sm:text-base leading-snug opacity-90 line-clamp-2 font-medium'
+              ? 'mt-1 sm:mt-2 text-[11px] sm:text-base leading-snug opacity-90 line-clamp-2 font-medium'
               : 'mt-1 text-[10px] sm:text-xs leading-snug opacity-85 line-clamp-2 font-medium'
           }
         >
@@ -186,7 +186,7 @@ export default function Home() {
         </div>
 
         {/* Accord + Planning — grandes tuiles */}
-        <div className="shrink-0 grid grid-cols-2 gap-2 sm:gap-3 flex-[2] min-h-[140px] sm:min-h-[180px]">
+        <div className="shrink-0 grid grid-cols-2 gap-1.5 sm:gap-3 flex-[1.1] sm:flex-[2] min-h-[96px] max-h-[112px] sm:min-h-[180px] sm:max-h-none">
           {PRIMARY_TOOLS.map((t, i) => (
             <ToolTile
               key={`${t.href}-${t.label}`}

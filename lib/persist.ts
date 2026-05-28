@@ -1,4 +1,5 @@
 import { getSupabaseOrNull, saveDocument, upsertClient } from "@/lib/supabase"
+import { mergeFacturePayloadMeta } from "@/lib/facture-relance"
 
 /**
  * Helpers de persistance partagés par /api/notify-* (envoi email + persist) et
@@ -26,6 +27,8 @@ export interface PersistFactureInput extends Common {
   emailSent?: boolean
   envoyeAt?: string | null
   interventionId?: string | null
+  /** IDs Resend des relances hebdomadaires planifiées */
+  relanceIds?: string[]
 }
 
 export async function persistFacture(p: PersistFactureInput): Promise<string | null> {
@@ -48,7 +51,12 @@ export async function persistFacture(p: PersistFactureInput): Promise<string | n
     montant_ht: typeof p.totalHT === 'number' ? p.totalHT : null,
     montant_ttc: typeof p.totalTTC === 'number' ? p.totalTTC : null,
     tva_taux: typeof p.tvaTaux === 'number' ? p.tvaTaux : null,
-    payload: p.facture,
+    payload: p.relanceIds?.length
+      ? mergeFacturePayloadMeta(p.facture || {}, {
+          relance_ids: p.relanceIds,
+          relance_planifiees: p.relanceIds.length,
+        })
+      : p.facture,
     client_id: clientId,
     intervention_id: p.interventionId || null,
     envoye_email: p.emailSent ? (p.clientEmail || null) : null,

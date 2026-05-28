@@ -19,6 +19,7 @@ const PUBLIC_PREFIXES = [
   '/api/proxy-image',
   '/api/notify-client/stop-review',
   '/api/quote-complementaire/stop-reminders',
+  '/api/facture/stop-reminders',
 ]
 
 export default auth((req) => {

@@ -6,6 +6,9 @@ import dynamic from "next/dynamic"
 import TerrainStepper from "@/components/terrain/TerrainStepper"
 import TerrainPhotoCapture from "@/components/terrain/TerrainPhotoCapture"
 import TerrainOceanLoader from "@/components/terrain/TerrainOceanLoader"
+import DevisEnvoiPanel from "@/components/DevisEnvoiPanel"
+import type { DevisData } from "@/components/DevisPDF"
+import { joinNomPrenom } from "@/lib/rapportToDevis"
 import { proxyImageUrl } from "@/lib/proxyImageUrl"
 import { fetchJsonWithRetry, fetchWithRetry } from "@/lib/fetchWithRetry"
 import { isDevisIntervention } from "@/lib/types-intervention"
@@ -158,7 +161,15 @@ export default function TerrainPage({ params }: { params: { id: string } }) {
         {step === 2 && <StepEnCours interv={interv} onPhotoUploaded={load} onTerminer={() => callTerrainAction('fin')} onError={setError} onSkipToRapport={() => setStep(3)} />}
         {step === 3 && <StepRapport interv={interv} onSaved={load} onError={setError} />}
         {step === 4 && <StepFacture interv={interv} client={client} onCreated={load} onError={setError} />}
-        {(step === 5 || step === 6) && (
+        {step === 5 && (
+          <StepDevisOption
+            interv={interv}
+            client={client}
+            onContinue={() => setStep(6)}
+            onError={setError}
+          />
+        )}
+        {step === 6 && (
           <TerrainDiffusionPanel interv={interv} client={client} onRefresh={load} onError={setError} />
         )}
         {step >= 7 && (
@@ -315,6 +326,7 @@ function StepEnCours({ interv, onPhotoUploaded, onTerminer, onError, onSkipToRap
 function StepRapport({ interv, onSaved, onError }: { interv: Intervention; onSaved: () => void; onError: (e: string) => void }) {
   const [transcription, setTranscription] = useState('')
   const [generating, setGenerating] = useState(false)
+  const [genDone, setGenDone] = useState(false)
   // rapportPreview = rapport généré en mémoire, pas encore validé/sauvegardé
   const [rapportPreview, setRapportPreview] = useState<any | null>(null)
   const [seoPreview, setSeoPreview] = useState<any | null>(null)
@@ -326,6 +338,7 @@ function StepRapport({ interv, onSaved, onError }: { interv: Intervention; onSav
       return
     }
     setGenerating(true)
+    setGenDone(false)
     try {
       const genRes = await fetch('/api/generate', {
         method: 'POST',
@@ -341,12 +354,16 @@ function StepRapport({ interv, onSaved, onError }: { interv: Intervention; onSav
       const genData = await genRes.json()
       if (!genRes.ok) throw new Error(genData.error || 'Génération échouée')
 
+      setGenDone(true)
+      await new Promise(r => setTimeout(r, 500))
+
       setRapportPreview(genData.rapport)
       setSeoPreview(genData.seo)
     } catch (e) {
       onError(e instanceof Error ? e.message : String(e))
     } finally {
       setGenerating(false)
+      setGenDone(false)
     }
   }
 
@@ -472,10 +489,12 @@ function StepRapport({ interv, onSaved, onError }: { interv: Intervention; onSav
           <p className="text-sm text-slate-600 mt-2">Patiente quelques instants, on cingle vers le soleil.</p>
         </header>
 
-        <TerrainOceanLoader />
+        <TerrainOceanLoader done={genDone} expectedMs={75_000} />
 
         <p className="text-xs text-center text-slate-400 italic">
-          La génération prend généralement 30 à 90 secondes. Ne ferme pas la page.
+          {genDone
+            ? 'Ouverture de l’aperçu…'
+            : 'La génération prend généralement 30 à 90 secondes. Ne ferme pas la page.'}
         </p>
       </section>
     )
@@ -833,7 +852,211 @@ function StepFacture({ interv, client, onCreated, onError }: {
 }
 
 // ============================================================
-// ÉTAPE 5–6 — Diffusion (mail, site, GMB, YouTube) — actions indépendantes
+// ÉTAPE 5 — Devis optionnel (envoi séparé du mail rapport+facture)
+// ============================================================
+function StepDevisOption({ interv, client, onContinue, onError }: {
+  interv: Intervention
+  client: Client
+  onContinue: () => void | Promise<void>
+  onError: (e: string) => void
+}) {
+  const [phase, setPhase] = useState<'ask' | 'form'>('ask')
+  const [loading, setLoading] = useState(false)
+  const [devis, setDevis] = useState<DevisData | null>(null)
+  const [prenom, setPrenom] = useState('')
+  const [nomFamille, setNomFamille] = useState('')
+  const [email, setEmail] = useState(client?.email || '')
+  const [adresse, setAdresse] = useState('')
+  const [cp, setCp] = useState('')
+  const [ville, setVille] = useState('')
+
+  async function loadDevisForm() {
+    setLoading(true)
+    onError('')
+    try {
+      const res = await fetch(`/api/interventions/${interv.id}/devis-preview`, { cache: 'no-store' })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`)
+      const p = data.prefill
+      setDevis(p.devis)
+      setPrenom(p.client_prenom || '')
+      setNomFamille(p.client_nom_famille || '')
+      setEmail(p.client_email || client?.email || '')
+      setAdresse(p.client_adresse || client?.adresse || '')
+      setCp(p.client_cp || client?.code_postal || '')
+      setVille(p.client_ville || client?.ville || interv.ville || '')
+      setPhase('form')
+    } catch (e) {
+      onError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const clientNom = joinNomPrenom(prenom, nomFamille)
+  const tvaTaux = devis?.tva_taux === 0 || devis?.tva_taux === 20 ? devis.tva_taux : 10
+  const totalHT = (devis?.lignes || []).reduce(
+    (s, l) => s + (Number(l.qte) || 0) * (Number(l.pu_ht) || 0),
+    0,
+  )
+  const totalTTC = totalHT * (1 + tvaTaux / 100)
+  const dateDevis = devis?.date_devis
+    ? devis.date_devis.split('-').reverse().join('/')
+    : ''
+
+  if (phase === 'ask') {
+    return (
+      <section className="space-y-6">
+        <header className="text-center">
+          <div className="text-5xl mb-2">📋</div>
+          <h1 className="text-2xl font-black text-slate-800">Devis complémentaire ?</h1>
+          <p className="text-sm text-slate-600 mt-2 max-w-md mx-auto">
+            La facture est enregistrée. Souhaitez-vous envoyer un <strong>devis séparé</strong> au client
+            (même procédure que les devis classiques : relances sur 3 semaines) ?
+          </p>
+        </header>
+
+        <div className="bg-amber-50 border-2 border-amber-200 rounded-2xl p-4 text-sm text-amber-900">
+          Le devis part dans un <strong>mail distinct</strong> du rapport et de la facture (étape suivante).
+        </div>
+
+        <div className="flex flex-col gap-3">
+          <button
+            type="button"
+            onClick={loadDevisForm}
+            disabled={loading}
+            className="w-full bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white rounded-2xl py-5 font-black text-lg shadow-lg transition"
+          >
+            {loading ? '⚙ Préparation…' : '✓ Oui, envoyer un devis'}
+          </button>
+          <button
+            type="button"
+            onClick={() => onContinue()}
+            disabled={loading}
+            className="w-full bg-white border-2 border-slate-300 hover:bg-slate-50 text-slate-700 rounded-2xl py-4 font-bold text-base transition"
+          >
+            Non, passer à l&apos;envoi client →
+          </button>
+        </div>
+      </section>
+    )
+  }
+
+  if (!devis) {
+    return (
+      <section className="text-center py-10 text-slate-500">
+        <p>Impossible de charger le devis.</p>
+        <button type="button" onClick={() => setPhase('ask')} className="mt-4 text-blue-600 underline text-sm">
+          Retour
+        </button>
+      </section>
+    )
+  }
+
+  return (
+    <section className="space-y-5">
+      <header className="text-center">
+        <div className="text-5xl mb-2">📋</div>
+        <h1 className="text-2xl font-black text-slate-800">Envoyer le devis</h1>
+        <p className="text-sm text-slate-600 mt-2">
+          {devis.numero} · {devis.lignes.length} ligne{devis.lignes.length > 1 ? 's' : ''}
+        </p>
+      </header>
+
+      <div className="bg-white rounded-2xl border-2 border-slate-200 p-4 space-y-3">
+        <h2 className="text-xs uppercase tracking-wider text-slate-500 font-bold">Client</h2>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="block text-[11px] font-bold text-slate-500 mb-1">Prénom</label>
+            <input
+              value={prenom}
+              onChange={e => setPrenom(e.target.value)}
+              className="w-full border-2 border-slate-200 focus:border-blue-500 outline-none rounded-lg px-3 py-2 text-sm"
+              placeholder="Jean"
+            />
+          </div>
+          <div>
+            <label className="block text-[11px] font-bold text-slate-500 mb-1">Nom</label>
+            <input
+              value={nomFamille}
+              onChange={e => setNomFamille(e.target.value)}
+              className="w-full border-2 border-slate-200 focus:border-blue-500 outline-none rounded-lg px-3 py-2 text-sm"
+              placeholder="Dupont"
+            />
+          </div>
+        </div>
+        <div>
+          <label className="block text-[11px] font-bold text-slate-500 mb-1">Adresse</label>
+          <input
+            value={adresse}
+            onChange={e => setAdresse(e.target.value)}
+            className="w-full border-2 border-slate-200 focus:border-blue-500 outline-none rounded-lg px-3 py-2 text-sm"
+          />
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="block text-[11px] font-bold text-slate-500 mb-1">Code postal</label>
+            <input
+              value={cp}
+              onChange={e => setCp(e.target.value)}
+              className="w-full border-2 border-slate-200 focus:border-blue-500 outline-none rounded-lg px-3 py-2 text-sm"
+            />
+          </div>
+          <div>
+            <label className="block text-[11px] font-bold text-slate-500 mb-1">Ville</label>
+            <input
+              value={ville}
+              onChange={e => setVille(e.target.value)}
+              className="w-full border-2 border-slate-200 focus:border-blue-500 outline-none rounded-lg px-3 py-2 text-sm"
+            />
+          </div>
+        </div>
+      </div>
+
+      <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 text-sm space-y-1">
+        {(devis.lignes || []).map((l, i) => (
+          <div key={i} className="flex justify-between gap-2">
+            <span className="text-slate-700">{l.designation}</span>
+            <span className="tabular-nums text-slate-500">
+              {(Number(l.qte) * Number(l.pu_ht)).toFixed(2)} € HT
+            </span>
+          </div>
+        ))}
+        <div className="flex justify-between font-bold border-t border-slate-200 pt-2 mt-2">
+          <span>Total TTC</span>
+          <span className="tabular-nums">{totalTTC.toFixed(2)} €</span>
+        </div>
+      </div>
+
+      <DevisEnvoiPanel
+        devis={{ ...devis, tva_taux: tvaTaux }}
+        clientEmail={email}
+        onClientEmailChange={setEmail}
+        clientNom={clientNom || '—'}
+        clientAdresse={adresse}
+        clientCP={cp}
+        clientVille={ville}
+        dateDevis={dateDevis}
+        totalHT={totalHT}
+        totalTTC={totalTTC}
+        tvaTaux={tvaTaux}
+        interventionId={interv.id}
+        onSent={() => onContinue()}
+      />
+
+      <button
+        type="button"
+        onClick={() => onContinue()}
+        className="w-full text-center text-sm text-slate-500 hover:text-slate-700 underline"
+      >
+        Passer sans envoyer le devis →
+      </button>
+    </section>
+  )
+}
+
+// ============================================================
+// ÉTAPE 6 — Diffusion (mail, site, GMB, YouTube) — actions indépendantes
 // ============================================================
 type DiffusionAction = 'mail' | 'site' | 'gmb' | 'youtube' | null
 
@@ -1230,7 +1453,7 @@ function TerrainDiffusionPanel({ interv, client, onRefresh, onError }: {
 }
 
 // ============================================================
-// ÉTAPE 7 — Terminé
+// ÉTAPE 7+ — Terminé
 // ============================================================
 function StepTermine({ interv, client, onRefresh, onError }: {
   interv: Intervention

@@ -209,13 +209,13 @@ export async function POST(req: NextRequest) {
       .eq('id', facture.id)
   } catch {}
 
-  // Marque l'intervention : mail envoyé + bump terrain_step à 6 (= envoi groupé OK)
+  // Marque l'intervention : mail envoyé + bump terrain_step à 7 (= diffusion OK, étape réseaux)
   try {
     await sb
       .from('interventions')
       .update({
         mail_envoye_at: new Date().toISOString(),
-        terrain_step: 6,
+        terrain_step: 7,
       })
       .eq('id', interventionId)
   } catch {}

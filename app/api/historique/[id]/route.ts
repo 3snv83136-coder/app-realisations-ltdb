@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getSupabaseOrNull, type DocumentStatut } from "@/lib/supabase"
 import { cascadeDeleteDocument } from "@/lib/cascadeDelete"
+import { annulerRelancesFacture } from "@/lib/facture-relance"
 
 export const dynamic = 'force-dynamic'
 
@@ -135,6 +136,14 @@ export async function PATCH(
 
   if (Object.keys(update).length === 0) {
     return NextResponse.json({ error: 'Aucun champ à mettre à jour' }, { status: 400 })
+  }
+
+  if (update.statut === 'paye' || update.statut === 'annule') {
+    try {
+      await annulerRelancesFacture(id)
+    } catch (e) {
+      console.error('[historique PATCH] annuler relances facture', e)
+    }
   }
 
   const { data, error } = await sb

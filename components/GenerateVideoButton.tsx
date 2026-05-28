@@ -129,7 +129,14 @@ export default function GenerateVideoButton({
 
   const needsOAuth = (platform: SocialPlatform) => {
     const ps = publishState[platform]
-    return ps?.error?.includes('Aucun token') || ps?.error?.includes('non configuré')
+    const err = ps?.error || ''
+    return (
+      err.includes('Aucun token') ||
+      err.includes('non configuré') ||
+      err.includes('invalid_grant') ||
+      err.includes('Connexion YouTube expirée') ||
+      err.includes('Connecter')
+    )
   }
 
   const oauthUrl = (platform: SocialPlatform) => {

@@ -12,7 +12,10 @@
     "remotion:render:vertical": "remotion render InterventionVertical out/video-vertical.mp4",
     "remotion:render:horizontal": "remotion render InterventionHorizontal out/video-horizontal.mp4",
     "remotion:render:square": "remotion render InterventionSquare out/video-square.mp4",
-    "test:remotion": "tsx scripts/test-remotion-bundle.ts"
+    "test:remotion": "tsx scripts/test-remotion-bundle.ts",
+    "test:e2e": "tsx scripts/e2e-test-flow.ts",
+    "test:e2e:publish": "tsx scripts/e2e-full-publish.ts",
+    "test:e2e:publish:vercel": "E2E_BASE_URL=https://app-realisations-ltdb.vercel.app tsx scripts/e2e-full-publish.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.86.1",

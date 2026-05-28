@@ -6,8 +6,9 @@ export const TERRAIN_STEPS = [
   { key: 2, label: 'Photo après', icon: '📷' },
   { key: 3, label: 'Rapport', icon: '🎤' },
   { key: 4, label: 'Facture', icon: '🧾' },
-  { key: 5, label: 'Diffusion', icon: '✉' },
-  { key: 6, label: 'Réseaux', icon: '📍' },
+  { key: 5, label: 'Devis', icon: '📋' },
+  { key: 6, label: 'Diffusion', icon: '✉' },
+  { key: 7, label: 'Réseaux', icon: '📍' },
 ] as const
 
 export type TerrainStep = typeof TERRAIN_STEPS[number]['key']

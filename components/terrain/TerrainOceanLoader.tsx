@@ -1,55 +1,76 @@
 'use client'
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 
 const OCEAN_STEPS = [
   '🌊 On largue les amarres…',
-  '🐟 Les poissons analysent le bouchon…',
-  '🦀 Les crabes vérifient les tuyaux…',
-  '🐙 La pieuvre structure le rapport…',
-  '🐠 Petite halte au récif…',
-  '🌴 On longe les côtes du Var…',
+  '🐟 Les poissons analysent la dictée…',
+  '🦀 Les crabes structurent le diagnostic…',
+  '🐙 La pieuvre rédige les travaux…',
+  '🐠 Optimisation des recommandations…',
+  '🌴 Vérification des prestations…',
   '⛵ On approche du soleil…',
-  '🌞 Plus que quelques mètres !',
+  '🌞 Dernières touches…',
 ]
 
+/** Progression max tant que l’API n’a pas répondu (évite le blocage visuel à 95 %). */
+const PROGRESS_CAP = 92
+
+/** Durée typique d’un appel /api/generate (30–90 s annoncés → cible ~75 s). */
+const DEFAULT_EXPECTED_MS = 75_000
+
+function easeOutCubic(t: number): number {
+  return 1 - (1 - t) ** 3
+}
+
+function stepIndexForProgress(p: number): number {
+  const idx = Math.floor((p / PROGRESS_CAP) * OCEAN_STEPS.length)
+  return Math.min(OCEAN_STEPS.length - 1, Math.max(0, idx))
+}
+
 interface Props {
-  /** Si true, force la barre à 100% (succès — la mer rejoint le soleil) */
+  /** true quand /api/generate a répondu — barre → 100 % puis disparition côté parent */
   done?: boolean
+  /** Durée estimée pour atteindre ~92 % (ms) */
+  expectedMs?: number
 }
 
 /**
- * Loader ludique LTDB pour la génération de rapport.
- * Thématique : mer qui monte vers le soleil. Le bateau avance avec la marée.
- * Progression fake asymptotique (0 → 95 % autonome), passe à 100 % quand done=true.
+ * Loader ludique : la mer monte en fonction du temps écoulé (pas une fausse course à 95 %).
+ * 100 % uniquement quand done=true (rapport prêt).
  */
-export default function TerrainOceanLoader({ done }: Props) {
+export default function TerrainOceanLoader({ done = false, expectedMs = DEFAULT_EXPECTED_MS }: Props) {
   const [progress, setProgress] = useState(0)
   const [stepIdx, setStepIdx] = useState(0)
+  const startRef = useRef(Date.now())
+
+  useEffect(() => {
+    startRef.current = Date.now()
+    setProgress(0)
+    setStepIdx(0)
+  }, [])
 
   useEffect(() => {
     if (done) {
       setProgress(100)
+      setStepIdx(OCEAN_STEPS.length - 1)
       return
     }
-    const id = setInterval(() => {
-      setProgress(p => {
-        if (p >= 95) return 95
-        // Asymptote : on avance vite au début, on ralentit à l'approche du soleil
-        const remaining = 95 - p
-        const inc = Math.max(0.25, remaining * 0.025)
-        return Math.min(95, p + inc)
-      })
-    }, 180)
-    return () => clearInterval(id)
-  }, [done])
 
-  useEffect(() => {
-    const id = setInterval(() => setStepIdx(i => (i + 1) % OCEAN_STEPS.length), 2400)
-    return () => clearInterval(id)
-  }, [])
+    const tick = () => {
+      const elapsed = Date.now() - startRef.current
+      const t = Math.min(1, elapsed / expectedMs)
+      const p = easeOutCubic(t) * PROGRESS_CAP
+      setProgress(p)
+      setStepIdx(stepIndexForProgress(p))
+    }
 
-  // Position bateau : suit la mer mais avec un offset pour rester à la surface
+    tick()
+    const id = window.setInterval(tick, 120)
+    return () => clearInterval(id)
+  }, [done, expectedMs])
+
   const boatLeft = Math.max(2, Math.min(progress - 4, 86))
+  const displayPct = Math.round(progress)
 
   return (
     <div className="space-y-3">
@@ -70,14 +91,12 @@ export default function TerrainOceanLoader({ done }: Props) {
         .ltdb-boat { animation: ltdb-boat-bob 2s ease-in-out infinite; }
       `}</style>
 
-      {/* Scène mer + soleil */}
       <div
         className="relative w-full h-44 sm:h-52 rounded-2xl overflow-hidden border-2 border-blue-200 shadow-lg"
         style={{
           background: 'linear-gradient(to bottom, #fef3c7 0%, #fde68a 20%, #fdba74 38%, #fca5a5 48%, #93c5fd 55%, #60a5fa 65%, #1e40af 100%)',
         }}
       >
-        {/* Soleil — coin haut-droit, pulse subtil */}
         <div
           className="ltdb-sun absolute w-16 h-16 sm:w-20 sm:h-20 rounded-full"
           style={{
@@ -88,25 +107,23 @@ export default function TerrainOceanLoader({ done }: Props) {
           }}
         />
 
-        {/* Reflet du soleil sur la mer (s'efface quand le bateau approche) */}
         <div
-          className="absolute right-[3%] bottom-[6%] w-8 h-2 rounded-full opacity-60"
+          className="absolute right-[3%] bottom-[6%] w-8 h-2 rounded-full"
           style={{
             background: 'radial-gradient(ellipse, rgba(250,204,21,0.8), transparent)',
             opacity: Math.max(0, 0.6 - progress / 200),
           }}
         />
 
-        {/* Mer (largeur = progression) */}
         <div
-          className="absolute bottom-0 left-0 transition-all duration-300 ease-out overflow-hidden"
+          className="absolute bottom-0 left-0 ease-out overflow-hidden"
           style={{
             width: `${progress}%`,
             height: '52%',
             background: 'linear-gradient(to bottom, #2563eb 0%, #1e40af 60%, #1e3a8a 100%)',
+            transition: done ? 'width 0.45s ease-out' : 'width 0.15s linear',
           }}
         >
-          {/* Vague avant (rapide, écume) */}
           <svg
             className="ltdb-wave-1 absolute top-0 left-0 h-6"
             style={{ width: '200%' }}
@@ -119,7 +136,6 @@ export default function TerrainOceanLoader({ done }: Props) {
               fillOpacity="0.35"
             />
           </svg>
-          {/* Vague arrière (lente, sombre) */}
           <svg
             className="ltdb-wave-2 absolute top-2 left-0 h-5"
             style={{ width: '200%' }}
@@ -134,18 +150,17 @@ export default function TerrainOceanLoader({ done }: Props) {
           </svg>
         </div>
 
-        {/* Bateau — suit la mer, balancement */}
         <div
-          className="absolute text-3xl sm:text-4xl pointer-events-none transition-all duration-300 ease-out"
+          className="absolute text-3xl sm:text-4xl pointer-events-none ease-out"
           style={{
             left: `${boatLeft}%`,
             bottom: '46%',
+            transition: done ? 'left 0.45s ease-out' : 'left 0.15s linear',
           }}
         >
           <span className="ltdb-boat inline-block">⛵</span>
         </div>
 
-        {/* Quand done=true → emoji célébration */}
         {done && (
           <div className="absolute inset-0 flex items-center justify-center bg-white/30 backdrop-blur-sm">
             <div className="text-5xl animate-bounce">🎉</div>
@@ -153,18 +168,22 @@ export default function TerrainOceanLoader({ done }: Props) {
         )}
       </div>
 
-      {/* Étape en cours + pourcentage */}
       <div className="space-y-1.5">
         <div className="flex justify-between items-center gap-3">
-          <span className="text-sm font-bold text-blue-800 truncate">{OCEAN_STEPS[stepIdx]}</span>
+          <span className="text-sm font-bold text-blue-800 truncate">
+            {done ? '🌞 Rapport prêt !' : OCEAN_STEPS[stepIdx]}
+          </span>
           <span className="text-sm font-black text-slate-700 tabular-nums flex-shrink-0">
-            {Math.round(progress)}%
+            {displayPct}%
           </span>
         </div>
         <div className="w-full bg-blue-100 rounded-full h-2 overflow-hidden">
           <div
-            className="h-full bg-gradient-to-r from-blue-500 via-cyan-400 to-amber-400 transition-all duration-300 ease-out"
-            style={{ width: `${progress}%` }}
+            className="h-full bg-gradient-to-r from-blue-500 via-cyan-400 to-amber-400 ease-out"
+            style={{
+              width: `${progress}%`,
+              transition: done ? 'width 0.45s ease-out' : 'width 0.15s linear',
+            }}
           />
         </div>
       </div>

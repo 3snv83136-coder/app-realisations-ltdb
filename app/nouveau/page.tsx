@@ -371,8 +371,6 @@ export default function NouveauPage() {
     setError('')
     if (!technicienNom) { setError('Indique ton nom de technicien.'); return }
     if (!transcription || transcription.trim().length < 20) { setError('Dicte ou tape au moins quelques phrases sur l\'intervention.'); return }
-    if (photos.length === 0) { setError('Ajoute au moins une photo.'); return }
-
     setStep('extracting')
     try {
       const res = await fetch('/api/extract', {
@@ -856,7 +854,7 @@ export default function NouveauPage() {
               <div className="flex justify-between items-center">
                 <div>
                   <h2 className="text-xl font-black text-[#0e2a52]">Photos</h2>
-                  <p className="text-sm text-slate-500">Avant / après — min. 1 photo</p>
+                  <p className="text-sm text-slate-500">Optionnelles — requises pour publier sur le site</p>
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="bg-[#0e2a52] text-white text-xs font-bold w-7 h-7 rounded-full flex items-center justify-center">{photos.length}</span>

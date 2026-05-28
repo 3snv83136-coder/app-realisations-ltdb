@@ -82,12 +82,18 @@ Type d'intervention: ${type_intervention}
 Ville: ${ville} (${cp})
 Date: ${today.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}
 
-⛔ RÈGLES DE FIDÉLITÉ ⛔
-- N'invente AUCUN fait, action, mesure, prix explicite, matériel, durée qui n'est pas dans la dictée
-- Tu peux REFORMULER PROFESSIONNELLEMENT, CONTEXTUALISER avec du vocabulaire métier pertinent, DÉVELOPPER les idées déjà présentes, mais sans inventer d'éléments nouveaux
-- Si un champ ne peut pas être rempli → chaîne vide "" ou tableau vide []
-- "devis": null par défaut, sauf si le technicien mentionne explicitement des prix/montants
-- "avis_technique": null sauf si le technicien exprime une préoccupation ou un diagnostic critique
+⛔ RÈGLES DE FIDÉLITÉ — ZÉRO INVENTION ⛔
+- INTERDIT d'ajouter un outil, une technique, un matériel ou une action non prononcés par le technicien.
+  Exemples INTERDITS si non dictés : furet (électrique ou manuel), hydrocurage, caméra, pompe, produit chimique, regard, colonne, siphon, etc.
+- Si le technicien ne dit pas « furet » → n'écris JAMAIS « furet ». Idem pour hydrocurage, caméra, mécanique, pression en bars, durée, etc.
+- N'invente AUCUN fait, action, mesure, prix explicite, matériel, durée qui n'est pas dans la dictée.
+- Tu peux REFORMULER en langage professionnel UNIQUEMENT ce qui est déjà dit — pas compléter par déduction métier.
+- "materiel_utilise" : UNIQUEMENT les outils/matériels nommés explicitement dans la dictée, sinon [].
+- "phases" : une phase par étape RÉELLEMENT décrite ; pas de phase inventée pour « faire joli ».
+- "analyse_table" : une ligne par problème/constat EXPLICITE ; pas de ligne pour combler.
+- Si un champ ne peut pas être rempli → "" ou [].
+- "devis": null sauf si le technicien mentionne explicitement des prix/montants.
+- "avis_technique": null sauf si le technicien exprime une préoccupation ou un diagnostic critique.
 
 ⚠ RÈGLE STATUT "ok" / CONFORME ⚠
 N'utilise JAMAIS "statut": "ok" (qui affichera "CONFORME" dans le rapport) par défaut ou pour combler. Ce statut est réservé aux cas où le technicien DIT EXPLICITEMENT que quelque chose est en bon état / conforme / sans problème / fonctionne correctement.
@@ -98,7 +104,7 @@ N'utilise JAMAIS "statut": "ok" (qui affichera "CONFORME" dans le rapport) par d
 📝 RÈGLES DE RÉDACTION — RAPPORT ÉTOFFÉ
 - Ton : professionnel, technique, précis (éviter le langage parlé)
 - Paragraphes développés : chaque champ texte doit contenir 4-6 phrases complètes minimum (sauf commentaire_technicien qui reste court)
-- Vocabulaire métier : utilise les termes techniques exacts (EU, EP, colonne, collecteur, siphon, tampon, furet, hydrocurage, pression en bars, inspection endoscopique, etc.)
+- Vocabulaire métier : utilise les termes techniques UNIQUEMENT s'ils figurent dans la dictée (EU, EP, colonne, etc.) — ne pas en ajouter d'autres par habitude.
 - Structure : chaque section doit être autonome et compréhensible isolément
 - Développe le contexte, la méthodologie, les résultats intermédiaires, sans inventer de données chiffrées
 
@@ -186,7 +192,9 @@ PAGE VILLE DE DESTINATION (OBLIGATOIRE) :
 
 URL FINALE : ${SITE}/nos-realisations/${realisationSlug}
 
-⛔ NE PAS INVENTER D'ACTIONS TECHNIQUES absentes de la dictée. Tu peux contextualiser avec du savoir métier général, mais sans affirmer que le technicien a fait X si ce n'est pas dans la dictée.
+⛔ NE PAS INVENTER D'ACTIONS TECHNIQUES absentes de la dictée.
+- Interdit d'écrire qu'on a utilisé furet, hydrocurage, caméra, etc. si la dictée ne le dit pas.
+- Tu peux contextualiser avec du savoir métier général, mais sans affirmer que le technicien a fait X si ce n'est pas dans la dictée.
 
 RÈGLES SEO + GEO (rigoureuses, mais invisibles au lecteur)
 
