@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
+import { getSessionUser, assertInterventionAccess } from "@/lib/intervention-access"
 import { getSupabaseOrNull } from "@/lib/supabase"
 
 export const dynamic = 'force-dynamic'
@@ -26,6 +27,12 @@ export async function POST(req: NextRequest, { params }: Params) {
   const interventionId = params.id
   if (!interventionId) {
     return NextResponse.json({ error: 'ID intervention manquant' }, { status: 400 })
+  }
+
+  const user = await getSessionUser()
+  const access = await assertInterventionAccess(interventionId, user)
+  if (!access.ok) {
+    return NextResponse.json({ error: access.error }, { status: access.status })
   }
 
   let body: { action?: Action; step?: number }

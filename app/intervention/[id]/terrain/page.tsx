@@ -2,6 +2,7 @@
 import { useEffect, useState, useRef } from 'react'
 import Link from "next/link"
 import { useRouter } from "next/navigation"
+import { useSession } from "next-auth/react"
 import dynamic from "next/dynamic"
 import TerrainStepper from "@/components/terrain/TerrainStepper"
 import TerrainPhotoCapture from "@/components/terrain/TerrainPhotoCapture"
@@ -131,6 +132,45 @@ export default function TerrainPage({ params }: { params: { id: string } }) {
   const step = interv.terrain_step ?? 0
 
   return (
+    <TerrainPageBody
+      interv={interv}
+      client={client}
+      step={step}
+      error={error}
+      setError={setError}
+      setStep={setStep}
+      callTerrainAction={callTerrainAction}
+      load={load}
+      paramsId={params.id}
+    />
+  )
+}
+
+function TerrainPageBody({
+  interv,
+  client,
+  step,
+  error,
+  setError,
+  setStep,
+  callTerrainAction,
+  load,
+  paramsId,
+}: {
+  interv: Intervention
+  client: Client
+  step: number
+  error: string
+  setError: (e: string) => void
+  setStep: (s: number) => void | Promise<void>
+  callTerrainAction: (a: 'debut' | 'fin') => void | Promise<void>
+  load: () => void | Promise<void>
+  paramsId: string
+}) {
+  const { data: session } = useSession()
+  const isTech = session?.user?.role === 'tech'
+
+  return (
     <div className="min-h-screen bg-slate-50 pb-24">
       {/* Header sticky */}
       <nav className="bg-[#0e2a52] text-white px-4 py-3 sticky top-0 z-30 shadow-lg">
@@ -141,7 +181,10 @@ export default function TerrainPage({ params }: { params: { id: string } }) {
               {client?.nom || 'Client inconnu'} · {interv.ville || '—'}
             </div>
           </div>
-          <Link href={`/intervention/${interv.id}`} className="text-xs font-semibold bg-white/10 hover:bg-white/20 px-3 py-2 rounded-lg transition flex-shrink-0">
+          <Link
+            href={isTech ? "/mes-interventions" : `/intervention/${interv.id}`}
+            className="text-xs font-semibold bg-white/10 hover:bg-white/20 px-3 py-2 rounded-lg transition flex-shrink-0"
+          >
             ✕ Quitter
           </Link>
         </div>
@@ -159,10 +202,7 @@ export default function TerrainPage({ params }: { params: { id: string } }) {
         {step === 0 && (
           <StepPhotoAvant
             interv={interv}
-            onPhotoUploaded={async (newStep) => {
-              setInterv(prev => (prev ? { ...prev, terrain_step: newStep } : prev))
-              await load()
-            }}
+            onPhotoUploaded={async () => { await load() }}
             onSkip={() => setStep(1)}
             onError={setError}
           />
@@ -180,10 +220,16 @@ export default function TerrainPage({ params }: { params: { id: string } }) {
           />
         )}
         {step === 6 && (
-          <TerrainDiffusionPanel interv={interv} client={client} onRefresh={load} onError={setError} />
+          <TerrainDiffusionPanel
+            interv={interv}
+            client={client}
+            onRefresh={load}
+            onError={setError}
+            techOnlyMail={isTech}
+          />
         )}
         {step >= 7 && (
-          <StepTermine interv={interv} client={client} onRefresh={load} onError={setError} />
+          <StepTermine interv={interv} client={client} onRefresh={load} onError={setError} techOnlyMail={isTech} />
         )}
       </main>
     </div>
@@ -1238,13 +1284,16 @@ function StepDevisOption({ interv, client, onContinue, onError }: {
 // ============================================================
 type DiffusionAction = 'mail' | 'site' | 'gmb' | 'youtube' | null
 
-function TerrainDiffusionPanel({ interv, client, onRefresh, onError }: {
+function TerrainDiffusionPanel({ interv, client, onRefresh, onError, techOnlyMail = false }: {
   interv: Intervention
   client: Client
   onRefresh: () => void | Promise<void>
   onError: (e: string) => void
+  /** Technicien : uniquement envoi mail client (pas site / GMB / YouTube) */
+  techOnlyMail?: boolean
 }) {
   const [email, setEmail] = useState(client?.email || '')
+  const [emailCc, setEmailCc] = useState('')
   const [nom, setNom] = useState(client?.nom || '')
   const [busy, setBusy] = useState<DiffusionAction>(null)
   const [progress, setProgress] = useState('')
@@ -1414,6 +1463,7 @@ function TerrainDiffusionPanel({ interv, client, onRefresh, onError }: {
         body: JSON.stringify({
           interventionId: interv.id,
           clientEmail: email,
+          ccEmail: emailCc.trim() || undefined,
         }),
         retries: 3,
         timeoutMs: 90_000,
@@ -1566,6 +1616,22 @@ function TerrainDiffusionPanel({ interv, client, onRefresh, onError }: {
           />
         </div>
 
+        <div>
+          <label className="block text-xs uppercase tracking-wider text-slate-500 font-bold mb-1">
+            Email en copie (facultatif)
+          </label>
+          <input
+            type="email"
+            value={emailCc}
+            onChange={e => setEmailCc(e.target.value)}
+            placeholder="syndic@exemple.fr, comptable…"
+            className="w-full border-2 border-slate-200 focus:border-blue-500 outline-none rounded-xl px-4 py-3 text-base"
+          />
+          <p className="text-[11px] text-slate-500 mt-1">
+            Reçoit le même mail (rapport + facture) en copie, en plus du client.
+          </p>
+        </div>
+
         <div className="text-sm text-slate-700 space-y-1 pt-2">
           <div>📄 Rapport d&apos;intervention (PDF)</div>
           <div>🧾 Facture (PDF)</div>
@@ -1590,40 +1656,44 @@ function TerrainDiffusionPanel({ interv, client, onRefresh, onError }: {
           {busy === 'mail' ? (progress || '⚙ Envoi…') : mailDone ? '✓ Mail envoyé au client' : '✉ Envoyer par mail'}
         </button>
 
-        <button
-          type="button"
-          onClick={handlePublishSite}
-          disabled={!!busy}
-          className={actionBtn(siteDone, 'bg-blue-600 hover:bg-blue-700')}
-        >
-          {busy === 'site' ? (progress || '⚙ Publication…') : siteDone ? '✓ Publié sur le site' : '🌐 Publier sur le site'}
-        </button>
+        {!techOnlyMail && (
+          <>
+            <button
+              type="button"
+              onClick={handlePublishSite}
+              disabled={!!busy}
+              className={actionBtn(siteDone, 'bg-blue-600 hover:bg-blue-700')}
+            >
+              {busy === 'site' ? (progress || '⚙ Publication…') : siteDone ? '✓ Publié sur le site' : '🌐 Publier sur le site'}
+            </button>
 
-        <button
-          type="button"
-          onClick={handlePublishGmb}
-          disabled={!!busy}
-          className={actionBtn(gmbOk, 'bg-indigo-600 hover:bg-indigo-700')}
-        >
-          {busy === 'gmb' ? (progress || '⚙ GMB…') : gmbOk ? '✓ Post Google Business publié' : '📍 Post GMB'}
-        </button>
+            <button
+              type="button"
+              onClick={handlePublishGmb}
+              disabled={!!busy}
+              className={actionBtn(gmbOk, 'bg-indigo-600 hover:bg-indigo-700')}
+            >
+              {busy === 'gmb' ? (progress || '⚙ GMB…') : gmbOk ? '✓ Post Google Business publié' : '📍 Post GMB'}
+            </button>
 
-        <button
-          type="button"
-          onClick={handlePublishYoutube}
-          disabled={!!busy || !hasPhotos}
-          className={actionBtn(!!youtubeUrl, 'bg-red-600 hover:bg-red-700')}
-          title={!hasPhotos ? 'Photos requises pour la vidéo' : undefined}
-        >
-          {busy === 'youtube' ? (progress || '⚙ YouTube…') : youtubeUrl ? '✓ Post YouTube publié' : '▶ Post YouTube'}
-        </button>
-        {!hasPhotos && (
-          <p className="text-xs text-amber-700 font-semibold text-center">YouTube : ajoute des photos (étapes 0 ou 2).</p>
-        )}
-        {youtubeUrl && (
-          <a href={youtubeUrl} target="_blank" rel="noopener noreferrer" className="block text-center text-sm font-semibold text-red-700 hover:underline">
-            Voir sur YouTube →
-          </a>
+            <button
+              type="button"
+              onClick={handlePublishYoutube}
+              disabled={!!busy || !hasPhotos}
+              className={actionBtn(!!youtubeUrl, 'bg-red-600 hover:bg-red-700')}
+              title={!hasPhotos ? 'Photos requises pour la vidéo' : undefined}
+            >
+              {busy === 'youtube' ? (progress || '⚙ YouTube…') : youtubeUrl ? '✓ Post YouTube publié' : '▶ Post YouTube'}
+            </button>
+            {!hasPhotos && (
+              <p className="text-xs text-amber-700 font-semibold text-center">YouTube : ajoute des photos (étapes 0 ou 2).</p>
+            )}
+            {youtubeUrl && (
+              <a href={youtubeUrl} target="_blank" rel="noopener noreferrer" className="block text-center text-sm font-semibold text-red-700 hover:underline">
+                Voir sur YouTube →
+              </a>
+            )}
+          </>
         )}
       </div>
     </section>
@@ -1633,11 +1703,12 @@ function TerrainDiffusionPanel({ interv, client, onRefresh, onError }: {
 // ============================================================
 // ÉTAPE 7+ — Terminé
 // ============================================================
-function StepTermine({ interv, client, onRefresh, onError }: {
+function StepTermine({ interv, client, onRefresh, onError, techOnlyMail }: {
   interv: Intervention
   client: Client
   onRefresh: () => void | Promise<void>
   onError: (e: string) => void
+  techOnlyMail?: boolean
 }) {
   return (
     <section className="space-y-6">
@@ -1649,7 +1720,13 @@ function StepTermine({ interv, client, onRefresh, onError }: {
         </p>
       </div>
 
-      <TerrainDiffusionPanel interv={interv} client={client} onRefresh={onRefresh} onError={onError} />
+      <TerrainDiffusionPanel
+        interv={interv}
+        client={client}
+        onRefresh={onRefresh}
+        onError={onError}
+        techOnlyMail={techOnlyMail}
+      />
 
       <div className="flex flex-col gap-3">
         <Link

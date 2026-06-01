@@ -1,16 +1,24 @@
 import NextAuth from "next-auth"
 import Credentials from "next-auth/providers/credentials"
+import { verifyCredentials } from "@/lib/auth-users"
+import { getSupabaseOrNull } from "@/lib/supabase"
 
-function loadUsers() {
-  const users: { id: string; name: string }[] = []
-  for (let i = 1; i <= 5; i++) {
-    const entry = process.env[`AUTH_USER_${i}`]
-    if (!entry) continue
-    // Format « nom » ou « nom:hash » (le hash est ignoré — connexion sans mot de passe)
-    const name = entry.includes(':') ? entry.split(':')[0] : entry
-    if (name?.trim()) users.push({ id: String(i), name: name.trim() })
-  }
-  return users
+async function lookupTechnicienIdByLogin(login: string): Promise<string | null> {
+  const sb = getSupabaseOrNull()
+  if (!sb) return null
+  const { data } = await sb
+    .from("techniciens")
+    .select("id, nom")
+    .eq("actif", true)
+  if (!data?.length) return null
+  const needle = login.trim().toLowerCase()
+  const exact = data.find(t => (t.nom || "").trim().toLowerCase() === needle)
+  if (exact) return exact.id
+  const slug = data.find(t =>
+    (t.nom || "").trim().toLowerCase().replace(/\s+/g, ".") === needle
+    || (t.nom || "").trim().toLowerCase().replace(/\s+/g, "") === needle.replace(/\./g, ""),
+  )
+  return slug?.id ?? null
 }
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
@@ -18,16 +26,42 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     Credentials({
       credentials: {
         username: { label: "Identifiant", type: "text" },
+        password: { label: "Mot de passe", type: "password" },
       },
       async authorize(credentials) {
-        const username = (credentials?.username as string | undefined)?.trim()
-        if (!username) return null
-        const user = loadUsers().find(u => u.name === username)
-        if (!user) return null
-        return { id: user.id, name: user.name }
+        const username = credentials?.username as string | undefined
+        const password = credentials?.password as string | undefined
+        const account = await verifyCredentials(
+          username || "",
+          password,
+          lookupTechnicienIdByLogin,
+        )
+        if (!account) return null
+        return {
+          id: account.id,
+          name: account.login,
+          role: account.role,
+          technicienId: account.technicienId,
+        }
       },
     }),
   ],
-  pages: { signIn: '/login' },
-  session: { strategy: 'jwt' },
+  pages: { signIn: "/login" },
+  session: { strategy: "jwt" },
+  callbacks: {
+    async jwt({ token, user }) {
+      if (user) {
+        token.role = user.role
+        token.technicienId = user.technicienId ?? null
+      }
+      return token
+    },
+    async session({ session, token }) {
+      if (session.user) {
+        session.user.role = token.role
+        session.user.technicienId = token.technicienId ?? null
+      }
+      return session
+    },
+  },
 })

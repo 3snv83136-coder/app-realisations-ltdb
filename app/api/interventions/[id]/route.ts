@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
+import { getSessionUser, assertInterventionAccess } from "@/lib/intervention-access"
 import { getSupabaseOrNull } from "@/lib/supabase"
 import { isCanalAcquisition } from "@/lib/canaux"
 import { cascadeDeleteIntervention } from "@/lib/cascadeDelete"
@@ -36,6 +37,12 @@ export async function GET(_req: NextRequest, { params }: Params) {
   }
 
   const id = params.id
+  const user = await getSessionUser()
+  const access = await assertInterventionAccess(id, user)
+  if (!access.ok) {
+    return NextResponse.json({ error: access.error }, { status: access.status })
+  }
+
   const { data: intervention, error } = await sb
     .from('interventions')
     .select('*')
@@ -89,6 +96,12 @@ export async function PUT(req: NextRequest, { params }: Params) {
     }, { status: 500 })
   }
 
+  const user = await getSessionUser()
+  const access = await assertInterventionAccess(params.id, user)
+  if (!access.ok) {
+    return NextResponse.json({ error: access.error }, { status: access.status })
+  }
+
   let body: Record<string, unknown>
   try {
     body = await req.json()
@@ -111,6 +124,13 @@ export async function PUT(req: NextRequest, { params }: Params) {
       update[k] = trimmed === '' ? null : trimmed
     } else {
       update[k] = v
+    }
+  }
+
+  if (user?.role === 'tech') {
+    const techAllowed = new Set(['statut'])
+    for (const k of Object.keys(update)) {
+      if (!techAllowed.has(k)) delete update[k]
     }
   }
 

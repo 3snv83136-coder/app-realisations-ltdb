@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server"
 import crypto from "crypto"
 import { escapeHtml, initResend } from "@/lib/email-utils"
 import { fmtEUR } from "@/lib/format"
+import { EMAIL_RE } from "@/lib/email-utils"
+import { getSessionUser, assertInterventionAccess } from "@/lib/intervention-access"
 import { getSupabaseOrNull } from "@/lib/supabase"
 import { getTelPrincipal } from "@/lib/parametres"
 
@@ -35,6 +37,8 @@ export async function POST(req: NextRequest) {
     interventionId?: string
     clientEmail?: string
     skipReviews?: boolean
+    /** Copie (ex. syndic, comptable) — en plus du mail client principal */
+    ccEmail?: string
     /** PDF rapport en base64, fourni par le wizard Mode Terrain — bypass le besoin de pdf_rapport_url */
     pdfRapportBase64?: string
     /** PDF facture en base64, fourni par le wizard — bypass le besoin de facture.pdf_url */
@@ -49,6 +53,17 @@ export async function POST(req: NextRequest) {
   const interventionId = (body.interventionId || '').trim()
   if (!interventionId) {
     return NextResponse.json({ error: 'interventionId requis' }, { status: 400 })
+  }
+
+  const user = await getSessionUser()
+  const access = await assertInterventionAccess(interventionId, user)
+  if (!access.ok) {
+    return NextResponse.json({ error: access.error }, { status: access.status })
+  }
+
+  const ccEmail = typeof body.ccEmail === 'string' ? body.ccEmail.trim() : ''
+  if (ccEmail && !EMAIL_RE.test(ccEmail)) {
+    return NextResponse.json({ error: 'Email en copie invalide' }, { status: 400 })
   }
 
   const sb = getSupabaseOrNull()
@@ -184,6 +199,7 @@ export async function POST(req: NextRequest) {
   const immediate = await resend.emails.send({
     from: `Les Techniciens du Débouchage <${fromEmail}>`,
     to: recipient,
+    ...(ccEmail ? { cc: [ccEmail] } : {}),
     subject,
     html: emailCombine({
       clientNom, technicienNom, ville, dateIntervention: dateInterv,

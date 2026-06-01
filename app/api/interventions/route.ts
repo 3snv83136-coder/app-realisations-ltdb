@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
+import { auth } from "@/lib/auth"
+import { technicienFilterForSession } from "@/lib/intervention-access"
 import { getSupabaseOrNull, upsertClient, patchClient } from "@/lib/supabase"
 import { isCanalAcquisition } from "@/lib/canaux"
 
@@ -69,6 +71,12 @@ export async function GET(req: NextRequest) {
   const url = new URL(req.url)
   const statut = url.searchParams.get('statut')
   const technicien_id = url.searchParams.get('technicien_id')
+  const session = await auth()
+  const sessionTechId = technicienFilterForSession(
+    session?.user
+      ? { role: session.user.role, technicienId: session.user.technicienId ?? null }
+      : null,
+  )
   const agence = url.searchParams.get('agence')
   const from = url.searchParams.get('from')
   const to = url.searchParams.get('to')
@@ -76,7 +84,7 @@ export async function GET(req: NextRequest) {
 
   let query = sb
     .from('interventions')
-    .select('id, reference, client_id, technicien_id, agence, type_intervention, adresse_chantier, ville, code_postal, date_prevue, heure_prevue, duree_estimee_min, date_realisee, urgence, statut, prix_prevu, notes_internes, publie_slug, canal_acquisition, created_at, updated_at')
+    .select('id, reference, client_id, technicien_id, agence, type_intervention, adresse_chantier, ville, code_postal, date_prevue, heure_prevue, duree_estimee_min, date_realisee, urgence, statut, prix_prevu, notes_internes, publie_slug, canal_acquisition, terrain_step, created_at, updated_at')
     .order('date_prevue', { ascending: true, nullsFirst: false })
     .order('heure_prevue', { ascending: true, nullsFirst: false })
     // range() au lieu de limit() : limit + order drop la ligne la plus
@@ -84,7 +92,8 @@ export async function GET(req: NextRequest) {
     .range(0, limit - 1)
 
   if (statut) query = query.eq('statut', statut)
-  if (technicien_id) query = query.eq('technicien_id', technicien_id)
+  if (sessionTechId) query = query.eq('technicien_id', sessionTechId)
+  else if (technicien_id) query = query.eq('technicien_id', technicien_id)
   if (agence) query = query.eq('agence', agence)
   if (from) query = query.gte('date_prevue', from)
   if (to) query = query.lte('date_prevue', to)
