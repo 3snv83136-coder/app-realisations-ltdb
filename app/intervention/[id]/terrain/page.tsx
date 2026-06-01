@@ -156,7 +156,17 @@ export default function TerrainPage({ params }: { params: { id: string } }) {
           </div>
         )}
 
-        {step === 0 && <StepPhotoAvant interv={interv} onDone={load} onError={setError} />}
+        {step === 0 && (
+          <StepPhotoAvant
+            interv={interv}
+            onPhotoUploaded={async (newStep) => {
+              setInterv(prev => (prev ? { ...prev, terrain_step: newStep } : prev))
+              await load()
+            }}
+            onSkip={() => setStep(1)}
+            onError={setError}
+          />
+        )}
         {step === 1 && <StepDemarrer interv={interv} onAction={() => callTerrainAction('debut')} />}
         {step === 2 && <StepEnCours interv={interv} onPhotoUploaded={load} onTerminer={() => callTerrainAction('fin')} onError={setError} onSkipToRapport={() => setStep(3)} />}
         {step === 3 && <StepRapport interv={interv} onSaved={load} onError={setError} />}
@@ -183,7 +193,14 @@ export default function TerrainPage({ params }: { params: { id: string } }) {
 // ============================================================
 // ÉTAPE 0 — Photo avant
 // ============================================================
-function StepPhotoAvant({ interv, onDone, onError }: { interv: Intervention; onDone: () => void; onError: (e: string) => void }) {
+function StepPhotoAvant({ interv, onPhotoUploaded, onSkip, onError }: {
+  interv: Intervention
+  onPhotoUploaded: (terrainStep: number) => void | Promise<void>
+  onSkip: () => void | Promise<void>
+  onError: (e: string) => void
+}) {
+  const hasPhotoAvant = !!(interv.photos_urls && interv.photos_urls.length > 0)
+
   return (
     <section className="space-y-5">
       <header className="text-center">
@@ -192,20 +209,42 @@ function StepPhotoAvant({ interv, onDone, onError }: { interv: Intervention; onD
         <p className="text-sm text-slate-600 mt-2">Capture l&apos;état initial du problème avant de commencer.</p>
       </header>
 
+      {hasPhotoAvant && (
+        <div className="rounded-2xl overflow-hidden border-2 border-emerald-200 bg-emerald-50">
+          <img
+            src={proxyImageUrl(interv.photos_urls![0])}
+            alt="Photo avant"
+            className="w-full max-h-60 object-cover"
+          />
+          <p className="text-xs text-emerald-800 font-bold py-2 text-center">✓ Photo avant déjà enregistrée</p>
+        </div>
+      )}
+
       <TerrainPhotoCapture
         interventionId={interv.id}
         legendeDefaut="Photo avant intervention"
-        titre="Prendre la photo AVANT"
-        onUploaded={onDone}
+        titre={hasPhotoAvant ? 'Remplacer la photo AVANT' : 'Prendre la photo AVANT'}
+        onUploaded={(_url, terrainStep) => {
+          void onPhotoUploaded(terrainStep >= 1 ? terrainStep : 1)
+        }}
       />
 
-      <div className="text-center pt-2">
+      <div className="flex flex-col gap-3 pt-2">
+        {hasPhotoAvant && (
+          <button
+            type="button"
+            onClick={() => onSkip()}
+            className="w-full bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl py-4 font-black text-base shadow-lg transition"
+          >
+            Continuer → Démarrer l&apos;intervention
+          </button>
+        )}
         <button
           type="button"
-          onClick={onDone}
-          className="text-xs text-slate-500 hover:text-slate-700 underline"
+          onClick={() => onSkip()}
+          className="w-full text-center text-sm text-slate-500 hover:text-slate-700 underline"
         >
-          Passer cette étape
+          {hasPhotoAvant ? 'Continuer sans changer la photo' : 'Passer cette étape (sans photo)'}
         </button>
       </div>
     </section>
