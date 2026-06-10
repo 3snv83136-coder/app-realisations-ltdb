@@ -185,7 +185,7 @@ export async function GET(req: NextRequest) {
   }
 
   // Nom du fichier
-  const SIREN = process.env.LTDB_SIREN || 'LTDB'
+  const SIREN = process.env.LTDB_SIREN || '484791546'
   const dateFin = (to || from || new Date().toISOString().slice(0, 10)).replace(/-/g, '')
   const filename = `${SIREN}FEC${dateFin}.txt`
 

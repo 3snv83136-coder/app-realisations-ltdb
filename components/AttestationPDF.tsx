@@ -1,7 +1,7 @@
 'use client'
 import React from "react"
 import { Document, Page, Text, View, Image, StyleSheet, PDFDownloadLink } from "@react-pdf/renderer"
-import { TEL_PRINCIPAL_FALLBACK } from "@/lib/parametres"
+import { LTDB_EMETTEUR } from "@/lib/emetteur"
 
 /* ============ CHARTE OFFICIELLE ============ */
 const C = {
@@ -23,13 +23,13 @@ const C = {
 }
 
 const FIRM = {
-  raison: 'Les Techniciens du Débouchage',
-  adresse1: '700 Avenue du 15ème Corps',
-  adresse2: '83000 Toulon',
-  tel: TEL_PRINCIPAL_FALLBACK,
-  email: 'contact@lestechniciensdudebouchage.fr',
+  raison: LTDB_EMETTEUR.raisonSociale,
+  adresse1: LTDB_EMETTEUR.adresseLignes[0] || '',
+  adresse2: LTDB_EMETTEUR.adresseLignes[1] || '',
+  tel: LTDB_EMETTEUR.telephone,
+  email: LTDB_EMETTEUR.email,
   site: 'lestechniciensdudebouchage.fr',
-  siret: process.env.NEXT_PUBLIC_LTDB_SIRET || '________________',
+  siret: LTDB_EMETTEUR.siret || '________________',
   rcPro: process.env.NEXT_PUBLIC_LTDB_RC_PRO || '__________',
 }
 

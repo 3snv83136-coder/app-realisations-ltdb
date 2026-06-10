@@ -2,6 +2,7 @@
 import React from "react"
 import { Document, Page, Text, View, StyleSheet, PDFDownloadLink } from "@react-pdf/renderer"
 import type { EmetteurData, ClientData } from "./DevisPDF"
+import { FACTURE_MENTIONS_LEGALES } from "@/lib/entreprise"
 import type { Agence } from "@/lib/agences"
 
 export type { Agence } from "@/lib/agences"
@@ -203,6 +204,13 @@ const s = StyleSheet.create({
   ribVal: { color: C.text, fontFamily: 'Helvetica-Bold', fontSize: 9.5, letterSpacing: 0.5 },
   ribNote: { color: C.muted, fontSize: 8.5, marginTop: 4, fontStyle: 'italic' },
 
+  legalBox: {
+    marginTop: 10, padding: 10, borderWidth: 1, borderColor: C.border,
+    borderRadius: 4, backgroundColor: '#fafbfc',
+  },
+  legalText: { color: C.muted, fontSize: 7.5, lineHeight: 1.45 },
+  partyMuted: { color: C.muted, fontSize: 8.5, marginTop: 4 },
+
   /* Footer */
   footer: {
     paddingHorizontal: 40, paddingTop: 8, paddingBottom: 14,
@@ -279,32 +287,43 @@ const Header = ({ emetteur, phone }: { emetteur: FactureEmetteurData; phone?: st
 )
 
 const Footer = ({ emetteur }: { emetteur: FactureEmetteurData }) => {
+  const iban = emetteur.iban || ''
+  const bic = emetteur.bic || ''
   const line1 = [
     emetteur.raisonSociale,
     ...emetteur.adresseLignes,
   ].filter(Boolean).join(' · ')
   const line2 = [
+    emetteur.rcs || '',
+    emetteur.siret ? `SIRET ${emetteur.siret}` : '',
+    emetteur.tva ? `TVA ${emetteur.tva}` : '',
+  ].filter(Boolean).join(' · ')
+  const line3 = [
     emetteur.email || '',
     emetteur.telephone ? `Tél. ${emetteur.telephone}` : '',
   ].filter(Boolean).join(' · ')
   return (
     <View style={s.footer} fixed>
-      {/* Coordonnées bancaires (toujours visibles en pied de page) */}
-      <View style={s.footerBankRow}>
-        <Text style={s.footerBankCol}>
-          <Text style={s.footerBankLbl}>IBAN </Text>
-          <Text style={s.footerBankVal}>FR76 1695 8000 0152 7256 3725 930</Text>
-        </Text>
-        <Text style={s.footerBankCol}>
-          <Text style={s.footerBankLbl}>BIC </Text>
-          <Text style={s.footerBankVal}>QNTOFRP1XXX</Text>
-        </Text>
-      </View>
+      {iban ? (
+        <View style={s.footerBankRow}>
+          <Text style={s.footerBankCol}>
+            <Text style={s.footerBankLbl}>IBAN </Text>
+            <Text style={s.footerBankVal}>{iban}</Text>
+          </Text>
+          {bic ? (
+            <Text style={s.footerBankCol}>
+              <Text style={s.footerBankLbl}>BIC </Text>
+              <Text style={s.footerBankVal}>{bic}</Text>
+            </Text>
+          ) : null}
+        </View>
+      ) : null}
       {/* Coordonnées société */}
       <View style={s.footerBottomRow}>
         <View>
           <Text style={s.footerL}>{line1}</Text>
           {line2 ? <Text style={s.footerL}>{line2}</Text> : null}
+          {line3 ? <Text style={s.footerL}>{line3}</Text> : null}
         </View>
         <Text style={s.footerR} render={({ pageNumber, totalPages }) => `Page ${pageNumber} / ${totalPages}`} />
       </View>
@@ -366,6 +385,10 @@ export function FactureDocument({ emetteur, client, facture, phone }: FacturePDF
                 ))}
                 {emetteur.telephone ? <Text style={s.partyLine}>Tél. {emetteur.telephone}</Text> : null}
                 {emetteur.email ? <Text style={s.partyLine}>{emetteur.email}</Text> : null}
+                {emetteur.rcs ? <Text style={s.partyMuted}>{emetteur.rcs}</Text> : null}
+                {emetteur.siret ? <Text style={s.partyMuted}>SIRET {emetteur.siret}</Text> : null}
+                {emetteur.tva ? <Text style={s.partyMuted}>TVA {emetteur.tva}</Text> : null}
+                {emetteur.capital ? <Text style={s.partyMuted}>{emetteur.capital}</Text> : null}
                 {emetteur.agence ? (
                   <>
                     <View style={s.agenceBar} />
@@ -381,6 +404,7 @@ export function FactureDocument({ emetteur, client, facture, phone }: FacturePDF
                 {client.adresseLignes.map((l, i) => (
                   <Text key={i} style={s.partyLine}>{l}</Text>
                 ))}
+                {client.siret ? <Text style={s.partyMuted}>SIRET {client.siret}</Text> : null}
                 {client.adresseChantier ? (
                   <>
                     <Text style={s.partyLabel}>Adresse du chantier :</Text>
@@ -456,17 +480,19 @@ export function FactureDocument({ emetteur, client, facture, phone }: FacturePDF
           ) : null}
 
           {/* ===== Coordonnées bancaires (bleu) ===== */}
-          {!isRegle ? (
+          {!isRegle && emetteur.iban ? (
             <View style={s.ribBox} wrap={false}>
               <Text style={s.ribTitle}>Coordonnées bancaires — virement</Text>
               <View style={s.ribRow}>
                 <Text style={s.ribLbl}>IBAN</Text>
-                <Text style={s.ribVal}>FR76 1695 8000 0152 7256 3725 930</Text>
+                <Text style={s.ribVal}>{emetteur.iban}</Text>
               </View>
-              <View style={s.ribRow}>
-                <Text style={s.ribLbl}>BIC</Text>
-                <Text style={s.ribVal}>QNTOFRP1XXX</Text>
-              </View>
+              {emetteur.bic ? (
+                <View style={s.ribRow}>
+                  <Text style={s.ribLbl}>BIC</Text>
+                  <Text style={s.ribVal}>{emetteur.bic}</Text>
+                </View>
+              ) : null}
               <Text style={s.ribNote}>
                 Merci d&apos;indiquer le numéro de facture {facture.numero} en référence du virement.
               </Text>
@@ -488,6 +514,10 @@ export function FactureDocument({ emetteur, client, facture, phone }: FacturePDF
               ) : null}
             </View>
           ) : null}
+
+          <View style={s.legalBox} wrap={false}>
+            <Text style={s.legalText}>{FACTURE_MENTIONS_LEGALES}</Text>
+          </View>
         </View>
 
         <Footer emetteur={emetteur} />

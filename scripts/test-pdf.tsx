@@ -63,7 +63,7 @@ const rapportProps: PDFProps = {
 const devisProps: DevisPDFProps = {
   emetteur: {
     raisonSociale: "LTDB — Les Techniciens du Débouchage",
-    adresseLignes: ["700 Avenue du 15ème Corps", "83000 Toulon"],
+    adresseLignes: ["700 Avenue du 15ème Corps", "83200 Toulon"],
     telephone: "07 83 63 68 35",
     email: "contact@lestechniciensdudebouchage.fr",
   },

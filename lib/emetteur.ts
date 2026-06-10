@@ -1,5 +1,12 @@
 import type { EmetteurData } from "@/components/DevisPDF"
 import type { Agence } from "@/lib/agences"
+import {
+  LTDB_BANK,
+  LTDB_FORME_JURIDIQUE,
+  LTDB_RCS,
+  LTDB_SIRET,
+  LTDB_TVA_INTRACOM,
+} from "@/lib/entreprise"
 import { TEL_PRINCIPAL_FALLBACK } from "@/lib/parametres"
 
 /**
@@ -10,13 +17,16 @@ import { TEL_PRINCIPAL_FALLBACK } from "@/lib/parametres"
  * `parametres`).
  */
 export const LTDB_EMETTEUR: EmetteurData = {
-  raisonSociale: 'LTDB — Les Techniciens du Débouchage',
-  adresseLignes: ['700 Avenue du 15ème Corps', '83000 Toulon'],
+  raisonSociale: "NAJI MONDOR — Les Techniciens du Débouchage",
+  adresseLignes: ["700 Avenue du 15ème Corps", "83200 Toulon"],
   telephone: TEL_PRINCIPAL_FALLBACK,
-  email: 'contact@lestechniciensdudebouchage.fr',
-  rcs: '',
-  capital: '',
-  siret: '',
+  email: "contact@lestechniciensdudebouchage.fr",
+  rcs: LTDB_RCS,
+  capital: LTDB_FORME_JURIDIQUE,
+  siret: LTDB_SIRET,
+  tva: LTDB_TVA_INTRACOM,
+  iban: LTDB_BANK.iban,
+  bic: LTDB_BANK.bic,
 }
 
 export type FactureEmetteurDataLite = EmetteurData & { agence?: Agence | string }

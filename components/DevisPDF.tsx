@@ -299,12 +299,15 @@ export interface EmetteurData {
   capital?: string
   siret?: string
   tva?: string
+  iban?: string
+  bic?: string
 }
 
 export interface ClientData {
   nom: string                 // "M. EDREI"
   adresseLignes: string[]     // ["1 place du Château", "01 Cuzieu"]
   adresseChantier?: string    // "idem" ou autre
+  siret?: string              // client professionnel (B2B)
 }
 
 export interface DevisPDFProps {
@@ -425,6 +428,8 @@ export function DevisDocument({ emetteur, client, devis, phone }: DevisPDFProps)
                 <Text style={s.partyLine}>{emetteur.email}</Text>
                 {emetteur.rcs ? <Text style={s.partyMuted}>{emetteur.rcs}</Text> : null}
                 {emetteur.siret ? <Text style={s.partyMuted}>SIRET {emetteur.siret}</Text> : null}
+                {emetteur.tva ? <Text style={s.partyMuted}>TVA {emetteur.tva}</Text> : null}
+                {emetteur.capital ? <Text style={s.partyMuted}>{emetteur.capital}</Text> : null}
               </View>
             </View>
             <View style={s.partyCol}>
@@ -434,6 +439,7 @@ export function DevisDocument({ emetteur, client, devis, phone }: DevisPDFProps)
                 {client.adresseLignes.map((l, i) => (
                   <Text key={i} style={s.partyLine}>{l}</Text>
                 ))}
+                {client.siret ? <Text style={s.partyMuted}>SIRET {client.siret}</Text> : null}
                 {client.adresseChantier ? (
                   <>
                     <Text style={s.partyLabel}>Adresse du chantier :</Text>
