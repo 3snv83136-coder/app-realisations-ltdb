@@ -4,6 +4,11 @@ import { escapeHtml, initResend } from "@/lib/email-utils"
 import { fmtEUR } from "@/lib/format"
 import { EMAIL_RE } from "@/lib/email-utils"
 import { getSessionUser, assertInterventionAccess } from "@/lib/intervention-access"
+import {
+  isFactureReglee,
+  mergeFacturePayloadMeta,
+  planifierFactureRelances,
+} from "@/lib/facture-relance"
 import { buildRapportFactureHtml } from "@/lib/rapport-facture-message"
 import { getSupabaseOrNull } from "@/lib/supabase"
 import { getTelPrincipal } from "@/lib/parametres"
@@ -152,6 +157,8 @@ export async function POST(req: NextRequest) {
   const reference = interv.reference || interv.id.slice(0, 8)
   const factureNum = facture.numero || ''
   const totalTTC = typeof facture.montant_ttc === 'number' ? facture.montant_ttc : null
+  const factureReglee = isFactureReglee(facture.echeance)
+  const dateFacture = facture.date_emission || dateInterv
 
   // URL avis Google : priorité table parametres > env var > fallback recherche Maps
   let reviewUrl = process.env.GOOGLE_REVIEW_URL
@@ -205,6 +212,7 @@ export async function POST(req: NextRequest) {
     html: buildRapportFactureHtml({
       clientNom, technicienNom, ville, dateIntervention: dateInterv,
       reference, factureNumero: factureNum, totalTTC, reviewUrl, stopUrl, tel,
+      factureReglee,
     }),
     attachments: [
       { filename: `rapport-${reference}.pdf`, content: rapportB64 },
@@ -218,11 +226,48 @@ export async function POST(req: NextRequest) {
     }, { status: 500 })
   }
 
-  // Marque la facture comme envoyée (best-effort)
+  // Relances paiement J+10, J+15, J+20 (si facture non réglée)
+  let factureRelanceIds: string[] = []
+  let factureRelanceErrors: string[] = []
+  if (!factureReglee) {
+    try {
+      const rel = await planifierFactureRelances({
+        baseUrl: getBaseUrl(req),
+        clientEmail: recipient,
+        clientNom,
+        technicienNom,
+        ville,
+        dateFacture,
+        numero: factureNum,
+        totalTTC: totalTTC ?? undefined,
+        echeance: facture.echeance || undefined,
+        anchorAt: new Date().toISOString(),
+      })
+      factureRelanceIds = rel.reminderIds
+      factureRelanceErrors = rel.reminderErrors
+    } catch (e) {
+      factureRelanceErrors.push(e instanceof Error ? e.message : String(e))
+      console.error("[notify-rapport-facture] relances paiement", e)
+    }
+  }
+
+  // Marque la facture comme envoyée + stocke les IDs relances (best-effort)
   try {
+    const { data: docRow } = await sb.from("documents").select("payload").eq("id", facture.id).maybeSingle()
+    const payload = mergeFacturePayloadMeta(
+      (docRow?.payload as Record<string, unknown>) || {},
+      factureReglee
+        ? { relance_ids: [], relance_planifiees: 0 }
+        : { relance_ids: factureRelanceIds, relance_planifiees: factureRelanceIds.length },
+    )
     await sb
       .from('documents')
-      .update({ envoye_email: clientEmail, envoye_at: new Date().toISOString(), statut: facture.statut === 'paye' ? 'paye' : 'envoye' })
+      .update({
+        envoye_email: clientEmail,
+        envoye_at: new Date().toISOString(),
+        statut: facture.statut === 'paye' ? 'paye' : 'envoye',
+        payload,
+      })
       .eq('id', facture.id)
   } catch {}
 
@@ -241,6 +286,11 @@ export async function POST(req: NextRequest) {
     ok: true,
     immediate_id: immediate.data?.id,
     followUp_ids: relanceIds,
+    ...(!factureReglee ? {
+      facture_relances_planifiees: factureRelanceIds.length,
+      facture_relance_ids: factureRelanceIds,
+      ...(factureRelanceErrors.length ? { facture_relance_warnings: factureRelanceErrors } : {}),
+    } : {}),
   })
 }
 

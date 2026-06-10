@@ -167,7 +167,7 @@ export default function InterventionActionsHub({
               <button onClick={() => { setSendOpen(false); setStatus(null) }} className="text-slate-400 hover:text-slate-700 text-xl leading-none">×</button>
             </div>
             <p className="text-xs text-slate-500 mb-3">
-              Un seul email avec les 2 PDFs en pièces jointes. Les <strong>relances avis Google</strong> sont programmées automatiquement à J+2, J+4 et J+6.
+              Un seul email avec les 2 PDFs en pièces jointes. Relances <strong>avis Google</strong> J+2/J+4/J+6 ; si facture impayée, relances <strong>paiement</strong> J+10/J+15/J+20.
             </p>
             <label className="block text-xs font-medium text-slate-600 mb-1">Email destinataire</label>
             <input

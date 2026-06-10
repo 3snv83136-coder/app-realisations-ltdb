@@ -14,6 +14,8 @@ export type RapportFactureMessageCtx = {
   tel: string
   rapportUrl?: string
   factureUrl?: string
+  /** Facture déjà réglée sur place */
+  factureReglee?: boolean
 }
 
 function formatDateFr(iso: string): string {
@@ -100,7 +102,10 @@ export function buildRapportFactureHtml(ctx: RapportFactureMessageCtx): string {
           <li>📝 Votre rapport d'intervention détaillé (réf. ${ref})</li>
           <li>🧾 Votre facture${num ? ` ${num}` : ""}${ttc ? ` — ${ttc} TTC` : ""}</li>
         </ul>
-        <p>Pour tout règlement ou question : <strong>${escapeHtml(ctx.tel)}</strong>.</p>
+        ${ctx.factureReglee
+    ? `<p style="font-size:14px;color:#0f7a3b"><strong>Intervention déjà réglée</strong> — aucun solde restant dû.</p>`
+    : `<p>Pour le règlement : coordonnées bancaires sur la facture jointe, ou appelez-nous au <strong>${escapeHtml(ctx.tel)}</strong>.</p>
+        <p style="font-size:12px;color:#64748b">Sans règlement, relances automatiques à J+10, J+15 et J+20.</p>`}
 
         <div style="margin:30px 0;padding:20px;background:#fef0e0;border-left:4px solid #e67e22;border-radius:4px">
           <p style="margin:0 0 10px;font-weight:bold;color:#a04e09">Votre avis compte</p>

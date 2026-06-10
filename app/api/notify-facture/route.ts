@@ -3,8 +3,8 @@ import { escapeHtml, initResend } from "@/lib/email-utils"
 import { fmtEUR } from "@/lib/format"
 import {
   isFactureReglee,
+  JOURS_RELANCE_FACTURE,
   planifierFactureRelances,
-  SEMAINES_RELANCE_FACTURE,
 } from "@/lib/facture-relance"
 import { persistFacture } from "@/lib/persist"
 import { getTelPrincipal } from "@/lib/parametres"
@@ -112,7 +112,7 @@ export async function POST(req: NextRequest) {
       ? {}
       : {
           relances_planifiees: relanceIds.length,
-          relances_semaines: SEMAINES_RELANCE_FACTURE,
+          relances_jours: [...JOURS_RELANCE_FACTURE],
           relance_ids: relanceIds,
           ...(relanceErrors.length ? { relance_warnings: relanceErrors } : {}),
         }),
@@ -155,7 +155,8 @@ function emailFacture({ clientNom, technicienNom, ville, dateFacture, numero, to
         </table>` : ''}
         ${isRegle
           ? '<p style="font-size:14px">Cette intervention a déjà été réglée — aucun solde restant dû.</p>'
-          : `<p style="font-size:14px">Pour tout règlement ou question, contactez-nous au <strong>${escapeHtml(tel)}</strong> ou répondez à ce mail.</p>`}
+          : `<p style="font-size:14px">Le règlement peut se faire par virement (coordonnées bancaires sur la facture jointe) ou par carte sur place. Pour toute question : <strong>${escapeHtml(tel)}</strong>.</p>
+        <p style="font-size:12px;color:#64748b;margin-top:12px">En l'absence de règlement, des relances automatiques vous seront adressées à J+10, J+15 et J+20.</p>`}
         <p style="margin-top:30px;font-size:13px;color:#666">Cordialement,<br><strong>${tn}</strong> — Expert en assainissement<br>Les Techniciens du Débouchage</p>
       </td></tr>
       <tr><td style="background:#0e2a52;color:#a0c0ff;padding:18px;text-align:center;font-size:11px">

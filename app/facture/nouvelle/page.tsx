@@ -160,7 +160,7 @@ export default function FacturePage() {
         setEmailSent(true)
         if (data.relances_planifiees) {
           setEmailInfo(
-            `${data.relances_planifiees} relance(s) hebdomadaire(s) planifiée(s) (ton cordial → ferme) tant que la facture n'est pas marquée réglée.`,
+            `${data.relances_planifiees} relance(s) planifiée(s) à J+10, J+15 et J+20 si la facture n'est pas réglée.`,
           )
         }
       }

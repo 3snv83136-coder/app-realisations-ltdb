@@ -1746,7 +1746,7 @@ function TerrainDiffusionPanel({ interv, client, onRefresh, onError, techOnlyMai
           <div>🧾 Facture (PDF)</div>
           <div>⭐ Demande d&apos;avis Google (mail)</div>
           <div className="text-xs text-slate-500 pt-1">
-            Mail : relances auto J+2, J+4, J+6 · SMS : même texte + liens PDF via votre téléphone
+            Mail : avis Google J+2/4/6 · facture impayée : relances J+10/15/20 · SMS via votre téléphone
           </div>
         </div>
       </div>

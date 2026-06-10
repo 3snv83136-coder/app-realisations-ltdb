@@ -5,14 +5,19 @@ import { fmtEUR } from "@/lib/format"
 import { getTelPrincipal } from "@/lib/parametres"
 import { getSupabaseOrNull } from "@/lib/supabase"
 
-/** Relances hebdomadaires planifiées à l'envoi de la facture (si non réglée). */
-export const SEMAINES_RELANCE_FACTURE = 8
+/** Relances paiement planifiées à l'envoi de la facture (si non réglée). */
+export const JOURS_RELANCE_FACTURE = [10, 15, 20] as const
+export const NB_RELANCES_FACTURE = JOURS_RELANCE_FACTURE.length
+
+/** @deprecated Utiliser JOURS_RELANCE_FACTURE */
+export const SEMAINES_RELANCE_FACTURE = NB_RELANCES_FACTURE
 
 export type RelanceFactureTone = "cordial" | "neutre" | "ferme" | "ferme_plus"
 
-export function toneForSemaine(semaine: number): RelanceFactureTone {
-  const tones: RelanceFactureTone[] = ["cordial", "neutre", "ferme", "ferme_plus"]
-  return tones[(semaine - 1) % tones.length]
+export function toneForRelanceNumero(numero: number): RelanceFactureTone {
+  if (numero <= 1) return "cordial"
+  if (numero === 2) return "ferme"
+  return "ferme_plus"
 }
 
 export function isFactureReglee(echeance?: string | null): boolean {
@@ -84,7 +89,8 @@ function emailRelanceFacture(input: {
   totalTTC?: number
   echeance?: string
   dateFacture?: string
-  semaine: number
+  numeroRelance: number
+  joursApresEnvoi: number
   tone: RelanceFactureTone
   tel: string
   stopUrl?: string
@@ -97,20 +103,22 @@ function emailRelanceFacture(input: {
   const ech = escapeHtml(input.echeance || "À réception")
   const dd = escapeHtml(input.dateFacture || "")
   const su = input.stopUrl ? encodeURI(input.stopUrl) : ""
+  const n = input.numeroRelance
+  const total = NB_RELANCES_FACTURE
 
   const intros: Record<RelanceFactureTone, string> = {
     cordial: `<p>Bonjour ${cn},</p>
-<p>Nous nous permettons de vous adresser un <strong>petit rappel amical</strong> concernant la facture${num ? ` n°<strong>${num}</strong>` : ""}${v ? ` relative à notre intervention à <strong>${v}</strong>` : ""}${dd ? ` du ${dd}` : ""}.</p>
-<p>Sauf erreur de notre part, le règlement n'apparaît pas encore sur notre comptabilité. N'hésitez pas à nous signaler tout virement en cours.</p>`,
+<p>Sauf erreur de notre part, nous n'avons pas encore enregistré le règlement de la facture${num ? ` n°<strong>${num}</strong>` : ""}${v ? ` relative à notre intervention à <strong>${v}</strong>` : ""}${dd ? ` du ${dd}` : ""}.</p>
+<p>Ceci est un <strong>rappel amical (relance n°${n}/${total})</strong>. Si un virement est en cours, vous pouvez ignorer ce message.</p>`,
     neutre: `<p>Bonjour ${cn},</p>
-<p>Nous revenons vers vous (relance ${input.semaine}/${SEMAINES_RELANCE_FACTURE}) au sujet de la facture${num ? ` <strong>${num}</strong>` : ""}${v ? ` pour <strong>${v}</strong>` : ""}.</p>
-<p>À ce jour, nous n'avons pas enregistré le paiement correspondant à l'échéance indiquée.</p>`,
+<p><strong>Relance n°${n}/${total}</strong> — nous n'avons toujours pas reçu le règlement de la facture${num ? ` <strong>${num}</strong>` : ""}${v ? ` pour <strong>${v}</strong>` : ""}.</p>
+<p>Merci de régulariser ou de nous contacter si un élément bloque le paiement.</p>`,
     ferme: `<p>Bonjour ${cn},</p>
-<p><strong>Relance de paiement</strong> — facture${num ? ` ${num}` : ""}${v ? ` (${v})` : ""} toujours en attente de règlement.</p>
-<p>Merci de procéder au paiement dans les meilleurs délais ou de nous contacter si un élément bloque le règlement.</p>`,
+<p><strong>Relance n°${n}/${total} — paiement en attente</strong> concernant la facture${num ? ` ${num}` : ""}${v ? ` (${v})` : ""}.</p>
+<p>Nous vous remercions de procéder au règlement dans les meilleurs délais. Les coordonnées bancaires figurent sur la facture initiale.</p>`,
     ferme_plus: `<p>Bonjour ${cn},</p>
-<p><strong>Dernier rappel avant relance contentieuse</strong> : la facture${num ? ` <strong>${num}</strong>` : ""} demeure impayée malgré nos précédents messages.</p>
-<p>Nous vous remercions de régulariser la situation sous 7 jours ou de nous appeler pour convenir d'un échéancier.</p>`,
+<p><strong>Relance n°${n}/${total} — dernier rappel</strong> avant transmission du dossier à notre service de recouvrement.</p>
+<p>La facture${num ? ` <strong>${num}</strong>` : ""} demeure impayée malgré nos précédents messages. Merci de régulariser sous <strong>7 jours</strong> ou de nous appeler pour convenir d'un échéancier.</p>`,
   }
 
   const headerColors: Record<RelanceFactureTone, string> = {
@@ -120,20 +128,13 @@ function emailRelanceFacture(input: {
     ferme_plus: "linear-gradient(135deg,#b91c1c,#dc2626)",
   }
 
-  const subjectLabels: Record<RelanceFactureTone, string> = {
-    cordial: "Rappel amical",
-    neutre: "Rappel",
-    ferme: "Relance paiement",
-    ferme_plus: "Relance urgente",
-  }
-
   return `<!doctype html>
 <html><body style="margin:0;padding:0;font-family:Arial,sans-serif;background:#f4f6fa;color:#1a1a1a">
 <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f6fa;padding:30px 0">
 <tr><td align="center">
 <table width="600" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:8px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,.08)">
 <tr><td style="background:${headerColors[input.tone]};padding:28px;color:#fff">
-<div style="font-size:11px;letter-spacing:2px;text-transform:uppercase;opacity:.85;margin-bottom:6px">${subjectLabels[input.tone]} — semaine ${input.semaine}</div>
+<div style="font-size:11px;letter-spacing:2px;text-transform:uppercase;opacity:.85;margin-bottom:6px">Relance n°${n} — J+${input.joursApresEnvoi}</div>
 <h1 style="margin:0;font-size:21px">${num ? `Facture ${num}` : "Facture en attente"}</h1>
 </td></tr>
 <tr><td style="padding:28px">
@@ -144,7 +145,7 @@ ${ttc ? `<table width="100%" cellpadding="0" cellspacing="0" style="margin:20px 
 <tr><td style="padding:14px 18px;color:#475569;font-size:13px;border-top:1px solid #e2e8f0">Échéance</td>
 <td style="padding:14px 18px;text-align:right;font-size:14px;border-top:1px solid #e2e8f0">${ech}</td></tr>
 </table>` : ""}
-<p style="font-size:14px">La facture détaillée vous a été transmise par email précédemment. Pour toute question : <strong>${escapeHtml(input.tel)}</strong> ou réponse à ce message.</p>
+<p style="font-size:14px">La facture PDF vous a été transmise par email. Pour toute question : <strong>${escapeHtml(input.tel)}</strong> ou réponse à ce message.</p>
 ${su ? `<p style="margin-top:16px;font-size:12px;color:#64748b">Déjà réglé ? <a href="${su}" style="color:#2c5fa8">Cliquez ici pour arrêter les relances</a>.</p>` : ""}
 <p style="margin-top:24px;font-size:13px;color:#666">Cordialement,<br><strong>${tn}</strong><br>Les Techniciens du Débouchage</p>
 </td></tr>
@@ -195,20 +196,17 @@ export async function planifierFactureRelances(
   const reminderIds: string[] = []
   const reminderErrors: string[] = []
 
-  const scheduleAt = (weekIndex: number) =>
-    new Date(anchor.getTime() + weekIndex * 7 * 24 * 60 * 60 * 1000).toISOString()
-
-  for (let w = 1; w <= SEMAINES_RELANCE_FACTURE; w++) {
-    const tone = toneForSemaine(w)
-    const toneLabel =
-      tone === "cordial" ? "rappel amical" : tone === "neutre" ? "rappel" : tone === "ferme" ? "relance" : "relance urgente"
+  for (let i = 0; i < JOURS_RELANCE_FACTURE.length; i++) {
+    const jours = JOURS_RELANCE_FACTURE[i]
+    const numeroRelance = i + 1
+    const tone = toneForRelanceNumero(numeroRelance)
 
     const result = await resend.emails.send({
       from: `Les Techniciens du Débouchage <${fromEmail}>`,
       to: recipient,
       subject: input.numero
-        ? `${toneLabel} — Facture ${input.numero}${input.ville ? ` — ${input.ville}` : ""}`
-        : `${toneLabel} — facture en attente`,
+        ? `Relance n°${numeroRelance} — Facture ${input.numero}${input.ville ? ` — ${input.ville}` : ""}`
+        : `Relance n°${numeroRelance} — facture en attente`,
       html: emailRelanceFacture({
         clientNom: input.clientNom,
         technicienNom: tech,
@@ -217,15 +215,16 @@ export async function planifierFactureRelances(
         totalTTC: input.totalTTC,
         echeance: input.echeance,
         dateFacture: input.dateFacture,
-        semaine: w,
+        numeroRelance,
+        joursApresEnvoi: jours,
         tone,
         tel,
       }),
-      scheduledAt: scheduleAt(w),
+      scheduledAt: new Date(anchor.getTime() + jours * 24 * 60 * 60 * 1000).toISOString(),
     })
 
     if (result.data?.id) reminderIds.push(result.data.id)
-    if (result.error) reminderErrors.push(`S${w}: ${result.error.message || "erreur"}`)
+    if (result.error) reminderErrors.push(`J+${jours}: ${result.error.message || "erreur"}`)
   }
 
   const stopUrl = buildStopUrl(input.baseUrl, reminderIds, signSecret)
