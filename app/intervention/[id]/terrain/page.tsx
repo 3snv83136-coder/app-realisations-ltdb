@@ -1581,7 +1581,12 @@ function TerrainDiffusionPanel({ interv, client, onRefresh, onError, techOnlyMai
         body: JSON.stringify({ interventionId: interv.id }),
       })
       const data = await res.json().catch(() => ({}))
-      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`)
+      if (!res.ok) {
+        const hint = data.bodyPreview && typeof data.bodyPreview === 'string'
+          ? ` — ${data.bodyPreview.slice(0, 200)}`
+          : ''
+        throw new Error((data.error || `HTTP ${res.status}`) + hint)
+      }
       setProgress('✓ Publié sur le site')
       await onRefresh()
     } catch (e) {

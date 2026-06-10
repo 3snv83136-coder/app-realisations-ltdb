@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
+import { formatDjangoPublishError } from "@/lib/django-publish-error"
 import { getSupabaseOrNull } from "@/lib/supabase"
 import { REALISATION_PAGE_STYLE } from "@/lib/realisationPageCss"
 
@@ -93,6 +94,11 @@ export async function POST(req: NextRequest) {
   const ville = interv.ville || clientVille || ''
   const codePostal = interv.code_postal || clientCp || ''
   const adresse = interv.adresse_chantier || clientAdresse || ''
+  if (!ville.trim()) {
+    return NextResponse.json({
+      error: 'Ville manquante — renseigne la ville sur l\'intervention ou la fiche client avant de publier.',
+    }, { status: 400 })
+  }
   const slugify = (s: string) =>
     (s || '')
       .toLowerCase()
@@ -177,10 +183,20 @@ export async function POST(req: NextRequest) {
   const rawTitle = seo.titre_h1 || `${interv.type_intervention || 'Intervention'} à ${ville}`
   const rawDesc = seo.meta_description || ''
 
+  // Slug : republier = slug existant ; sinon SEO ou base service-ville + suffixe ID
+  // (évite HTTP 400 Django quand slug vide ou déjà pris).
+  const idSuffix = interventionId.replace(/-/g, '').slice(0, 8)
+  let publishSlug = (interv.publie_slug || seo.slug || nomBase || 'realisation').trim()
+  if (!publishSlug) publishSlug = `realisation-${idSuffix}`
+  if (!interv.publie_slug && !publishSlug.endsWith(idSuffix)) {
+    publishSlug = `${publishSlug}-${idSuffix}`
+  }
+  publishSlug = publishSlug.slice(0, 95)
+
   // Construit le FormData attendu par /api/gallery/publish/ Django.
   const fd = new FormData()
   fd.append('title', truncate(rawTitle, 95))
-  fd.append('slug', seo.slug || '')
+  fd.append('slug', publishSlug)
   fd.append('service_type', interv.type_intervention || '')
   fd.append('location', ville)
   fd.append('intervention_city', ville)
@@ -262,8 +278,12 @@ export async function POST(req: NextRequest) {
       fieldSizes,
       url: `${ltdbUrl}/api/gallery/publish/`,
     })
-    const msg = data && typeof data === 'object' && 'error' in data ? String((data as { error: string }).error) : `HTTP ${djResp.status}`
-    return NextResponse.json({ error: `LTDB : ${msg}`, bodyPreview: txt.slice(0, 800), fieldSizes }, { status: djResp.status })
+    const msg = formatDjangoPublishError(data, txt, djResp.status)
+    return NextResponse.json({
+      error: `LTDB : ${msg}`,
+      bodyPreview: txt.slice(0, 800),
+      fieldSizes,
+    }, { status: djResp.status })
   }
 
   const slug = (data && typeof data === 'object' && 'slug' in data ? String((data as { slug: string }).slug) : '') || seo.slug || ''
