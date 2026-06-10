@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { formatDjangoPublishError } from "@/lib/django-publish-error"
+import { buildPublishDescription } from "@/lib/publish-description"
 import { getSupabaseOrNull } from "@/lib/supabase"
 import { REALISATION_PAGE_STYLE } from "@/lib/realisationPageCss"
 
@@ -181,7 +182,12 @@ export async function POST(req: NextRequest) {
     return s.slice(0, max - 3).trimEnd() + '...'
   }
   const rawTitle = seo.titre_h1 || `${interv.type_intervention || 'Intervention'} à ${ville}`
-  const rawDesc = seo.meta_description || ''
+  const rawDesc = buildPublishDescription({
+    seo: seo as Record<string, unknown>,
+    rapport: interv.rapport_json as Record<string, unknown> | null,
+    typeIntervention: interv.type_intervention,
+    ville,
+  })
 
   // Slug : republier = slug existant ; sinon SEO ou base service-ville + suffixe ID
   // (évite HTTP 400 Django quand slug vide ou déjà pris).

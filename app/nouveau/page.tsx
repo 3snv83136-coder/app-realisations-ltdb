@@ -11,6 +11,7 @@ import { type VilleVar } from "@/lib/villes-var"
 import VilleCombobox from "@/components/VilleCombobox"
 import { useUnsavedChangesWarning } from "@/lib/useUnsavedChangesWarning"
 import { REALISATION_PAGE_STYLE } from "@/lib/realisationPageCss"
+import { buildPublishDescription } from "@/lib/publish-description"
 
 const PDFDownloadButton = dynamic(() => import("@/components/RealisationPDF"), { ssr: false })
 const PDFPreviewModal = dynamic(() => import("@/components/PDFPreviewModal"), { ssr: false })
@@ -548,7 +549,12 @@ export default function NouveauPage() {
     formData.append('intervention_city', ville)
     formData.append('postal_code', codePostal)
     formData.append('intervention_date', dateIntervention)
-    formData.append('description', truncate(seo.meta_description || '', 195))
+    formData.append('description', truncate(buildPublishDescription({
+      seo: seo as Record<string, unknown>,
+      rapport: rapport as Record<string, unknown> | null,
+      typeIntervention,
+      ville,
+    }), 195))
     formData.append('meta_keywords', (seo.meta_keywords || []).join(', '))
     formData.append('content', contentWithContainers)
     formData.append('faq_json', JSON.stringify({ "@context": "https://schema.org", "@type": "FAQPage", "mainEntity": (Array.isArray(seo?.faq) ? seo.faq : []).map((f: any) => ({ "@type": "Question", "name": f?.question || '', "acceptedAnswer": { "@type": "Answer", "text": f?.reponse || '' } })) }))
