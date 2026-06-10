@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { formatDjangoPublishError } from "@/lib/django-publish-error"
 import { buildPublishDescription } from "@/lib/publish-description"
+import { buildPublishContentHtml } from "@/lib/publish-content"
 import { getSupabaseOrNull } from "@/lib/supabase"
 import { REALISATION_PAGE_STYLE } from "@/lib/realisationPageCss"
 
@@ -146,30 +147,15 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Aucune photo téléchargeable depuis Storage.' }, { status: 502 })
   }
 
-  // Construit le HTML de contenu identique à /nouveau (resume + contenu + galerie + FAQ).
-  const escapeHtml = (s: string) => s
-    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;').replace(/'/g, '&#39;')
-  const galleryHtml = validPhotos.length > 1
-    ? `<section class="content-block gallery-block"><h2>Photos de l'intervention</h2><p>Ces photos documentent les étapes clés sur site (avant, pendant, après).</p><div class="photo-grid">${validPhotos.map((p, i) => {
-        const legendePropre = /^photo \d+$/i.test(p.legende) ? '' : p.legende
-        const alt = `${interv.type_intervention || 'Intervention'} à ${ville}${legendePropre ? ` — ${legendePropre}` : ''}`
-        return `<figure class="photo-card"><img src="{PHOTO_${i + 1}_URL}" alt="${escapeHtml(alt)}" loading="lazy"><figcaption>${escapeHtml(p.legende)}</figcaption></figure>`
-      }).join('')}</div></section>`
-    : ''
-  const faqHtml = Array.isArray(seo.faq) && seo.faq.length > 0
-    ? `<section class="content-block faq-block"><h2>Questions fréquentes</h2>${seo.faq.map((f: { question?: string; reponse?: string }) => `<details class="faq-item"><summary>${escapeHtml(f?.question || '')}</summary><div class="faq-answer"><p>${escapeHtml(f?.reponse || '')}</p></div></details>`).join('')}</section>`
-    : ''
-  const resumeHtml = seo.resume_rich_snippet
-    ? `<section class="content-block resume-block"><h2>Résumé de l'intervention</h2><p>${escapeHtml(seo.resume_rich_snippet)}</p></section>`
-    : ''
-  // CSS embed désactivé : Django renvoie HTTP 500 quand le content commence
-  // par un <style> (probablement le sanitizer/parser HTML côté backend).
-  // Tant qu'on n'a pas trouvé une voie compatible, on s'en passe — Django
-  // utilise son propre template pour le rendu, FAQ comprise (intégrée dans
-  // le HTML via faqHtml ci-dessus).
+  // Contenu HTML : SEO + fallback rapport si contenu_principal vide (fréquent en terrain).
   void REALISATION_PAGE_STYLE
-  const contentWithContainers = `${resumeHtml}${seo.contenu_principal || ''}${galleryHtml}${faqHtml}`
+  const { content: contentWithContainers, seo: seoForPublish } = buildPublishContentHtml({
+    seo: seo as Record<string, unknown>,
+    rapport: interv.rapport_json as Record<string, unknown> | null,
+    typeIntervention: interv.type_intervention,
+    ville,
+    photos: validPhotos.map((p) => ({ legende: p.legende })),
+  })
 
   const dateIntervention = interv.date_realisee || interv.date_prevue || new Date().toISOString().slice(0, 10)
 
@@ -181,9 +167,10 @@ export async function POST(req: NextRequest) {
     if (s.length <= max) return s
     return s.slice(0, max - 3).trimEnd() + '...'
   }
-  const rawTitle = seo.titre_h1 || `${interv.type_intervention || 'Intervention'} à ${ville}`
+  const rawTitle = (typeof seoForPublish.titre_h1 === 'string' && seoForPublish.titre_h1)
+    || `${interv.type_intervention || 'Intervention'} à ${ville}`
   const rawDesc = buildPublishDescription({
-    seo: seo as Record<string, unknown>,
+    seo: seoForPublish,
     rapport: interv.rapport_json as Record<string, unknown> | null,
     typeIntervention: interv.type_intervention,
     ville,
@@ -192,7 +179,7 @@ export async function POST(req: NextRequest) {
   // Slug : republier = slug existant ; sinon SEO ou base service-ville + suffixe ID
   // (évite HTTP 400 Django quand slug vide ou déjà pris).
   const idSuffix = interventionId.replace(/-/g, '').slice(0, 8)
-  let publishSlug = (interv.publie_slug || seo.slug || nomBase || 'realisation').trim()
+  let publishSlug = (interv.publie_slug || (typeof seoForPublish.slug === 'string' ? seoForPublish.slug : '') || nomBase || 'realisation').trim()
   if (!publishSlug) publishSlug = `realisation-${idSuffix}`
   if (!interv.publie_slug && !publishSlug.endsWith(idSuffix)) {
     publishSlug = `${publishSlug}-${idSuffix}`
@@ -209,22 +196,22 @@ export async function POST(req: NextRequest) {
   fd.append('postal_code', codePostal)
   fd.append('intervention_date', dateIntervention)
   fd.append('description', truncate(rawDesc, 195))
-  fd.append('meta_keywords', Array.isArray(seo.meta_keywords) ? seo.meta_keywords.join(', ') : '')
+  fd.append('meta_keywords', Array.isArray(seoForPublish.meta_keywords) ? seoForPublish.meta_keywords.join(', ') : '')
   fd.append('content', contentWithContainers)
   fd.append('faq_json', JSON.stringify({
     '@context': 'https://schema.org',
     '@type': 'FAQPage',
-    mainEntity: (Array.isArray(seo.faq) ? seo.faq : []).map((f: { question?: string; reponse?: string }) => ({
+    mainEntity: (Array.isArray(seoForPublish.faq) ? seoForPublish.faq : []).map((f: { question?: string; reponse?: string }) => ({
       '@type': 'Question', name: f?.question || '',
       acceptedAnswer: { '@type': 'Answer', text: f?.reponse || '' },
     })),
   }))
-  fd.append('jsonld', JSON.stringify(seo.jsonld || {}))
-  fd.append('related_services_json', JSON.stringify(seo.related_services || []))
+  fd.append('jsonld', JSON.stringify(seoForPublish.jsonld || {}))
+  fd.append('related_services_json', JSON.stringify(seoForPublish.related_services || []))
   fd.append('is_published', 'true')
   fd.append('transcription', interv.transcription || '')
   fd.append('rapport_json', JSON.stringify(interv.rapport_json))
-  fd.append('seo_json', JSON.stringify(seo))
+  fd.append('seo_json', JSON.stringify(seoForPublish))
   fd.append('client_nom', clientNom)
   fd.append('client_email', clientEmail)
   fd.append('client_adresse', `${adresse} ${codePostal} ${ville}`.trim())
@@ -292,10 +279,13 @@ export async function POST(req: NextRequest) {
     }, { status: djResp.status })
   }
 
-  const slug = (data && typeof data === 'object' && 'slug' in data ? String((data as { slug: string }).slug) : '') || seo.slug || ''
+  const slug = (data && typeof data === 'object' && 'slug' in data ? String((data as { slug: string }).slug) : '') || (typeof seoForPublish.slug === 'string' ? seoForPublish.slug : '') || ''
   // Persiste le slug sur l'intervention (best-effort).
   if (slug) {
-    await sb.from('interventions').update({ publie_slug: slug }).eq('id', interventionId)
+    await sb.from('interventions').update({
+      publie_slug: slug,
+      seo_json: seoForPublish,
+    }).eq('id', interventionId)
   }
 
   return NextResponse.json({ ok: true, slug, data })

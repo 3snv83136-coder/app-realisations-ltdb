@@ -12,6 +12,7 @@ import VilleCombobox from "@/components/VilleCombobox"
 import { useUnsavedChangesWarning } from "@/lib/useUnsavedChangesWarning"
 import { REALISATION_PAGE_STYLE } from "@/lib/realisationPageCss"
 import { buildPublishDescription } from "@/lib/publish-description"
+import { buildPublishContentHtml } from "@/lib/publish-content"
 
 const PDFDownloadButton = dynamic(() => import("@/components/RealisationPDF"), { ssr: false })
 const PDFPreviewModal = dynamic(() => import("@/components/PDFPreviewModal"), { ssr: false })
@@ -519,51 +520,40 @@ export default function NouveauPage() {
       setStep('preview'); return
     }
     const formData = new FormData()
-    const escapeHtml = (s: string) => s
-      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;').replace(/'/g, '&#39;')
-    const galleryHtml = photos.length > 1
-      ? `<section class="content-block gallery-block"><h2>Photos de l'intervention</h2><p>Ces photos documentent les étapes clés sur site (avant, pendant, après).</p><div class="photo-grid">${photos.map((p, i) => `<figure class="photo-card"><img src="{PHOTO_${i + 1}_URL}" alt="${escapeHtml(p.legende || `Photo ${i + 1}`)}" loading="lazy"><figcaption>${escapeHtml(p.legende || `Photo ${i + 1}`)}</figcaption></figure>`).join('')}</div></section>`
-      : ''
-    // FAQ intégrée DIRECTEMENT dans le HTML de contenu : le template Django
-    // n'affiche que `content`, donc la FAQ doit y être (sinon elle n'apparaît
-    // pas sur la page publiée, même si elle part aussi dans faq_json/seo_json).
-    const faqHtml = Array.isArray(seo.faq) && seo.faq.length > 0
-      ? `<section class="content-block faq-block"><h2>Questions fréquentes</h2>${seo.faq.map((f: any) => `<details class="faq-item"><summary>${escapeHtml(f?.question || '')}</summary><div class="faq-answer"><p>${escapeHtml(f?.reponse || '')}</p></div></details>`).join('')}</section>`
-      : ''
-    const resumeHtml = seo.resume_rich_snippet
-      ? `<section class="content-block resume-block"><h2>Résumé de l'intervention</h2><p>${escapeHtml(seo.resume_rich_snippet)}</p></section>`
-      : ''
-    // CSS embed désactivé : Django renvoie HTTP 500 quand le content commence
-    // par un <style>. Cf. fix temporaire dans /api/publish/from-intervention.
     void REALISATION_PAGE_STYLE
-    const contentWithContainers = `${resumeHtml}${seo.contenu_principal || ''}${galleryHtml}${faqHtml}`
+    const { content: contentWithContainers, seo: seoForPublish } = buildPublishContentHtml({
+      seo: seo as Record<string, unknown>,
+      rapport: rapport as Record<string, unknown> | null,
+      typeIntervention,
+      ville,
+      photos: photos.map((p) => ({ legende: p.legende || `Photo` })),
+    })
     // Tronque title/description pour respecter les CharField Django
     // (title max_length=100 côté backend ; description max ~200). DeepSeek
     // dépasse parfois → 500 silencieux.
     const truncate = (s: string, max: number) => s.length <= max ? s : s.slice(0, max - 1).trimEnd() + '…'
-    formData.append('title', truncate(seo.titre_h1 || '', 95))
-    formData.append('slug', seo.slug || '')
+    formData.append('title', truncate((typeof seoForPublish.titre_h1 === 'string' ? seoForPublish.titre_h1 : '') || '', 95))
+    formData.append('slug', (typeof seoForPublish.slug === 'string' ? seoForPublish.slug : '') || '')
     formData.append('service_type', typeIntervention)
     formData.append('location', ville)
     formData.append('intervention_city', ville)
     formData.append('postal_code', codePostal)
     formData.append('intervention_date', dateIntervention)
     formData.append('description', truncate(buildPublishDescription({
-      seo: seo as Record<string, unknown>,
+      seo: seoForPublish,
       rapport: rapport as Record<string, unknown> | null,
       typeIntervention,
       ville,
     }), 195))
-    formData.append('meta_keywords', (seo.meta_keywords || []).join(', '))
+    formData.append('meta_keywords', Array.isArray(seoForPublish.meta_keywords) ? seoForPublish.meta_keywords.join(', ') : '')
     formData.append('content', contentWithContainers)
-    formData.append('faq_json', JSON.stringify({ "@context": "https://schema.org", "@type": "FAQPage", "mainEntity": (Array.isArray(seo?.faq) ? seo.faq : []).map((f: any) => ({ "@type": "Question", "name": f?.question || '', "acceptedAnswer": { "@type": "Answer", "text": f?.reponse || '' } })) }))
-    formData.append('jsonld', JSON.stringify(seo.jsonld || {}))
-    formData.append('related_services_json', JSON.stringify(seo.related_services || []))
+    formData.append('faq_json', JSON.stringify({ "@context": "https://schema.org", "@type": "FAQPage", "mainEntity": (Array.isArray(seoForPublish.faq) ? seoForPublish.faq : []).map((f: any) => ({ "@type": "Question", "name": f?.question || '', "acceptedAnswer": { "@type": "Answer", "text": f?.reponse || '' } })) }))
+    formData.append('jsonld', JSON.stringify(seoForPublish.jsonld || {}))
+    formData.append('related_services_json', JSON.stringify(seoForPublish.related_services || []))
     formData.append('is_published', 'true')
     formData.append('transcription', transcription || '')
     formData.append('rapport_json', JSON.stringify(rapport || {}))
-    formData.append('seo_json', JSON.stringify(seo || {}))
+    formData.append('seo_json', JSON.stringify(seoForPublish))
     formData.append('client_nom', clientNom || '')
     formData.append('client_email', clientEmail || '')
     formData.append('client_adresse', `${adresse || ''} ${codePostal || ''} ${ville || ''}`.trim())
