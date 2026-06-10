@@ -4,6 +4,7 @@ import { escapeHtml, initResend } from "@/lib/email-utils"
 import { fmtEUR } from "@/lib/format"
 import { EMAIL_RE } from "@/lib/email-utils"
 import { getSessionUser, assertInterventionAccess } from "@/lib/intervention-access"
+import { buildRapportFactureHtml } from "@/lib/rapport-facture-message"
 import { getSupabaseOrNull } from "@/lib/supabase"
 import { getTelPrincipal } from "@/lib/parametres"
 
@@ -201,7 +202,7 @@ export async function POST(req: NextRequest) {
     to: recipient,
     ...(ccEmail ? { cc: [ccEmail] } : {}),
     subject,
-    html: emailCombine({
+    html: buildRapportFactureHtml({
       clientNom, technicienNom, ville, dateIntervention: dateInterv,
       reference, factureNumero: factureNum, totalTTC, reviewUrl, stopUrl, tel,
     }),
@@ -247,56 +248,6 @@ function relanceSubject(jour: number, prenom: string) {
   if (jour === 2) return `${prenom}, tout est rentré dans l'ordre ?`
   if (jour === 4) return `Un petit avis pour Les Techniciens du Débouchage ?`
   return `Dernière chance — partagez votre expérience`
-}
-
-function emailCombine({ clientNom, technicienNom, ville, dateIntervention, reference, factureNumero, totalTTC, reviewUrl, stopUrl, tel }: {
-  clientNom: string; technicienNom: string; ville: string; dateIntervention: string;
-  reference: string; factureNumero: string; totalTTC: number | null; reviewUrl: string; stopUrl: string; tel: string;
-}) {
-  const cn = escapeHtml(clientNom || 'Madame, Monsieur')
-  const tn = escapeHtml(technicienNom)
-  const v = escapeHtml(ville)
-  const di = escapeHtml(dateIntervention)
-  const ref = escapeHtml(reference)
-  const num = escapeHtml(factureNumero)
-  const ttc = typeof totalTTC === 'number' ? fmtEUR(totalTTC) : ''
-  const ru = encodeURI(reviewUrl)
-  const su = stopUrl ? encodeURI(stopUrl) : ''
-
-  return `<!doctype html>
-<html><body style="margin:0;padding:0;font-family:Arial,sans-serif;background:#f4f6fa;color:#1a1a1a">
-<table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f6fa;padding:30px 0">
-  <tr><td align="center">
-    <table width="640" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:10px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,.08)">
-      <tr><td style="background:linear-gradient(135deg,#0e2a52,#2c5fa8);padding:28px;color:#fff">
-        <h1 style="margin:0;font-size:22px">Votre rapport et votre facture</h1>
-        <p style="margin:6px 0 0;opacity:.85;font-size:13px">Les Techniciens du Débouchage</p>
-      </td></tr>
-      <tr><td style="padding:28px">
-        <p>Bonjour ${cn},</p>
-        <p>Suite à notre intervention du <strong>${di}</strong>${v ? ` à <strong>${v}</strong>` : ''}, vous trouverez ci-joint :</p>
-        <ul style="font-size:14px">
-          <li>📝 Votre rapport d'intervention détaillé (réf. ${ref})</li>
-          <li>🧾 Votre facture${num ? ` ${num}` : ''}${ttc ? ` — ${ttc} TTC` : ''}</li>
-        </ul>
-        <p>Pour tout règlement ou question : <strong>${escapeHtml(tel)}</strong>.</p>
-
-        <div style="margin:30px 0;padding:20px;background:#fef0e0;border-left:4px solid #e67e22;border-radius:4px">
-          <p style="margin:0 0 10px;font-weight:bold;color:#a04e09">Votre avis compte</p>
-          <p style="margin:0 0 14px;font-size:14px">Si vous êtes satisfait, prenez 30 secondes pour laisser un avis Google.</p>
-          <a href="${ru}" style="display:inline-block;background:#e67e22;color:#fff;padding:12px 24px;text-decoration:none;border-radius:6px;font-weight:bold">⭐ Laisser un avis Google</a>
-          ${su ? `<p style="margin:12px 0 0;font-size:12px;color:#6b7280">Vous avez déjà laissé un avis ? <a href="${su}" style="color:#2c5fa8">Cliquez ici pour ne plus recevoir de relance</a>.</p>` : ''}
-        </div>
-
-        <p style="margin-top:30px;font-size:13px;color:#666">Cordialement,<br><strong>${tn}</strong> — Expert en assainissement<br>Les Techniciens du Débouchage</p>
-      </td></tr>
-      <tr><td style="background:#0e2a52;color:#a0c0ff;padding:18px;text-align:center;font-size:11px">
-        Les Techniciens du Débouchage · ${escapeHtml(tel)} · lestechniciensdudebouchage.fr
-      </td></tr>
-    </table>
-  </td></tr>
-</table>
-</body></html>`
 }
 
 function emailRelance({ clientNom, technicienNom, ville, reviewUrl, jour, tel }: { clientNom: string; technicienNom: string; ville: string; reviewUrl: string; jour: number; tel: string }) {

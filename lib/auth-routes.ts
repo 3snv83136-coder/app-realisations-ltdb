@@ -14,6 +14,7 @@ const TECH_API_PREFIXES = [
   "/api/save-rapport",
   "/api/transcribe",
   "/api/notify-rapport-facture",
+  "/api/notify-rapport-facture-sms",
   "/api/notify-devis",
   "/api/proxy-image",
   "/api/health",

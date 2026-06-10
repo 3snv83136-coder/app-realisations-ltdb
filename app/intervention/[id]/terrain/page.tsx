@@ -12,6 +12,7 @@ import type { DevisData, DevisLineData } from "@/components/DevisPDF"
 import { joinNomPrenom } from "@/lib/rapportToDevis"
 import { proxyImageUrl } from "@/lib/proxyImageUrl"
 import { fetchJsonWithRetry, fetchWithRetry } from "@/lib/fetchWithRetry"
+import { openNativeSms } from "@/lib/sms"
 import { isDevisIntervention } from "@/lib/types-intervention"
 
 const VoiceRecorder = dynamic(() => import("@/components/VoiceRecorder"), { ssr: false })
@@ -33,6 +34,7 @@ type Intervention = {
   heure_debut_reelle: string | null
   heure_fin_reelle: string | null
   mail_envoye_at: string | null
+  sms_envoye_at: string | null
   rapport_json: any
   photos_urls: string[] | null
   photos_legendes: string[] | null
@@ -1282,7 +1284,144 @@ function StepDevisOption({ interv, client, onContinue, onError }: {
 // ============================================================
 // ÉTAPE 6 — Diffusion (mail, site, GMB, YouTube) — actions indépendantes
 // ============================================================
-type DiffusionAction = 'mail' | 'site' | 'gmb' | 'youtube' | null
+type DiffusionAction = 'mail' | 'sms' | 'site' | 'gmb' | 'youtube' | null
+
+/** Génère et uploade rapport + facture PDF (étape diffusion). */
+async function prepareTerrainClientPdfs(opts: {
+  intervId: string
+  email: string
+  nom: string
+  telephone?: string
+  requireEmail?: boolean
+  onProgress: (msg: string) => void
+}): Promise<void> {
+  const { intervId, email, nom, telephone, requireEmail = true, onProgress } = opts
+  if (requireEmail && (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))) {
+    throw new Error('Email client invalide')
+  }
+  if (!requireEmail && email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    throw new Error('Email client invalide')
+  }
+  if (!nom.trim()) {
+    throw new Error('Saisis le nom du client avant d\'envoyer.')
+  }
+
+  onProgress('⚙ Vérifications…')
+  const intFresh = await fetchJsonWithRetry<{ intervention: Intervention; client: Client; technicien: { nom?: string } | null }>(
+    `/api/interventions/${intervId}`,
+    { cache: 'no-store', retries: 3, timeoutMs: 20_000 },
+  )
+  const freshInterv = intFresh.intervention
+  const freshClient = intFresh.client
+  const technicienNom = intFresh.technicien?.nom || 'Technicien'
+
+  if (!freshInterv.rapport_json || Object.keys(freshInterv.rapport_json).length === 0) {
+    throw new Error('Rapport non sauvegardé. Reviens à l\'étape rapport.')
+  }
+
+  onProgress('👤 Mise à jour de la fiche client…')
+  await fetchJsonWithRetry<{ client: Client }>(
+    `/api/interventions/${intervId}/link-client`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        nom: nom.trim(),
+        ...(email.trim() ? { email: email.trim() } : {}),
+        ...(telephone?.trim() ? { telephone: telephone.trim() } : {}),
+      }),
+      retries: 3,
+      timeoutMs: 15_000,
+    },
+  )
+
+  const factData = await fetchJsonWithRetry<{ facture: { id: string; numero?: string; payload: any; pdf_url?: string | null } | null }>(
+    `/api/interventions/${intervId}/facture`,
+    { cache: 'no-store', retries: 3, timeoutMs: 20_000 },
+  )
+  if (!factData.facture?.payload) {
+    throw new Error('Facture introuvable — reviens à l\'étape facture pour la créer.')
+  }
+  const facturePayload = factData.facture.payload
+  const clientNom = nom.trim()
+
+  onProgress('📄 Génération du PDF rapport…')
+  const [{ RealisationDocument }, { pdfElementToBlob }, React] = await Promise.all([
+    import('@/components/RealisationPDF'),
+    import('@/lib/pdfToBase64'),
+    import('react'),
+  ])
+  const effectiveClient = freshClient
+  const pdfRapportBlob = await pdfElementToBlob(
+    React.createElement(RealisationDocument, {
+      clientNom,
+      adresse: freshInterv.adresse_chantier || '',
+      ville: freshInterv.ville || '',
+      codePostal: freshInterv.code_postal || '',
+      dateIntervention: freshInterv.date_realisee || freshInterv.date_prevue || '',
+      typeIntervention: freshInterv.type_intervention || '',
+      technicienNom,
+      rapport: freshInterv.rapport_json,
+      reference: freshInterv.reference || undefined,
+      photos: (freshInterv.photos_urls || []).map((url, i) => ({
+        url: proxyImageUrl(url),
+        legende: freshInterv.photos_legendes?.[i] || `Photo ${i + 1}`,
+      })),
+    }),
+  )
+  if (!pdfRapportBlob || pdfRapportBlob.size < 1000) {
+    throw new Error('PDF rapport vide — relance la génération.')
+  }
+
+  onProgress('☁ Upload du rapport…')
+  const fdRapport = new FormData()
+  fdRapport.append('kind', 'rapport')
+  fdRapport.append('pdf', pdfRapportBlob, `rapport-${intervId}.pdf`)
+  await fetchJsonWithRetry(`/api/interventions/${intervId}/store-pdf`, {
+    method: 'POST',
+    body: fdRapport,
+    retries: 3,
+    timeoutMs: 60_000,
+  })
+
+  onProgress('🧾 Génération du PDF facture…')
+  const [{ FactureDocument }, { ltdbFactureEmetteur }] = await Promise.all([
+    import('@/components/FacturePDF'),
+    import('@/lib/emetteur'),
+  ])
+  const adresseLine1 = effectiveClient?.adresse || freshInterv.adresse_chantier || ''
+  const adresseCP = effectiveClient?.code_postal || freshInterv.code_postal || ''
+  const adresseVille = effectiveClient?.ville || freshInterv.ville || ''
+  const clientAdresseLignes: string[] = []
+  if (adresseLine1) clientAdresseLignes.push(adresseLine1)
+  if (adresseCP || adresseVille) {
+    clientAdresseLignes.push([adresseCP, adresseVille].filter(Boolean).join(' '))
+  }
+  const pdfFactureBlob = await pdfElementToBlob(
+    React.createElement(FactureDocument, {
+      emetteur: ltdbFactureEmetteur(freshInterv.agence || undefined),
+      client: {
+        nom: clientNom,
+        adresseLignes: clientAdresseLignes.length > 0 ? clientAdresseLignes : ['—'],
+      },
+      facture: facturePayload,
+    }),
+  )
+  if (!pdfFactureBlob || pdfFactureBlob.size < 1000) {
+    throw new Error('PDF facture vide — relance la génération.')
+  }
+
+  onProgress('☁ Upload de la facture…')
+  const fdFacture = new FormData()
+  fdFacture.append('kind', 'facture')
+  fdFacture.append('pdf', pdfFactureBlob, `facture-${intervId}.pdf`)
+  await fetchJsonWithRetry(`/api/interventions/${intervId}/store-pdf`, {
+    method: 'POST',
+    body: fdFacture,
+    retries: 3,
+    timeoutMs: 60_000,
+  })
+}
 
 function TerrainDiffusionPanel({ interv, client, onRefresh, onError, techOnlyMail = false }: {
   interv: Intervention
@@ -1294,23 +1433,27 @@ function TerrainDiffusionPanel({ interv, client, onRefresh, onError, techOnlyMai
 }) {
   const [email, setEmail] = useState(client?.email || '')
   const [emailCc, setEmailCc] = useState('')
+  const [telephone, setTelephone] = useState(client?.telephone || '')
   const [nom, setNom] = useState(client?.nom || '')
   const [busy, setBusy] = useState<DiffusionAction>(null)
   const [progress, setProgress] = useState('')
   const [gmbOk, setGmbOk] = useState(false)
   const [youtubeUrl, setYoutubeUrl] = useState(interv.video_youtube_url || '')
   const mailRef = useRef(false)
+  const smsRef = useRef(false)
 
   useEffect(() => {
     setEmail(client?.email || '')
     setNom(client?.nom || '')
-  }, [client?.email, client?.nom])
+    setTelephone(client?.telephone || '')
+  }, [client?.email, client?.nom, client?.telephone])
 
   useEffect(() => {
     setYoutubeUrl(interv.video_youtube_url || '')
   }, [interv.video_youtube_url])
 
   const mailDone = !!interv.mail_envoye_at
+  const smsDone = !!interv.sms_envoye_at
   const siteDone = !!interv.publie_slug
   const hasPhotos = !!(interv.photos_urls && interv.photos_urls.length > 0)
 
@@ -1320,7 +1463,11 @@ function TerrainDiffusionPanel({ interv, client, onRefresh, onError, techOnlyMai
       await fetch(`/api/interventions/${interv.id}/link-client`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ nom: nom.trim(), email: email.trim() }),
+        body: JSON.stringify({
+          nom: nom.trim(),
+          email: email.trim(),
+          ...(telephone.trim() ? { telephone: telephone.trim() } : {}),
+        }),
       })
     } catch { /* best-effort */ }
   }
@@ -1329,131 +1476,15 @@ function TerrainDiffusionPanel({ interv, client, onRefresh, onError, techOnlyMai
     if (mailRef.current || busy) return
     mailRef.current = true
     setBusy('mail')
-    setProgress('⚙ Vérifications…')
     onError('')
 
     try {
-      if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-        throw new Error('Email client invalide')
-      }
-      const clientNom = nom.trim()
-      if (!clientNom) {
-        throw new Error('Saisis le nom du client avant d\'envoyer.')
-      }
-
-      // ── 1. Refresh complet depuis le serveur (évite tout state stale) ──
-      const intFresh = await fetchJsonWithRetry<{ intervention: Intervention; client: Client; technicien: { nom?: string } | null }>(
-        `/api/interventions/${interv.id}`,
-        { cache: 'no-store', retries: 3, timeoutMs: 20_000 },
-      )
-      const freshInterv = intFresh.intervention
-      const freshClient = intFresh.client
-      const technicienNom = intFresh.technicien?.nom || 'Technicien'
-
-      if (!freshInterv.rapport_json || Object.keys(freshInterv.rapport_json).length === 0) {
-        throw new Error('Rapport non sauvegardé. Reviens à l\'étape rapport.')
-      }
-
-      setProgress('👤 Mise à jour de la fiche client…')
-      const linkData = await fetchJsonWithRetry<{ client: Client }>(
-        `/api/interventions/${interv.id}/link-client`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ nom: clientNom, email: email.trim() }),
-          retries: 3,
-          timeoutMs: 15_000,
-        },
-      )
-      const effectiveClient = linkData.client || freshClient
-
-      // ── 2. Charge la dernière facture (payload complet pour le PDF) ──
-      const factData = await fetchJsonWithRetry<{ facture: { id: string; numero?: string; payload: any; pdf_url?: string | null } | null }>(
-        `/api/interventions/${interv.id}/facture`,
-        { cache: 'no-store', retries: 3, timeoutMs: 20_000 },
-      )
-      if (!factData.facture || !factData.facture.payload) {
-        throw new Error('Facture introuvable — reviens à l\'étape facture pour la créer.')
-      }
-      const facturePayload = factData.facture.payload
-
-      setProgress('📄 Génération du PDF rapport…')
-      const [{ RealisationDocument }, { pdfElementToBlob }, React] = await Promise.all([
-        import('@/components/RealisationPDF'),
-        import('@/lib/pdfToBase64'),
-        import('react'),
-      ])
-      const pdfRapportBlob = await pdfElementToBlob(
-        React.createElement(RealisationDocument, {
-          clientNom,
-          adresse: freshInterv.adresse_chantier || '',
-          ville: freshInterv.ville || '',
-          codePostal: freshInterv.code_postal || '',
-          dateIntervention: freshInterv.date_realisee || freshInterv.date_prevue || '',
-          typeIntervention: freshInterv.type_intervention || '',
-          technicienNom,
-          rapport: freshInterv.rapport_json,
-          reference: freshInterv.reference || undefined,
-          photos: (freshInterv.photos_urls || []).map((url, i) => ({
-            url: proxyImageUrl(url),
-            legende: freshInterv.photos_legendes?.[i] || `Photo ${i + 1}`,
-          })),
-        }),
-      )
-      if (!pdfRapportBlob || pdfRapportBlob.size < 1000) {
-        throw new Error('PDF rapport vide — relance la génération.')
-      }
-
-      setProgress('☁ Upload du rapport…')
-      const fdRapport = new FormData()
-      fdRapport.append('kind', 'rapport')
-      fdRapport.append('pdf', pdfRapportBlob, `rapport-${interv.id}.pdf`)
-      await fetchJsonWithRetry(`/api/interventions/${interv.id}/store-pdf`, {
-        method: 'POST',
-        body: fdRapport,
-        retries: 3,
-        timeoutMs: 60_000,
-      })
-
-      setProgress('🧾 Génération du PDF facture…')
-      const [{ FactureDocument }, { ltdbFactureEmetteur }] = await Promise.all([
-        import('@/components/FacturePDF'),
-        import('@/lib/emetteur'),
-      ])
-      // Adresse PDF : priorité à l'adresse de facturation du client (freshClient.adresse,
-      // mise à jour via le PATCH ci-dessus si l'utilisateur l'a complétée). Fallback sur
-      // l'adresse chantier — utile quand le client n'a pas d'adresse facturation distincte.
-      const adresseLine1 = effectiveClient?.adresse || freshInterv.adresse_chantier || ''
-      const adresseCP = effectiveClient?.code_postal || freshInterv.code_postal || ''
-      const adresseVille = effectiveClient?.ville || freshInterv.ville || ''
-      const clientAdresseLignes: string[] = []
-      if (adresseLine1) clientAdresseLignes.push(adresseLine1)
-      if (adresseCP || adresseVille) {
-        clientAdresseLignes.push([adresseCP, adresseVille].filter(Boolean).join(' '))
-      }
-      const pdfFactureBlob = await pdfElementToBlob(
-        React.createElement(FactureDocument, {
-          emetteur: ltdbFactureEmetteur(freshInterv.agence || undefined),
-          client: {
-            nom: clientNom,
-            adresseLignes: clientAdresseLignes.length > 0 ? clientAdresseLignes : ['—'],
-          },
-          facture: facturePayload,
-        }),
-      )
-      if (!pdfFactureBlob || pdfFactureBlob.size < 1000) {
-        throw new Error('PDF facture vide — relance la génération.')
-      }
-
-      setProgress('☁ Upload de la facture…')
-      const fdFacture = new FormData()
-      fdFacture.append('kind', 'facture')
-      fdFacture.append('pdf', pdfFactureBlob, `facture-${interv.id}.pdf`)
-      await fetchJsonWithRetry(`/api/interventions/${interv.id}/store-pdf`, {
-        method: 'POST',
-        body: fdFacture,
-        retries: 3,
-        timeoutMs: 60_000,
+      await prepareTerrainClientPdfs({
+        intervId: interv.id,
+        email,
+        nom,
+        telephone,
+        onProgress: setProgress,
       })
 
       setProgress('✉ Envoi du mail au client…')
@@ -1487,6 +1518,53 @@ function TerrainDiffusionPanel({ interv, client, onRefresh, onError, techOnlyMai
       setBusy(null)
       setProgress('')
       mailRef.current = false
+    }
+  }
+
+  async function handleSendSms() {
+    if (smsRef.current || busy) return
+    const phone = telephone.trim()
+    if (!phone || phone.replace(/\D/g, '').length < 10) {
+      onError('Saisis un numéro de mobile valide pour le SMS.')
+      return
+    }
+    smsRef.current = true
+    setBusy('sms')
+    onError('')
+
+    try {
+      await prepareTerrainClientPdfs({
+        intervId: interv.id,
+        email,
+        nom,
+        telephone: phone,
+        requireEmail: false,
+        onProgress: setProgress,
+      })
+
+      setProgress('📱 Préparation du message…')
+      const draft = await fetchJsonWithRetry<{ body: string }>('/api/notify-rapport-facture-sms', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          interventionId: interv.id,
+          clientPhone: phone,
+        }),
+        retries: 3,
+        timeoutMs: 90_000,
+      })
+
+      setProgress('📱 Ouverture de la messagerie…')
+      openNativeSms(phone, draft.body)
+
+      setProgress('✓ Messagerie ouverte — validez l\'envoi sur votre téléphone')
+      await onRefresh()
+    } catch (e) {
+      onError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setBusy(null)
+      setProgress('')
+      smsRef.current = false
     }
   }
 
@@ -1617,6 +1695,20 @@ function TerrainDiffusionPanel({ interv, client, onRefresh, onError, techOnlyMai
         </div>
 
         <div>
+          <label className="block text-xs uppercase tracking-wider text-slate-500 font-bold mb-1">Téléphone mobile</label>
+          <input
+            type="tel"
+            value={telephone}
+            onChange={e => setTelephone(e.target.value)}
+            placeholder="06 12 34 56 78"
+            className="w-full border-2 border-slate-200 focus:border-blue-500 outline-none rounded-xl px-4 py-3 text-base"
+          />
+          <p className="text-[11px] text-slate-500 mt-1">
+            Prérempli depuis la fiche client · ouvre la messagerie de votre téléphone.
+          </p>
+        </div>
+
+        <div>
           <label className="block text-xs uppercase tracking-wider text-slate-500 font-bold mb-1">
             Email en copie (facultatif)
           </label>
@@ -1635,8 +1727,10 @@ function TerrainDiffusionPanel({ interv, client, onRefresh, onError, techOnlyMai
         <div className="text-sm text-slate-700 space-y-1 pt-2">
           <div>📄 Rapport d&apos;intervention (PDF)</div>
           <div>🧾 Facture (PDF)</div>
-          <div>⭐ Demande d&apos;avis Google</div>
-          <div className="text-xs text-slate-500 pt-1">+ relances auto J+2, J+4, J+6 si pas d&apos;avis</div>
+          <div>⭐ Demande d&apos;avis Google (mail)</div>
+          <div className="text-xs text-slate-500 pt-1">
+            Mail : relances auto J+2, J+4, J+6 · SMS : même texte + liens PDF via votre téléphone
+          </div>
         </div>
       </div>
 
@@ -1654,6 +1748,15 @@ function TerrainDiffusionPanel({ interv, client, onRefresh, onError, techOnlyMai
           className={actionBtn(mailDone, 'bg-emerald-600 hover:bg-emerald-700')}
         >
           {busy === 'mail' ? (progress || '⚙ Envoi…') : mailDone ? '✓ Mail envoyé au client' : '✉ Envoyer par mail'}
+        </button>
+
+        <button
+          type="button"
+          onClick={handleSendSms}
+          disabled={!!busy || !telephone.trim() || !nom.trim()}
+          className={actionBtn(smsDone, 'bg-violet-600 hover:bg-violet-700')}
+        >
+          {busy === 'sms' ? (progress || '⚙ SMS…') : smsDone ? '✓ SMS préparé (messagerie)' : '📱 Envoyer par SMS'}
         </button>
 
         {!techOnlyMail && (

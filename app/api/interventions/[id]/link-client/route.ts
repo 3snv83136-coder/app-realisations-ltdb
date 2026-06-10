@@ -16,7 +16,7 @@ type Params = { params: { id: string } }
  * Filet de sécurité pour les interventions arrivées à l'étape d'envoi sans
  * client lié (interventions saisies avant le correctif du wipe `persistRapport`).
  *
- * Body     : { nom: string, email?: string }
+ * Body     : { nom: string, email?: string, telephone?: string }
  * Réponse  : { client: { id, nom, email, telephone, adresse, code_postal, ville } }
  */
 export async function POST(req: NextRequest, { params }: Params) {
@@ -25,7 +25,7 @@ export async function POST(req: NextRequest, { params }: Params) {
     return NextResponse.json({ error: 'Supabase non configuré' }, { status: 500 })
   }
 
-  let body: { nom?: string; email?: string }
+  let body: { nom?: string; email?: string; telephone?: string }
   try {
     body = await req.json()
   } catch {
@@ -34,6 +34,7 @@ export async function POST(req: NextRequest, { params }: Params) {
 
   const nom = (body.nom || '').trim()
   const email = (body.email || '').trim()
+  const telephone = (body.telephone || '').trim()
   if (!nom) {
     return NextResponse.json({ error: 'Nom du client requis' }, { status: 400 })
   }
@@ -50,12 +51,17 @@ export async function POST(req: NextRequest, { params }: Params) {
 
   if (clientId) {
     // Client déjà lié → patch non destructif (nom / email saisis dans le wizard).
-    await patchClient(clientId, { nom, email: email || null })
+    await patchClient(clientId, {
+      nom,
+      email: email || null,
+      ...(telephone ? { telephone } : {}),
+    })
   } else {
     // Pas de client → upsert puis rattachement.
     clientId = await upsertClient({
       nom,
       email: email || null,
+      telephone: telephone || null,
       ville: interv.ville || null,
       code_postal: interv.code_postal || null,
     })
