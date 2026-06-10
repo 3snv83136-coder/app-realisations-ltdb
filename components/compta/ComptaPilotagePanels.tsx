@@ -62,6 +62,7 @@ export function RelevesBancairesTab() {
   const [releves, setReleves] = useState<Releve[]>([])
   const [loading, setLoading] = useState(false)
   const [uploading, setUploading] = useState(false)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
   const [msg, setMsg] = useState("")
   const [err, setErr] = useState("")
 
@@ -112,6 +113,31 @@ export function RelevesBancairesTab() {
       setErr(e instanceof Error ? e.message : "Upload échoué")
     } finally {
       setUploading(false)
+    }
+  }
+
+  async function handleDelete(r: Releve) {
+    const label = periodeLabel(r.periode_annee, r.periode_mois)
+    const detail = r.nb_operations > 0
+      ? `\n\nLes ${r.nb_operations} opération(s) importée(s) avec ce relevé seront aussi supprimées.`
+      : ""
+    if (!window.confirm(`Effacer le relevé de ${label} ?${detail}`)) return
+
+    setDeletingId(r.id)
+    setErr("")
+    setMsg("")
+    try {
+      const res = await fetch(`/api/comptabilite/releves/${r.id}`, { method: "DELETE" })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`)
+      setMsg(
+        `Relevé ${label} effacé${data.operations_deleted ? ` (${data.operations_deleted} opération(s) supprimée(s))` : ""}.`,
+      )
+      load()
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Suppression échouée")
+    } finally {
+      setDeletingId(null)
     }
   }
 
@@ -211,7 +237,8 @@ export function RelevesBancairesTab() {
                   <th className="py-2 pr-3">Opérations</th>
                   <th className="py-2 pr-3">Solde fin</th>
                   <th className="py-2 pr-3">Déposé le</th>
-                  <th className="py-2">PDF</th>
+                  <th className="py-2 pr-3">PDF</th>
+                  <th className="py-2 w-24"></th>
                 </tr>
               </thead>
               <tbody>
@@ -221,10 +248,20 @@ export function RelevesBancairesTab() {
                     <td className="py-2 pr-3">{r.nb_operations}</td>
                     <td className="py-2 pr-3 tabular-nums">{r.solde_fin_mois != null ? fmtEUR(r.solde_fin_mois) : "—"}</td>
                     <td className="py-2 pr-3">{fmtDateFR(r.uploaded_at.slice(0, 10))}</td>
-                    <td className="py-2">
+                    <td className="py-2 pr-3">
                       {r.pdf_url ? (
                         <a href={r.pdf_url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">Voir</a>
                       ) : "—"}
+                    </td>
+                    <td className="py-2">
+                      <button
+                        type="button"
+                        onClick={() => handleDelete(r)}
+                        disabled={deletingId === r.id}
+                        className="text-xs font-bold px-2 py-1 rounded-lg bg-red-50 text-red-700 hover:bg-red-100 disabled:opacity-50"
+                      >
+                        {deletingId === r.id ? "…" : "Effacer"}
+                      </button>
                     </td>
                   </tr>
                 ))}
