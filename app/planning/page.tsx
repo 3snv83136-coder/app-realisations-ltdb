@@ -1,7 +1,9 @@
 'use client'
 import { useEffect, useMemo, useRef, useState } from "react"
 import Link from "next/link"
+import { useSession } from "next-auth/react"
 import AppTabs from "@/components/AppTabs"
+import TechNav from "@/components/TechNav"
 import CalendarSubscribePanel from "@/components/CalendarSubscribePanel"
 import VilleCombobox from "@/components/VilleCombobox"
 import { AGENCES } from "@/lib/agences"
@@ -104,6 +106,8 @@ function endOfWeekISO(d: Date): string {
 }
 
 export default function PlanningPage() {
+  const { data: session } = useSession()
+  const isTech = session?.user?.role === 'tech'
   const [interventions, setInterventions] = useState<InterventionRow[]>([])
   const [techniciens, setTechniciens] = useState<Technicien[]>([])
   const [loading, setLoading] = useState(true)
@@ -120,16 +124,16 @@ export default function PlanningPage() {
   async function loadAll() {
     setLoading(true); setError('')
     try {
-      const [intRes, techRes] = await Promise.all([
-        fetch('/api/interventions', { cache: 'no-store' }),
-        fetch('/api/techniciens', { cache: 'no-store' }),
-      ])
+      const intRes = await fetch('/api/interventions', { cache: 'no-store' })
       const intData = await intRes.json()
-      const techData = await techRes.json()
       if (!intRes.ok) throw new Error(intData.error || 'Erreur interventions')
-      if (!techRes.ok) throw new Error(techData.error || 'Erreur techniciens')
       setInterventions(intData.interventions || [])
-      setTechniciens(techData.techniciens || [])
+      if (!isTech) {
+        const techRes = await fetch('/api/techniciens', { cache: 'no-store' })
+        const techData = await techRes.json()
+        if (!techRes.ok) throw new Error(techData.error || 'Erreur techniciens')
+        setTechniciens(techData.techniciens || [])
+      }
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e)
       setError(msg)
@@ -138,7 +142,7 @@ export default function PlanningPage() {
     }
   }
 
-  useEffect(() => { loadAll() }, [])
+  useEffect(() => { loadAll() }, [isTech])
 
   const filtered = useMemo(() => {
     let rows = [...interventions]
@@ -170,38 +174,46 @@ export default function PlanningPage() {
 
   return (
     <div className="min-h-screen bg-slate-50 pb-20">
-      <div className="bg-white border-b border-slate-200 py-2">
-        <div className="max-w-7xl mx-auto px-4">
-          <AppTabs />
+      {isTech ? (
+        <TechNav />
+      ) : (
+        <div className="bg-white border-b border-slate-200 py-2">
+          <div className="max-w-7xl mx-auto px-4">
+            <AppTabs />
+          </div>
         </div>
-      </div>
+      )}
 
       <nav className="bg-[#0e2a52] text-white px-4 py-3 sm:px-6 sm:py-4 shadow-lg">
         <div className="max-w-7xl mx-auto flex items-center justify-between gap-3">
           <div>
             <div className="font-black text-base sm:text-lg leading-tight">LTDB</div>
-            <div className="text-[11px] opacity-70">Planning &amp; dispatch</div>
+            <div className="text-[11px] opacity-70">
+              {isTech ? `Mon planning — ${session?.user?.name || 'Technicien'}` : 'Planning & dispatch'}
+            </div>
           </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setShowTechs(true)}
-              className="text-sm font-semibold bg-white/10 hover:bg-white/20 px-3 py-2 rounded-lg transition"
-            >
-              👥 Techniciens
-            </button>
-            <button
-              onClick={() => setShowForm(true)}
-              className="bg-white text-[#0e2a52] px-4 py-2 rounded-xl font-bold text-sm hover:bg-slate-100 transition shadow"
-            >
-              + Nouvelle intervention
-            </button>
-          </div>
+          {!isTech && (
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setShowTechs(true)}
+                className="text-sm font-semibold bg-white/10 hover:bg-white/20 px-3 py-2 rounded-lg transition"
+              >
+                👥 Techniciens
+              </button>
+              <button
+                onClick={() => setShowForm(true)}
+                className="bg-white text-[#0e2a52] px-4 py-2 rounded-xl font-bold text-sm hover:bg-slate-100 transition shadow"
+              >
+                + Nouvelle intervention
+              </button>
+            </div>
+          )}
         </div>
       </nav>
 
       <main className="max-w-7xl mx-auto px-4 py-5 space-y-4">
         {/* Filtres */}
-        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div className={`bg-white rounded-2xl shadow-sm border border-slate-200 p-4 grid gap-3 ${isTech ? 'grid-cols-2' : 'grid-cols-2 sm:grid-cols-4'}`}>
           <FilterSelect
             label="Statut"
             value={filterStatut}
@@ -214,25 +226,29 @@ export default function PlanningPage() {
               { value: 'annulee', label: 'Annulée' },
             ]}
           />
-          <FilterSelect
-            label="Technicien"
-            value={filterTech}
-            onChange={setFilterTech}
-            options={[
-              { value: 'all', label: 'Tous' },
-              { value: 'none', label: 'Non assignée' },
-              ...techniciens.map(t => ({ value: t.id, label: t.nom })),
-            ]}
-          />
-          <FilterSelect
-            label="Agence"
-            value={filterAgence}
-            onChange={setFilterAgence}
-            options={[
-              { value: 'all', label: 'Toutes' },
-              ...AGENCES.map(a => ({ value: a, label: a })),
-            ]}
-          />
+          {!isTech && (
+            <>
+              <FilterSelect
+                label="Technicien"
+                value={filterTech}
+                onChange={setFilterTech}
+                options={[
+                  { value: 'all', label: 'Tous' },
+                  { value: 'none', label: 'Non assignée' },
+                  ...techniciens.map(t => ({ value: t.id, label: t.nom })),
+                ]}
+              />
+              <FilterSelect
+                label="Agence"
+                value={filterAgence}
+                onChange={setFilterAgence}
+                options={[
+                  { value: 'all', label: 'Toutes' },
+                  ...AGENCES.map(a => ({ value: a, label: a })),
+                ]}
+              />
+            </>
+          )}
           <FilterSelect
             label="Date"
             value={filterDate}
@@ -259,7 +275,9 @@ export default function PlanningPage() {
           <div className="bg-white rounded-2xl border border-slate-200 p-10 text-center space-y-2">
             <div className="text-4xl">📅</div>
             <p className="text-slate-700 font-semibold">Aucune intervention pour ces filtres.</p>
-            <p className="text-slate-500 text-sm">Crée-en une ou élargis les filtres.</p>
+            <p className="text-slate-500 text-sm">
+              {isTech ? 'Aucune intervention ne vous est assignée pour ces filtres.' : 'Crée-en une ou élargis les filtres.'}
+            </p>
           </div>
         )}
 
@@ -268,13 +286,14 @@ export default function PlanningPage() {
             interventions={filtered}
             filterStatut={filterStatut}
             onRefresh={loadAll}
+            techMode={isTech}
           />
         )}
 
-        <CalendarSubscribePanel />
+        {!isTech && <CalendarSubscribePanel />}
       </main>
 
-      {showForm && (
+      {!isTech && showForm && (
         <NouvelleInterventionModal
           techniciens={techniciens}
           onClose={() => setShowForm(false)}
@@ -282,7 +301,7 @@ export default function PlanningPage() {
         />
       )}
 
-      {showTechs && (
+      {!isTech && showTechs && (
         <TechniciensDrawer
           onClose={() => setShowTechs(false)}
           onChanged={() => { loadAll() }}
@@ -305,11 +324,12 @@ const KANBAN_COLUMNS: ColumnDef[] = [
 ]
 
 function KanbanBoard({
-  interventions, filterStatut, onRefresh,
+  interventions, filterStatut, onRefresh, techMode = false,
 }: {
   interventions: InterventionRow[]
   filterStatut: 'all' | Statut
   onRefresh: () => void
+  techMode?: boolean
 }) {
   // Quand le filterStatut est sur l'une des 3 colonnes du kanban, on affiche
   // uniquement cette colonne en pleine largeur. Sinon, les 3 (ou 4 avec annulée).
@@ -339,7 +359,7 @@ function KanbanBoard({
           <button onClick={onRefresh} className="text-xs font-bold text-blue-700 hover:text-blue-900">↻ Rafraîchir</button>
         </div>
         <div className="space-y-2">
-          {grouped.annulee.map(i => <InterventionCard key={i.id} intervention={i} />)}
+          {grouped.annulee.map(i => <InterventionCard key={i.id} intervention={i} techMode={techMode} />)}
           {grouped.annulee.length === 0 && (
             <div className="bg-white rounded-xl border border-slate-200 p-6 text-center text-slate-400 text-sm">Aucune intervention annulée.</div>
           )}
@@ -357,14 +377,14 @@ function KanbanBoard({
         visibleColumns.length === 1 ? 'grid-cols-1' : 'grid-cols-1 lg:grid-cols-3'
       }`}>
         {visibleColumns.map(col => (
-          <KanbanColumn key={col.key} col={col} items={grouped[col.key]} />
+          <KanbanColumn key={col.key} col={col} items={grouped[col.key]} techMode={techMode} />
         ))}
       </div>
     </div>
   )
 }
 
-function KanbanColumn({ col, items }: { col: ColumnDef; items: InterventionRow[] }) {
+function KanbanColumn({ col, items, techMode = false }: { col: ColumnDef; items: InterventionRow[]; techMode?: boolean }) {
   return (
     <section className={`bg-white rounded-2xl shadow-sm border-2 ${col.accent} overflow-hidden flex flex-col`}>
       <header className={`px-4 py-3 ${col.subAccent} flex items-center justify-between border-b ${col.accent}`}>
@@ -380,7 +400,7 @@ function KanbanColumn({ col, items }: { col: ColumnDef; items: InterventionRow[]
         {items.length === 0 ? (
           <p className="text-center text-slate-400 text-xs py-8 italic">Aucune intervention</p>
         ) : (
-          items.map(i => <InterventionCard key={i.id} intervention={i} compact />)
+          items.map(i => <InterventionCard key={i.id} intervention={i} compact techMode={techMode} />)
         )}
       </div>
     </section>
@@ -388,14 +408,16 @@ function KanbanColumn({ col, items }: { col: ColumnDef; items: InterventionRow[]
 }
 
 function InterventionCard({
-  intervention: i, compact,
+  intervention: i, compact, techMode = false,
 }: {
   intervention: InterventionRow
   compact?: boolean
+  techMode?: boolean
 }) {
+  const href = techMode ? `/intervention/${i.id}/terrain` : `/intervention/${i.id}`
   return (
     <Link
-      href={`/intervention/${i.id}`}
+      href={href}
       className={`block bg-white rounded-xl border border-slate-200 hover:border-[#0e2a52] hover:shadow-md transition p-3 group ${CARD_STATUT_ACCENT[i.statut]}`}
     >
       <div className="flex items-start justify-between gap-2 mb-1.5">
@@ -441,18 +463,26 @@ function InterventionCard({
         </div>
       )}
 
-      <div className="flex items-center justify-between text-xs pt-1.5 border-t border-slate-100">
-        <span className="text-slate-600 truncate flex-1">
-          👷 {i.technicien_nom || <span className="text-slate-400 italic">non assignée</span>}
-        </span>
-        {typeof i.prix_prevu === 'number' && i.prix_prevu > 0 && (
-          <span className="text-[#0e2a52] font-bold tabular-nums whitespace-nowrap ml-2">
-            {fmtEUR(i.prix_prevu)}
+      {!techMode && (
+        <div className="flex items-center justify-between text-xs pt-1.5 border-t border-slate-100">
+          <span className="text-slate-600 truncate flex-1">
+            👷 {i.technicien_nom || <span className="text-slate-400 italic">non assignée</span>}
           </span>
-        )}
-      </div>
+          {typeof i.prix_prevu === 'number' && i.prix_prevu > 0 && (
+            <span className="text-[#0e2a52] font-bold tabular-nums whitespace-nowrap ml-2">
+              {fmtEUR(i.prix_prevu)}
+            </span>
+          )}
+        </div>
+      )}
 
-      {i.agence && (
+      {techMode && (
+        <div className="mt-2 pt-2 border-t border-slate-100 text-center text-xs font-black text-blue-700">
+          🚀 Mode terrain →
+        </div>
+      )}
+
+      {!techMode && i.agence && (
         <div className="text-[10px] text-slate-400 mt-1.5 text-right">{i.agence}</div>
       )}
     </Link>

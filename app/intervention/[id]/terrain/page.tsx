@@ -10,10 +10,12 @@ import TerrainOceanLoader from "@/components/terrain/TerrainOceanLoader"
 import DevisEnvoiPanel from "@/components/DevisEnvoiPanel"
 import type { DevisData, DevisLineData } from "@/components/DevisPDF"
 import { joinNomPrenom } from "@/lib/rapportToDevis"
-import { proxyImageUrl } from "@/lib/proxyImageUrl"
 import { fetchJsonWithRetry, fetchWithRetry } from "@/lib/fetchWithRetry"
+import { useWakeLock } from "@/lib/useWakeLock"
+import { proxyImageUrl } from "@/lib/proxyImageUrl"
 import { buildSmsUri, isMobileForSms, openNativeSms } from "@/lib/sms"
 import { isDevisIntervention } from "@/lib/types-intervention"
+import { isAccordFinDeMois } from "@/lib/fin-de-mois"
 
 const VoiceRecorder = dynamic(() => import("@/components/VoiceRecorder"), { ssr: false })
 
@@ -171,6 +173,7 @@ function TerrainPageBody({
 }) {
   const { data: session } = useSession()
   const isTech = session?.user?.role === 'tech'
+  const showAccordTab = isTech && isAccordFinDeMois()
 
   return (
     <div className="min-h-screen bg-slate-50 pb-24">
@@ -183,16 +186,26 @@ function TerrainPageBody({
               {client?.nom || 'Client inconnu'} · {interv.ville || '—'}
             </div>
           </div>
-          <Link
-            href={isTech ? "/mes-interventions" : `/intervention/${interv.id}`}
-            className="text-xs font-semibold bg-white/10 hover:bg-white/20 px-3 py-2 rounded-lg transition flex-shrink-0"
-          >
-            ✕ Quitter
-          </Link>
+          <div className="flex items-center gap-2 shrink-0">
+            {showAccordTab && (
+              <Link
+                href={`/accord/nouveau?intervention=${interv.id}`}
+                className="text-xs font-semibold bg-white/10 hover:bg-white/20 px-3 py-2 rounded-lg transition"
+              >
+                🤝 Accord
+              </Link>
+            )}
+            <Link
+              href={isTech ? "/planning" : `/intervention/${interv.id}`}
+              className="text-xs font-semibold bg-white/10 hover:bg-white/20 px-3 py-2 rounded-lg transition"
+            >
+              ✕ Quitter
+            </Link>
+          </div>
         </div>
       </nav>
 
-      <TerrainStepper current={step} onStepClick={setStep} />
+      <TerrainStepper current={step} onStepClick={setStep} hiddenSteps={isTech ? [7] : []} />
 
       <main className="max-w-2xl mx-auto px-4 py-6">
         {error && (
@@ -230,7 +243,7 @@ function TerrainPageBody({
             techOnlyMail={isTech}
           />
         )}
-        {step >= 7 && (
+        {step >= 7 && !isTech && (
           <StepTermine interv={interv} client={client} onRefresh={load} onError={setError} techOnlyMail={isTech} />
         )}
       </main>
@@ -1286,7 +1299,21 @@ function StepDevisOption({ interv, client, onContinue, onError }: {
 // ============================================================
 type DiffusionAction = 'mail' | 'sms' | 'site' | 'gmb' | 'youtube' | null
 
-/** Génère et uploade rapport + facture PDF (étape diffusion). */
+async function waitTerrainPdfsReady(intervId: string, onProgress: (msg: string) => void, maxWaitMs = 90_000): Promise<void> {
+  const started = Date.now()
+  while (Date.now() - started < maxWaitMs) {
+    const st = await fetchJsonWithRetry<{ ready: boolean }>(
+      `/api/interventions/${intervId}/generate-pdfs`,
+      { cache: 'no-store', retries: 2, timeoutMs: 15_000 },
+    )
+    if (st.ready) return
+    onProgress('⏳ Génération en cours sur le serveur… (écran verrouillé OK)')
+    await new Promise(r => setTimeout(r, 2500))
+  }
+  throw new Error('Délai dépassé — rouvre l\'app et réessaie (les PDF peuvent être prêts).')
+}
+
+/** Génère rapport + facture côté serveur (survit à la veille iPhone). */
 async function prepareTerrainClientPdfs(opts: {
   intervId: string
   email: string
@@ -1307,120 +1334,39 @@ async function prepareTerrainClientPdfs(opts: {
   }
 
   onProgress('⚙ Vérifications…')
-  const intFresh = await fetchJsonWithRetry<{ intervention: Intervention; client: Client; technicien: { nom?: string } | null }>(
+  const intFresh = await fetchJsonWithRetry<{ intervention: Intervention }>(
     `/api/interventions/${intervId}`,
     { cache: 'no-store', retries: 3, timeoutMs: 20_000 },
   )
-  const freshInterv = intFresh.intervention
-  const freshClient = intFresh.client
-  const technicienNom = intFresh.technicien?.nom || 'Technicien'
-
-  if (!freshInterv.rapport_json || Object.keys(freshInterv.rapport_json).length === 0) {
+  if (!intFresh.intervention?.rapport_json || Object.keys(intFresh.intervention.rapport_json).length === 0) {
     throw new Error('Rapport non sauvegardé. Reviens à l\'étape rapport.')
   }
 
-  onProgress('👤 Mise à jour de la fiche client…')
-  await fetchJsonWithRetry<{ client: Client }>(
-    `/api/interventions/${intervId}/link-client`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        nom: nom.trim(),
-        ...(email.trim() ? { email: email.trim() } : {}),
-        ...(telephone?.trim() ? { telephone: telephone.trim() } : {}),
-      }),
-      retries: 3,
-      timeoutMs: 15_000,
-    },
+  const status = await fetchJsonWithRetry<{ ready: boolean }>(
+    `/api/interventions/${intervId}/generate-pdfs`,
+    { cache: 'no-store', retries: 2, timeoutMs: 15_000 },
   )
-
-  const factData = await fetchJsonWithRetry<{ facture: { id: string; numero?: string; payload: any; pdf_url?: string | null } | null }>(
-    `/api/interventions/${intervId}/facture`,
-    { cache: 'no-store', retries: 3, timeoutMs: 20_000 },
-  )
-  if (!factData.facture?.payload) {
-    throw new Error('Facture introuvable — reviens à l\'étape facture pour la créer.')
-  }
-  const facturePayload = factData.facture.payload
-  const clientNom = nom.trim()
-
-  onProgress('📄 Génération du PDF rapport…')
-  const [{ RealisationDocument }, { pdfElementToBlob }, React] = await Promise.all([
-    import('@/components/RealisationPDF'),
-    import('@/lib/pdfToBase64'),
-    import('react'),
-  ])
-  const effectiveClient = freshClient
-  const pdfRapportBlob = await pdfElementToBlob(
-    React.createElement(RealisationDocument, {
-      clientNom,
-      adresse: freshInterv.adresse_chantier || '',
-      ville: freshInterv.ville || '',
-      codePostal: freshInterv.code_postal || '',
-      dateIntervention: freshInterv.date_realisee || freshInterv.date_prevue || '',
-      typeIntervention: freshInterv.type_intervention || '',
-      technicienNom,
-      rapport: freshInterv.rapport_json,
-      reference: freshInterv.reference || undefined,
-      photos: (freshInterv.photos_urls || []).map((url, i) => ({
-        url: proxyImageUrl(url),
-        legende: freshInterv.photos_legendes?.[i] || `Photo ${i + 1}`,
-      })),
-    }),
-  )
-  if (!pdfRapportBlob || pdfRapportBlob.size < 1000) {
-    throw new Error('PDF rapport vide — relance la génération.')
+  if (status.ready) {
+    onProgress('✓ PDF déjà prêts')
+    return
   }
 
-  onProgress('☁ Upload du rapport…')
-  const fdRapport = new FormData()
-  fdRapport.append('kind', 'rapport')
-  fdRapport.append('pdf', pdfRapportBlob, `rapport-${intervId}.pdf`)
-  await fetchJsonWithRetry(`/api/interventions/${intervId}/store-pdf`, {
+  onProgress('📄 Génération serveur (rapport + facture)…')
+  // POST lancé sans attendre la réponse : le serveur Vercel continue même si l'iPhone se verrouille.
+  void fetch(`/api/interventions/${intervId}/generate-pdfs`, {
     method: 'POST',
-    body: fdRapport,
-    retries: 3,
-    timeoutMs: 60_000,
-  })
-
-  onProgress('🧾 Génération du PDF facture…')
-  const [{ FactureDocument }, { ltdbFactureEmetteur }] = await Promise.all([
-    import('@/components/FacturePDF'),
-    import('@/lib/emetteur'),
-  ])
-  const adresseLine1 = effectiveClient?.adresse || freshInterv.adresse_chantier || ''
-  const adresseCP = effectiveClient?.code_postal || freshInterv.code_postal || ''
-  const adresseVille = effectiveClient?.ville || freshInterv.ville || ''
-  const clientAdresseLignes: string[] = []
-  if (adresseLine1) clientAdresseLignes.push(adresseLine1)
-  if (adresseCP || adresseVille) {
-    clientAdresseLignes.push([adresseCP, adresseVille].filter(Boolean).join(' '))
-  }
-  const pdfFactureBlob = await pdfElementToBlob(
-    React.createElement(FactureDocument, {
-      emetteur: ltdbFactureEmetteur(freshInterv.agence || undefined),
-      client: {
-        nom: clientNom,
-        adresseLignes: clientAdresseLignes.length > 0 ? clientAdresseLignes : ['—'],
-      },
-      facture: facturePayload,
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      nom: nom.trim(),
+      ...(email.trim() ? { email: email.trim() } : {}),
+      ...(telephone?.trim() ? { telephone: telephone.trim() } : {}),
     }),
-  )
-  if (!pdfFactureBlob || pdfFactureBlob.size < 1000) {
-    throw new Error('PDF facture vide — relance la génération.')
-  }
+    keepalive: true,
+  }).catch(() => {})
 
-  onProgress('☁ Upload de la facture…')
-  const fdFacture = new FormData()
-  fdFacture.append('kind', 'facture')
-  fdFacture.append('pdf', pdfFactureBlob, `facture-${intervId}.pdf`)
-  await fetchJsonWithRetry(`/api/interventions/${intervId}/store-pdf`, {
-    method: 'POST',
-    body: fdFacture,
-    retries: 3,
-    timeoutMs: 60_000,
-  })
+  onProgress('⏳ Génération en cours… (écran verrouillé OK)')
+  await waitTerrainPdfsReady(intervId, onProgress)
+  onProgress('✓ PDF générés')
 }
 
 function TerrainDiffusionPanel({ interv, client, onRefresh, onError, techOnlyMail = false }: {
@@ -1442,6 +1388,8 @@ function TerrainDiffusionPanel({ interv, client, onRefresh, onError, techOnlyMai
   const [smsOpenUri, setSmsOpenUri] = useState<string | null>(null)
   const mailRef = useRef(false)
   const smsRef = useRef(false)
+
+  useWakeLock(!!busy)
 
   useEffect(() => {
     setEmail(client?.email || '')
@@ -1681,7 +1629,7 @@ function TerrainDiffusionPanel({ interv, client, onRefresh, onError, techOnlyMai
         <div className="text-5xl mb-2">🚀</div>
         <h1 className="text-2xl font-black text-slate-800">Diffusion</h1>
         <p className="text-sm text-slate-600 mt-2">
-          Déclenche chaque action à ton rythme — la page reste ouverte.
+          Déclenche chaque action à ton rythme — les PDF sont générés côté serveur (veille iPhone OK).
         </p>
       </header>
 
@@ -1752,8 +1700,13 @@ function TerrainDiffusionPanel({ interv, client, onRefresh, onError, techOnlyMai
       </div>
 
       {progress && (
-        <div className="bg-blue-50 border border-blue-200 text-blue-800 rounded-xl px-4 py-3 text-sm font-semibold text-center">
-          {progress}
+        <div className="bg-blue-50 border border-blue-200 text-blue-800 rounded-xl px-4 py-3 text-sm font-semibold text-center space-y-1">
+          <div>{progress}</div>
+          {(busy === 'mail' || busy === 'sms') && progress.includes('Génération') && (
+            <p className="text-[11px] font-medium text-blue-700/90">
+              Tu peux verrouiller l&apos;écran : la génération continue sur le serveur.
+            </p>
+          )}
         </div>
       )}
 
@@ -1853,7 +1806,9 @@ function StepTermine({ interv, client, onRefresh, onError, techOnlyMail }: {
         <div className="text-6xl mb-2">🎉</div>
         <h1 className="text-2xl font-black text-emerald-800">Intervention terminée</h1>
         <p className="text-sm text-emerald-700 mt-2">
-          Tu peux encore déclencher mail, site, GMB ou YouTube ci-dessous.
+          {techOnlyMail
+            ? 'Tu peux encore envoyer le rapport et la facture par mail ou SMS ci-dessous.'
+            : 'Tu peux encore déclencher mail, site, GMB ou YouTube ci-dessous.'}
         </p>
       </div>
 
@@ -1866,12 +1821,14 @@ function StepTermine({ interv, client, onRefresh, onError, techOnlyMail }: {
       />
 
       <div className="flex flex-col gap-3">
-        <Link
-          href={`/intervention/${interv.id}`}
-          className="bg-[#0e2a52] hover:bg-[#0a2047] text-white rounded-2xl py-4 font-bold text-base shadow-lg transition text-center"
-        >
-          📋 Voir la fiche intervention
-        </Link>
+        {!techOnlyMail && (
+          <Link
+            href={`/intervention/${interv.id}`}
+            className="bg-[#0e2a52] hover:bg-[#0a2047] text-white rounded-2xl py-4 font-bold text-base shadow-lg transition text-center"
+          >
+            📋 Voir la fiche intervention
+          </Link>
+        )}
         <Link
           href="/planning"
           className="bg-white border-2 border-slate-300 hover:bg-slate-50 text-slate-700 rounded-2xl py-4 font-bold text-base transition text-center"

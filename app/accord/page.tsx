@@ -1,7 +1,11 @@
 import Link from "next/link"
+import { redirect } from "next/navigation"
 import { getSupabaseOrNull, type AccordIntervention, type AccordStatut } from "@/lib/supabase"
 import { fmtDateFR, fmtEUR } from "@/lib/format"
 import StatutSyncBadge from "@/components/accord/StatutSyncBadge"
+import TechAccordChrome from "@/components/TechAccordChrome"
+import { auth } from "@/lib/auth"
+import { isAccordFinDeMois } from "@/lib/fin-de-mois"
 
 // Outil d'admin : la liste doit toujours être fraîche (pas de cache).
 export const dynamic = 'force-dynamic'
@@ -29,16 +33,24 @@ type LoadResult = {
   needsMigration: boolean
 }
 
-async function loadAccords(): Promise<LoadResult> {
+async function loadAccords(technicienId: string | null): Promise<LoadResult> {
   const sb = getSupabaseOrNull()
   if (!sb) {
     return { accords: [], error: 'Supabase non configuré.', needsMigration: false }
   }
-  const { data, error } = await sb
-    .from('accords_intervention')
-    .select('*')
-    .order('created_at', { ascending: false })
-    .limit(200)
+
+  const { data, error } = technicienId
+    ? await sb
+        .from('accords_intervention')
+        .select('*, interventions!inner(technicien_id)')
+        .eq('interventions.technicien_id', technicienId)
+        .order('created_at', { ascending: false })
+        .limit(200)
+    : await sb
+        .from('accords_intervention')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(200)
   if (error) {
     // 42P01 = relation inexistante · PGRST205 = table absente du cache PostgREST
     const needsMigration =
@@ -51,21 +63,31 @@ async function loadAccords(): Promise<LoadResult> {
 }
 
 export default async function AccordHubPage() {
-  const { accords, error, needsMigration } = await loadAccords()
+  const session = await auth()
+  const isTech = session?.user?.role === 'tech'
+  if (isTech && !isAccordFinDeMois()) {
+    redirect('/planning')
+  }
+
+  const technicienId = isTech ? (session?.user?.technicienId ?? null) : null
+  const { accords, error, needsMigration } = await loadAccords(technicienId)
 
   return (
     <div className="min-h-screen bg-slate-50 pb-20">
+      <TechAccordChrome />
       <header className="bg-[#0e2a52] text-white">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between gap-3">
           <div className="min-w-0">
             <h1 className="font-black text-lg sm:text-xl leading-tight">🤝 Accord d&apos;intervention</h1>
-            <div className="text-[11px] opacity-70">Devis + accord signé avant travaux</div>
+            <div className="text-[11px] opacity-70">
+              {isTech ? 'Fin de mois — vos accords' : 'Devis + accord signé avant travaux'}
+            </div>
           </div>
           <Link
-            href="/"
+            href={isTech ? '/planning' : '/'}
             className="text-sm font-semibold bg-white/10 hover:bg-white/20 px-3 py-2 rounded-lg transition shrink-0"
           >
-            ← Accueil
+            {isTech ? '← Planning' : '← Accueil'}
           </Link>
         </div>
       </header>

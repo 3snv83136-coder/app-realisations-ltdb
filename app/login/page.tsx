@@ -48,7 +48,7 @@ export default function LoginPage() {
     } else {
       const res = await fetch('/api/auth/session')
       const sess = await res.json().catch(() => ({}))
-      const dest = sess?.user?.role === 'tech' ? '/mes-interventions' : '/'
+      const dest = sess?.user?.role === 'tech' ? '/planning' : '/'
       router.push(dest)
     }
   }

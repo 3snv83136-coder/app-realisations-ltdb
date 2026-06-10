@@ -11,7 +11,11 @@ async function lookupTechnicienIdByLogin(login: string): Promise<string | null> 
     .select("id, nom")
     .eq("actif", true)
   if (!data?.length) return null
-  const needle = login.trim().toLowerCase()
+  const aliases: Record<string, string> = {
+    technicien1: "technicien 1",
+    "technicien-1": "technicien 1",
+  }
+  const needle = aliases[login.trim().toLowerCase()] || login.trim().toLowerCase()
   const exact = data.find(t => (t.nom || "").trim().toLowerCase() === needle)
   if (exact) return exact.id
   const slug = data.find(t =>

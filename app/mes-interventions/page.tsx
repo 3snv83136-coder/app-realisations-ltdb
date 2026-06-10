@@ -41,7 +41,7 @@ export default function MesInterventionsPage() {
       router.replace("/login?callbackUrl=/mes-interventions")
       return
     }
-    if (session?.user?.role === "admin") {
+    if (session?.user?.role === "admin" || session?.user?.role === "tech") {
       router.replace("/planning")
       return
     }

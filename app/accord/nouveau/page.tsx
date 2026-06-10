@@ -1,7 +1,12 @@
 import Link from "next/link"
+import { redirect } from "next/navigation"
 import { getSupabaseOrNull, type Tarif } from "@/lib/supabase"
 import { getParametre } from "@/lib/parametres"
 import AccordForm, { type AccordPrefill } from "@/components/accord/AccordForm"
+import TechAccordChrome from "@/components/TechAccordChrome"
+import { auth } from "@/lib/auth"
+import { assertInterventionAccess } from "@/lib/intervention-access"
+import { isAccordFinDeMois } from "@/lib/fin-de-mois"
 
 export const dynamic = 'force-dynamic'
 
@@ -77,7 +82,20 @@ export default async function NouvelAccordPage({
 }: {
   searchParams: { intervention?: string }
 }) {
+  const session = await auth()
+  const isTech = session?.user?.role === 'tech'
+  if (isTech && !isAccordFinDeMois()) {
+    redirect('/planning')
+  }
+
   const interventionParam = searchParams.intervention || null
+  if (isTech && interventionParam) {
+    const access = await assertInterventionAccess(interventionParam, {
+      role: 'tech',
+      technicienId: session?.user?.technicienId ?? null,
+    })
+    if (!access.ok) redirect('/planning')
+  }
 
   const [tarifs, tvaStr, validiteStr, prefill] = await Promise.all([
     loadTarifs(),
@@ -94,6 +112,7 @@ export default async function NouvelAccordPage({
 
   return (
     <div className="min-h-screen bg-slate-50">
+      <TechAccordChrome />
       <header className="bg-[#0e2a52] text-white">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between gap-3">
           <div className="min-w-0">
@@ -105,10 +124,10 @@ export default async function NouvelAccordPage({
             </div>
           </div>
           <Link
-            href="/accord"
+            href={isTech ? '/planning' : '/accord'}
             className="text-sm font-semibold bg-white/10 hover:bg-white/20 px-3 py-2 rounded-lg transition shrink-0"
           >
-            ← Accords
+            {isTech ? '← Planning' : '← Accords'}
           </Link>
         </div>
       </header>

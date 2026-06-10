@@ -1,10 +1,15 @@
 import Link from "next/link"
+import { redirect } from "next/navigation"
 import {
   getSupabaseOrNull,
   type AccordIntervention,
   type AccordStatut,
   type LigneDevis,
 } from "@/lib/supabase"
+import { auth } from "@/lib/auth"
+import { assertInterventionAccess } from "@/lib/intervention-access"
+import { isAccordFinDeMois } from "@/lib/fin-de-mois"
+import TechAccordChrome from "@/components/TechAccordChrome"
 import { getTelPrincipal } from "@/lib/parametres"
 import { LTDB_EMETTEUR } from "@/lib/emetteur"
 import { fmtDateFR } from "@/lib/format"
@@ -90,6 +95,19 @@ export default async function AccordDetailPage({ params }: { params: { id: strin
   }
 
   const { accord, lignes } = result
+  const session = await auth()
+  const isTech = session?.user?.role === 'tech'
+  if (isTech && !isAccordFinDeMois()) {
+    redirect('/planning')
+  }
+  if (isTech && accord.intervention_id) {
+    const access = await assertInterventionAccess(accord.intervention_id, {
+      role: 'tech',
+      technicienId: session?.user?.technicienId ?? null,
+    })
+    if (!access.ok) redirect('/planning')
+  }
+
   const telephone = await getTelPrincipal()
   const emetteur: EmetteurInfo = {
     raisonSociale: LTDB_EMETTEUR.raisonSociale,
@@ -99,6 +117,7 @@ export default async function AccordDetailPage({ params }: { params: { id: strin
 
   return (
     <div className="min-h-screen bg-slate-50 pb-16">
+      <TechAccordChrome />
       <ShellHeader>
         <div className="min-w-0">
           <h1 className="font-black text-lg sm:text-xl leading-tight truncate">
@@ -107,10 +126,10 @@ export default async function AccordDetailPage({ params }: { params: { id: strin
           <div className="text-[11px] opacity-70">{accord.client_nom || 'Client'}</div>
         </div>
         <Link
-          href="/accord"
+          href={isTech ? '/planning' : '/accord'}
           className="text-sm font-semibold bg-white/10 hover:bg-white/20 px-3 py-2 rounded-lg transition shrink-0"
         >
-          ← Accords
+          {isTech ? '← Planning' : '← Accords'}
         </Link>
       </ShellHeader>
 
@@ -126,7 +145,7 @@ export default async function AccordDetailPage({ params }: { params: { id: strin
           <div className="flex items-center gap-4">
             {accord.intervention_id && (
               <Link
-                href={`/intervention/${accord.intervention_id}`}
+                href={isTech ? `/intervention/${accord.intervention_id}/terrain` : `/intervention/${accord.intervention_id}`}
                 className="text-xs font-semibold text-blue-700 hover:text-blue-900"
               >
                 Voir l&apos;intervention liée →

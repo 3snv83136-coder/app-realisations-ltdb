@@ -16,14 +16,17 @@ export type TerrainStep = typeof TERRAIN_STEPS[number]['key']
 interface TerrainStepperProps {
   current: number
   onStepClick?: (step: number) => void
+  /** Masquer certaines étapes (ex. « Réseaux » pour les techniciens). */
+  hiddenSteps?: number[]
 }
 
-export default function TerrainStepper({ current, onStepClick }: TerrainStepperProps) {
+export default function TerrainStepper({ current, onStepClick, hiddenSteps = [] }: TerrainStepperProps) {
+  const steps = TERRAIN_STEPS.filter(s => !hiddenSteps.includes(s.key))
   return (
     <div className="bg-white border-b border-slate-200 sticky top-0 z-20 shadow-sm">
       <div className="max-w-4xl mx-auto px-2 py-3">
         <div className="flex items-center justify-between gap-1 overflow-x-auto">
-          {TERRAIN_STEPS.map((s, i) => {
+          {steps.map((s, i) => {
             const done = current > s.key
             const active = current === s.key
             const clickable = done && onStepClick
@@ -57,7 +60,7 @@ export default function TerrainStepper({ current, onStepClick }: TerrainStepperP
                     {s.label}
                   </span>
                 </button>
-                {i < TERRAIN_STEPS.length - 1 && (
+                {i < steps.length - 1 && (
                   <div
                     className={`w-3 h-0.5 mx-0.5 flex-shrink-0 ${
                       done ? 'bg-emerald-400' : 'bg-slate-200'

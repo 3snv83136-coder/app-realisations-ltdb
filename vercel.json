@@ -18,6 +18,9 @@
     },
     "app/api/cron/compta-releve-alert/route.ts": {
       "maxDuration": 60
+    },
+    "app/api/interventions/[id]/generate-pdfs/route.ts": {
+      "maxDuration": 120
     }
   }
 }

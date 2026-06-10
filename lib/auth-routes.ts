@@ -1,15 +1,19 @@
 import type { AuthRole } from "@/lib/auth-users"
+import { isAccordFinDeMois } from "@/lib/fin-de-mois"
 
 /** Pages accessibles aux techniciens (espace restreint). */
 export const TECH_PAGE_PREFIXES = [
+  "/planning",
   "/mes-interventions",
   "/intervention/",
+  "/accord",
   "/login",
 ] as const
 
 const TECH_API_PREFIXES = [
   "/api/auth",
   "/api/interventions",
+  "/api/accords",
   "/api/generate",
   "/api/save-rapport",
   "/api/transcribe",
@@ -22,6 +26,7 @@ const TECH_API_PREFIXES = [
 
 export function isTechPageAllowed(pathname: string): boolean {
   if (pathname === "/") return false
+  if (pathname.startsWith("/accord") && !isAccordFinDeMois()) return false
   return TECH_PAGE_PREFIXES.some(p => pathname === p || pathname.startsWith(p))
 }
 
@@ -30,5 +35,5 @@ export function isTechApiAllowed(pathname: string): boolean {
 }
 
 export function homePathForRole(role: AuthRole | undefined): string {
-  return role === "tech" ? "/mes-interventions" : "/"
+  return role === "tech" ? "/planning" : "/"
 }

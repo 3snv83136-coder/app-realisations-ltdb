@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getSupabaseOrNull } from "@/lib/supabase"
 import { calculDevis, totalLigne, type LigneDraft } from "@/lib/accord/calcul-devis"
+import { getSessionUser, assertInterventionAccess } from "@/lib/intervention-access"
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 30
@@ -69,6 +70,15 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Supabase non configuré' }, { status: 500 })
   }
 
+  const user = await getSessionUser()
+  const interventionId = (body.intervention_id || '').trim() || null
+  if (interventionId) {
+    const access = await assertInterventionAccess(interventionId, user)
+    if (!access.ok) {
+      return NextResponse.json({ error: access.error }, { status: access.status })
+    }
+  }
+
   // --- Idempotence : un accord déjà synchronisé pour ce local_id ? ---
   const localId = (body.local_id || '').trim() || null
   if (localId) {
@@ -111,7 +121,6 @@ export async function POST(req: NextRequest) {
   const fraisDeplacement = Number(body.frais_deplacement) || 0
   const tauxTVA = Number(body.taux_tva) || 0
   const { totalHT, totalTVA, totalTTC } = calculDevis(lignes, fraisDeplacement, tauxTVA)
-  const interventionId = body.intervention_id || null
 
   // Un seul accord par intervention (contrainte unique en base).
   if (interventionId) {

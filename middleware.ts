@@ -2,6 +2,8 @@ import { auth } from "@/lib/auth"
 import { homePathForRole, isTechApiAllowed, isTechPageAllowed } from "@/lib/auth-routes"
 import { NextResponse } from "next/server"
 
+const INTERVENTION_FICHE = /^\/intervention\/([^/]+)$/
+
 const PUBLIC_PREFIXES = [
   "/login",
   "/api/auth",
@@ -42,15 +44,21 @@ export default auth((req) => {
   }
 
   if (role === "tech") {
-    if (pathname === "/") {
+    if (pathname === "/" || pathname === "/mes-interventions") {
       return NextResponse.redirect(new URL(homePathForRole("tech"), req.nextUrl.origin))
+    }
+    const ficheMatch = pathname.match(INTERVENTION_FICHE)
+    if (ficheMatch) {
+      return NextResponse.redirect(
+        new URL(`/intervention/${ficheMatch[1]}/terrain`, req.nextUrl.origin),
+      )
     }
     if (pathname.startsWith("/api/")) {
       if (!isTechApiAllowed(pathname)) {
         return NextResponse.json({ error: "Accès refusé" }, { status: 403 })
       }
     } else if (!isTechPageAllowed(pathname)) {
-      return NextResponse.redirect(new URL("/mes-interventions", req.nextUrl.origin))
+      return NextResponse.redirect(new URL(homePathForRole("tech"), req.nextUrl.origin))
     }
   }
 
