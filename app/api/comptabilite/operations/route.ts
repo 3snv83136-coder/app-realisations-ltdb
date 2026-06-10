@@ -25,9 +25,11 @@ export async function GET(req: NextRequest) {
     dateTo = b.to
   }
 
+  const pourAffectation = url.searchParams.get("pour_affectation") === "1"
+
   let q = sb
     .from("operations_bancaires")
-    .select("id, compte_id, date_operation, date_valeur, libelle, debit, credit, lettre, lettre_at, document_id, facture_fournisseur_id, categorie, import_batch_id")
+    .select("id, compte_id, date_operation, date_valeur, libelle, debit, credit, lettre, lettre_at, document_id, facture_fournisseur_id, categorie, compte_num, compte_lib, import_batch_id")
     .order("date_operation", { ascending: false })
 
   if (dateFrom) q = q.gte("date_operation", dateFrom)
@@ -48,15 +50,23 @@ export async function GET(req: NextRequest) {
 
   let depensesQ = sb
     .from("factures_fournisseurs")
-    .select("id, fournisseur, date_facture, montant_ttc")
+    .select("id, fournisseur, numero, date_facture, montant_ttc, categorie")
 
-  if (dateFrom) {
-    recettesQ = recettesQ.gte("date_emission", dateFrom)
-    depensesQ = depensesQ.gte("date_facture", dateFrom)
-  }
-  if (dateTo) {
-    recettesQ = recettesQ.lte("date_emission", dateTo)
-    depensesQ = depensesQ.lte("date_facture", dateTo)
+  if (pourAffectation) {
+    const depuis = new Date()
+    depuis.setMonth(depuis.getMonth() - 12)
+    const depuisStr = depuis.toISOString().slice(0, 10)
+    recettesQ = recettesQ.in("statut", ["envoye", "brouillon", "paye"]).gte("date_emission", depuisStr)
+    depensesQ = depensesQ.gte("date_facture", depuisStr)
+  } else {
+    if (dateFrom) {
+      recettesQ = recettesQ.gte("date_emission", dateFrom)
+      depensesQ = depensesQ.gte("date_facture", dateFrom)
+    }
+    if (dateTo) {
+      recettesQ = recettesQ.lte("date_emission", dateTo)
+      depensesQ = depensesQ.lte("date_facture", dateTo)
+    }
   }
 
   const [{ data: recRows }, { data: depRows }] = await Promise.all([recettesQ, depensesQ])
@@ -80,8 +90,10 @@ export async function GET(req: NextRequest) {
   const depenses = (depRows || []).map(d => ({
     id: d.id as string,
     fournisseur: (d.fournisseur as string) || "",
+    numero: (d.numero as string | null) ?? null,
     date_facture: d.date_facture as string,
     montant_ttc: Number(d.montant_ttc) || 0,
+    categorie: (d.categorie as string | null) ?? null,
   }))
 
   const suggestions = suggererRapprochements(

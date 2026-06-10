@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
+import { resoudreAffectation } from "@/lib/compta-affectation"
 import { bornesMois } from "@/lib/compta-kpis"
 import { suggererRapprochements } from "@/lib/compta-rapprochement"
 import { getSupabaseOrNull } from "@/lib/supabase"
@@ -35,8 +36,16 @@ export async function POST(req: NextRequest) {
   const { data: ops, error: opsErr } = await opsQ
   if (opsErr) return NextResponse.json({ error: opsErr.message }, { status: 500 })
 
-  let recQ = sb.from("documents").select("id, numero, date_emission, montant_ttc, statut, client_id").eq("type", "facture").neq("statut", "annule")
-  let depQ = sb.from("factures_fournisseurs").select("id, fournisseur, date_facture, montant_ttc")
+  let recQ = sb
+    .from("documents")
+    .select("id, numero, date_emission, montant_ttc, statut, client_id")
+    .eq("type", "facture")
+    .neq("statut", "annule")
+
+  let depQ = sb
+    .from("factures_fournisseurs")
+    .select("id, fournisseur, date_facture, montant_ttc, categorie")
+
   if (dateFrom) {
     recQ = recQ.gte("date_emission", dateFrom)
     depQ = depQ.gte("date_facture", dateFrom)
@@ -47,6 +56,8 @@ export async function POST(req: NextRequest) {
   }
 
   const [{ data: recRows }, { data: depRows }] = await Promise.all([recQ, depQ])
+
+  const depById = Object.fromEntries((depRows || []).map(d => [d.id as string, d]))
 
   const suggestions = suggererRapprochements(
     (ops || []).map(o => ({
@@ -73,15 +84,45 @@ export async function POST(req: NextRequest) {
   )
 
   let matched = 0
+  let skipped_no_compte = 0
   const errors: string[] = []
+  const needs_manual: string[] = []
   const now = new Date().toISOString()
 
   for (const s of suggestions) {
+    const op = (ops || []).find(o => o.id === s.operation_id)
+    if (!op) continue
+
+    const debit = Number(op.debit) || 0
+    const credit = Number(op.credit) || 0
+    const document_id = s.type === "recette" ? s.cible_id : null
+    const facture_fournisseur_id = s.type === "depense" ? s.cible_id : null
+    const categorie = facture_fournisseur_id
+      ? (depById[facture_fournisseur_id]?.categorie as string | null)
+      : null
+
+    const resolved = resoudreAffectation({
+      debit,
+      credit,
+      document_id,
+      facture_fournisseur_id,
+      categorie,
+    })
+
+    if (!resolved.ok) {
+      skipped_no_compte++
+      needs_manual.push(s.operation_id)
+      continue
+    }
+
     const patch: Record<string, unknown> = {
       lettre: true,
       lettre_at: now,
-      document_id: s.type === "recette" ? s.cible_id : null,
-      facture_fournisseur_id: s.type === "depense" ? s.cible_id : null,
+      document_id,
+      facture_fournisseur_id,
+      categorie,
+      compte_num: resolved.affectation.compte_num,
+      compte_lib: resolved.affectation.compte_lib,
     }
 
     const { error } = await sb.from("operations_bancaires").update(patch).eq("id", s.operation_id)
@@ -99,6 +140,8 @@ export async function POST(req: NextRequest) {
   return NextResponse.json({
     ok: true,
     matched,
+    skipped_no_compte,
+    needs_manual,
     suggestions_total: suggestions.length,
     ...(errors.length ? { errors } : {}),
   })

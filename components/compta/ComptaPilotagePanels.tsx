@@ -4,6 +4,8 @@ import { useCallback, useEffect, useState } from "react"
 import { fmtDateFR, fmtEUR } from "@/lib/format"
 import { moisPrecedent, periodeLabel } from "@/lib/compta-kpis"
 
+export { RapprochementTab } from "@/components/compta/RapprochementTab"
+
 // =====================================================================
 // Types
 // =====================================================================
@@ -17,17 +19,6 @@ type Releve = {
   nb_operations: number
   solde_fin_mois: number | null
   uploaded_at: string
-}
-
-type Operation = {
-  id: string
-  date_operation: string
-  libelle: string
-  debit: number
-  credit: number
-  lettre: boolean
-  document_id: string | null
-  facture_fournisseur_id: string | null
 }
 
 type PreBilanRow = {
@@ -246,121 +237,6 @@ export function RelevesBancairesTab() {
       <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-900">
         <strong>Rappel :</strong> alerte email automatique le <strong>5 de chaque mois</strong> si le relevé du mois précédent n&apos;est pas déposé.
         Configurez <code className="text-xs bg-amber-100 px-1 rounded">COMPTA_ALERT_EMAIL</code> dans Supabase → parametres.
-      </div>
-    </div>
-  )
-}
-
-// =====================================================================
-// Rapprochement
-// =====================================================================
-
-export function RapprochementTab({ annee, mois }: { annee: number; mois: number }) {
-  const [operations, setOperations] = useState<Operation[]>([])
-  const [stats, setStats] = useState({ total: 0, lettrees: 0, non_lettrees: 0, taux_rapprochement: 0 })
-  const [loading, setLoading] = useState(false)
-  const [matching, setMatching] = useState(false)
-  const [msg, setMsg] = useState("")
-  const [err, setErr] = useState("")
-
-  const load = useCallback(async () => {
-    setLoading(true)
-    setErr("")
-    try {
-      const res = await fetch(`/api/comptabilite/operations?annee=${annee}&mois=${mois}`, { cache: "no-store" })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`)
-      setOperations(data.operations || [])
-      setStats(data.stats || { total: 0, lettrees: 0, non_lettrees: 0, taux_rapprochement: 0 })
-    } catch (e) {
-      setErr(e instanceof Error ? e.message : "Erreur")
-    } finally {
-      setLoading(false)
-    }
-  }, [annee, mois])
-
-  useEffect(() => { load() }, [load])
-
-  async function autoMatch() {
-    setMatching(true)
-    setMsg("")
-    setErr("")
-    try {
-      const res = await fetch("/api/comptabilite/operations/auto-match", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ annee, mois }),
-      })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`)
-      setMsg(`${data.matched} rapprochement(s) automatique(s) effectué(s).`)
-      load()
-    } catch (e) {
-      setErr(e instanceof Error ? e.message : "Erreur")
-    } finally {
-      setMatching(false)
-    }
-  }
-
-  return (
-    <div className="space-y-4">
-      <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
-        <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-          <div>
-            <h3 className="font-bold text-[#0e2a52]">🏦 Rapprochement — {periodeLabel(annee, mois)}</h3>
-            <p className="text-sm text-slate-500">
-              {stats.lettrees}/{stats.total} lettrées · {stats.taux_rapprochement} %
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={autoMatch}
-            disabled={matching || stats.non_lettrees === 0}
-            className="bg-emerald-600 text-white px-4 py-2 rounded-xl font-bold text-sm disabled:opacity-50"
-          >
-            {matching ? "…" : "⚡ Rapprochement auto"}
-          </button>
-        </div>
-
-        {msg && <div className="mb-3 bg-emerald-50 border border-emerald-200 text-emerald-800 p-3 rounded-xl text-sm">{msg}</div>}
-        {err && <div className="mb-3 bg-red-50 border border-red-200 text-red-700 p-3 rounded-xl text-sm">{err}</div>}
-
-        {loading ? (
-          <p className="text-sm text-slate-500">Chargement…</p>
-        ) : operations.length === 0 ? (
-          <p className="text-sm text-slate-500">Aucune opération — uploadez un relevé avec CSV ou importez des lignes.</p>
-        ) : (
-          <div className="overflow-x-auto max-h-[480px] overflow-y-auto">
-            <table className="w-full text-sm">
-              <thead className="sticky top-0 bg-white">
-                <tr className="text-left text-slate-500 border-b">
-                  <th className="py-2 pr-2">Date</th>
-                  <th className="py-2 pr-2">Libellé</th>
-                  <th className="py-2 pr-2 text-right">Débit</th>
-                  <th className="py-2 pr-2 text-right">Crédit</th>
-                  <th className="py-2">Statut</th>
-                </tr>
-              </thead>
-              <tbody>
-                {operations.map(op => (
-                  <tr key={op.id} className={`border-b border-slate-100 ${op.lettre ? "bg-emerald-50/50" : ""}`}>
-                    <td className="py-2 pr-2 whitespace-nowrap">{fmtDateFR(op.date_operation)}</td>
-                    <td className="py-2 pr-2 max-w-[200px] truncate" title={op.libelle}>{op.libelle}</td>
-                    <td className="py-2 pr-2 text-right tabular-nums text-red-700">{op.debit > 0 ? fmtEUR(op.debit) : ""}</td>
-                    <td className="py-2 pr-2 text-right tabular-nums text-emerald-700">{op.credit > 0 ? fmtEUR(op.credit) : ""}</td>
-                    <td className="py-2">
-                      {op.lettre ? (
-                        <span className="text-xs font-bold text-emerald-700">✓ Lettré</span>
-                      ) : (
-                        <span className="text-xs font-bold text-amber-700">En attente</span>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
       </div>
     </div>
   )
