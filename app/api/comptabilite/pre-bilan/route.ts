@@ -15,11 +15,26 @@ export async function GET(req: NextRequest) {
 
   const def = moisPrecedent()
   const annee = anneeParam ? Number(anneeParam) : def.annee
-  const mois = moisParam ? Number(moisParam) : def.mois
+
+  const selectCols = "id, periode_annee, periode_mois, statut, snapshot, releve_id, comptable_email, envoye_at, valide_at, valide_par, created_at, updated_at"
+
+  if (!moisParam) {
+    const { data, error } = await sb
+      .from("pre_bilans")
+      .select(selectCols)
+      .eq("periode_annee", annee)
+      .order("periode_mois", { ascending: true })
+
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+    return NextResponse.json({ pre_bilans: data || [], annee })
+  }
+
+  const mois = Number(moisParam)
 
   const { data, error } = await sb
     .from("pre_bilans")
-    .select("id, periode_annee, periode_mois, statut, snapshot, releve_id, comptable_email, envoye_at, valide_at, valide_par, created_at, updated_at")
+    .select(selectCols)
     .eq("periode_annee", annee)
     .eq("periode_mois", mois)
     .maybeSingle()

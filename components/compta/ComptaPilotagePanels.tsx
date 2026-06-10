@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { fmtDateFR, fmtEUR } from "@/lib/format"
 import { moisPrecedent, periodeLabel } from "@/lib/compta-kpis"
 
@@ -21,25 +21,36 @@ type Releve = {
   uploaded_at: string
 }
 
+type PreBilanSnapshot = {
+  periode_label?: string
+  kpis?: {
+    ca_ht: number
+    dep_ht: number
+    resultat_brut_ht: number
+    tva_collectee: number
+    tva_deductible: number
+  }
+  taux_rapprochement?: number
+  alertes?: string[]
+  releve_present?: boolean
+}
+
 type PreBilanRow = {
   id: string
+  periode_annee?: number
+  periode_mois?: number
   statut: string
-  snapshot: {
-    periode_label?: string
-    kpis?: {
-      ca_ht: number
-      dep_ht: number
-      resultat_brut_ht: number
-      tva_collectee: number
-      tva_deductible: number
-    }
-    taux_rapprochement?: number
-    alertes?: string[]
-    releve_present?: boolean
-  }
+  snapshot: PreBilanSnapshot
   comptable_email: string | null
   envoye_at: string | null
   valide_at: string | null
+}
+
+function anneesDisponibles(): number[] {
+  const y = new Date().getFullYear()
+  const out: number[] = []
+  for (let a = y + 1; a >= 2020; a--) out.push(a)
+  return out
 }
 
 const STATUT_PRE_BILAN: Record<string, string> = {
@@ -290,20 +301,39 @@ export function PreBilanTab() {
   const [annee, setAnnee] = useState(def.annee)
   const [mois, setMois] = useState(def.mois)
   const [preBilan, setPreBilan] = useState<PreBilanRow | null>(null)
+  const [preBilansAnnee, setPreBilansAnnee] = useState<PreBilanRow[]>([])
   const [emailComptable, setEmailComptable] = useState("")
   const [loading, setLoading] = useState(false)
+  const [loadingAnnee, setLoadingAnnee] = useState(false)
   const [generating, setGenerating] = useState(false)
   const [sending, setSending] = useState(false)
   const [msg, setMsg] = useState("")
   const [err, setErr] = useState("")
 
+  const loadAnnee = useCallback(async () => {
+    setLoadingAnnee(true)
+    try {
+      const res = await fetch(`/api/comptabilite/pre-bilan?annee=${annee}`, { cache: "no-store" })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`)
+      setPreBilansAnnee((data.pre_bilans || []) as PreBilanRow[])
+    } catch {
+      setPreBilansAnnee([])
+    } finally {
+      setLoadingAnnee(false)
+    }
+  }, [annee])
+
   const load = useCallback(async () => {
     setLoading(true)
     setErr("")
     try {
-      const res = await fetch(`/api/comptabilite/pre-bilan?annee=${annee}&mois=${mois}`, { cache: "no-store" })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`)
+      const [resMois, _] = await Promise.all([
+        fetch(`/api/comptabilite/pre-bilan?annee=${annee}&mois=${mois}`, { cache: "no-store" }),
+        loadAnnee(),
+      ])
+      const data = await resMois.json()
+      if (!resMois.ok) throw new Error(data.error || `HTTP ${resMois.status}`)
       setPreBilan(data.pre_bilan || null)
       if (data.pre_bilan?.comptable_email) setEmailComptable(data.pre_bilan.comptable_email)
     } catch (e) {
@@ -311,9 +341,17 @@ export function PreBilanTab() {
     } finally {
       setLoading(false)
     }
-  }, [annee, mois])
+  }, [annee, mois, loadAnnee])
 
   useEffect(() => { load() }, [load])
+
+  const preBilanParMois = useMemo(() => {
+    const map: Record<number, PreBilanRow> = {}
+    for (const p of preBilansAnnee) {
+      if (p.periode_mois) map[p.periode_mois] = p
+    }
+    return map
+  }, [preBilansAnnee])
 
   async function generate() {
     setGenerating(true)
@@ -388,20 +426,83 @@ export function PreBilanTab() {
 
         <div className="flex flex-wrap gap-3 items-end mb-4">
           <label className="flex flex-col gap-1">
-            <span className="text-[11px] font-bold uppercase text-slate-500">Période</span>
-            <div className="flex gap-2">
-              <select value={mois} onChange={e => setMois(Number(e.target.value))} className="border-2 border-slate-200 rounded-xl px-3 py-2 bg-white">
-                {Array.from({ length: 12 }, (_, i) => i + 1).map(m => (
-                  <option key={m} value={m}>{new Date(2000, m - 1, 1).toLocaleDateString("fr-FR", { month: "long" })}</option>
-                ))}
-              </select>
-              <input type="number" value={annee} onChange={e => setAnnee(Number(e.target.value))} className="border-2 border-slate-200 rounded-xl px-3 py-2 w-24" />
-            </div>
+            <span className="text-[11px] font-bold uppercase text-slate-500">Année</span>
+            <select
+              value={annee}
+              onChange={e => setAnnee(Number(e.target.value))}
+              className="border-2 border-slate-200 rounded-xl px-3 py-2 bg-white font-bold text-[#0e2a52] min-w-[100px]"
+            >
+              {anneesDisponibles().map(a => (
+                <option key={a} value={a}>{a}</option>
+              ))}
+            </select>
+          </label>
+          <label className="flex flex-col gap-1">
+            <span className="text-[11px] font-bold uppercase text-slate-500">Mois</span>
+            <select
+              value={mois}
+              onChange={e => setMois(Number(e.target.value))}
+              className="border-2 border-slate-200 rounded-xl px-3 py-2 bg-white min-w-[140px]"
+            >
+              {Array.from({ length: 12 }, (_, i) => i + 1).map(m => (
+                <option key={m} value={m}>
+                  {new Date(annee, m - 1, 1).toLocaleDateString("fr-FR", { month: "long" })}
+                </option>
+              ))}
+            </select>
           </label>
           <button type="button" onClick={generate} disabled={generating} className="bg-[#0e2a52] text-white px-4 py-2 rounded-xl font-bold text-sm disabled:opacity-50">
-            {generating ? "…" : "🔄 Générer le pré-bilan"}
+            {generating ? "…" : "🔄 Générer"}
           </button>
         </div>
+
+        <div className="mb-5">
+          <div className="text-[11px] font-bold uppercase text-slate-500 mb-2">
+            Vue annuelle {annee}
+            {loadingAnnee ? " · chargement…" : ` · ${preBilansAnnee.length} mois généré(s)`}
+          </div>
+          <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-2">
+            {Array.from({ length: 12 }, (_, i) => i + 1).map(m => {
+              const row = preBilanParMois[m]
+              const actif = m === mois
+              const res = row?.snapshot?.kpis?.resultat_brut_ht
+              return (
+                <button
+                  key={m}
+                  type="button"
+                  onClick={() => setMois(m)}
+                  className={`text-left rounded-xl border p-2 transition ${
+                    actif
+                      ? "border-[#0e2a52] bg-blue-50 ring-2 ring-[#0e2a52]/20"
+                      : "border-slate-200 bg-slate-50 hover:border-slate-300"
+                  }`}
+                >
+                  <div className="text-[10px] font-bold uppercase text-slate-500">
+                    {new Date(annee, m - 1, 1).toLocaleDateString("fr-FR", { month: "short" }).replace(".", "")}
+                  </div>
+                  {row ? (
+                    <>
+                      <span className={`inline-block mt-1 text-[9px] font-bold px-1.5 py-0.5 rounded-full ${STATUT_PRE_BILAN[row.statut] || STATUT_PRE_BILAN.brouillon}`}>
+                        {row.statut}
+                      </span>
+                      {typeof res === "number" && (
+                        <div className={`text-xs font-bold tabular-nums mt-1 ${res >= 0 ? "text-emerald-700" : "text-red-700"}`}>
+                          {fmtEUR(res)}
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <div className="text-[10px] text-slate-400 mt-1">—</div>
+                  )}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+
+        <h4 className="font-bold text-[#0e2a52] text-sm mb-2">
+          Détail — {periodeLabel(annee, mois)}
+        </h4>
 
         {loading ? (
           <p className="text-sm text-slate-500">Chargement…</p>
