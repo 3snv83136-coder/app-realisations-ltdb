@@ -51,6 +51,28 @@ export function buildRapportFacturePlainText(ctx: RapportFactureMessageCtx): str
   return lines.join("\n")
 }
 
+/** Version courte pour SMS (liens + texte essentiel, moins de risque de dépassement URI). */
+export function buildRapportFactureSmsText(ctx: RapportFactureMessageCtx): string {
+  const cn = ctx.clientNom || "Madame, Monsieur"
+  const di = formatDateFr(ctx.dateIntervention) || ctx.dateIntervention
+  const v = ctx.ville
+  const ref = ctx.reference
+  const num = ctx.factureNumero
+  const ttc = typeof ctx.totalTTC === "number" ? fmtEUR(ctx.totalTTC) : ""
+  const lines = [
+    `Bonjour ${cn},`,
+    `Intervention du ${di}${v ? ` à ${v}` : ""} — Les Techniciens du Débouchage.`,
+    ctx.rapportUrl ? `Rapport (réf. ${ref}) : ${ctx.rapportUrl}` : `Rapport réf. ${ref}`,
+    ctx.factureUrl
+      ? `Facture${num ? ` ${num}` : ""}${ttc ? ` (${ttc} TTC)` : ""} : ${ctx.factureUrl}`
+      : (num ? `Facture ${num}` : "Facture"),
+    `Contact : ${ctx.tel}`,
+    `Avis Google : ${ctx.reviewUrl}`,
+    `Cordialement, ${ctx.technicienNom}`,
+  ]
+  return lines.filter(Boolean).join("\n")
+}
+
 export function buildRapportFactureHtml(ctx: RapportFactureMessageCtx): string {
   const cn = escapeHtml(ctx.clientNom || "Madame, Monsieur")
   const tn = escapeHtml(ctx.technicienNom)

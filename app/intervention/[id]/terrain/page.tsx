@@ -12,7 +12,7 @@ import type { DevisData, DevisLineData } from "@/components/DevisPDF"
 import { joinNomPrenom } from "@/lib/rapportToDevis"
 import { proxyImageUrl } from "@/lib/proxyImageUrl"
 import { fetchJsonWithRetry, fetchWithRetry } from "@/lib/fetchWithRetry"
-import { openNativeSms } from "@/lib/sms"
+import { buildSmsUri, isMobileForSms, openNativeSms } from "@/lib/sms"
 import { isDevisIntervention } from "@/lib/types-intervention"
 
 const VoiceRecorder = dynamic(() => import("@/components/VoiceRecorder"), { ssr: false })
@@ -1439,6 +1439,7 @@ function TerrainDiffusionPanel({ interv, client, onRefresh, onError, techOnlyMai
   const [progress, setProgress] = useState('')
   const [gmbOk, setGmbOk] = useState(false)
   const [youtubeUrl, setYoutubeUrl] = useState(interv.video_youtube_url || '')
+  const [smsOpenUri, setSmsOpenUri] = useState<string | null>(null)
   const mailRef = useRef(false)
   const smsRef = useRef(false)
 
@@ -1451,6 +1452,10 @@ function TerrainDiffusionPanel({ interv, client, onRefresh, onError, techOnlyMai
   useEffect(() => {
     setYoutubeUrl(interv.video_youtube_url || '')
   }, [interv.video_youtube_url])
+
+  useEffect(() => {
+    setSmsOpenUri(null)
+  }, [telephone])
 
   const mailDone = !!interv.mail_envoye_at
   const smsDone = !!interv.sms_envoye_at
@@ -1528,9 +1533,14 @@ function TerrainDiffusionPanel({ interv, client, onRefresh, onError, techOnlyMai
       onError('Saisis un numéro de mobile valide pour le SMS.')
       return
     }
+    if (!isMobileForSms()) {
+      onError('Le SMS s\'ouvre depuis un smartphone (iPhone ou Android). Ouvre l\'app sur ton téléphone.')
+      return
+    }
     smsRef.current = true
     setBusy('sms')
     onError('')
+    setSmsOpenUri(null)
 
     try {
       await prepareTerrainClientPdfs({
@@ -1554,16 +1564,18 @@ function TerrainDiffusionPanel({ interv, client, onRefresh, onError, techOnlyMai
         timeoutMs: 90_000,
       })
 
-      setProgress('📱 Ouverture de la messagerie…')
+      const uri = buildSmsUri(phone, draft.body)
+      setSmsOpenUri(uri)
+      setProgress('')
+
+      // Android : parfois OK après async ; iOS bloque → le lien visible ci-dessous est le filet de sécurité.
       openNativeSms(phone, draft.body)
 
-      setProgress('✓ Messagerie ouverte — validez l\'envoi sur votre téléphone')
       await onRefresh()
     } catch (e) {
       onError(e instanceof Error ? e.message : String(e))
     } finally {
       setBusy(null)
-      setProgress('')
       smsRef.current = false
     }
   }
@@ -1742,6 +1754,23 @@ function TerrainDiffusionPanel({ interv, client, onRefresh, onError, techOnlyMai
       {progress && (
         <div className="bg-blue-50 border border-blue-200 text-blue-800 rounded-xl px-4 py-3 text-sm font-semibold text-center">
           {progress}
+        </div>
+      )}
+
+      {smsOpenUri && (
+        <div className="bg-violet-50 border-2 border-violet-400 rounded-2xl p-4 space-y-3">
+          <p className="text-sm text-violet-900 font-semibold text-center">
+            Message prêt — appuyez pour ouvrir <strong>Messages</strong> et valider l&apos;envoi.
+          </p>
+          <a
+            href={smsOpenUri}
+            className="block w-full text-center py-4 rounded-xl bg-violet-600 hover:bg-violet-700 text-white font-bold text-base shadow-lg"
+          >
+            📱 Ouvrir Messages (SMS client)
+          </a>
+          <p className="text-[11px] text-violet-700 text-center">
+            Sur iPhone, ce bouton est nécessaire après la génération des PDF.
+          </p>
         </div>
       )}
 

@@ -13,13 +13,51 @@ export function normalizePhoneForSmsUri(raw: string): string | null {
   return null
 }
 
-/** Ouvre la messagerie SMS native du téléphone (pas de compte tiers). */
-export function openNativeSms(to: string, body: string): void {
+export function isMobileForSms(): boolean {
+  if (typeof navigator === "undefined") return false
+  return /iPhone|iPad|iPod|Android|Mobile/i.test(navigator.userAgent)
+}
+
+function isIosSms(): boolean {
+  return typeof navigator !== "undefined" && /iPhone|iPad|iPod/i.test(navigator.userAgent)
+}
+
+/** Limite la taille du corps (URLs longues) pour les liens sms: sur mobile. */
+export function truncateSmsBody(body: string, max = 1100): string {
+  const t = (body || "").trim()
+  if (t.length <= max) return t
+  return t.slice(0, max - 3).trimEnd() + "..."
+}
+
+/** Construit l'URI sms: — à utiliser dans un <a href> (fiable après async sur iOS). */
+export function buildSmsUri(to: string, body: string): string {
   const phone = normalizePhoneForSmsUri(to)
   if (!phone) throw new Error("Numéro de téléphone invalide")
+  const safeBody = truncateSmsBody(body)
+  const sep = isIosSms() ? "&" : "?"
+  return `sms:${phone}${sep}body=${encodeURIComponent(safeBody)}`
+}
 
-  const encoded = encodeURIComponent(body)
-  const isIos = typeof navigator !== "undefined" && /iPhone|iPad|iPod/i.test(navigator.userAgent)
-  const sep = isIos ? "&" : "?"
-  window.location.href = `sms:${phone}${sep}body=${encoded}`
+/**
+ * Tente d'ouvrir Messages. Sur iOS, échoue souvent après une opération async
+ * (génération PDF) — préférer un lien <a href={buildSmsUri(...)}> visible.
+ */
+export function openNativeSms(to: string, body: string): boolean {
+  const uri = buildSmsUri(to, body)
+  try {
+    const a = document.createElement("a")
+    a.href = uri
+    a.style.display = "none"
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    return true
+  } catch {
+    try {
+      window.location.href = uri
+      return true
+    } catch {
+      return false
+    }
+  }
 }

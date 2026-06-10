@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getSessionUser, assertInterventionAccess } from "@/lib/intervention-access"
-import { buildRapportFacturePlainText } from "@/lib/rapport-facture-message"
+import { buildRapportFactureSmsText } from "@/lib/rapport-facture-message"
 import { getTelPrincipal } from "@/lib/parametres"
 import { normalizePhoneForSmsUri } from "@/lib/sms"
 import { getSupabaseOrNull } from "@/lib/supabase"
@@ -87,7 +87,7 @@ export async function POST(req: NextRequest) {
   } catch { /* best-effort */ }
 
   const tel = await getTelPrincipal()
-  const smsBody = buildRapportFacturePlainText({
+  const smsBody = buildRapportFactureSmsText({
     clientNom,
     technicienNom,
     ville: interv.ville || "",
