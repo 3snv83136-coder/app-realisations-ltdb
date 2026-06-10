@@ -6,7 +6,7 @@ insert into parametres (cle, valeur, description) values
   ('LTDB_TVA_INTRACOM', 'FR09484791546', 'N° TVA intracommunautaire'),
   ('LTDB_IBAN', 'FR76 1695 8000 0152 7256 3725 930', 'IBAN virement factures'),
   ('LTDB_BIC', 'QNTOFRP1XXX', 'BIC banque'),
-  ('LTDB_RAISON_SOCIALE', 'NAJI MONDOR — Les Techniciens du Débouchage', 'Raison sociale factures')
+  ('LTDB_RAISON_SOCIALE', 'Les Techniciens du Débouchage', 'Raison sociale factures')
 on conflict (cle) do update set
   valeur = excluded.valeur,
   description = excluded.description;

@@ -17,7 +17,7 @@ import { TEL_PRINCIPAL_FALLBACK } from "@/lib/parametres"
  * `parametres`).
  */
 export const LTDB_EMETTEUR: EmetteurData = {
-  raisonSociale: "NAJI MONDOR — Les Techniciens du Débouchage",
+  raisonSociale: "Les Techniciens du Débouchage",
   adresseLignes: ["700 Avenue du 15ème Corps", "83200 Toulon"],
   telephone: TEL_PRINCIPAL_FALLBACK,
   email: "contact@lestechniciensdudebouchage.fr",
