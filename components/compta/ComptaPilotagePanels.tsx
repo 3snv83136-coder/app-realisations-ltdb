@@ -204,7 +204,9 @@ export function RelevesBancairesTab() {
               onChange={e => setCsv(e.target.files?.[0] || null)}
               className="text-sm"
             />
-            <span className="text-[11px] text-slate-400">Colonnes : Date ; Libellé ; Débit ; Crédit</span>
+            <span className="text-[11px] text-slate-400">
+              Qonto : export simplifié (Date, Contrepartie, Montant) ou avec colonnes Débit/Crédit. Séparateur ; recommandé.
+            </span>
           </label>
 
           <div className="sm:col-span-2">
