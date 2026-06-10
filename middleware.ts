@@ -12,6 +12,7 @@ const PUBLIC_PREFIXES = [
   "/api/notify-client/stop-review",
   "/api/quote-complementaire/stop-reminders",
   "/api/facture/stop-reminders",
+  "/api/cron/",
 ]
 
 export default auth((req) => {

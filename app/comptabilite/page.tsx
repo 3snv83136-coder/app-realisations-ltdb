@@ -1,6 +1,13 @@
 'use client'
 import { useEffect, useMemo, useState } from "react"
 import AppTabs from "@/components/AppTabs"
+import {
+  monthFromDateRange,
+  PreBilanTab,
+  RapprochementPeriodPicker,
+  RapprochementTab,
+  RelevesBancairesTab,
+} from "@/components/compta/ComptaPilotagePanels"
 import { AGENCES } from "@/lib/agences"
 import { fmtDateFR, fmtEUR } from "@/lib/format"
 
@@ -36,12 +43,15 @@ type Depense = {
   created_at: string
 }
 
-type SubTab = 'dashboard' | 'recettes' | 'depenses' | 'export'
+type SubTab = 'dashboard' | 'recettes' | 'depenses' | 'banque' | 'rapprochement' | 'prebilan' | 'export'
 
 const SUBTABS: { key: SubTab; label: string; icon: string }[] = [
   { key: 'dashboard', label: 'Tableau de bord', icon: '📊' },
   { key: 'recettes',  label: 'Recettes (clients)', icon: '💶' },
   { key: 'depenses',  label: 'Dépenses (fournisseurs)', icon: '🧾' },
+  { key: 'banque',    label: 'Relevés bancaires', icon: '🏦' },
+  { key: 'rapprochement', label: 'Rapprochement', icon: '🔗' },
+  { key: 'prebilan',  label: 'Pré-bilan', icon: '📋' },
   { key: 'export',    label: 'Export', icon: '📤' },
 ]
 
@@ -132,6 +142,10 @@ export default function ComptabilitePage() {
   // Modal dépense
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState<Depense | null>(null)
+
+  const rapprochementInit = monthFromDateRange(initial.from)
+  const [rapproAnnee, setRapproAnnee] = useState(rapprochementInit.annee)
+  const [rapproMois, setRapproMois] = useState(rapprochementInit.mois)
 
   async function loadRecettes() {
     setLoadingRec(true); setError('')
@@ -270,9 +284,18 @@ export default function ComptabilitePage() {
           ))}
         </div>
 
-        {/* Sélecteur période (commun à dashboard / recettes / depenses) */}
-        {subtab !== 'export' && (
+        {/* Sélecteur période (dashboard / recettes / dépenses) */}
+        {subtab !== 'export' && subtab !== 'banque' && subtab !== 'rapprochement' && subtab !== 'prebilan' && (
           <PeriodPicker from={from} to={to} setFrom={setFrom} setTo={setTo} />
+        )}
+
+        {subtab === 'rapprochement' && (
+          <RapprochementPeriodPicker
+            annee={rapproAnnee}
+            mois={rapproMois}
+            setAnnee={setRapproAnnee}
+            setMois={setRapproMois}
+          />
         )}
 
         {error && (
@@ -314,6 +337,14 @@ export default function ComptabilitePage() {
             onDeleted={(id) => setDepenses(prev => prev.filter(d => d.id !== id))}
           />
         )}
+
+        {subtab === 'banque' && <RelevesBancairesTab />}
+
+        {subtab === 'rapprochement' && (
+          <RapprochementTab annee={rapproAnnee} mois={rapproMois} />
+        )}
+
+        {subtab === 'prebilan' && <PreBilanTab />}
 
         {subtab === 'export' && (
           <ExportTab from={from} to={to} setFrom={setFrom} setTo={setTo} />
@@ -982,7 +1013,7 @@ function ExportTab({
         <p className="text-sm text-slate-500">
           Les exports respectent la période sélectionnée. Le FEC suit le format légal français
           (arrêté du 29 juillet 2013) et peut être transmis à un expert-comptable ou à
-          l’administration fiscale.
+          l’administration fiscale. Utilisez l’onglet <strong>Pré-bilan</strong> pour envoyer la synthèse mensuelle.
         </p>
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">

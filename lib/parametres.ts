@@ -31,3 +31,14 @@ export async function getParametre(cle: string, fallback = ''): Promise<string> 
 export function getTelPrincipal(): Promise<string> {
   return getParametre('TEL_PRINCIPAL', TEL_PRINCIPAL_FALLBACK)
 }
+
+/** Email expert-comptable (pré-bilan). */
+export function getEmailComptable(): Promise<string> {
+  return getParametre('EMAIL_COMPTABLE', process.env.EMAIL_COMPTABLE || '')
+}
+
+/** Destinataire alertes compta (relevé manquant le 5 du mois). */
+export function getComptaAlertEmail(): Promise<string> {
+  const fallback = process.env.COMPTA_ALERT_EMAIL || process.env.EMAIL_COMPTABLE || ''
+  return getParametre('COMPTA_ALERT_EMAIL', fallback)
+}

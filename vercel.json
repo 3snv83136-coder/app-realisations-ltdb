@@ -5,10 +5,19 @@
   "env": {
     "AWS_LAMBDA_JS_RUNTIME": "nodejs22.x"
   },
+  "crons": [
+    {
+      "path": "/api/cron/compta-releve-alert",
+      "schedule": "0 7 5 * *"
+    }
+  ],
   "functions": {
     "app/api/generate-video/route.ts": {
       "maxDuration": 300,
       "memory": 3008
+    },
+    "app/api/cron/compta-releve-alert/route.ts": {
+      "maxDuration": 60
     }
   }
 }
