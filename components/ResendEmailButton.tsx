@@ -9,7 +9,10 @@ import { DevisDocument, type DevisData, type ClientData } from "./DevisPDF"
 import { AttestationDocument, type AttestationData } from "./AttestationPDF"
 import type { HistoriqueDocument } from "./DocumentDownloadButton"
 
-type DocWithEmail = HistoriqueDocument & { envoye_email?: string | null }
+type DocWithEmail = HistoriqueDocument & {
+  envoye_email?: string | null
+  client_email?: string | null
+}
 
 async function fetchPayload(id: string) {
   const res = await fetch(`/api/historique/${id}`, { cache: 'no-store' })
@@ -150,7 +153,7 @@ async function buildSendBody(
 
 export default function ResendEmailButton({ doc }: { doc: DocWithEmail }) {
   const [open, setOpen] = useState(false)
-  const [email, setEmail] = useState(doc.envoye_email || '')
+  const [email, setEmail] = useState(doc.envoye_email || doc.client_email || '')
   const [sending, setSending] = useState(false)
   const [error, setError] = useState('')
   const [sent, setSent] = useState(false)

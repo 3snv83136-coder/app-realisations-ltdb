@@ -37,7 +37,8 @@ function DevisPageContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const interventionId = searchParams.get('intervention')
-  const [step, setStep] = useState<Step>('capture')
+  const editDocumentId = searchParams.get('document')
+  const [step, setStep] = useState<Step>(editDocumentId ? 'generating' : 'capture')
   const [error, setError] = useState('')
 
   // Capture
@@ -55,7 +56,8 @@ function DevisPageContent() {
 
   const [clientEmail, setClientEmail] = useState('')
   const [emailSent, setEmailSent] = useState(false)
-  const [prefillLoading, setPrefillLoading] = useState(!!interventionId)
+  const [prefillLoading, setPrefillLoading] = useState(!!interventionId || !!editDocumentId)
+  const [loadedInterventionId, setLoadedInterventionId] = useState<string | null>(interventionId)
 
   useUnsavedChangesWarning(
     (step === 'capture' && (transcription.trim() !== '' || clientNom.trim() !== '')) ||
@@ -63,6 +65,41 @@ function DevisPageContent() {
   )
 
   useEffect(() => {
+    if (editDocumentId) {
+      let cancelled = false
+      ;(async () => {
+        setError('')
+        try {
+          const res = await fetch(`/api/historique/${editDocumentId}`, { cache: 'no-store' })
+          const data = await res.json()
+          if (cancelled) return
+          if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`)
+          const doc = data.document
+          if (!doc || doc.type !== 'devis') throw new Error('Document devis introuvable')
+          if (!doc.payload?.lignes) throw new Error('Contenu du devis indisponible')
+
+          setDevis(doc.payload as DevisData)
+          setClientNom(doc.client_nom || '')
+          setClientEmail(doc.envoye_email || doc.client_email || '')
+          setClientAdresse(doc.client_adresse || '')
+          setClientCP(doc.client_code_postal || '')
+          setClientVille(doc.client_ville || '')
+          setDateDevis(doc.payload.date_devis || doc.date_emission?.slice(0, 10) || new Date().toISOString().split('T')[0])
+          setReferenceDossier(doc.payload.reference_dossier || (doc.numero ? `Devis ${doc.numero}` : ''))
+          if (doc.intervention_id) setLoadedInterventionId(doc.intervention_id)
+          setStep('preview')
+        } catch (e) {
+          if (!cancelled) {
+            setError(e instanceof Error ? e.message : 'Erreur chargement devis')
+            setStep('capture')
+          }
+        } finally {
+          if (!cancelled) setPrefillLoading(false)
+        }
+      })()
+      return () => { cancelled = true }
+    }
+
     if (!interventionId) {
       setPrefillLoading(false)
       return
@@ -85,6 +122,7 @@ function DevisPageContent() {
         if (itv?.ville && !c?.ville) setClientVille(itv.ville)
         if (itv?.code_postal && !c?.code_postal) setClientCP(itv.code_postal)
         setReferenceDossier(itv?.reference ? `Intervention ${itv.reference}` : '')
+        setLoadedInterventionId(interventionId)
       } catch {
         /* best-effort */
       } finally {
@@ -92,7 +130,7 @@ function DevisPageContent() {
       }
     })()
     return () => { cancelled = true }
-  }, [interventionId])
+  }, [interventionId, editDocumentId])
 
   async function handleExtractClient() {
     if (!transcription || transcription.trim().length < 10) return
@@ -289,8 +327,14 @@ function DevisPageContent() {
       <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6">
         <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-8 max-w-md w-full text-center">
           <div className="inline-block animate-spin rounded-full h-12 w-12 border-4 border-blue-200 border-t-[#0e2a52] mb-4" />
-          <h2 className="text-xl font-black text-[#0e2a52]">Analyse de la dictée…</h2>
-          <p className="text-sm text-slate-500 mt-2">L&apos;IA structure le devis (constats, objet, lignes, conditions, TVA).</p>
+          <h2 className="text-xl font-black text-[#0e2a52]">
+            {editDocumentId ? 'Chargement du devis…' : 'Analyse de la dictée…'}
+          </h2>
+          <p className="text-sm text-slate-500 mt-2">
+            {editDocumentId
+              ? 'Récupération des lignes, du client et des conditions.'
+              : "L'IA structure le devis (constats, objet, lignes, conditions, TVA)."}
+          </p>
         </div>
       </div>
     )
@@ -333,12 +377,21 @@ function DevisPageContent() {
               <p className="text-sm text-slate-500">Établi le {fmtDateISOtoFR(devis.date_devis)} · valable {devis.validite_jours} jours</p>
             </div>
             <div className="flex flex-wrap gap-2">
-              <button
-                onClick={() => setStep('capture')}
-                className="px-4 py-2 rounded-lg border border-slate-300 text-slate-700 text-sm font-semibold hover:bg-slate-50"
-              >
-                ← Modifier la dictée
-              </button>
+              {editDocumentId ? (
+                <Link
+                  href="/devis/tous"
+                  className="px-4 py-2 rounded-lg border border-slate-300 text-slate-700 text-sm font-semibold hover:bg-slate-50"
+                >
+                  ← Liste des devis
+                </Link>
+              ) : (
+                <button
+                  onClick={() => setStep('capture')}
+                  className="px-4 py-2 rounded-lg border border-slate-300 text-slate-700 text-sm font-semibold hover:bg-slate-50"
+                >
+                  ← Modifier la dictée
+                </button>
+              )}
               <button
                 onClick={handleTransformToFacture}
                 className="px-4 py-2 rounded-lg bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-700 transition"
@@ -373,12 +426,18 @@ function DevisPageContent() {
             </div>
           )}
 
-          {interventionId && (
+          {loadedInterventionId && (
             <div className="bg-blue-50 border border-blue-200 text-blue-900 rounded-xl px-4 py-3 text-sm">
-              📋 Devis lié à l&apos;intervention — pas de mode terrain.{' '}
-              <Link href={`/intervention/${interventionId}`} className="font-bold underline">
-                Retour fiche
+              📋 Devis lié à une intervention.{' '}
+              <Link href={`/intervention/${loadedInterventionId}`} className="font-bold underline">
+                Voir la fiche
               </Link>
+            </div>
+          )}
+
+          {editDocumentId && (
+            <div className="bg-amber-50 border border-amber-200 text-amber-900 rounded-xl px-4 py-3 text-sm">
+              ✏ Modification du devis enregistré — enregistrez pour mettre à jour, puis renvoyez par mail si besoin.
             </div>
           )}
 
@@ -394,7 +453,7 @@ function DevisPageContent() {
             totalHT={total}
             totalTTC={ttc}
             tvaTaux={tvaTaux}
-            interventionId={interventionId}
+            interventionId={loadedInterventionId}
             onSent={() => setEmailSent(true)}
           />
 

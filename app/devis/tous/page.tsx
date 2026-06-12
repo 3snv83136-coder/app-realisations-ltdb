@@ -1,9 +1,14 @@
 'use client'
 import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
+import dynamic from "next/dynamic"
 import AppTabs from "@/components/AppTabs"
 import DevisTabs from "@/components/DevisTabs"
 import { fmtDateFR } from "@/lib/format"
+import type { HistoriqueDocument } from "@/components/DocumentDownloadButton"
+
+const DocumentDownloadButton = dynamic(() => import("@/components/DocumentDownloadButton"), { ssr: false })
+const ResendEmailButton = dynamic(() => import("@/components/ResendEmailButton"), { ssr: false })
 
 type DevisRow = {
   id: string
@@ -21,8 +26,25 @@ type DevisRow = {
   client_nom: string | null
   client_ville: string | null
   client_email: string | null
+  client_adresse: string | null
+  client_code_postal: string | null
   pdf_url: string | null
   created_at: string
+}
+
+function toHistoriqueDoc(d: DevisRow): HistoriqueDocument & { envoye_email?: string | null; client_email?: string | null } {
+  return {
+    id: d.id,
+    type: 'devis',
+    numero: d.numero,
+    agence: d.agence,
+    client_nom: d.client_nom,
+    client_adresse: d.client_adresse,
+    client_code_postal: d.client_code_postal,
+    client_ville: d.client_ville,
+    envoye_email: d.envoye_email,
+    client_email: d.client_email,
+  }
 }
 
 export default function TousLesDevisPage() {
@@ -189,7 +211,7 @@ export default function TousLesDevisPage() {
                   <th className="px-4 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider hidden sm:table-cell">Date</th>
                   <th className="px-4 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider">Statut</th>
                   <th className="px-4 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider text-right hidden md:table-cell">Montant TTC</th>
-                  <th className="px-4 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider text-right">PDF</th>
+                  <th className="px-4 py-3 text-xs font-bold text-slate-500 uppercase tracking-wider text-right">Actions</th>
                   <th className="px-2 py-3 w-10"></th>
                 </tr>
               </thead>
@@ -227,19 +249,29 @@ export default function TousLesDevisPage() {
                       <td className="px-4 py-3 text-right font-semibold text-slate-700 hidden md:table-cell whitespace-nowrap">
                         {d.montant_ttc ? `${d.montant_ttc.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €` : '—'}
                       </td>
-                      <td className="px-4 py-3 text-right">
-                        {d.pdf_url ? (
-                          <a
-                            href={d.pdf_url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition"
+                      <td className="px-4 py-3">
+                        <div className="inline-flex flex-wrap gap-1 justify-end items-start">
+                          <DocumentDownloadButton doc={toHistoriqueDoc(d)} label="PDF" />
+                          {d.pdf_url && (
+                            <a
+                              href={d.pdf_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-slate-300 text-slate-600 hover:bg-slate-50 text-[11px] font-bold transition"
+                              title="PDF archivé (version envoyée)"
+                            >
+                              📎 Archivé
+                            </a>
+                          )}
+                          <Link
+                            href={`/devis?document=${d.id}`}
+                            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 text-white text-[11px] font-bold transition"
+                            title="Modifier le devis"
                           >
-                            📄 PDF
-                          </a>
-                        ) : (
-                          <span className="text-xs text-slate-400 italic">—</span>
-                        )}
+                            ✏ Modifier
+                          </Link>
+                          <ResendEmailButton doc={toHistoriqueDoc(d)} />
+                        </div>
                       </td>
                       <td className="px-2 py-3 text-center">
                         <button
