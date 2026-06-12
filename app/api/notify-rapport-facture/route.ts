@@ -12,8 +12,9 @@ import {
 import { buildRapportFactureHtml } from "@/lib/rapport-facture-message"
 import { getSupabaseOrNull } from "@/lib/supabase"
 import { getTelPrincipal } from "@/lib/parametres"
+import { fetchPdfAsBase64Robust } from "@/lib/supabase-pdf-fetch"
 
-export const maxDuration = 60
+export const maxDuration = 120
 
 function getBaseUrl(req: NextRequest): string {
   const configured = process.env.APP_BASE_URL
@@ -27,15 +28,8 @@ function signStopPayload(payload: string, exp: number, secret: string): string {
   return crypto.createHmac("sha256", secret).update(`${payload}.${exp}`).digest("hex")
 }
 
-async function fetchPdfAsBase64(url: string): Promise<string | null> {
-  try {
-    const res = await fetch(url, { cache: 'no-store' })
-    if (!res.ok) return null
-    const buf = await res.arrayBuffer()
-    return Buffer.from(buf).toString('base64')
-  } catch {
-    return null
-  }
+async function fetchPdfAsBase64(url: string, sb: ReturnType<typeof getSupabaseOrNull>): Promise<string | null> {
+  return fetchPdfAsBase64Robust(sb, url)
 }
 
 export async function POST(req: NextRequest) {
@@ -146,11 +140,19 @@ export async function POST(req: NextRequest) {
   // Priorité aux PDF fournis en base64 (wizard Mode Terrain).
   // Fallback : fetch depuis les URLs Storage (flux historique /nouveau).
   const [rapportB64, factureB64] = await Promise.all([
-    body.pdfRapportBase64 || (interv.pdf_rapport_url ? fetchPdfAsBase64(interv.pdf_rapport_url) : null),
-    body.pdfFactureBase64 || (facture.pdf_url ? fetchPdfAsBase64(facture.pdf_url) : null),
+    body.pdfRapportBase64 || (interv.pdf_rapport_url ? fetchPdfAsBase64(interv.pdf_rapport_url, sb) : null),
+    body.pdfFactureBase64 || (facture.pdf_url ? fetchPdfAsBase64(facture.pdf_url, sb) : null),
   ])
-  if (!rapportB64) return NextResponse.json({ error: 'PDF rapport indisponible' }, { status: 502 })
-  if (!factureB64) return NextResponse.json({ error: 'PDF facture indisponible' }, { status: 502 })
+  if (!rapportB64) {
+    return NextResponse.json({
+      error: 'PDF rapport indisponible — regénère les documents (étape Diffusion) puis réessaie.',
+    }, { status: 502 })
+  }
+  if (!factureB64) {
+    return NextResponse.json({
+      error: 'PDF facture indisponible — regénère les documents (étape Diffusion) puis réessaie.',
+    }, { status: 502 })
+  }
 
   const dateInterv = interv.date_realisee || interv.date_prevue || ''
   const ville = interv.ville || ''

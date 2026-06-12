@@ -21,6 +21,9 @@
     },
     "app/api/interventions/[id]/generate-pdfs/route.ts": {
       "maxDuration": 120
+    },
+    "app/api/notify-rapport-facture/route.ts": {
+      "maxDuration": 120
     }
   }
 }
