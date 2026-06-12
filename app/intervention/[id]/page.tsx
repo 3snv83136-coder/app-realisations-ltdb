@@ -259,6 +259,27 @@ export default function InterventionDetailPage({ params }: { params: { id: strin
 
   useEffect(() => { load() }, [params.id])
 
+  // Liste techniciens pour réassignation rapide (interventions terminées).
+  useEffect(() => {
+    if (!intervention || intervention.statut !== 'terminee' || techniciens.length > 0) return
+    let cancelled = false
+    setTechniciensError('')
+    fetch('/api/techniciens?all=1', { cache: 'no-store' })
+      .then(r => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`)
+        return r.json()
+      })
+      .then(d => { if (!cancelled) setTechniciens(d.techniciens || []) })
+      .catch((e: unknown) => {
+        if (!cancelled) {
+          setTechniciensError(
+            `Impossible de charger les techniciens (${e instanceof Error ? e.message : 'erreur réseau'}).`,
+          )
+        }
+      })
+    return () => { cancelled = true }
+  }, [intervention?.id, intervention?.statut, techniciens.length])
+
   // Intervention « Devis » : pas de mode terrain → génération devis directe
   useEffect(() => {
     if (!intervention || loading) return
@@ -286,6 +307,32 @@ export default function InterventionDetailPage({ params }: { params: { id: strin
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [params.id])
+
+  async function updateTechnicienAssigne(technicienId: string | null) {
+    if (!intervention) return
+    setActionInProgress(true)
+    setError('')
+    setActionMsg('')
+    try {
+      const res = await fetch(`/api/interventions/${intervention.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ technicien_id: technicienId }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`)
+      setIntervention(data.intervention)
+      await load()
+      const nom = technicienId
+        ? techniciens.find(t => t.id === technicienId)?.nom || 'le technicien sélectionné'
+        : 'aucun technicien'
+      setActionMsg(`Technicien mis à jour : ${nom}`)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setActionInProgress(false)
+    }
+  }
 
   async function updateStatut(statut: Statut) {
     if (!intervention) return
@@ -783,15 +830,56 @@ export default function InterventionDetailPage({ params }: { params: { id: strin
                 <p className="text-xs text-red-600 mt-1">⚠ {techniciensError}</p>
               )}
             </>
-          ) : technicien ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
-              <InfoCell label="Nom" value={technicien.nom} />
-              <InfoCell label="Agence" value={technicien.agence || '—'} />
-              <InfoCell label="Téléphone" value={technicien.telephone ? <a href={`tel:${technicien.telephone}`} className="text-blue-600 hover:underline font-bold">{technicien.telephone}</a> : '—'} />
-              <InfoCell label="Email" value={technicien.email || '—'} />
-            </div>
           ) : (
-            <p className="text-slate-500 text-sm italic">Aucun technicien assigné</p>
+            <>
+              {technicien ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                  <InfoCell label="Nom" value={technicien.nom} />
+                  <InfoCell label="Agence" value={technicien.agence || '—'} />
+                  <InfoCell label="Téléphone" value={technicien.telephone ? <a href={`tel:${technicien.telephone}`} className="text-blue-600 hover:underline font-bold">{technicien.telephone}</a> : '—'} />
+                  <InfoCell label="Email" value={technicien.email || '—'} />
+                </div>
+              ) : (
+                <p className="text-slate-500 text-sm italic">Aucun technicien assigné</p>
+              )}
+              {intervention.statut === 'terminee' && (
+                <div className="pt-3 border-t border-slate-100 space-y-2">
+                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-500">
+                    Changer le technicien
+                  </label>
+                  <select
+                    value={intervention.technicien_id || ''}
+                    disabled={actionInProgress}
+                    onChange={async (e) => {
+                      const next = e.target.value || null
+                      if (next === (intervention.technicien_id || null)) return
+                      const label = next
+                        ? techniciens.find(t => t.id === next)?.nom || 'ce technicien'
+                        : 'aucun technicien'
+                      if (!confirm(`Réassigner cette intervention à ${label} ?`)) {
+                        e.target.value = intervention.technicien_id || ''
+                        return
+                      }
+                      await updateTechnicienAssigne(next)
+                    }}
+                    className="w-full border-2 border-slate-200 focus:border-blue-500 outline-none rounded-lg px-3 py-2 text-sm bg-white disabled:opacity-50"
+                  >
+                    <option value="">— non assigné —</option>
+                    {techniciens.map(t => (
+                      <option key={t.id} value={t.id}>
+                        {t.nom}{t.agence ? ` · ${t.agence}` : ''}{!t.actif ? ' (inactif)' : ''}
+                      </option>
+                    ))}
+                  </select>
+                  {techniciensError && (
+                    <p className="text-xs text-red-600">⚠ {techniciensError}</p>
+                  )}
+                  <p className="text-[11px] text-slate-400">
+                    Même après validation, vous pouvez réassigner l&apos;intervention à un autre technicien.
+                  </p>
+                </div>
+              )}
+            </>
           )}
         </section>
 
