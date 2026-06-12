@@ -80,13 +80,18 @@ export async function POST(req: NextRequest, { params }: Params) {
   const photosUrls = [...(interv.photos_urls || []), url]
   const photosLegendes = [...(interv.photos_legendes || []), legende || defaultLegende(photosUrls.length - 1)]
 
-  // Bump terrain_step : 1ère photo → 1 (démarrer), 2ème → 3 (rapport si déjà passé en cours),
-  // photos suivantes → ne touche pas au step.
+  // Bump terrain_step : photo avant → 1, photo après → 4 (rapport).
+  // Les photos « travaux supplémentaires » ne font pas avancer le wizard.
   const currentStep = interv.terrain_step ?? 0
   let nextStep = currentStep
   const count = photosUrls.length
-  if (count >= 1 && currentStep < 1) nextStep = 1
-  else if (count >= 2 && currentStep < 3) nextStep = 3
+  const leg = legende.toLowerCase()
+  const isTravauxSupp = leg.includes('travaux supplémentaires')
+  const isPhotoApres = leg.includes('photo après') && !isTravauxSupp
+  if (!isTravauxSupp) {
+    if (count >= 1 && currentStep < 1 && leg.includes('avant')) nextStep = 1
+    else if (isPhotoApres && currentStep < 4) nextStep = 4
+  }
 
   const { data: updated, error: upErr } = await sb
     .from('interventions')

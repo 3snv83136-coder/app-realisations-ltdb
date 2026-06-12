@@ -6,6 +6,7 @@ import { useSession } from "next-auth/react"
 import dynamic from "next/dynamic"
 import TerrainStepper from "@/components/terrain/TerrainStepper"
 import TerrainPhotoCapture from "@/components/terrain/TerrainPhotoCapture"
+import StepTravauxSupplementaires from "@/components/terrain/StepTravauxSupplementaires"
 import TerrainOceanLoader from "@/components/terrain/TerrainOceanLoader"
 import DevisEnvoiPanel from "@/components/DevisEnvoiPanel"
 import type { DevisData, DevisLineData } from "@/components/DevisPDF"
@@ -205,7 +206,7 @@ function TerrainPageBody({
         </div>
       </nav>
 
-      <TerrainStepper current={step} onStepClick={setStep} hiddenSteps={isTech ? [7] : []} />
+      <TerrainStepper current={step} onStepClick={setStep} hiddenSteps={isTech ? [8] : []} />
 
       <main className="max-w-2xl mx-auto px-4 py-6">
         {error && (
@@ -223,18 +224,27 @@ function TerrainPageBody({
           />
         )}
         {step === 1 && <StepDemarrer interv={interv} onAction={() => callTerrainAction('debut')} />}
-        {step === 2 && <StepEnCours interv={interv} onPhotoUploaded={load} onTerminer={() => callTerrainAction('fin')} onError={setError} onSkipToRapport={() => setStep(3)} />}
-        {step === 3 && <StepRapport interv={interv} onSaved={load} onError={setError} />}
-        {step === 4 && <StepFacture interv={interv} client={client} onCreated={load} onError={setError} />}
-        {step === 5 && (
-          <StepDevisOption
+        {step === 2 && (
+          <StepTravauxSupplementaires
             interv={interv}
             client={client}
-            onContinue={() => setStep(6)}
+            onSaved={load}
+            onSkip={() => setStep(3)}
             onError={setError}
           />
         )}
+        {step === 3 && <StepEnCours interv={interv} onPhotoUploaded={load} onTerminer={() => callTerrainAction('fin')} onError={setError} onSkipToRapport={() => setStep(4)} />}
+        {step === 4 && <StepRapport interv={interv} onSaved={load} onError={setError} />}
+        {step === 5 && <StepFacture interv={interv} client={client} onCreated={load} onError={setError} />}
         {step === 6 && (
+          <StepDevisOption
+            interv={interv}
+            client={client}
+            onContinue={() => setStep(7)}
+            onError={setError}
+          />
+        )}
+        {step === 7 && (
           <TerrainDiffusionPanel
             interv={interv}
             client={client}
@@ -243,7 +253,7 @@ function TerrainPageBody({
             techOnlyMail={isTech}
           />
         )}
-        {step >= 7 && !isTech && (
+        {step >= 8 && !isTech && (
           <StepTermine interv={interv} client={client} onRefresh={load} onError={setError} techOnlyMail={isTech} />
         )}
       </main>
@@ -368,7 +378,14 @@ function StepEnCours({ interv, onPhotoUploaded, onTerminer, onError, onSkipToRap
     return () => clearInterval(id)
   }, [interv.heure_debut_reelle])
 
-  const hasPhotoApres = (interv.photos_urls?.length ?? 0) >= 2
+  const hasPhotoApres = (() => {
+    const urls = interv.photos_urls || []
+    const legendes = interv.photos_legendes || []
+    return urls.some((_, i) => {
+      const leg = (legendes[i] || '').toLowerCase()
+      return leg.includes('photo après') && !leg.includes('supplément')
+    })
+  })()
 
   return (
     <section className="space-y-5">
@@ -392,7 +409,17 @@ function StepEnCours({ interv, onPhotoUploaded, onTerminer, onError, onSkipToRap
           />
         ) : (
           <div className="rounded-xl overflow-hidden border-2 border-emerald-200">
-            <img src={interv.photos_urls![1]} alt="Après" className="w-full max-h-60 object-cover" />
+            <img
+              src={proxyImageUrl(
+                interv.photos_urls![
+                  (interv.photos_legendes || []).findIndex(l =>
+                    (l || '').toLowerCase().includes('photo après') && !(l || '').toLowerCase().includes('supplément'),
+                  )
+                ] || interv.photos_urls![interv.photos_urls!.length - 1],
+              )}
+              alt="Après"
+              className="w-full max-h-60 object-cover"
+            />
             <div className="text-xs text-emerald-700 py-1 bg-emerald-50 font-bold">✓ Photo après enregistrée</div>
           </div>
         )}
@@ -486,11 +513,11 @@ function StepRapport({ interv, onSaved, onError }: { interv: Intervention; onSav
       const saveData = await saveRes.json()
       if (!saveRes.ok) throw new Error(saveData.error || 'Sauvegarde échouée')
 
-      // Bump step à 4
+      // Bump step à 5 (facture)
       await fetch(`/api/interventions/${interv.id}/terrain-step`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'set', step: 4 }),
+        body: JSON.stringify({ action: 'set', step: 5 }),
       })
 
       onSaved()
@@ -1776,7 +1803,7 @@ function TerrainDiffusionPanel({ interv, client, onRefresh, onError, techOnlyMai
               {busy === 'youtube' ? (progress || '⚙ YouTube…') : youtubeUrl ? '✓ Post YouTube publié' : '▶ Post YouTube'}
             </button>
             {!hasPhotos && (
-              <p className="text-xs text-amber-700 font-semibold text-center">YouTube : ajoute des photos (étapes 0 ou 2).</p>
+              <p className="text-xs text-amber-700 font-semibold text-center">YouTube : ajoute des photos (étapes 0 ou 3).</p>
             )}
             {youtubeUrl && (
               <a href={youtubeUrl} target="_blank" rel="noopener noreferrer" className="block text-center text-sm font-semibold text-red-700 hover:underline">

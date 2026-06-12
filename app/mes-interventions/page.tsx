@@ -19,7 +19,8 @@ type InterventionRow = {
 const STEP_LABELS = [
   "Photo avant",
   "Démarrer",
-  "En cours",
+  "Travaux suppl.",
+  "Photo après",
   "Rapport",
   "Facture",
   "Devis",

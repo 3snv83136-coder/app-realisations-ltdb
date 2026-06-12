@@ -3,12 +3,13 @@
 export const TERRAIN_STEPS = [
   { key: 0, label: 'Photo avant', icon: '📷' },
   { key: 1, label: 'Démarrer', icon: '▶' },
-  { key: 2, label: 'Photo après', icon: '📷' },
-  { key: 3, label: 'Rapport', icon: '🎤' },
-  { key: 4, label: 'Facture', icon: '🧾' },
-  { key: 5, label: 'Devis', icon: '📋' },
-  { key: 6, label: 'Diffusion', icon: '✉' },
-  { key: 7, label: 'Réseaux', icon: '📍' },
+  { key: 2, label: 'Travaux suppl.', icon: '🤝' },
+  { key: 3, label: 'Photo après', icon: '📷' },
+  { key: 4, label: 'Rapport', icon: '🎤' },
+  { key: 5, label: 'Facture', icon: '🧾' },
+  { key: 6, label: 'Devis', icon: '📋' },
+  { key: 7, label: 'Diffusion', icon: '✉' },
+  { key: 8, label: 'Réseaux', icon: '📍' },
 ] as const
 
 export type TerrainStep = typeof TERRAIN_STEPS[number]['key']
