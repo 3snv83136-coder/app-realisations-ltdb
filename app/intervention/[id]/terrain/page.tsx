@@ -1386,12 +1386,12 @@ function StepDevisOption({ interv, client, onContinue, onError }: {
 // ============================================================
 type DiffusionAction = 'mail' | 'sms' | 'site' | 'gmb' | 'youtube' | null
 
-async function waitTerrainPdfsReady(intervId: string, onProgress: (msg: string) => void, maxWaitMs = 90_000): Promise<void> {
+async function waitTerrainPdfsReady(intervId: string, onProgress: (msg: string) => void, maxWaitMs = 130_000): Promise<void> {
   const started = Date.now()
   while (Date.now() - started < maxWaitMs) {
-    const st = await fetchJsonWithRetry<{ ready: boolean }>(
+    const st = await fetchJsonWithRetry<{ ready: boolean; error?: string }>(
       `/api/interventions/${intervId}/generate-pdfs`,
-      { cache: 'no-store', retries: 2, timeoutMs: 15_000 },
+      { cache: 'no-store', retries: 2, timeoutMs: 20_000 },
     )
     if (st.ready) return
     onProgress('⏳ Génération en cours sur le serveur… (écran verrouillé OK)')
@@ -1439,21 +1439,35 @@ async function prepareTerrainClientPdfs(opts: {
   }
 
   onProgress('📄 Génération serveur (rapport + facture)…')
-  // POST lancé sans attendre la réponse : le serveur Vercel continue même si l'iPhone se verrouille.
-  void fetch(`/api/interventions/${intervId}/generate-pdfs`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      nom: nom.trim(),
-      ...(email.trim() ? { email: email.trim() } : {}),
-      ...(telephone?.trim() ? { telephone: telephone.trim() } : {}),
-    }),
-    keepalive: true,
-  }).catch(() => {})
-
-  onProgress('⏳ Génération en cours… (écran verrouillé OK)')
-  await waitTerrainPdfsReady(intervId, onProgress)
-  onProgress('✓ PDF générés')
+  try {
+    await fetchJsonWithRetry<{ ok?: boolean; skipped?: boolean; ready?: boolean }>(
+      `/api/interventions/${intervId}/generate-pdfs`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          nom: nom.trim(),
+          ...(email.trim() ? { email: email.trim() } : {}),
+          ...(telephone?.trim() ? { telephone: telephone.trim() } : {}),
+        }),
+        retries: 2,
+        timeoutMs: 115_000,
+      },
+    )
+    onProgress('✓ PDF générés')
+    return
+  } catch (postErr) {
+    // Le POST a peut-être quand même démarré côté serveur — on poll avant d'abandonner.
+    onProgress('⏳ Finalisation des PDF…')
+    try {
+      await waitTerrainPdfsReady(intervId, onProgress)
+      onProgress('✓ PDF générés')
+      return
+    } catch {
+      const msg = postErr instanceof Error ? postErr.message : String(postErr)
+      throw new Error(`Génération PDF échouée : ${msg}`)
+    }
+  }
 }
 
 function TerrainDiffusionPanel({ interv, client, onRefresh, onError, techOnlyMail = false }: {
