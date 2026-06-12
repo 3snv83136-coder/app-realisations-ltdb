@@ -17,6 +17,7 @@ import { proxyImageUrl } from "@/lib/proxyImageUrl"
 import { buildSmsUri, isMobileForSms, openNativeSms } from "@/lib/sms"
 import { isDevisIntervention } from "@/lib/types-intervention"
 import { isAccordFinDeMois } from "@/lib/fin-de-mois"
+import { getTravauxSupplementaires } from "@/lib/travaux-supplementaires"
 
 const VoiceRecorder = dynamic(() => import("@/components/VoiceRecorder"), { ssr: false })
 
@@ -206,7 +207,7 @@ function TerrainPageBody({
         </div>
       </nav>
 
-      <TerrainStepper current={step} onStepClick={setStep} hiddenSteps={isTech ? [8] : []} />
+      <TerrainStepper current={step} onStepClick={setStep} hiddenSteps={isTech ? [7] : []} />
 
       <main className="max-w-2xl mx-auto px-4 py-6">
         {error && (
@@ -225,26 +226,27 @@ function TerrainPageBody({
         )}
         {step === 1 && <StepDemarrer interv={interv} onAction={() => callTerrainAction('debut')} />}
         {step === 2 && (
-          <StepTravauxSupplementaires
+          <StepEnCours
             interv={interv}
             client={client}
-            onSaved={load}
-            onSkip={() => setStep(3)}
+            onPhotoUploaded={load}
+            onRefresh={load}
+            onTerminer={() => callTerrainAction('fin')}
             onError={setError}
+            onSkipToRapport={() => setStep(3)}
           />
         )}
-        {step === 3 && <StepEnCours interv={interv} onPhotoUploaded={load} onTerminer={() => callTerrainAction('fin')} onError={setError} onSkipToRapport={() => setStep(4)} />}
-        {step === 4 && <StepRapport interv={interv} onSaved={load} onError={setError} />}
-        {step === 5 && <StepFacture interv={interv} client={client} onCreated={load} onError={setError} />}
-        {step === 6 && (
+        {step === 3 && <StepRapport interv={interv} onSaved={load} onError={setError} />}
+        {step === 4 && <StepFacture interv={interv} client={client} onCreated={load} onError={setError} />}
+        {step === 5 && (
           <StepDevisOption
             interv={interv}
             client={client}
-            onContinue={() => setStep(7)}
+            onContinue={() => setStep(6)}
             onError={setError}
           />
         )}
-        {step === 7 && (
+        {step === 6 && (
           <TerrainDiffusionPanel
             interv={interv}
             client={client}
@@ -253,7 +255,7 @@ function TerrainPageBody({
             techOnlyMail={isTech}
           />
         )}
-        {step >= 8 && !isTech && (
+        {step >= 7 && !isTech && (
           <StepTermine interv={interv} client={client} onRefresh={load} onError={setError} techOnlyMail={isTech} />
         )}
       </main>
@@ -355,14 +357,18 @@ function StepDemarrer({ interv, onAction }: { interv: Intervention; onAction: ()
 // ============================================================
 // ÉTAPE 2 — En cours (chrono + photo après + terminer)
 // ============================================================
-function StepEnCours({ interv, onPhotoUploaded, onTerminer, onError, onSkipToRapport }: {
+function StepEnCours({ interv, client, onPhotoUploaded, onRefresh, onTerminer, onError, onSkipToRapport }: {
   interv: Intervention
+  client: Client
   onPhotoUploaded: () => void
+  onRefresh: () => void | Promise<void>
   onTerminer: () => void
   onError: (e: string) => void
   onSkipToRapport: () => void
 }) {
   const [elapsed, setElapsed] = useState('')
+  const [travauxOpen, setTravauxOpen] = useState(false)
+  const travauxCount = getTravauxSupplementaires(interv.rapport_json).length
 
   useEffect(() => {
     if (!interv.heure_debut_reelle) return
@@ -388,12 +394,37 @@ function StepEnCours({ interv, onPhotoUploaded, onTerminer, onError, onSkipToRap
   })()
 
   return (
+    <>
     <section className="space-y-5">
       <header className="text-center bg-amber-50 border-2 border-amber-200 rounded-2xl py-6 px-4">
         <div className="text-3xl mb-1">⏱</div>
         <div className="text-sm uppercase tracking-wider text-amber-700 font-bold">Intervention en cours</div>
         <div className="text-4xl font-black text-amber-900 mt-2 tabular-nums">{elapsed || '—'}</div>
       </header>
+
+      <button
+        type="button"
+        onClick={() => setTravauxOpen(true)}
+        className="w-full text-left bg-red-600 hover:bg-red-700 active:bg-red-800 text-white rounded-2xl p-5 border-2 border-red-800 shadow-lg transition"
+      >
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <div className="text-lg font-black flex items-center gap-2">
+              <span>🤝</span>
+              <span>Travaux supplémentaires avec accord</span>
+            </div>
+            <p className="text-sm text-red-100 mt-1 font-medium">
+              Curage, passage caméra, fosse septique… Accord client + envoi automatique.
+            </p>
+            {travauxCount > 0 && (
+              <p className="text-xs font-bold mt-2 bg-white/20 inline-block px-2 py-1 rounded-lg">
+                ✓ {travauxCount} accord{travauxCount > 1 ? 's' : ''} enregistré{travauxCount > 1 ? 's' : ''}
+              </p>
+            )}
+          </div>
+          <span className="text-2xl font-black shrink-0">→</span>
+        </div>
+      </button>
 
       <div className="bg-white rounded-2xl border-2 border-slate-200 p-5 space-y-4">
         <div>
@@ -444,6 +475,35 @@ function StepEnCours({ interv, onPhotoUploaded, onTerminer, onError, onSkipToRap
         )}
       </div>
     </section>
+
+    {travauxOpen && (
+      <div className="fixed inset-0 z-50 bg-slate-50 overflow-y-auto">
+        <div className="bg-[#0e2a52] text-white px-4 py-3 sticky top-0 z-10 shadow-lg">
+          <button
+            type="button"
+            onClick={() => setTravauxOpen(false)}
+            className="text-sm font-bold hover:underline"
+          >
+            ← Retour à l&apos;intervention
+          </button>
+        </div>
+        <div className="max-w-2xl mx-auto px-4 py-6 pb-24">
+          <StepTravauxSupplementaires
+            key={travauxCount}
+            interv={interv}
+            client={client}
+            overlay
+            onSaved={onRefresh}
+            onClose={() => {
+              setTravauxOpen(false)
+              void onRefresh()
+            }}
+            onError={onError}
+          />
+        </div>
+      </div>
+    )}
+    </>
   )
 }
 
@@ -513,11 +573,11 @@ function StepRapport({ interv, onSaved, onError }: { interv: Intervention; onSav
       const saveData = await saveRes.json()
       if (!saveRes.ok) throw new Error(saveData.error || 'Sauvegarde échouée')
 
-      // Bump step à 5 (facture)
+      // Bump step à 4 (facture)
       await fetch(`/api/interventions/${interv.id}/terrain-step`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'set', step: 5 }),
+        body: JSON.stringify({ action: 'set', step: 4 }),
       })
 
       onSaved()
@@ -1803,7 +1863,7 @@ function TerrainDiffusionPanel({ interv, client, onRefresh, onError, techOnlyMai
               {busy === 'youtube' ? (progress || '⚙ YouTube…') : youtubeUrl ? '✓ Post YouTube publié' : '▶ Post YouTube'}
             </button>
             {!hasPhotos && (
-              <p className="text-xs text-amber-700 font-semibold text-center">YouTube : ajoute des photos (étapes 0 ou 3).</p>
+              <p className="text-xs text-amber-700 font-semibold text-center">YouTube : ajoute des photos (étapes 0 ou 2).</p>
             )}
             {youtubeUrl && (
               <a href={youtubeUrl} target="_blank" rel="noopener noreferrer" className="block text-center text-sm font-semibold text-red-700 hover:underline">

@@ -464,7 +464,7 @@ export default function InterventionDetailPage({ params }: { params: { id: strin
         {/* Mode Terrain — masqué pour les interventions de type Devis */}
         {intervention.statut !== 'annulee'
           && !isDevisIntervention(intervention.type_intervention)
-          && (intervention.terrain_step ?? 0) < 9 && (
+          && (intervention.terrain_step ?? 0) < 8 && (
           <Link
             href={`/intervention/${intervention.id}/terrain`}
             className="block bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white rounded-2xl p-5 shadow-lg transition"
@@ -475,7 +475,7 @@ export default function InterventionDetailPage({ params }: { params: { id: strin
                 <div className="text-xs opacity-90 mt-1">
                   {(intervention.terrain_step ?? 0) === 0
                     ? 'Wizard guidé : photo avant → travaux → photo après → rapport → facture → devis (option) → envoi'
-                    : `Reprise à l'étape ${(intervention.terrain_step ?? 0) + 1}/9`}
+                    : `Reprise à l'étape ${(intervention.terrain_step ?? 0) + 1}/8`}
                 </div>
               </div>
               <div className="text-2xl">→</div>

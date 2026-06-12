@@ -9,7 +9,6 @@ import { proxyImageUrl } from '@/lib/proxyImageUrl'
 import {
   PRESTATIONS_TRAVAUX_SUPP,
   calculTotauxTravauxSupp,
-  getTravauxSupplementaires,
   type TravauxSupplementairesRecord,
 } from '@/lib/travaux-supplementaires'
 
@@ -31,8 +30,10 @@ type Props = {
   interv: InterventionLite
   client: ClientInfo
   onSaved: () => void | Promise<void>
-  onSkip: () => void | Promise<void>
+  onClose: () => void | Promise<void>
   onError: (msg: string) => void
+  /** Ouvert en panneau depuis l'étape « intervention en cours » */
+  overlay?: boolean
 }
 
 type SelectedLine = {
@@ -42,13 +43,7 @@ type SelectedLine = {
   quantite: number
 }
 
-export default function StepTravauxSupplementaires({ interv, client, onSaved, onSkip, onError }: Props) {
-  const existing = useMemo(() => getTravauxSupplementaires(interv.rapport_json), [interv.rapport_json])
-  const lastSigned = existing.length > 0 ? existing[existing.length - 1] : null
-
-  const [phase, setPhase] = useState<'form' | 'sent'>(lastSigned ? 'sent' : 'form')
-  const [savedRecord, setSavedRecord] = useState<TravauxSupplementairesRecord | null>(lastSigned)
-
+export default function StepTravauxSupplementaires({ interv, client, onSaved, onClose, onError, overlay = false }: Props) {
   const [selected, setSelected] = useState<Record<string, boolean>>({})
   const [prices, setPrices] = useState<Record<string, number>>({})
   const [manuelle, setManuelle] = useState('')
@@ -61,10 +56,7 @@ export default function StepTravauxSupplementaires({ interv, client, onSaved, on
   const [clientNom, setClientNom] = useState(client?.nom || '')
   const [clientEmail, setClientEmail] = useState(client?.email || '')
   const [clientTel, setClientTel] = useState(client?.telephone || '')
-  const [busy, setBusy] = useState<'save' | 'mail' | 'sms' | null>(null)
-  const [smsUri, setSmsUri] = useState<string | null>(null)
-  const [autoMailOk, setAutoMailOk] = useState(!!lastSigned?.mail_envoye_at)
-  const [autoSmsOk, setAutoSmsOk] = useState(!!lastSigned?.sms_envoye_at)
+  const [busy, setBusy] = useState(false)
 
   const lignes: SelectedLine[] = useMemo(() => {
     const out: SelectedLine[] = []
@@ -104,7 +96,7 @@ export default function StepTravauxSupplementaires({ interv, client, onSaved, on
     renonciation &&
     clientNom.trim() &&
     (emailValide || telValide) &&
-    busy === null
+    !busy
 
   function togglePrestation(id: string) {
     setSelected(prev => ({ ...prev, [id]: !prev[id] }))
@@ -166,9 +158,6 @@ export default function StepTravauxSupplementaires({ interv, client, onSaved, on
       }
     }
 
-    setAutoMailOk(mailOk)
-    setAutoSmsOk(smsOk)
-    setSmsUri(uri)
     if (warnings.length > 0 && !mailOk && !smsOk) {
       onError(warnings.join(' · '))
     } else if (warnings.length > 0) {
@@ -178,7 +167,7 @@ export default function StepTravauxSupplementaires({ interv, client, onSaved, on
 
   async function handleValidate() {
     if (!peutValider || !signature) return
-    setBusy('save')
+    setBusy(true)
     onError('')
     try {
       const res = await fetch(`/api/interventions/${interv.id}/travaux-supplementaires`, {
@@ -206,15 +195,13 @@ export default function StepTravauxSupplementaires({ interv, client, onSaved, on
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`)
-      const record = data.record as TravauxSupplementairesRecord
-      setSavedRecord(record)
-      await envoyerAccordSigne(record)
-      setPhase('sent')
+      await envoyerAccordSigne(data.record as TravauxSupplementairesRecord)
       await onSaved()
+      await onClose()
     } catch (e) {
       onError(e instanceof Error ? e.message : String(e))
     } finally {
-      setBusy(null)
+      setBusy(false)
     }
   }
 
@@ -229,147 +216,13 @@ export default function StepTravauxSupplementaires({ interv, client, onSaved, on
     )
   }
 
-  async function handleSendMail() {
-    if (!savedRecord) return
-    if (!clientEmail.trim()) {
-      onError('Saisis l\'email du client.')
-      return
-    }
-    setBusy('mail')
-    onError('')
-    try {
-      const pdfBase64 = await buildPdfBase64(savedRecord)
-      const res = await fetch(`/api/interventions/${interv.id}/notify-travaux-supplementaires`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          recordId: savedRecord.id,
-          clientEmail: clientEmail.trim(),
-          pdfBase64,
-          pdfFilename: `accord-travaux-suppl-${savedRecord.id}.pdf`,
-        }),
-      })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`)
-      setAutoMailOk(true)
-      await onSaved()
-    } catch (e) {
-      onError(e instanceof Error ? e.message : String(e))
-    } finally {
-      setBusy(null)
-    }
-  }
-
-  async function handleSendSms() {
-    if (!savedRecord) return
-    const phone = clientTel.trim()
-    if (!phone || phone.replace(/\D/g, '').length < 10) {
-      onError('Saisis un numéro de mobile valide.')
-      return
-    }
-    if (!isMobileForSms()) {
-      onError('Le SMS s\'ouvre depuis un smartphone.')
-      return
-    }
-    setBusy('sms')
-    onError('')
-    setSmsUri(null)
-    try {
-      const res = await fetch(`/api/interventions/${interv.id}/notify-travaux-supplementaires-sms`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ recordId: savedRecord.id, clientPhone: phone }),
-      })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`)
-      const uri = buildSmsUri(phone, data.body)
-      setSmsUri(uri)
-      openNativeSms(phone, data.body)
-      setAutoSmsOk(true)
-      await onSaved()
-    } catch (e) {
-      onError(e instanceof Error ? e.message : String(e))
-    } finally {
-      setBusy(null)
-    }
-  }
-
-  if (phase === 'sent' && savedRecord) {
-    const mailOk = autoMailOk || !!savedRecord.mail_envoye_at
-    const smsOk = autoSmsOk || !!savedRecord.sms_envoye_at
-    const recordTtc = savedRecord.total_ttc ?? total_ttc
-
-    return (
-      <section className="space-y-5">
-        <header className="text-center bg-emerald-50 border-2 border-emerald-200 rounded-2xl py-6 px-4">
-          <div className="text-4xl mb-1">✓</div>
-          <h1 className="text-xl font-black text-emerald-800">Accord signé et envoyé</h1>
-          <p className="text-sm text-emerald-700 mt-2">
-            {savedRecord.lignes.length} prestation{savedRecord.lignes.length > 1 ? 's' : ''} · {recordTtc.toFixed(2)} € TTC
-          </p>
-        </header>
-
-        <div className="bg-white rounded-2xl border-2 border-slate-200 p-4 space-y-2 text-sm">
-          {mailOk && (
-            <p className="text-emerald-700 font-semibold">✉ Mail envoyé à {clientEmail || savedRecord.client_email}</p>
-          )}
-          {smsOk && (
-            <p className="text-violet-700 font-semibold">📱 SMS préparé — validez l&apos;envoi dans Messages</p>
-          )}
-          {!mailOk && !smsOk && (
-            <p className="text-amber-700 font-semibold">⚠ Accord enregistré — renvoi manuel ci-dessous si besoin.</p>
-          )}
-        </div>
-
-        {smsUri && (
-          <a
-            href={smsUri}
-            className="block w-full text-center py-4 rounded-xl bg-violet-600 hover:bg-violet-700 text-white font-bold shadow-lg"
-          >
-            📱 Ouvrir Messages (SMS)
-          </a>
-        )}
-
-        <div className="flex flex-col gap-3">
-          {!mailOk && emailValide && (
-            <button
-              type="button"
-              onClick={handleSendMail}
-              disabled={!!busy}
-              className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white rounded-2xl py-3 font-bold shadow-lg transition text-sm"
-            >
-              {busy === 'mail' ? '⚙ Envoi…' : '✉ Renvoyer par mail'}
-            </button>
-          )}
-          {!smsOk && telValide && (
-            <button
-              type="button"
-              onClick={handleSendSms}
-              disabled={!!busy}
-              className="w-full bg-violet-600 hover:bg-violet-700 disabled:opacity-50 text-white rounded-2xl py-3 font-bold shadow-lg transition text-sm"
-            >
-              {busy === 'sms' ? '⚙ SMS…' : '📱 Renvoyer par SMS'}
-            </button>
-          )}
-          <button
-            type="button"
-            onClick={() => onSkip()}
-            className="w-full bg-blue-600 hover:bg-blue-700 text-white rounded-2xl py-4 font-black shadow-lg transition"
-          >
-            Continuer → Photo après
-          </button>
-        </div>
-      </section>
-    )
-  }
-
   return (
     <section className="space-y-5">
       <header className="text-center">
         <div className="text-5xl mb-2">🤝</div>
         <h1 className="text-2xl font-black text-slate-800">Travaux supplémentaires avec accord</h1>
         <p className="text-sm text-slate-600 mt-2">
-          Ajoute un curage, un passage caméra ou autre prestation avant de continuer l&apos;intervention.
+          Ajoute un curage, un passage caméra ou autre prestation. L&apos;accord part automatiquement à la signature.
         </p>
       </header>
 
@@ -509,17 +362,19 @@ export default function StepTravauxSupplementaires({ interv, client, onSaved, on
         disabled={!peutValider}
         className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white rounded-2xl py-5 font-black text-lg shadow-lg transition"
       >
-        {busy === 'save' ? '⚙ Signature et envoi en cours…' : '✓ Signer et envoyer l\'accord'}
+        {busy ? '⚙ Signature et envoi en cours…' : '✓ Signer et envoyer l\'accord'}
       </button>
 
-      <button
-        type="button"
-        onClick={() => onSkip()}
-        disabled={!!busy}
-        className="w-full text-center text-sm text-slate-500 hover:text-slate-700 underline py-2"
-      >
-        Pas de travaux supplémentaires → continuer
-      </button>
+      {overlay && (
+        <button
+          type="button"
+          onClick={() => onClose()}
+          disabled={!!busy}
+          className="w-full bg-white border-2 border-slate-300 hover:bg-slate-50 text-slate-700 rounded-2xl py-4 font-bold transition"
+        >
+          ← Retour à l&apos;intervention
+        </button>
+      )}
     </section>
   )
 }

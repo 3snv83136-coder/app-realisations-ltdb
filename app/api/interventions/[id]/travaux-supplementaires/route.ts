@@ -174,12 +174,9 @@ export async function POST(req: NextRequest, { params }: Params) {
     travaux_supplementaires: [...existing, record],
   }
 
-  const currentStep = interv.terrain_step ?? 0
-  const nextStep = currentStep < 3 ? 3 : currentStep
-
   const { data: updated, error: upErr } = await sb
     .from('interventions')
-    .update({ rapport_json: rapportJson, terrain_step: nextStep })
+    .update({ rapport_json: rapportJson })
     .eq('id', interventionId)
     .select('*')
     .single()

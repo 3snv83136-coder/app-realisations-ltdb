@@ -14,7 +14,7 @@ type Action = 'debut' | 'fin' | 'set'
  * Body JSON :
  *   { action: 'debut' }                       → heure_debut_reelle = now(), statut=en_cours, step=2
  *   { action: 'fin' }                         → heure_fin_reelle = now(), statut=terminee
- *   { action: 'set', step: 0..9 }             → set explicite (utile pour "Passer" / revenir en arrière)
+ *   { action: 'set', step: 0..8 }             → set explicite (utile pour "Passer" / revenir en arrière)
  *
  * Réponse : { intervention: <row complète> }
  */
@@ -61,7 +61,7 @@ export async function POST(req: NextRequest, { params }: Params) {
   if (action === 'debut') {
     update.heure_debut_reelle = now
     update.statut = 'en_cours'
-    // Avance le step à 2 (= travaux supplémentaires avec accord) si pas déjà plus loin
+    // Avance le step à 2 (= photo après / intervention en cours) si pas déjà plus loin
     if ((interv.terrain_step ?? 0) < 2) update.terrain_step = 2
   } else if (action === 'fin') {
     update.heure_fin_reelle = now
@@ -71,8 +71,8 @@ export async function POST(req: NextRequest, { params }: Params) {
     // Le wizard continue ensuite : photo après, rapport, facture, envoi.
   } else if (action === 'set') {
     const step = Number(body.step)
-    if (!Number.isInteger(step) || step < 0 || step > 9) {
-      return NextResponse.json({ error: 'step doit être un entier entre 0 et 9' }, { status: 400 })
+    if (!Number.isInteger(step) || step < 0 || step > 8) {
+      return NextResponse.json({ error: 'step doit être un entier entre 0 et 8' }, { status: 400 })
     }
     update.terrain_step = step
   }

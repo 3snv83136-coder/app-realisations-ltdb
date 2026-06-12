@@ -90,7 +90,7 @@ export async function POST(req: NextRequest, { params }: Params) {
   const isPhotoApres = leg.includes('photo après') && !isTravauxSupp
   if (!isTravauxSupp) {
     if (count >= 1 && currentStep < 1 && leg.includes('avant')) nextStep = 1
-    else if (isPhotoApres && currentStep < 4) nextStep = 4
+    else if (isPhotoApres && currentStep < 3) nextStep = 3
   }
 
   const { data: updated, error: upErr } = await sb
