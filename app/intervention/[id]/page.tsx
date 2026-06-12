@@ -83,6 +83,7 @@ type TechnicienDetail = {
   email: string | null
   telephone: string | null
   agence: string | null
+  actif?: boolean
 }
 
 const STATUT_LABEL: Record<Statut, string> = {
