@@ -63,6 +63,8 @@ export default function StepTravauxSupplementaires({ interv, client, onSaved, on
   const [clientTel, setClientTel] = useState(client?.telephone || '')
   const [busy, setBusy] = useState<'save' | 'mail' | 'sms' | null>(null)
   const [smsUri, setSmsUri] = useState<string | null>(null)
+  const [autoMailOk, setAutoMailOk] = useState(!!lastSigned?.mail_envoye_at)
+  const [autoSmsOk, setAutoSmsOk] = useState(!!lastSigned?.sms_envoye_at)
 
   const lignes: SelectedLine[] = useMemo(() => {
     const out: SelectedLine[] = []
@@ -92,12 +94,16 @@ export default function StepTravauxSupplementaires({ interv, client, onSaved, on
     tva,
   )
 
+  const emailValide = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(clientEmail.trim())
+  const telValide = clientTel.trim().replace(/\D/g, '').length >= 10
+
   const peutValider =
     lignes.length > 0 &&
     !!signature &&
     demandeExpresse &&
     renonciation &&
     clientNom.trim() &&
+    (emailValide || telValide) &&
     busy === null
 
   function togglePrestation(id: string) {
@@ -106,6 +112,68 @@ export default function StepTravauxSupplementaires({ interv, client, onSaved, on
 
   function handlePhotoFromCapture(url: string) {
     setPhotoUrl(url)
+  }
+
+  async function envoyerAccordSigne(record: TravauxSupplementairesRecord) {
+    const email = clientEmail.trim()
+    const phone = clientTel.trim()
+    let mailOk = false
+    let smsOk = false
+    let uri: string | null = null
+    const warnings: string[] = []
+
+    if (emailValide) {
+      try {
+        const pdfBase64 = await buildPdfBase64(record)
+        const res = await fetch(`/api/interventions/${interv.id}/notify-travaux-supplementaires`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            recordId: record.id,
+            clientEmail: email,
+            pdfBase64,
+            pdfFilename: `accord-travaux-suppl-${record.id}.pdf`,
+          }),
+        })
+        const data = await res.json()
+        if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`)
+        mailOk = true
+      } catch (e) {
+        warnings.push(`Mail : ${e instanceof Error ? e.message : String(e)}`)
+      }
+    }
+
+    if (telValide) {
+      if (!isMobileForSms()) {
+        if (!emailValide) {
+          warnings.push('SMS : ouvrez l\'app depuis un smartphone pour envoyer le message.')
+        }
+      } else {
+        try {
+          const res = await fetch(`/api/interventions/${interv.id}/notify-travaux-supplementaires-sms`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ recordId: record.id, clientPhone: phone }),
+          })
+          const data = await res.json()
+          if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`)
+          uri = buildSmsUri(phone, data.body)
+          openNativeSms(phone, data.body)
+          smsOk = true
+        } catch (e) {
+          warnings.push(`SMS : ${e instanceof Error ? e.message : String(e)}`)
+        }
+      }
+    }
+
+    setAutoMailOk(mailOk)
+    setAutoSmsOk(smsOk)
+    setSmsUri(uri)
+    if (warnings.length > 0 && !mailOk && !smsOk) {
+      onError(warnings.join(' · '))
+    } else if (warnings.length > 0) {
+      onError(`Accord enregistré. ${warnings.join(' · ')}`)
+    }
   }
 
   async function handleValidate() {
@@ -138,7 +206,9 @@ export default function StepTravauxSupplementaires({ interv, client, onSaved, on
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`)
-      setSavedRecord(data.record)
+      const record = data.record as TravauxSupplementairesRecord
+      setSavedRecord(record)
+      await envoyerAccordSigne(record)
       setPhase('sent')
       await onSaved()
     } catch (e) {
@@ -181,6 +251,7 @@ export default function StepTravauxSupplementaires({ interv, client, onSaved, on
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`)
+      setAutoMailOk(true)
       await onSaved()
     } catch (e) {
       onError(e instanceof Error ? e.message : String(e))
@@ -214,6 +285,7 @@ export default function StepTravauxSupplementaires({ interv, client, onSaved, on
       const uri = buildSmsUri(phone, data.body)
       setSmsUri(uri)
       openNativeSms(phone, data.body)
+      setAutoSmsOk(true)
       await onSaved()
     } catch (e) {
       onError(e instanceof Error ? e.message : String(e))
@@ -223,35 +295,30 @@ export default function StepTravauxSupplementaires({ interv, client, onSaved, on
   }
 
   if (phase === 'sent' && savedRecord) {
+    const mailOk = autoMailOk || !!savedRecord.mail_envoye_at
+    const smsOk = autoSmsOk || !!savedRecord.sms_envoye_at
+    const recordTtc = savedRecord.total_ttc ?? total_ttc
+
     return (
       <section className="space-y-5">
         <header className="text-center bg-emerald-50 border-2 border-emerald-200 rounded-2xl py-6 px-4">
           <div className="text-4xl mb-1">✓</div>
-          <h1 className="text-xl font-black text-emerald-800">Accord signé</h1>
+          <h1 className="text-xl font-black text-emerald-800">Accord signé et envoyé</h1>
           <p className="text-sm text-emerald-700 mt-2">
-            {savedRecord.lignes.length} prestation{savedRecord.lignes.length > 1 ? 's' : ''} · {total_ttc.toFixed(2)} € TTC
+            {savedRecord.lignes.length} prestation{savedRecord.lignes.length > 1 ? 's' : ''} · {recordTtc.toFixed(2)} € TTC
           </p>
         </header>
 
-        <div className="bg-white rounded-2xl border-2 border-slate-200 p-4 space-y-3">
-          <div>
-            <label className="block text-xs uppercase tracking-wider text-slate-500 font-bold mb-1">Email client</label>
-            <input
-              type="email"
-              value={clientEmail}
-              onChange={e => setClientEmail(e.target.value)}
-              className="w-full border-2 border-slate-200 focus:border-blue-500 outline-none rounded-xl px-4 py-3 text-sm"
-            />
-          </div>
-          <div>
-            <label className="block text-xs uppercase tracking-wider text-slate-500 font-bold mb-1">Téléphone</label>
-            <input
-              type="tel"
-              value={clientTel}
-              onChange={e => setClientTel(e.target.value)}
-              className="w-full border-2 border-slate-200 focus:border-blue-500 outline-none rounded-xl px-4 py-3 text-sm"
-            />
-          </div>
+        <div className="bg-white rounded-2xl border-2 border-slate-200 p-4 space-y-2 text-sm">
+          {mailOk && (
+            <p className="text-emerald-700 font-semibold">✉ Mail envoyé à {clientEmail || savedRecord.client_email}</p>
+          )}
+          {smsOk && (
+            <p className="text-violet-700 font-semibold">📱 SMS préparé — validez l&apos;envoi dans Messages</p>
+          )}
+          {!mailOk && !smsOk && (
+            <p className="text-amber-700 font-semibold">⚠ Accord enregistré — renvoi manuel ci-dessous si besoin.</p>
+          )}
         </div>
 
         {smsUri && (
@@ -264,22 +331,26 @@ export default function StepTravauxSupplementaires({ interv, client, onSaved, on
         )}
 
         <div className="flex flex-col gap-3">
-          <button
-            type="button"
-            onClick={handleSendMail}
-            disabled={!!busy || !clientEmail.trim()}
-            className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white rounded-2xl py-4 font-black shadow-lg transition"
-          >
-            {busy === 'mail' ? '⚙ Envoi…' : savedRecord.mail_envoye_at ? '✓ Mail envoyé — renvoyer' : '✉ Envoyer par mail'}
-          </button>
-          <button
-            type="button"
-            onClick={handleSendSms}
-            disabled={!!busy || !clientTel.trim()}
-            className="w-full bg-violet-600 hover:bg-violet-700 disabled:opacity-50 text-white rounded-2xl py-4 font-black shadow-lg transition"
-          >
-            {busy === 'sms' ? '⚙ SMS…' : savedRecord.sms_envoye_at ? '✓ SMS préparé — renvoyer' : '📱 Envoyer par SMS'}
-          </button>
+          {!mailOk && emailValide && (
+            <button
+              type="button"
+              onClick={handleSendMail}
+              disabled={!!busy}
+              className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white rounded-2xl py-3 font-bold shadow-lg transition text-sm"
+            >
+              {busy === 'mail' ? '⚙ Envoi…' : '✉ Renvoyer par mail'}
+            </button>
+          )}
+          {!smsOk && telValide && (
+            <button
+              type="button"
+              onClick={handleSendSms}
+              disabled={!!busy}
+              className="w-full bg-violet-600 hover:bg-violet-700 disabled:opacity-50 text-white rounded-2xl py-3 font-bold shadow-lg transition text-sm"
+            >
+              {busy === 'sms' ? '⚙ SMS…' : '📱 Renvoyer par SMS'}
+            </button>
+          )}
           <button
             type="button"
             onClick={() => onSkip()}
@@ -400,20 +471,23 @@ export default function StepTravauxSupplementaires({ interv, client, onSaved, on
           onChange={e => setClientNom(e.target.value)}
           className="w-full border-2 border-slate-200 focus:border-blue-500 outline-none rounded-xl px-4 py-3 text-sm"
         />
-        <label className="block text-xs uppercase tracking-wider text-slate-500 font-bold">Email (envoi accord)</label>
+        <label className="block text-xs uppercase tracking-wider text-slate-500 font-bold">Email (envoi automatique)</label>
         <input
           type="email"
           value={clientEmail}
           onChange={e => setClientEmail(e.target.value)}
           className="w-full border-2 border-slate-200 focus:border-blue-500 outline-none rounded-xl px-4 py-3 text-sm"
         />
-        <label className="block text-xs uppercase tracking-wider text-slate-500 font-bold">Téléphone (SMS)</label>
+        <label className="block text-xs uppercase tracking-wider text-slate-500 font-bold">Téléphone (SMS automatique)</label>
         <input
           type="tel"
           value={clientTel}
           onChange={e => setClientTel(e.target.value)}
           className="w-full border-2 border-slate-200 focus:border-blue-500 outline-none rounded-xl px-4 py-3 text-sm"
         />
+        {!emailValide && !telValide && (
+          <p className="text-xs text-amber-600 font-semibold">⚠ Email ou téléphone requis pour l&apos;envoi automatique à la signature.</p>
+        )}
       </div>
 
       <div className="bg-white rounded-2xl border-2 border-slate-200 p-5 space-y-4">
@@ -435,7 +509,7 @@ export default function StepTravauxSupplementaires({ interv, client, onSaved, on
         disabled={!peutValider}
         className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white rounded-2xl py-5 font-black text-lg shadow-lg transition"
       >
-        {busy === 'save' ? '⚙ Enregistrement…' : '✓ Valider et faire signer'}
+        {busy === 'save' ? '⚙ Signature et envoi en cours…' : '✓ Signer et envoyer l\'accord'}
       </button>
 
       <button
