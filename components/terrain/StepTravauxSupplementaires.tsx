@@ -1,11 +1,9 @@
 'use client'
 import { useMemo, useState } from 'react'
-import TerrainPhotoCapture from '@/components/terrain/TerrainPhotoCapture'
 import SignatureCanvas from '@/components/accord/SignatureCanvas'
 import { TravauxSupplementairesDocument } from '@/components/terrain/TravauxSupplementairesPDF'
 import { pdfDocumentToBase64 } from '@/lib/pdfToBase64'
 import { buildSmsUri, isMobileForSms, openNativeSms } from '@/lib/sms'
-import { proxyImageUrl } from '@/lib/proxyImageUrl'
 import {
   PRESTATIONS_TRAVAUX_SUPP,
   calculTotauxTravauxSupp,
@@ -49,7 +47,6 @@ export default function StepTravauxSupplementaires({ interv, client, onSaved, on
   const [manuelle, setManuelle] = useState('')
   const [manuellePrix, setManuellePrix] = useState(0)
   const [tva, setTva] = useState<0 | 10 | 20>(10)
-  const [photoUrl, setPhotoUrl] = useState<string | null>(null)
   const [signature, setSignature] = useState<string | null>(null)
   const [demandeExpresse, setDemandeExpresse] = useState(false)
   const [renonciation, setRenonciation] = useState(false)
@@ -100,10 +97,6 @@ export default function StepTravauxSupplementaires({ interv, client, onSaved, on
 
   function togglePrestation(id: string) {
     setSelected(prev => ({ ...prev, [id]: !prev[id] }))
-  }
-
-  function handlePhotoFromCapture(url: string) {
-    setPhotoUrl(url)
   }
 
   async function envoyerAccordSigne(record: TravauxSupplementairesRecord) {
@@ -186,7 +179,6 @@ export default function StepTravauxSupplementaires({ interv, client, onSaved, on
           })),
           prestation_manuelle: manuelle.trim() || undefined,
           signature,
-          photo_url: photoUrl || undefined,
           taux_tva: tva,
           demande_expresse: true,
           renonciation_retractation: true,
@@ -297,24 +289,6 @@ export default function StepTravauxSupplementaires({ interv, client, onSaved, on
           <span>Total TTC</span>
           <span className="tabular-nums">{total_ttc.toFixed(2)} €</span>
         </div>
-      </div>
-
-      <div className="bg-white rounded-2xl border-2 border-slate-200 p-5 space-y-3">
-        <h2 className="font-bold text-slate-800">📷 Photo après travaux supplémentaires</h2>
-        <p className="text-xs text-slate-500">Capture le résultat une fois les travaux supplémentaires terminés.</p>
-        {photoUrl ? (
-          <div className="rounded-xl overflow-hidden border-2 border-emerald-200">
-            <img src={proxyImageUrl(photoUrl)} alt="Après travaux suppl." className="w-full max-h-48 object-cover" />
-            <p className="text-xs text-emerald-700 py-1 bg-emerald-50 font-bold text-center">✓ Photo enregistrée</p>
-          </div>
-        ) : (
-          <TerrainPhotoCapture
-            interventionId={interv.id}
-            legendeDefaut="Travaux supplémentaires — photo après"
-            titre="Photo APRÈS travaux suppl."
-            onUploaded={(url) => { void handlePhotoFromCapture(url) }}
-          />
-        )}
       </div>
 
       <div className="bg-white rounded-2xl border-2 border-slate-200 p-4 space-y-3">
