@@ -260,9 +260,9 @@ export default function InterventionDetailPage({ params }: { params: { id: strin
 
   useEffect(() => { load() }, [params.id])
 
-  // Liste techniciens pour réassignation rapide (interventions terminées).
+  // Liste techniciens pour assignation / réassignation rapide sur la fiche.
   useEffect(() => {
-    if (!intervention || intervention.statut !== 'terminee' || techniciens.length > 0) return
+    if (!intervention || intervention.statut === 'annulee' || techniciens.length > 0) return
     let cancelled = false
     setTechniciensError('')
     fetch('/api/techniciens?all=1', { cache: 'no-store' })
@@ -843,21 +843,22 @@ export default function InterventionDetailPage({ params }: { params: { id: strin
               ) : (
                 <p className="text-slate-500 text-sm italic">Aucun technicien assigné</p>
               )}
-              {intervention.statut === 'terminee' && (
-                <div className="pt-3 border-t border-slate-100 space-y-2">
+              {intervention.statut !== 'annulee' && (
+                <div className={`space-y-2 ${technicien ? 'pt-3 border-t border-slate-100' : ''}`}>
                   <label className="block text-xs font-bold uppercase tracking-wider text-slate-500">
-                    Changer le technicien
+                    {technicien ? 'Changer le technicien' : 'Assigner un technicien'}
                   </label>
                   <select
                     value={intervention.technicien_id || ''}
-                    disabled={actionInProgress}
+                    disabled={actionInProgress || techniciens.length === 0}
                     onChange={async (e) => {
                       const next = e.target.value || null
                       if (next === (intervention.technicien_id || null)) return
                       const label = next
                         ? techniciens.find(t => t.id === next)?.nom || 'ce technicien'
                         : 'aucun technicien'
-                      if (!confirm(`Réassigner cette intervention à ${label} ?`)) {
+                      const verb = intervention.technicien_id ? 'Réassigner' : 'Assigner'
+                      if (!confirm(`${verb} cette intervention à ${label} ?`)) {
                         e.target.value = intervention.technicien_id || ''
                         return
                       }
@@ -865,18 +866,21 @@ export default function InterventionDetailPage({ params }: { params: { id: strin
                     }}
                     className="w-full border-2 border-slate-200 focus:border-blue-500 outline-none rounded-lg px-3 py-2 text-sm bg-white disabled:opacity-50"
                   >
-                    <option value="">— non assigné —</option>
+                    <option value="">— choisir un technicien —</option>
                     {techniciens.map(t => (
                       <option key={t.id} value={t.id}>
-                        {t.nom}{t.agence ? ` · ${t.agence}` : ''}{!t.actif ? ' (inactif)' : ''}
+                        {t.nom}{t.agence ? ` · ${t.agence}` : ''}{t.actif === false ? ' (inactif)' : ''}
                       </option>
                     ))}
                   </select>
                   {techniciensError && (
                     <p className="text-xs text-red-600">⚠ {techniciensError}</p>
                   )}
+                  {techniciens.length === 0 && !techniciensError && (
+                    <p className="text-xs text-slate-400">Chargement des techniciens…</p>
+                  )}
                   <p className="text-[11px] text-slate-400">
-                    Même après validation, vous pouvez réassigner l&apos;intervention à un autre technicien.
+                    Le technicien choisi verra cette intervention dans son planning.
                   </p>
                 </div>
               )}
