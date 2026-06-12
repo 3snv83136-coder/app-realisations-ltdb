@@ -12,7 +12,7 @@ export const dynamic = 'force-dynamic'
 export const maxDuration = 30
 
 const PHOTOS_BUCKET = process.env.SUPABASE_PHOTOS_BUCKET || 'interventions-photos'
-const SIGNATURES_BUCKET = process.env.SUPABASE_ACCORDS_BUCKET || 'accords-pdf'
+const SIGNATURES_BUCKET = process.env.SUPABASE_ACCORDS_BUCKET || 'accords-pdfs'
 
 type Params = { params: { id: string } }
 
