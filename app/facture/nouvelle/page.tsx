@@ -18,7 +18,7 @@ import type {
 } from "@/components/FacturePDF"
 import type { ClientData } from "@/components/DevisPDF"
 
-const FactureDownloadButton = dynamic(() => import("@/components/FacturePDF"), { ssr: false })
+const FactureDownloadButton = dynamic(() => import("@/components/FacturePDFDownloadButton"), { ssr: false })
 const SaveDocumentButton = dynamic(() => import("@/components/SaveDocumentButton"), { ssr: false })
 
 type Step = 'capture' | 'extracting' | 'generating' | 'preview'

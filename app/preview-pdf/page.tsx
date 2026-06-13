@@ -5,7 +5,7 @@ import type { PDFProps } from "@/components/RealisationPDF"
 import { TEL_PRINCIPAL_FALLBACK } from "@/lib/parametres"
 
 const PDFPreviewModal = dynamic(() => import("@/components/PDFPreviewModal"), { ssr: false })
-const PDFDownloadButton = dynamic(() => import("@/components/RealisationPDF"), { ssr: false })
+const PDFDownloadButton = dynamic(() => import("@/components/RealisationPDFDownloadButton"), { ssr: false })
 
 const sampleData: PDFProps = {
   clientNom: "M. et Mme Durand",

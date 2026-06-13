@@ -14,7 +14,7 @@ import { REALISATION_PAGE_STYLE } from "@/lib/realisationPageCss"
 import { buildPublishDescription } from "@/lib/publish-description"
 import { buildPublishContentHtml } from "@/lib/publish-content"
 
-const PDFDownloadButton = dynamic(() => import("@/components/RealisationPDF"), { ssr: false })
+const PDFDownloadButton = dynamic(() => import("@/components/RealisationPDFDownloadButton"), { ssr: false })
 const PDFPreviewModal = dynamic(() => import("@/components/PDFPreviewModal"), { ssr: false })
 const DriveSaveButton = dynamic(() => import("@/components/DriveSaveButton"), { ssr: false })
 const SaveDocumentButton = dynamic(() => import("@/components/SaveDocumentButton"), { ssr: false })
