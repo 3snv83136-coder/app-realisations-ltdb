@@ -1,8 +1,5 @@
 import crypto from "crypto"
 import { createElement, type ReactElement } from "react"
-import { renderToBuffer } from "@react-pdf/renderer"
-import { RealisationDocument } from "@/components/RealisationPDF"
-import { FactureDocument } from "@/components/FacturePDF"
 import { ltdbFactureEmetteur } from "@/lib/emetteur"
 import { proxyImageUrlAbsolute } from "@/lib/proxyImageUrl"
 import type { SupabaseClient } from "@supabase/supabase-js"
@@ -104,6 +101,12 @@ export async function generateTerrainPdfsOnServer(input: GenerateTerrainPdfsInpu
     url: proxyImageUrlAbsolute(url, baseUrl),
     legende: ((interv.photos_legendes as string[]) || [])[i] || `Photo ${i + 1}`,
   }))
+
+  const [{ renderToBuffer }, { RealisationDocument }, { FactureDocument }] = await Promise.all([
+    import("@react-pdf/renderer"),
+    import("@/components/RealisationPDF"),
+    import("@/components/FacturePDF"),
+  ])
 
   const rapportBuf = await renderToBuffer(
     createElement(RealisationDocument, {
