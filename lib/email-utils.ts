@@ -38,6 +38,18 @@ export function getResendRecipient(clientEmail: string): string {
   return process.env.RESEND_TEST_EMAIL || clientEmail
 }
 
+/** Message d'aide si Resend rejette l'envoi (domaine non vérifié, sandbox, etc.). */
+export function resendErrorHint(payload: unknown): string | undefined {
+  if (!payload || typeof payload !== "object") return undefined
+  const err = (payload as { error?: string; hint?: string }).error || ""
+  const hint = (payload as { hint?: string }).hint
+  if (hint) return hint
+  if (/validation_error|only send testing emails|not verified/i.test(err)) {
+    return "Vérifie RESEND_FROM_EMAIL sur Vercel ou configure RESEND_TEST_EMAIL pour les tests."
+  }
+  return undefined
+}
+
 export type ResendCtx = {
   resend: Resend
   fromEmail: string

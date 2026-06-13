@@ -103,7 +103,8 @@ export async function fetchJsonWithRetry<T = unknown>(input: RequestInfo | URL, 
   }
   if (!res.ok) {
     const msg = (data && typeof data === 'object' && 'error' in data && data.error) ? String(data.error) : `HTTP ${res.status}`
-    throw new Error(msg)
+    const hint = data && typeof data === 'object' && 'hint' in data && data.hint ? String(data.hint) : ''
+    throw new Error(hint ? `${msg} — ${hint}` : msg)
   }
   return data as T
 }

@@ -1386,38 +1386,6 @@ function StepDevisOption({ interv, client, onContinue, onError }: {
 // ============================================================
 type DiffusionAction = 'mail' | 'sms' | 'site' | 'gmb' | 'youtube' | null
 
-async function fetchPdfUrlAsBase64(url: string): Promise<string> {
-  const proxied = `/api/proxy-image?url=${encodeURIComponent(url)}`
-  const res = await fetch(proxied, { cache: 'no-store' })
-  if (!res.ok) throw new Error(`PDF inaccessible (HTTP ${res.status})`)
-  const buf = await res.arrayBuffer()
-  const bytes = new Uint8Array(buf)
-  let binary = ''
-  const chunk = 0x8000
-  for (let i = 0; i < bytes.length; i += chunk) {
-    binary += String.fromCharCode.apply(null, Array.from(bytes.subarray(i, i + chunk)))
-  }
-  return btoa(binary)
-}
-
-async function loadTerrainPdfsAsBase64(intervId: string): Promise<{ rapport: string; facture: string }> {
-  const status = await fetchJsonWithRetry<{
-    ready: boolean
-    rapport_url: string | null
-    facture_url: string | null
-  }>(`/api/interventions/${intervId}/generate-pdfs`, { cache: 'no-store', retries: 3, timeoutMs: 20_000 })
-
-  if (!status.ready || !status.rapport_url || !status.facture_url) {
-    throw new Error('PDF non prêts — attends quelques secondes et réessaie.')
-  }
-
-  const [rapport, facture] = await Promise.all([
-    fetchPdfUrlAsBase64(status.rapport_url),
-    fetchPdfUrlAsBase64(status.facture_url),
-  ])
-  return { rapport, facture }
-}
-
 async function waitTerrainPdfsReady(intervId: string, onProgress: (msg: string) => void, maxWaitMs = 130_000): Promise<void> {
   const started = Date.now()
   while (Date.now() - started < maxWaitMs) {
@@ -1565,31 +1533,28 @@ function TerrainDiffusionPanel({ interv, client, onRefresh, onError, techOnlyMai
     onError('')
 
     try {
-      await prepareTerrainClientPdfs({
-        intervId: interv.id,
-        email,
-        nom,
-        telephone,
-        onProgress: setProgress,
-      })
+      setProgress('📄 Préparation et envoi du mail…')
+      const result = await fetchJsonWithRetry<{ ok?: boolean; alreadySent?: boolean }>(
+        `/api/interventions/${interv.id}/send-terrain-mail`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            clientEmail: email.trim(),
+            nom: nom.trim(),
+            ccEmail: emailCc.trim() || undefined,
+            telephone: telephone.trim() || undefined,
+          }),
+          retries: 2,
+          timeoutMs: 120_000,
+        },
+      )
 
-      setProgress('📎 Préparation des pièces jointes…')
-      const pdfs = await loadTerrainPdfsAsBase64(interv.id)
-
-      setProgress('✉ Envoi du mail au client…')
-      await fetchJsonWithRetry('/api/notify-rapport-facture', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          interventionId: interv.id,
-          clientEmail: email,
-          ccEmail: emailCc.trim() || undefined,
-          pdfRapportBase64: pdfs.rapport,
-          pdfFactureBase64: pdfs.facture,
-        }),
-        retries: 3,
-        timeoutMs: 120_000,
-      })
+      if (result.alreadySent) {
+        setProgress('✓ Mail déjà envoyé récemment')
+      } else {
+        setProgress('✓ Mail envoyé')
+      }
 
       try {
         await fetchWithRetry(`/api/interventions/${interv.id}`, {
@@ -1601,7 +1566,6 @@ function TerrainDiffusionPanel({ interv, client, onRefresh, onError, techOnlyMai
         })
       } catch { /* best-effort */ }
 
-      setProgress('✓ Mail envoyé')
       await onRefresh()
     } catch (e) {
       onError(e instanceof Error ? e.message : String(e))

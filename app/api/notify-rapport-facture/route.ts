@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import crypto from "crypto"
-import { escapeHtml, initResend } from "@/lib/email-utils"
+import { escapeHtml, initResend, resendErrorHint } from "@/lib/email-utils"
 import { fmtEUR } from "@/lib/format"
 import { EMAIL_RE } from "@/lib/email-utils"
 import { getSessionUser, assertInterventionAccess } from "@/lib/intervention-access"
@@ -162,7 +162,9 @@ export async function POST(req: NextRequest) {
   const factureReglee = isFactureReglee(facture.echeance)
   const dateFacture = facture.date_emission || dateInterv
 
-  // URL avis Google : priorité table parametres > env var > fallback recherche Maps
+  const tel = await getTelPrincipal()
+  const skipReviews = !!body.skipReviews
+
   let reviewUrl = process.env.GOOGLE_REVIEW_URL
     || 'https://www.google.com/maps/place/Les+Techniciens+du+Débouchage'
   try {
@@ -172,28 +174,31 @@ export async function POST(req: NextRequest) {
       .eq('cle', 'google_review_url')
       .maybeSingle()
     if (paramRow?.valeur) reviewUrl = paramRow.valeur
-  } catch {
-    // best-effort, on garde le fallback
+  } catch { /* best-effort */ }
+
+  // Relances avis planifiées avant le mail principal (best-effort — n'interrompt jamais l'envoi).
+  const days = [2, 4, 6]
+  let relanceIds: string[] = []
+  if (!skipReviews) {
+    try {
+      const followUps = await Promise.all(
+        days.map(d => {
+          const scheduledAt = new Date(Date.now() + d * 24 * 60 * 60 * 1000).toISOString()
+          return resend.emails.send({
+            from: `Les Techniciens du Débouchage <${fromEmail}>`,
+            to: recipient,
+            subject: relanceSubject(d, (clientNom || 'Client').split(' ').slice(-1)[0]),
+            html: emailRelance({ clientNom, technicienNom, ville, reviewUrl, jour: d, tel }),
+            scheduledAt,
+          })
+        }),
+      )
+      relanceIds = followUps.map(f => f.data?.id).filter(Boolean) as string[]
+    } catch (e) {
+      console.error("[notify-rapport-facture] relances avis", e)
+    }
   }
 
-  // Planifie les relances avis (J+2, J+4, J+6) — même logique que /api/notify-client
-  const tel = await getTelPrincipal()
-  const skipReviews = !!body.skipReviews
-  const days = [2, 4, 6]
-  const followUps = skipReviews ? [] : await Promise.all(
-    days.map(d => {
-      const scheduledAt = new Date(Date.now() + d * 24 * 60 * 60 * 1000).toISOString()
-      return resend.emails.send({
-        from: `Les Techniciens du Débouchage <${fromEmail}>`,
-        to: recipient,
-        subject: relanceSubject(d, (clientNom || 'Client').split(' ').slice(-1)[0]),
-        html: emailRelance({ clientNom, technicienNom, ville, reviewUrl, jour: d, tel }),
-        scheduledAt,
-      })
-    })
-  )
-
-  const relanceIds = followUps.map(f => f.data?.id).filter(Boolean) as string[]
   const signSecret = process.env.REVIEW_STOP_SECRET || process.env.NEXTAUTH_SECRET || process.env.RESEND_API_KEY || ''
   const stopExp = Date.now() + 10 * 24 * 60 * 60 * 1000
   const stopPayload = relanceIds.length > 0
@@ -223,8 +228,11 @@ export async function POST(req: NextRequest) {
   })
 
   if (immediate.error) {
+    const msg = immediate.error.message || JSON.stringify(immediate.error)
+    const hint = resendErrorHint({ error: msg })
     return NextResponse.json({
-      error: `Resend a rejeté l'envoi : ${immediate.error.message || JSON.stringify(immediate.error)}`,
+      error: `Resend a rejeté l'envoi : ${msg}`,
+      ...(hint ? { hint } : {}),
     }, { status: 500 })
   }
 

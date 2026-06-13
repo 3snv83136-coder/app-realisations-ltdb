@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSessionUser, assertInterventionAccess } from '@/lib/intervention-access'
 import { getSupabaseOrNull } from '@/lib/supabase'
-import { escapeHtml, initResend } from '@/lib/email-utils'
+import { escapeHtml, initResend, resendErrorHint } from '@/lib/email-utils'
 import { getTelPrincipal } from '@/lib/parametres'
 import { fmtEUR } from '@/lib/format'
 import { getTravauxSupplementaires } from '@/lib/travaux-supplementaires'
@@ -65,7 +65,11 @@ export async function POST(req: NextRequest, { params }: Params) {
     attachments: [{ filename: body.pdfFilename, content: body.pdfBase64 }],
   })
   if (result.error) {
-    return NextResponse.json({ error: result.error.message }, { status: 502 })
+    const hint = resendErrorHint({ error: result.error.message })
+    return NextResponse.json({
+      error: result.error.message,
+      ...(hint ? { hint } : {}),
+    }, { status: 502 })
   }
 
   const now = new Date().toISOString()
