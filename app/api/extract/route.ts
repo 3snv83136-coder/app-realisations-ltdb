@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
-import { deepseek } from "@/lib/deepseek"
+import { getAiModel, llmChat, llmConfigError, llmIsConfigured } from "@/lib/llm"
 import { VILLES_VAR, findVilleByName, searchVilles } from "@/lib/villes-var"
-
-const MODEL = "deepseek-v4-flash"
 
 const TYPES = [
   'Débouchage canalisation',
@@ -14,26 +12,6 @@ const TYPES = [
   'Vidange fosse septique',
   'Curage canalisation',
 ]
-
-async function callWithRetry<T>(fn: () => Promise<T>, maxAttempts = 5): Promise<T> {
-  let lastErr: any
-  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-    try {
-      return await fn()
-    } catch (e: any) {
-      lastErr = e
-      const status = e?.status || e?.response?.status
-      const msg = String(e?.message || '')
-      const retryable =
-        status === 529 || status === 503 || status === 500 || status === 429 ||
-        /529|overloaded|503|500|429|rate.?limit/i.test(msg)
-      if (!retryable || attempt === maxAttempts) throw e
-      const delay = Math.min(1500 * Math.pow(2, attempt - 1), 10000) + Math.random() * 800
-      await new Promise(r => setTimeout(r, delay))
-    }
-  }
-  throw lastErr
-}
 
 function parseJson(raw: string) {
   const cleaned = raw.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '')
@@ -50,8 +28,8 @@ export async function POST(req: NextRequest) {
   if (!transcription || typeof transcription !== 'string' || transcription.trim().length < 10) {
     return NextResponse.json({ error: 'Dictée trop courte' }, { status: 400 })
   }
-  if (!process.env.DEEPSEEK_API_KEY) {
-    return NextResponse.json({ error: 'DEEPSEEK_API_KEY non configurée' }, { status: 500 })
+  if (!llmIsConfigured()) {
+    return NextResponse.json({ error: llmConfigError() }, { status: 500 })
   }
 
   const prompt = `Tu es un assistant qui extrait des informations structurées depuis la dictée vocale d'un technicien plombier du Var (83).
@@ -77,14 +55,14 @@ Réponds UNIQUEMENT avec ce JSON (sans markdown, sans backticks) :
 }`
 
   // Fallback gracieux : si l'API est KO, on renvoie des champs vides pour ne pas bloquer le flow.
-  let msg
+  let raw: string
   try {
-    msg = await callWithRetry(() => deepseek.messages.create({
-      model: MODEL,
-      max_tokens: 1500,
-      thinking: { type: "disabled" },
-      messages: [{ role: "user", content: prompt }],
-    }))
+    raw = await llmChat(prompt, {
+      model: getAiModel("flash"),
+      maxTokens: 1500,
+      jsonMode: true,
+      retries: 5,
+    })
   } catch (e: any) {
     return NextResponse.json({
       type_intervention: 'Débouchage canalisation',
@@ -99,13 +77,8 @@ Réponds UNIQUEMENT avec ce JSON (sans markdown, sans backticks) :
 
   let data: any
   try {
-    data = parseJson(
-      (msg.content as { type: string; text: string }[])
-        .filter(block => block.type === "text")
-        .map(block => block.text)
-        .join("")
-    )
-  } catch (e: any) {
+    data = parseJson(raw)
+  } catch {
     return NextResponse.json({
       type_intervention: 'Débouchage canalisation',
       ville: '', code_postal: '', adresse: '', client_nom: '', client_email: '',

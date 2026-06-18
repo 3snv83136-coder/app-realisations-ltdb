@@ -28,7 +28,8 @@ function isApiOrExternal(url) {
   return (
     url.pathname.startsWith('/api/') ||
     url.host.endsWith('supabase.co') ||
-    url.host.endsWith('deepseek.com')
+    url.host.endsWith('deepseek.com') ||
+    url.host.endsWith('mistral.ai')
   )
 }
 

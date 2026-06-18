@@ -1,27 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { deepseek } from "@/lib/deepseek"
-
-const MODEL = "deepseek-v4-pro"
-
-async function callWithRetry<T>(fn: () => Promise<T>, maxAttempts = 5): Promise<T> {
-  let lastErr: any
-  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-    try {
-      return await fn()
-    } catch (e: any) {
-      lastErr = e
-      const status = e?.status || e?.response?.status
-      const msg = String(e?.message || '')
-      const retryable =
-        status === 529 || status === 503 || status === 500 || status === 429 ||
-        /529|overloaded|503|500|429|rate.?limit/i.test(msg)
-      if (!retryable || attempt === maxAttempts) throw e
-      const delay = Math.min(1500 * Math.pow(2, attempt - 1), 10000) + Math.random() * 800
-      await new Promise(r => setTimeout(r, delay))
-    }
-  }
-  throw lastErr
-}
+import { getAiModel, llmChat, llmConfigError, llmIsConfigured } from "@/lib/llm"
 
 function parseJson(raw: string) {
   const cleaned = raw.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '')
@@ -59,8 +37,8 @@ export async function POST(req: NextRequest) {
       error: "Dictée trop courte (décris l'intervention réalisée, les prestations, les prix et le mode de règlement).",
     }, { status: 400 })
   }
-  if (!process.env.DEEPSEEK_API_KEY) {
-    return NextResponse.json({ error: 'DEEPSEEK_API_KEY non configurée' }, { status: 500 })
+  if (!llmIsConfigured()) {
+    return NextResponse.json({ error: llmConfigError() }, { status: 500 })
   }
 
   const today = new Date()
@@ -135,34 +113,25 @@ Réponds UNIQUEMENT avec ce JSON (sans markdown, sans backticks) :
   "client_adresse_detectee": "si une adresse client est identifiable dans la dictée, mets-la ici, sinon chaîne vide"
 }`
 
-  let msg
+  let raw: string
   try {
-    msg = await callWithRetry(() => deepseek.messages.create({
-      model: MODEL,
-      max_tokens: 4500,
-      thinking: { type: "disabled" },
-      messages: [{ role: "user", content: prompt }],
-    }))
+    raw = await llmChat(prompt, {
+      model: getAiModel("pro"),
+      maxTokens: 4500,
+      jsonMode: true,
+      retries: 5,
+    })
   } catch (e: any) {
-    return NextResponse.json({ error: `Anthropic API : ${e?.message || e?.toString()}` }, { status: 500 })
+    return NextResponse.json({ error: `IA : ${e?.message || e?.toString()}` }, { status: 500 })
   }
 
   let data: any
   try {
-    data = parseJson(
-      (msg.content as { type: string; text?: string }[])
-        .filter(block => block.type === "text")
-        .map(block => block.text || "")
-        .join("")
-    )
+    data = parseJson(raw)
   } catch (e: any) {
-    const rawText = (msg.content as { type: string; text?: string }[])
-      .filter(block => block.type === "text")
-      .map(block => block.text || "")
-      .join("")
     return NextResponse.json({
       error: `Réponse IA illisible : ${e.message}`,
-      raw: rawText.slice(0, 500),
+      raw: raw.slice(0, 500),
     }, { status: 500 })
   }
 

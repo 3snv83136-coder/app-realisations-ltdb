@@ -1,26 +1,10 @@
 import { NextResponse } from 'next/server'
-import { deepseek } from '@/lib/deepseek'
+import { getAiProvider, llmHealthPing, llmIsConfigured } from '@/lib/llm'
 
 export const maxDuration = 30
 export const dynamic = 'force-dynamic'
 
 type Check = { ok: boolean; latencyMs?: number; detail?: string }
-
-async function checkDeepseek(): Promise<Check> {
-  if (!process.env.DEEPSEEK_API_KEY) return { ok: false, detail: 'DEEPSEEK_API_KEY missing' }
-  const start = Date.now()
-  try {
-    await deepseek.messages.create({
-      model: 'deepseek-v4-flash',
-      max_tokens: 1,
-      thinking: { type: 'disabled' },
-      messages: [{ role: 'user', content: 'ok' }],
-    })
-    return { ok: true, latencyMs: Date.now() - start }
-  } catch (e: any) {
-    return { ok: false, latencyMs: Date.now() - start, detail: String(e?.message || e).slice(0, 240) }
-  }
-}
 
 async function checkBackend(): Promise<Check> {
   const url = process.env.LTDB_API_URL
@@ -72,15 +56,18 @@ async function checkResend(): Promise<Check> {
 }
 
 export async function GET() {
-  const [deepseekCheck, backend, resend] = await Promise.all([checkDeepseek(), checkBackend(), checkResend()])
+  const [llmCheck, backend, resend] = await Promise.all([llmHealthPing(), checkBackend(), checkResend()])
+  const provider = getAiProvider()
 
-  // Clés JSON conservées (anthropic_api, env_anthropic_key) pour compat avec monitoring externe (Vercel, Uptime, etc.) — DeepSeek en interne
   const checks = {
-    env_anthropic_key: { ok: !!process.env.DEEPSEEK_API_KEY } as Check,
+    env_ai_key: { ok: llmIsConfigured(), detail: provider } as Check,
     env_ltdb_api_url: { ok: !!process.env.LTDB_API_URL } as Check,
     env_nextauth_secret: { ok: !!process.env.NEXTAUTH_SECRET } as Check,
     env_resend_key: { ok: !!process.env.RESEND_API_KEY } as Check,
-    anthropic_api: deepseekCheck,
+    llm_api: llmCheck,
+    // Compat monitoring externe (clés historiques)
+    env_anthropic_key: { ok: llmIsConfigured() } as Check,
+    anthropic_api: llmCheck,
     backend_api: backend,
     resend_api: resend,
   }
@@ -98,6 +85,7 @@ export async function GET() {
       timestamp: new Date().toISOString(),
       commit: process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 7) || 'unknown',
       region: process.env.VERCEL_REGION || 'unknown',
+      ai_provider: provider,
       checks,
       failures,
     },

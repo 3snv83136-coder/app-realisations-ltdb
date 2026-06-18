@@ -1,10 +1,9 @@
 import { NextRequest, NextResponse } from "next/server"
-import { deepseek } from "@/lib/deepseek"
+import { getAiModel, llmChat, llmConfigError, llmIsConfigured } from "@/lib/llm"
 import { parseAiJson } from "@/lib/parseAiJson"
 
 export const maxDuration = 300
 
-const MODEL = "deepseek-v4-pro"
 const SITE = 'https://lestechniciensdudebouchage.fr'
 
 const SERVICES = [
@@ -24,43 +23,16 @@ function slugify(s: string) {
     .replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
 }
 
-async function callWithRetry<T>(fn: () => Promise<T>, maxAttempts = 3): Promise<T> {
-  let lastErr: any
-  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-    try {
-      return await fn()
-    } catch (e: any) {
-      lastErr = e
-      const status = e?.status || e?.response?.status
-      const msg = String(e?.message || '')
-      const retryable =
-        status === 529 || status === 503 || status === 500 || status === 429 ||
-        /529|overloaded|503|500|429|rate.?limit/i.test(msg)
-      if (!retryable || attempt === maxAttempts) throw e
-      const delay = Math.min(1500 * Math.pow(2, attempt - 1), 10000) + Math.random() * 800
-      await new Promise(r => setTimeout(r, delay))
-    }
-  }
-  throw lastErr
-}
-
-function extractText(msg: { content: { type: string; text?: string }[] }): string {
-  return (msg.content as { type: string; text?: string }[])
-    .filter(block => block.type === "text")
-    .map(block => block.text || "")
-    .join("")
-}
-
 export async function POST(req: NextRequest) {
   const { transcription, type_intervention, ville, code_postal } = await req.json()
   if (!transcription || !type_intervention || !ville) {
     return NextResponse.json({ error: 'Champs manquants' }, { status: 400 })
   }
-  if (!process.env.DEEPSEEK_API_KEY) {
-    return NextResponse.json({ error: 'DEEPSEEK_API_KEY non configurée' }, { status: 500 })
+  if (!llmIsConfigured()) {
+    return NextResponse.json({ error: llmConfigError() }, { status: 500 })
   }
 
-  // Pré-calculs (utilisés par les 2 prompts en parallèle)
+  const model = getAiModel("pro")
   const villeSlug = slugify(ville)
   const cp = code_postal || '83000'
   const cityUrl = `${SITE}/${villeSlug}-${cp}`
@@ -264,29 +236,27 @@ sont placés avant pour ne jamais être perdus si la réponse est longue.
 }`
 
   // ===== Exécution parallèle =====
-  let rapportMsg, seoMsg
+  let rapportRaw: string
+  let seoRaw: string
   try {
-    [rapportMsg, seoMsg] = await Promise.all([
-      callWithRetry(() => deepseek.messages.create({ model: MODEL, max_tokens: 16000, thinking: { type: "disabled" }, messages: [{ role: "user", content: rapportPrompt }] })),
-      callWithRetry(() => deepseek.messages.create({ model: MODEL, max_tokens: 16000, thinking: { type: "disabled" }, messages: [{ role: "user", content: seoPrompt }] })),
+    [rapportRaw, seoRaw] = await Promise.all([
+      llmChat(rapportPrompt, { model, maxTokens: 16000, jsonMode: true }),
+      llmChat(seoPrompt, { model, maxTokens: 16000, jsonMode: true }),
     ])
   } catch (e: any) {
-    return NextResponse.json({ error: `AI API : ${e.message || e.toString()}`, model: MODEL }, { status: 500 })
+    return NextResponse.json({ error: `AI API : ${e.message || e.toString()}`, model }, { status: 500 })
   }
 
   let rapport: any
   try {
-    rapport = parseAiJson(extractText(rapportMsg))
+    rapport = parseAiJson(rapportRaw)
   } catch (e: any) {
-    const rawFull = extractText(rapportMsg)
-    // Log complet côté serveur pour diagnostic (la réponse HTTP reste tronquée)
     console.error('[generate] Parsing rapport IA échoué', {
       error: e.message,
-      stop_reason: (rapportMsg as any)?.stop_reason,
-      rawLength: rawFull.length,
-      raw: rawFull,
+      rawLength: rapportRaw.length,
+      raw: rapportRaw,
     })
-    return NextResponse.json({ error: `Parsing rapport IA : ${e.message}`, raw: rawFull.slice(0, 500) }, { status: 500 })
+    return NextResponse.json({ error: `Parsing rapport IA : ${e.message}`, raw: rapportRaw.slice(0, 500) }, { status: 500 })
   }
 
   // Le SEO sert uniquement à la publication site (page /nouveau).
@@ -295,10 +265,10 @@ sont placés avant pour ne jamais être perdus si la réponse est longue.
   let seo: any = {}
   let seoWarning: string | null = null
   try {
-    seo = parseAiJson(extractText(seoMsg))
+    seo = parseAiJson(seoRaw)
   } catch (e: any) {
     seoWarning = `Parsing SEO IA : ${e.message}. Le SEO sera vide — la publication site nécessitera un édit manuel.`
-    console.error('[generate] SEO parse failed', { error: e.message, raw: extractText(seoMsg).slice(0, 500) })
+    console.error('[generate] SEO parse failed', { error: e.message, raw: seoRaw.slice(0, 500) })
   }
 
   // Normalisation : garantit que la sortie a toujours la forme attendue
