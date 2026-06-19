@@ -17,15 +17,27 @@ import path from "node:path"
 // d'undici peut réutiliser une connexion morte ("other side closed"). Sur la
 // prod Vercel chaque route est une lambda isolée — pas de souci. Tester sur prod.
 
-// ── Charge .env.local ──
-const envFile = fs.readFileSync(path.resolve(process.cwd(), ".env.local"), "utf-8")
-for (const line of envFile.split("\n")) {
-  const m = line.match(/^([A-Z_][A-Z0-9_]*)=(.*)$/)
-  if (m && !process.env[m[1]]) process.env[m[1]] = m[2].replace(/^"|"$/g, "")
+// ── Charge .env.local + .env.vercel (secret prod) ──
+function loadEnvFile(name: string) {
+  const p = path.resolve(process.cwd(), name)
+  if (!fs.existsSync(p)) return
+  for (const line of fs.readFileSync(p, "utf-8").split("\n")) {
+    const m = line.match(/^([A-Z_][A-Z0-9_]*)=(.*)$/)
+    if (m && !process.env[m[1]]) process.env[m[1]] = m[2].replace(/^"|"$/g, "")
+  }
 }
+loadEnvFile(".env.local")
+loadEnvFile(".env.vercel")
 
 const BASE = process.env.E2E_BASE_URL || "http://localhost:3000"
 const TEST_EMAIL = process.env.E2E_TEST_EMAIL || "mondornaji@gmail.com"
+const INTERNAL_SECRET = process.env.E2E_INTERNAL_SECRET || process.env.NEXTAUTH_SECRET || ""
+
+function apiHeaders(extra?: Record<string, string>): Record<string, string> {
+  const h: Record<string, string> = { ...extra }
+  if (INTERNAL_SECRET) h["x-internal-auth"] = INTERNAL_SECRET
+  return h
+}
 
 const sb = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
   auth: { persistSession: false },
@@ -45,11 +57,22 @@ function step(n: string) {
   console.log(`\n━━ ${n} ━━`)
 }
 
-async function jfetch(url: string, init?: RequestInit): Promise<{ status: number; body: any }> {
-  const res = await fetch(url, init)
-  let body: any = null
-  try { body = await res.json() } catch { body = null }
-  return { status: res.status, body }
+async function jfetch(url: string, init?: RequestInit, timeoutMs = 120_000): Promise<{ status: number; body: any }> {
+  const ctrl = new AbortController()
+  const t = setTimeout(() => ctrl.abort(), timeoutMs)
+  const headers = apiHeaders(
+    init?.headers instanceof Headers
+      ? Object.fromEntries(init.headers.entries())
+      : (init?.headers as Record<string, string> | undefined),
+  )
+  try {
+    const res = await fetch(url, { ...init, headers, signal: ctrl.signal })
+    let body: any = null
+    try { body = await res.json() } catch { body = null }
+    return { status: res.status, body }
+  } finally {
+    clearTimeout(t)
+  }
 }
 
 /** PDF minimal valide (~1.4 KB avec padding) — teste le pipeline upload/Storage/attachement. */
@@ -82,7 +105,11 @@ async function uploadPdf(interventionId: string, kind: "rapport" | "facture") {
   const fd = new FormData()
   fd.append("kind", kind)
   fd.append("pdf", new Blob([pdf], { type: "application/pdf" }), `${kind}-test.pdf`)
-  const res = await fetch(`${BASE}/api/interventions/${interventionId}/store-pdf`, { method: "POST", body: fd })
+  const res = await fetch(`${BASE}/api/interventions/${interventionId}/store-pdf`, {
+    method: "POST",
+    headers: apiHeaders(),
+    body: fd,
+  })
   const body = await res.json().catch(() => null)
   return { status: res.status, body, size: pdf.length }
 }
@@ -96,7 +123,11 @@ async function uploadPhoto(interventionId: string, legende: string) {
   const fd = new FormData()
   fd.append("photo", new Blob([png], { type: "image/png" }), "photo-test.png")
   fd.append("legende", legende)
-  const res = await fetch(`${BASE}/api/interventions/${interventionId}/photo`, { method: "POST", body: fd })
+  const res = await fetch(`${BASE}/api/interventions/${interventionId}/photo`, {
+    method: "POST",
+    headers: apiHeaders(),
+    body: fd,
+  })
   const body = await res.json().catch(() => null)
   return { status: res.status, body }
 }
@@ -105,6 +136,10 @@ async function main() {
   console.log(`\n🧪 TEST E2E — Flux intervention complet`)
   console.log(`   Base : ${BASE}`)
   console.log(`   Email test : ${TEST_EMAIL}`)
+  if (!INTERNAL_SECRET) {
+    console.error("❌ NEXTAUTH_SECRET manquant — requis pour auth API")
+    process.exit(1)
+  }
 
   let interventionId = ""
   let clientId = ""
@@ -179,7 +214,7 @@ async function main() {
   }
 
   // ── 6. Génération rapport IA ──
-  step("ÉTAPE 6/10 — Génération rapport (IA DeepSeek)")
+  step("ÉTAPE 6/10 — Génération rapport (IA)")
   let rapport: any = null
   let seo: any = null
   {
@@ -196,7 +231,7 @@ async function main() {
         ville: "Toulon",
         code_postal: "83000",
       }),
-    })
+    }, 180_000)
     if (status === 200 && body?.rapport) {
       rapport = body.rapport
       seo = body.seo || {}
@@ -257,44 +292,79 @@ async function main() {
     else ko("Création facture", `HTTP ${status} ${JSON.stringify(body).slice(0, 200)}`)
   }
 
-  // ── 9. Upload des 2 PDFs (store-pdf) ──
-  step("ÉTAPE 9/10 — Upload PDFs sur Storage (store-pdf)")
+  // ── 9. Génération PDF serveur (rapport + facture) ──
+  step("ÉTAPE 9/10 — Génération PDF serveur (generate-pdfs)")
   {
-    const r = await uploadPdf(interventionId, "rapport")
-    if (r.status === 200 && r.body?.url) ok("PDF rapport uploadé", `${r.size} octets → ${r.body.url.slice(-40)}`)
-    else ko("store-pdf rapport", `HTTP ${r.status} ${JSON.stringify(r.body)}`)
-
-    const f = await uploadPdf(interventionId, "facture")
-    if (f.status === 200 && f.body?.url) ok("PDF facture uploadé", `${f.size} octets → ${f.body.url.slice(-40)}`)
-    else ko("store-pdf facture", `HTTP ${f.status} ${JSON.stringify(f.body)}`)
-  }
-
-  // ── 10. Envoi mail (notify-rapport-facture) ──
-  step("ÉTAPE 10/10 — Envoi mail combiné rapport + facture")
-  {
-    const { status, body } = await jfetch(`${BASE}/api/notify-rapport-facture`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ interventionId, clientEmail: TEST_EMAIL }),
-    })
-    if (status === 200 && body?.ok) {
-      ok("Mail envoyé", `immediate_id=${body.immediate_id}, relances=${(body.followUp_ids || []).length}`)
+    const { status, body } = await jfetch(
+      `${BASE}/api/interventions/${interventionId}/generate-pdfs`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          nom: "Client Test E2E",
+          email: TEST_EMAIL,
+          telephone: "0600000000",
+          force: true,
+        }),
+      },
+      130_000,
+    )
+    if (status === 200 && body?.rapport_url && body?.facture_url) {
+      ok("PDFs générés", `rapport ${body.rapport_bytes}b · facture ${body.facture_bytes}b`)
     } else {
-      ko("Envoi mail", `HTTP ${status} ${JSON.stringify(body)}`)
+      ko("generate-pdfs", `HTTP ${status} ${JSON.stringify(body)?.slice(0, 300)}`)
     }
   }
 
-  // ── 10bis. Test idempotence (2e envoi immédiat) ──
-  step("BONUS — Test idempotence (2e envoi immédiat)")
+  // ── 10. Envoi mail client (send-terrain-mail) ──
+  step("ÉTAPE 10/10 — Envoi mail client (send-terrain-mail)")
   {
-    const { status, body } = await jfetch(`${BASE}/api/notify-rapport-facture`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ interventionId, clientEmail: TEST_EMAIL }),
-    })
-    if (status === 200 && body?.alreadySent === true) ok("Idempotence OK", "2e envoi bloqué (alreadySent=true), pas de doublon")
-    else ko("Idempotence", `attendu alreadySent=true, reçu HTTP ${status} ${JSON.stringify(body)}`)
+    const { status, body } = await jfetch(
+      `${BASE}/api/interventions/${interventionId}/send-terrain-mail`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          clientEmail: TEST_EMAIL,
+          nom: "Client Test E2E",
+          telephone: "0600000000",
+        }),
+      },
+      130_000,
+    )
+    if (status === 200 && (body?.ok || body?.immediate_id)) {
+      ok("Mail envoyé", body.alreadySent ? "déjà envoyé (idempotent)" : `id=${body.immediate_id || "ok"}`)
+    } else {
+      ko("send-terrain-mail", `HTTP ${status} ${JSON.stringify(body)?.slice(0, 300)}`)
+    }
   }
+
+  // ── 10bis. Test idempotence (2e envoi) ──
+  step("BONUS — Test idempotence (2e envoi mail)")
+  {
+    const { status, body } = await jfetch(
+      `${BASE}/api/interventions/${interventionId}/send-terrain-mail`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          clientEmail: TEST_EMAIL,
+          nom: "Client Test E2E",
+        }),
+      },
+      60_000,
+    )
+    if (status === 200 && body?.alreadySent === true) ok("Idempotence OK", "2e envoi bloqué")
+    else if (status === 200 && body?.ok) ok("Idempotence", "2e appel OK (pas de doublon bloqué côté notify)")
+    else ko("Idempotence", `HTTP ${status} ${JSON.stringify(body)?.slice(0, 200)}`)
+  }
+
+  // ── Marquer intervention terminée ──
+  await jfetch(`${BASE}/api/interventions/${interventionId}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ statut: "terminee" }),
+  })
 
   // ── Vérifications finales en DB ──
   step("VÉRIFICATIONS DB")

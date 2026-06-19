@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { getSessionUser, assertInterventionAccess } from "@/lib/intervention-access"
+import { getSessionUser, assertInterventionAccess, requireInterventionAccess } from "@/lib/intervention-access"
 import { getSupabaseOrNull } from "@/lib/supabase"
 import { isCanalAcquisition } from "@/lib/canaux"
 import { cascadeDeleteIntervention } from "@/lib/cascadeDelete"
@@ -97,7 +97,7 @@ export async function PUT(req: NextRequest, { params }: Params) {
   }
 
   const user = await getSessionUser()
-  const access = await assertInterventionAccess(params.id, user)
+  const access = await requireInterventionAccess(req, params.id)
   if (!access.ok) {
     return NextResponse.json({ error: access.error }, { status: access.status })
   }

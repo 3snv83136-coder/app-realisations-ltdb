@@ -1,5 +1,7 @@
 import { auth } from "@/lib/auth"
 import { getSupabaseOrNull } from "@/lib/supabase"
+import type { NextRequest } from "next/server"
+import { isInternalApiCall } from "@/lib/internal-auth"
 
 export type SessionUser = {
   role?: "admin" | "tech"
@@ -42,4 +44,14 @@ export async function assertInterventionAccess(
     return { ok: false, status: 403, error: "Accès refusé à cette intervention" }
   }
   return { ok: true }
+}
+
+/** Session utilisateur ou appel interne E2E/cron (x-internal-auth). */
+export async function requireInterventionAccess(
+  req: NextRequest,
+  interventionId: string,
+): Promise<{ ok: true } | { ok: false; status: number; error: string }> {
+  if (isInternalApiCall(req)) return { ok: true }
+  const user = await getSessionUser()
+  return assertInterventionAccess(interventionId, user)
 }

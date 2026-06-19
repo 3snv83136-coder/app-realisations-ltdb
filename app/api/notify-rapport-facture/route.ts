@@ -3,7 +3,7 @@ import crypto from "crypto"
 import { escapeHtml, initResend, resendErrorHint } from "@/lib/email-utils"
 import { fmtEUR } from "@/lib/format"
 import { EMAIL_RE } from "@/lib/email-utils"
-import { getSessionUser, assertInterventionAccess } from "@/lib/intervention-access"
+import { getSessionUser, assertInterventionAccess, requireInterventionAccess } from "@/lib/intervention-access"
 import {
   isFactureReglee,
   mergeFacturePayloadMeta,
@@ -55,8 +55,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'interventionId requis' }, { status: 400 })
   }
 
-  const user = await getSessionUser()
-  const access = await assertInterventionAccess(interventionId, user)
+  const access = await requireInterventionAccess(req, interventionId)
   if (!access.ok) {
     return NextResponse.json({ error: access.error }, { status: access.status })
   }

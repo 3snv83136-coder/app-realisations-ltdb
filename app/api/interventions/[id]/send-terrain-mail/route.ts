@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { getSessionUser, assertInterventionAccess } from "@/lib/intervention-access"
+import { requireInterventionAccess } from "@/lib/intervention-access"
 import { getSupabaseOrNull, patchClient, upsertClient } from "@/lib/supabase"
 import { generateTerrainPdfsOnServer, terrainPdfsReady } from "@/lib/terrain-pdf-server"
 import { resendErrorHint } from "@/lib/email-utils"
@@ -27,8 +27,7 @@ export async function POST(req: NextRequest, { params }: Params) {
     return NextResponse.json({ error: "ID intervention manquant" }, { status: 400 })
   }
 
-  const user = await getSessionUser()
-  const access = await assertInterventionAccess(interventionId, user)
+  const access = await requireInterventionAccess(req, interventionId)
   if (!access.ok) {
     return NextResponse.json({ error: access.error }, { status: access.status })
   }
@@ -106,11 +105,13 @@ export async function POST(req: NextRequest, { params }: Params) {
 
   const notifyUrl = new URL("/api/notify-rapport-facture", req.nextUrl.origin)
   const cookie = req.headers.get("cookie")
+  const internalAuth = req.headers.get("x-internal-auth")
   const notifyRes = await fetch(notifyUrl, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       ...(cookie ? { cookie } : {}),
+      ...(internalAuth ? { "x-internal-auth": internalAuth } : {}),
     },
     body: JSON.stringify({
       interventionId,
