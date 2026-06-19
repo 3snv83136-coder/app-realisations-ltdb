@@ -6,7 +6,7 @@ export type AiModelTier = "pro" | "flash"
 const MISTRAL_BASE = "https://api.mistral.ai/v1"
 
 export function getAiProvider(): AiProvider {
-  const raw = (process.env.AI_PROVIDER || "mistral").toLowerCase().trim()
+  const raw = (process.env.AI_PROVIDER || "deepseek").toLowerCase().trim()
   return raw === "deepseek" ? "deepseek" : "mistral"
 }
 
