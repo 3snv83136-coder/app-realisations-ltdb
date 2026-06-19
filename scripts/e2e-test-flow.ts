@@ -18,12 +18,17 @@ import path from "node:path"
 // prod Vercel chaque route est une lambda isolée — pas de souci. Tester sur prod.
 
 // ── Charge .env.local + .env.vercel (secret prod) ──
-function loadEnvFile(name: string) {
+function loadEnvFile(name: string, opts?: { keys?: string[]; override?: boolean }) {
   const p = path.resolve(process.cwd(), name)
   if (!fs.existsSync(p)) return
   for (const line of fs.readFileSync(p, "utf-8").split("\n")) {
     const m = line.match(/^([A-Z_][A-Z0-9_]*)=(.*)$/)
-    if (m && !process.env[m[1]]) process.env[m[1]] = m[2].replace(/^"|"$/g, "")
+    if (!m) continue
+    if (opts?.keys && !opts.keys.includes(m[1])) continue
+    const val = m[2].replace(/^"|"$/g, "")
+    if (!opts?.override && process.env[m[1]]) continue
+    if (!val) continue
+    process.env[m[1]] = val
   }
 }
 loadEnvFile(".env.local")
@@ -31,6 +36,9 @@ loadEnvFile(".env.vercel")
 
 const BASE = process.env.E2E_BASE_URL || "http://localhost:3000"
 const TEST_EMAIL = process.env.E2E_TEST_EMAIL || "mondornaji@gmail.com"
+if (BASE.includes("vercel.app")) {
+  loadEnvFile(".env.vercel", { keys: ["NEXTAUTH_SECRET", "E2E_INTERNAL_SECRET"], override: true })
+}
 const INTERNAL_SECRET = process.env.E2E_INTERNAL_SECRET || process.env.NEXTAUTH_SECRET || ""
 
 function apiHeaders(extra?: Record<string, string>): Record<string, string> {
