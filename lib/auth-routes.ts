@@ -20,6 +20,7 @@ const TECH_API_PREFIXES = [
   "/api/notify-rapport-facture",
   "/api/notify-rapport-facture-sms",
   "/api/notify-devis",
+  "/api/notify-client",
   "/api/proxy-image",
   "/api/health",
 ] as const

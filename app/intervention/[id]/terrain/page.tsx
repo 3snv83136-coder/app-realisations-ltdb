@@ -18,6 +18,7 @@ import { buildSmsUri, isMobileForSms, openNativeSms } from "@/lib/sms"
 import { isDevisIntervention } from "@/lib/types-intervention"
 import { isAccordFinDeMois } from "@/lib/fin-de-mois"
 import { getTravauxSupplementaires } from "@/lib/travaux-supplementaires"
+import TerrainAvisPanel from "@/components/terrain/TerrainAvisPanel"
 
 const VoiceRecorder = dynamic(() => import("@/components/VoiceRecorder"), { ssr: false })
 
@@ -231,9 +232,15 @@ function TerrainPageBody({
             client={client}
             onPhotoUploaded={load}
             onRefresh={load}
-            onTerminer={() => callTerrainAction('fin')}
+            onTerminer={async () => {
+              await callTerrainAction('fin')
+              await setStep(3)
+            }}
             onError={setError}
-            onSkipToRapport={() => setStep(3)}
+            onSkipToRapport={async () => {
+              if (!interv.heure_fin_reelle) await callTerrainAction('fin')
+              await setStep(3)
+            }}
           />
         )}
         {step === 3 && <StepRapport interv={interv} onSaved={load} onError={setError} />}
@@ -279,7 +286,7 @@ function StepPhotoAvant({ interv, onPhotoUploaded, onSkip, onError }: {
       <header className="text-center">
         <div className="text-5xl mb-2">📷</div>
         <h1 className="text-2xl font-black text-slate-800">Photo avant intervention</h1>
-        <p className="text-sm text-slate-600 mt-2">Capture l&apos;état initial du problème avant de commencer.</p>
+        <p className="text-sm text-slate-600 mt-2">Facultatif — capture l&apos;état initial si utile, sinon passe à l&apos;étape suivante.</p>
       </header>
 
       {hasPhotoAvant && (
@@ -315,9 +322,9 @@ function StepPhotoAvant({ interv, onPhotoUploaded, onSkip, onError }: {
         <button
           type="button"
           onClick={() => onSkip()}
-          className="w-full text-center text-sm text-slate-500 hover:text-slate-700 underline"
+          className="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-2xl py-4 font-bold text-base border-2 border-slate-300 transition"
         >
-          {hasPhotoAvant ? 'Continuer sans changer la photo' : 'Passer cette étape (sans photo)'}
+          {hasPhotoAvant ? 'Continuer sans changer la photo' : 'Passer sans photo → Démarrer'}
         </button>
       </div>
     </section>
@@ -362,9 +369,9 @@ function StepEnCours({ interv, client, onPhotoUploaded, onRefresh, onTerminer, o
   client: Client
   onPhotoUploaded: () => void
   onRefresh: () => void | Promise<void>
-  onTerminer: () => void
+  onTerminer: () => void | Promise<void>
   onError: (e: string) => void
-  onSkipToRapport: () => void
+  onSkipToRapport: () => void | Promise<void>
 }) {
   const [elapsed, setElapsed] = useState('')
   const [travauxOpen, setTravauxOpen] = useState(false)
@@ -429,7 +436,7 @@ function StepEnCours({ interv, client, onPhotoUploaded, onRefresh, onTerminer, o
       <div className="bg-white rounded-2xl border-2 border-slate-200 p-5 space-y-4">
         <div>
           <h2 className="font-bold text-slate-800">📷 Photo après l&apos;intervention</h2>
-          <p className="text-xs text-slate-500 mt-1">Capture le résultat du travail effectué.</p>
+          <p className="text-xs text-slate-500 mt-1">Facultatif — capture le résultat si utile.</p>
         </div>
         {!hasPhotoApres ? (
           <TerrainPhotoCapture
@@ -456,21 +463,21 @@ function StepEnCours({ interv, client, onPhotoUploaded, onRefresh, onTerminer, o
         )}
       </div>
 
-      <div className="flex gap-3">
+      <div className="flex flex-col gap-3">
         <button
           type="button"
           onClick={onTerminer}
-          className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl py-4 font-black text-base shadow-lg transition"
+          className="w-full bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl py-4 font-black text-base shadow-lg transition"
         >
-          ✓ Terminer le travail
+          ✓ Terminer le travail → Rapport
         </button>
-        {hasPhotoApres && (
+        {!hasPhotoApres && (
           <button
             type="button"
             onClick={onSkipToRapport}
-            className="bg-blue-600 hover:bg-blue-700 text-white rounded-2xl py-4 px-5 font-bold text-sm shadow-lg transition"
+            className="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-2xl py-3 font-bold text-sm border-2 border-slate-300 transition"
           >
-            🎤 →
+            Continuer sans photo après → Rapport
           </button>
         )}
       </div>
@@ -1025,6 +1032,14 @@ function StepFacture({ interv, client, onCreated, onError }: {
           <span className="font-black text-lg tabular-nums text-blue-900">{totalTTC.toFixed(2)} €</span>
         </div>
       </div>
+
+      <TerrainAvisPanel
+        clientNom={client?.nom || ''}
+        clientEmail={client?.email || ''}
+        clientTelephone={client?.telephone || ''}
+        ville={interv.ville}
+        onError={onError}
+      />
 
       <button
         type="button"

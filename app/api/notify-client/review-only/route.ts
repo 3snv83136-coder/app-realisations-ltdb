@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { Resend } from "resend"
 import { EMAIL_RE, escapeHtml, getResendFromEmail, getResendRecipient } from "@/lib/email-utils"
 import { getTelPrincipal } from "@/lib/parametres"
+import { getGoogleReviewUrl } from "@/lib/review-url"
 
 /**
  * Envoie UNIQUEMENT un email de demande d'avis Google (sans rapport en pièce jointe,
@@ -26,8 +27,7 @@ export async function POST(req: NextRequest) {
   const resend = new Resend(process.env.RESEND_API_KEY)
   const fromEmail = getResendFromEmail()
   const recipient = getResendRecipient(clientEmail)
-  const reviewUrl = process.env.GOOGLE_REVIEW_URL
-    || 'https://www.google.com/maps/place/Les+Techniciens+du+Débouchage'
+  const reviewUrl = await getGoogleReviewUrl()
   const tech = technicienNom || 'votre technicien'
 
   const tel = await getTelPrincipal()
