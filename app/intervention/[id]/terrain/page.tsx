@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState, useRef, useCallback } from 'react'
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useSession } from "next-auth/react"
@@ -19,6 +19,13 @@ import { isDevisIntervention } from "@/lib/types-intervention"
 import { isAccordFinDeMois } from "@/lib/fin-de-mois"
 import { getTravauxSupplementaires } from "@/lib/travaux-supplementaires"
 import TerrainAvisPanel from "@/components/terrain/TerrainAvisPanel"
+import RapportOfflineBanner from "@/components/rapport/RapportOfflineBanner"
+import {
+  clearRapportDraft,
+  getRapportDraft,
+  savePendingRapport,
+  saveRapportDraft,
+} from "@/lib/rapport/offline-store"
 
 const VoiceRecorder = dynamic(() => import("@/components/VoiceRecorder"), { ssr: false })
 
@@ -521,18 +528,86 @@ function StepRapport({ interv, onSaved, onError }: { interv: Intervention; onSav
   const [transcription, setTranscription] = useState('')
   const [generating, setGenerating] = useState(false)
   const [genDone, setGenDone] = useState(false)
-  // rapportPreview = rapport généré en mémoire, pas encore validé/sauvegardé
   const [rapportPreview, setRapportPreview] = useState<any | null>(null)
   const [seoPreview, setSeoPreview] = useState<any | null>(null)
   const [saving, setSaving] = useState(false)
+  const [isOnline, setIsOnline] = useState(true)
+  const [queuedOk, setQueuedOk] = useState(false)
+  const [draftSavedAt, setDraftSavedAt] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (typeof navigator === 'undefined') return
+    const sync = () => setIsOnline(navigator.onLine)
+    sync()
+    window.addEventListener('online', sync)
+    window.addEventListener('offline', sync)
+    return () => {
+      window.removeEventListener('online', sync)
+      window.removeEventListener('offline', sync)
+    }
+  }, [])
+
+  useEffect(() => {
+    let alive = true
+    getRapportDraft(interv.id)
+      .then(draft => {
+        if (!alive || !draft?.transcription?.trim()) return
+        setTranscription(prev => prev.trim() ? prev : draft.transcription)
+        setDraftSavedAt(draft.updated_at)
+      })
+      .catch(() => {})
+    return () => { alive = false }
+  }, [interv.id])
+
+  useEffect(() => {
+    if (!transcription.trim()) return
+    const timer = setTimeout(() => {
+      saveRapportDraft(interv.id, transcription)
+        .then(() => setDraftSavedAt(new Date().toISOString()))
+        .catch(() => {})
+    }, 800)
+    return () => clearTimeout(timer)
+  }, [interv.id, transcription])
+
+  const handleOfflineSynced = useCallback(async ({ transcribed, generated }: { transcribed: number; generated: number }) => {
+    if (transcribed > 0) {
+      const draft = await getRapportDraft(interv.id)
+      if (draft?.transcription) setTranscription(draft.transcription)
+    }
+    if (generated > 0) onSaved()
+  }, [interv.id, onSaved])
+
+  async function queueRapportForLater() {
+    const text = transcription.trim()
+    if (text.length < 20) {
+      onError('Dicte ou tape au moins quelques phrases.')
+      return
+    }
+    await saveRapportDraft(interv.id, text)
+    await savePendingRapport({
+      intervention_id: interv.id,
+      transcription: text,
+      type_intervention: interv.type_intervention,
+      ville: interv.ville,
+      code_postal: interv.code_postal,
+      date_prevue: interv.date_prevue,
+    })
+    setQueuedOk(true)
+    onError('')
+  }
 
   async function handleGenerate() {
     if (!transcription || transcription.trim().length < 20) {
       onError('Dicte ou tape au moins quelques phrases.')
       return
     }
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      await queueRapportForLater()
+      return
+    }
     setGenerating(true)
     setGenDone(false)
+    setQueuedOk(false)
     try {
       const genRes = await fetch('/api/generate', {
         method: 'POST',
@@ -554,7 +629,19 @@ function StepRapport({ interv, onSaved, onError }: { interv: Intervention; onSav
       setRapportPreview(genData.rapport)
       setSeoPreview(genData.seo)
     } catch (e) {
-      onError(e instanceof Error ? e.message : String(e))
+      const msg = e instanceof Error ? e.message : String(e)
+      const offline = typeof navigator !== 'undefined' && !navigator.onLine
+        || e instanceof TypeError
+        || /failed to fetch|network/i.test(msg)
+      if (offline) {
+        try {
+          await queueRapportForLater()
+          return
+        } catch {
+          /* message d'erreur ci-dessous */
+        }
+      }
+      onError(msg)
     } finally {
       setGenerating(false)
       setGenDone(false)
@@ -580,13 +667,13 @@ function StepRapport({ interv, onSaved, onError }: { interv: Intervention; onSav
       const saveData = await saveRes.json()
       if (!saveRes.ok) throw new Error(saveData.error || 'Sauvegarde échouée')
 
-      // Bump step à 4 (facture)
       await fetch(`/api/interventions/${interv.id}/terrain-step`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'set', step: 4 }),
       })
 
+      await clearRapportDraft(interv.id).catch(() => {})
       onSaved()
     } catch (e) {
       onError(e instanceof Error ? e.message : String(e))
@@ -703,17 +790,44 @@ function StepRapport({ interv, onSaved, onError }: { interv: Intervention; onSav
         <p className="text-sm text-slate-600 mt-2">Décris ce que tu as fait, ce que tu as trouvé, les prestations et les prix.</p>
       </header>
 
+      <RapportOfflineBanner
+        interventionId={interv.id}
+        isOnline={isOnline}
+        onSynced={handleOfflineSynced}
+      />
+
       <div className="bg-white rounded-2xl border-2 border-slate-200 p-4 space-y-4">
-        <VoiceRecorder onTranscription={(text) => setTranscription(prev => (prev ? prev + ' ' : '') + text)} />
+        <VoiceRecorder
+          interventionId={interv.id}
+          onTranscription={(text) => {
+            setQueuedOk(false)
+            setTranscription(prev => (prev ? `${prev} ${text}` : text))
+          }}
+          onOfflineQueued={() => setQueuedOk(false)}
+        />
         <textarea
           value={transcription}
-          onChange={e => setTranscription(e.target.value)}
+          onChange={e => {
+            setQueuedOk(false)
+            setTranscription(e.target.value)
+          }}
           rows={8}
           placeholder="Ou tape ici directement le texte du rapport…"
           className="w-full border-2 border-slate-200 focus:border-blue-500 outline-none rounded-xl px-4 py-3 text-sm resize-y"
         />
-        <p className="text-[11px] text-slate-400">{transcription.length} caractères</p>
+        <p className="text-[11px] text-slate-400">
+          {transcription.length} caractères
+          {draftSavedAt && (
+            <span className="ml-2 text-emerald-600 font-semibold">· sauvegardé localement</span>
+          )}
+        </p>
       </div>
+
+      {queuedOk && (
+        <div className="bg-emerald-50 border-2 border-emerald-200 rounded-2xl p-4 text-sm font-semibold text-emerald-800">
+          ✓ Rapport en file d&apos;attente — génération et enregistrement automatiques au retour du réseau.
+        </div>
+      )}
 
       <button
         type="button"
@@ -721,7 +835,7 @@ function StepRapport({ interv, onSaved, onError }: { interv: Intervention; onSav
         disabled={transcription.trim().length < 20}
         className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-2xl py-5 font-black text-lg shadow-lg transition"
       >
-        ✨ Générer le rapport
+        {!isOnline ? '📴 Mettre en file d\'attente' : '✨ Générer le rapport'}
       </button>
     </section>
   )
