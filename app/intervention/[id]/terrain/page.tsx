@@ -20,6 +20,7 @@ import { isAccordFinDeMois } from "@/lib/fin-de-mois"
 import { getTravauxSupplementaires } from "@/lib/travaux-supplementaires"
 import TerrainAvisPanel from "@/components/terrain/TerrainAvisPanel"
 import RapportOfflineBanner from "@/components/rapport/RapportOfflineBanner"
+import VideoUploadPanel from "@/components/VideoUploadPanel"
 import {
   clearRapportDraft,
   getRapportDraft,
@@ -55,6 +56,7 @@ type Intervention = {
   video_urls?: { horizontal?: string; vertical?: string; square?: string } | null
   video_youtube_url?: string | null
   video_status?: string | null
+  video_uploads?: string[] | null
 }
 
 type Client = {
@@ -468,6 +470,19 @@ function StepEnCours({ interv, client, onPhotoUploaded, onRefresh, onTerminer, o
             <div className="text-xs text-emerald-700 py-1 bg-emerald-50 font-bold">✓ Photo après enregistrée</div>
           </div>
         )}
+      </div>
+
+      <div className="bg-white rounded-2xl border-2 border-slate-200 p-5 space-y-4">
+        <div>
+          <h2 className="font-bold text-slate-800">🎥 Vidéo du chantier</h2>
+          <p className="text-xs text-slate-500 mt-1">Facultatif — tous formats, compressée automatiquement avant envoi.</p>
+        </div>
+        <VideoUploadPanel
+          interventionId={interv.id}
+          initialVideos={interv.video_uploads}
+          compact
+          onChange={() => { void onRefresh() }}
+        />
       </div>
 
       <div className="flex flex-col gap-3">

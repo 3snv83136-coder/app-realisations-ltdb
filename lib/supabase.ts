@@ -95,6 +95,7 @@ export interface Intervention {
   rapport_json: any
   seo_json: any
   photos_urls: string[] | null
+  video_uploads: string[] | null
   pdf_rapport_url: string | null
   publie_slug: string | null
   canal_acquisition: string | null

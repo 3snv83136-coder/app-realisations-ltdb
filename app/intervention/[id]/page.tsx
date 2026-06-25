@@ -27,6 +27,11 @@ const GenerateVideoButton = dynamic(
   { ssr: false },
 )
 
+const VideoUploadPanel = dynamic(
+  () => import('@/components/VideoUploadPanel'),
+  { ssr: false },
+)
+
 type Statut = 'planifiee' | 'en_cours' | 'terminee' | 'annulee'
 
 type InterventionDetail = {
@@ -56,6 +61,7 @@ type InterventionDetail = {
   video_error: string | null
   video_youtube_id: string | null
   video_youtube_url: string | null
+  video_uploads: string[] | null
   terrain_step: number | null
   heure_debut_reelle: string | null
   heure_fin_reelle: string | null
@@ -642,6 +648,13 @@ export default function InterventionDetailPage({ params }: { params: { id: strin
             initialVideoStatus={intervention.video_status}
             initialVideoError={intervention.video_error}
             initialYoutubeUrl={intervention.video_youtube_url}
+          />
+        ) : null}
+
+        {!editing ? (
+          <VideoUploadPanel
+            interventionId={intervention.id}
+            initialVideos={intervention.video_uploads}
           />
         ) : null}
 
