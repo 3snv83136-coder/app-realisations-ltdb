@@ -656,6 +656,8 @@ export default function InterventionDetailPage({ params }: { params: { id: strin
             devisRelanceCount={intervention.devis_relance_ids?.length || 0}
             avisRecu={!!intervention.avis_recu}
             devisAccepteAt={intervention.devis_accepte_at}
+            mailEnvoye={!!intervention.mail_envoye_at}
+            hasDevis={hasDevis}
           />
         ) : null}
 

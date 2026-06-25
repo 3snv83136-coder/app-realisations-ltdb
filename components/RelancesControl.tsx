@@ -8,6 +8,10 @@ type Props = {
   devisRelanceCount: number
   avisRecu: boolean
   devisAccepteAt: string | null
+  /** Un mail rapport+facture a été envoyé (relances avis programmées). */
+  mailEnvoye?: boolean
+  /** Un devis existe pour cette intervention (relances devis possibles). */
+  hasDevis?: boolean
 }
 
 export default function RelancesControl({
@@ -16,6 +20,8 @@ export default function RelancesControl({
   devisRelanceCount,
   avisRecu,
   devisAccepteAt,
+  mailEnvoye = false,
+  hasDevis = false,
 }: Props) {
   const [avisCount, setAvisCount] = useState(avisRelanceCount)
   const [devisCount, setDevisCount] = useState(devisRelanceCount)
@@ -24,7 +30,11 @@ export default function RelancesControl({
   const [busy, setBusy] = useState<'avis' | 'devis' | null>(null)
   const [msg, setMsg] = useState<string | null>(null)
 
-  const hasAnything = avisCount > 0 || devisCount > 0 || avisDone || devisDone
+  // Affiche le bloc dès qu'il y a une activité liée aux relances : relances en
+  // cours, déjà stoppées, ou simplement un mail/devis envoyé (même sans IDs
+  // stockés — cas des envois antérieurs à la fonctionnalité).
+  const hasAnything =
+    avisCount > 0 || devisCount > 0 || avisDone || devisDone || mailEnvoye || hasDevis
   if (!hasAnything) return null
 
   async function stop(type: 'avis' | 'devis') {
@@ -73,8 +83,10 @@ export default function RelancesControl({
                 {busy === 'devis' ? 'Arrêt…' : '✓ Devis accepté → stopper les relances'}
               </button>
             </>
+          ) : hasDevis ? (
+            <p className="text-xs text-slate-400 mt-1">Aucune relance à arrêter ici (devis envoyé avant cette fonction, ou relances terminées). Le client peut se désinscrire via le lien dans son email.</p>
           ) : (
-            <p className="text-xs text-slate-400 mt-1">Aucune relance devis en cours.</p>
+            <p className="text-xs text-slate-400 mt-1">Aucun devis envoyé.</p>
           )}
         </div>
 
@@ -95,8 +107,10 @@ export default function RelancesControl({
                 {busy === 'avis' ? 'Arrêt…' : '✓ Avis reçu → stopper les relances'}
               </button>
             </>
+          ) : mailEnvoye ? (
+            <p className="text-xs text-slate-400 mt-1">Aucune relance à arrêter ici (mail envoyé avant cette fonction, ou relances terminées). Le client peut se désinscrire via le lien dans son email.</p>
           ) : (
-            <p className="text-xs text-slate-400 mt-1">Aucune relance avis en cours.</p>
+            <p className="text-xs text-slate-400 mt-1">Rapport + facture pas encore envoyés.</p>
           )}
         </div>
       </div>
