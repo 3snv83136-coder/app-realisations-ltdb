@@ -2,6 +2,7 @@ import React from "react"
 import { Document, Page, Text, View, StyleSheet } from "@react-pdf/renderer"
 import type { EmetteurData, ClientData } from "./DevisPDF"
 import { FACTURE_MENTIONS_LEGALES } from "@/lib/entreprise"
+import { MENTION_TVA_FRANCHISE } from "@/lib/accord/blocs-legaux"
 import type { Agence } from "@/lib/agences"
 
 export type { Agence } from "@/lib/agences"
@@ -209,6 +210,11 @@ const s = StyleSheet.create({
   },
   legalText: { color: C.muted, fontSize: 7.5, lineHeight: 1.45 },
   partyMuted: { color: C.muted, fontSize: 8.5, marginTop: 4 },
+  tvaFranchiseBox: {
+    marginTop: 6, paddingVertical: 5, paddingHorizontal: 8,
+    borderWidth: 1, borderColor: C.yellowBorder, backgroundColor: C.yellowSoft, borderRadius: 4,
+  },
+  tvaFranchiseText: { color: C.yellowDark, fontSize: 8, fontFamily: 'Helvetica-Bold' },
 
   /* Footer */
   footer: {
@@ -333,7 +339,7 @@ const Footer = ({ emetteur }: { emetteur: FactureEmetteurData }) => {
 /* ============ DOCUMENT ============ */
 export function FactureDocument({ emetteur, client, facture, phone }: FacturePDFProps) {
   const dateFmt = fmtDateFR(facture.date_facture)
-  const tvaTaux = facture.tva_taux ?? 10
+  const tvaTaux = facture.tva_taux ?? 0
   const echeanceVal = facture.echeance || 'À réception'
   const isRegle = /^r[ée]gl[ée]e?$/i.test(echeanceVal.trim())
 
@@ -460,15 +466,23 @@ export function FactureDocument({ emetteur, client, facture, phone }: FacturePDF
             </View>
             <View style={s.totauxRow}>
               <Text style={s.totauxLbl}>
-                TVA {tvaTaux} %{tvaTaux === 10 ? ' (taux réduit — travaux)' : ''}
+                {tvaTaux === 0
+                  ? 'TVA non applicable'
+                  : `TVA ${tvaTaux} %${tvaTaux === 10 ? ' (taux réduit — travaux)' : ''}`}
               </Text>
-              <Text style={s.totauxV}>{fmtEur(tva)}</Text>
+              <Text style={s.totauxV}>{tvaTaux === 0 ? '—' : fmtEur(tva)}</Text>
             </View>
             <View style={[s.totauxRow, s.totauxRowTtc, s.totauxRowLast]}>
-              <Text style={s.totauxLblTtc}>MONTANT T.T.C.</Text>
+              <Text style={s.totauxLblTtc}>{tvaTaux === 0 ? 'NET À PAYER' : 'MONTANT T.T.C.'}</Text>
               <Text style={s.totauxVTtc}>{fmtEur(totalTTC)}</Text>
             </View>
           </View>
+
+          {tvaTaux === 0 ? (
+            <View style={s.tvaFranchiseBox} wrap={false}>
+              <Text style={s.tvaFranchiseText}>{MENTION_TVA_FRANCHISE} (franchise en base de TVA).</Text>
+            </View>
+          ) : null}
 
           {/* ===== Mode de règlement (vert) ===== */}
           {facture.mode_reglement ? (

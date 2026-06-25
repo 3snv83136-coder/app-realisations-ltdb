@@ -142,6 +142,13 @@ export async function POST(req: NextRequest) {
       const sb = getSupabaseOrNull()
       if (sb) {
         await sb.from('interventions').update({ statut: 'en_cours' }).eq('id', interventionId)
+        // Stocke les IDs des relances devis pour pouvoir les stopper depuis l'app.
+        // Best-effort : ne casse pas l'envoi si la colonne n'est pas encore migrée.
+        if (reminderIds.length) {
+          try {
+            await sb.from('interventions').update({ devis_relance_ids: reminderIds }).eq('id', interventionId)
+          } catch { /* migration 018 non appliquée */ }
+        }
       }
     }
 

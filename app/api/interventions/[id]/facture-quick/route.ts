@@ -129,7 +129,7 @@ export async function POST(req: NextRequest, { params }: Params) {
 
   // Calcul totaux
   const totalHT = facture.lignes.reduce((sum: number, l) => sum + (l.inclus ? 0 : (Number(l.qte) || 0) * (Number(l.pu_ht) || 0)), 0)
-  const totalTTC = totalHT * (1 + (facture.tva_taux ?? 10) / 100)
+  const totalTTC = totalHT * (1 + (facture.tva_taux ?? 0) / 100)
 
   // Persist
   const factureId = await persistFacture({

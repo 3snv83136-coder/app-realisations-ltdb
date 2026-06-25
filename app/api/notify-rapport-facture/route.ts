@@ -298,12 +298,14 @@ export async function POST(req: NextRequest) {
   } catch {}
 
   // Marque l'intervention : mail envoyé + bump terrain_step à 7 (= diffusion OK, étape réseaux)
+  // + stocke les IDs des relances avis pour pouvoir les stopper depuis l'app.
   try {
     await sb
       .from('interventions')
       .update({
         mail_envoye_at: new Date().toISOString(),
         terrain_step: 7,
+        ...(relanceIds.length ? { avis_relance_ids: relanceIds } : {}),
       })
       .eq('id', interventionId)
   } catch {}

@@ -21,6 +21,7 @@ import { getTravauxSupplementaires } from "@/lib/travaux-supplementaires"
 import TerrainAvisPanel from "@/components/terrain/TerrainAvisPanel"
 import RapportOfflineBanner from "@/components/rapport/RapportOfflineBanner"
 import VideoUploadPanel from "@/components/VideoUploadPanel"
+import { CATALOGUE_PRESTATIONS } from "@/lib/catalogue-prestations"
 import {
   clearRapportDraft,
   getRapportDraft,
@@ -889,7 +890,8 @@ function StepFacture({ interv, client, onCreated, onError }: {
   const [objet, setObjet] = useState('')
   const [modeReglement, setModeReglement] = useState('')
   const [echeance, setEcheance] = useState<'Réglée' | 'À réception' | '30 jours'>('Réglée')
-  const [tva, setTva] = useState<0 | 10 | 20>(10)
+  // Franchise en base de TVA (auto-entrepreneur) : 0 % par défaut.
+  const [tva, setTva] = useState<0 | 10 | 20>(0)
   const [observations, setObservations] = useState('')
   const [recommandation, setRecommandation] = useState('')
   const [loading, setLoading] = useState(true)
@@ -917,7 +919,8 @@ function StepFacture({ interv, client, onCreated, onError }: {
             inclus: l.inclus === true,
           })))
           setObjet(facture.objet || '')
-          setTva((facture.tva_taux === 0 || facture.tva_taux === 20) ? facture.tva_taux : 10)
+          // Auto-entrepreneur : franchise en base, 0 % par défaut.
+          setTva(facture.tva_taux === 10 || facture.tva_taux === 20 ? facture.tva_taux : 0)
           setObservations(facture.observations || '')
           setRecommandation(facture.recommandation || '')
           setNumero(facture.numero || '')
@@ -942,6 +945,18 @@ function StepFacture({ interv, client, onCreated, onError }: {
   }
   function ajouterLigne() {
     setLignes(prev => [...prev, { designation: '', description: '', qte: 1, unite: 'forfait', pu_ht: 0, inclus: false }])
+  }
+  function ajouterPrestationCatalogue(id: string) {
+    const presta = CATALOGUE_PRESTATIONS.find(p => p.id === id)
+    if (!presta) return
+    setLignes(prev => [...prev, {
+      designation: presta.designation,
+      description: presta.description || '',
+      qte: 1,
+      unite: presta.unite,
+      pu_ht: presta.pu_ht,
+      inclus: false,
+    }])
   }
   function supprimerLigne(i: number) {
     setLignes(prev => prev.filter((_, idx) => idx !== i))
@@ -1022,12 +1037,26 @@ function StepFacture({ interv, client, onCreated, onError }: {
             onClick={ajouterLigne}
             className="text-xs font-bold bg-blue-100 text-blue-700 hover:bg-blue-200 rounded-lg px-3 py-1.5 transition"
           >
-            + Ajouter
+            + Ligne libre
           </button>
         </div>
 
+        {/* Menu déroulant catalogue : ajoute une ligne pré-remplie */}
+        <select
+          value=""
+          onChange={e => { if (e.target.value) { ajouterPrestationCatalogue(e.target.value); e.target.value = '' } }}
+          className="w-full border-2 border-blue-200 bg-blue-50 focus:border-blue-500 outline-none rounded-lg px-3 py-2.5 text-sm font-semibold text-blue-800"
+        >
+          <option value="">+ Ajouter une prestation du catalogue…</option>
+          {CATALOGUE_PRESTATIONS.map(p => (
+            <option key={p.id} value={p.id}>
+              {p.designation} — {p.pu_ht} €{p.unite === 'ml' ? ' / ml' : p.unite === 'h' ? ' / h' : ''}
+            </option>
+          ))}
+        </select>
+
         {lignes.length === 0 && (
-          <p className="text-sm text-slate-400 italic text-center py-4">Aucune ligne. Clique &quot;+ Ajouter&quot;.</p>
+          <p className="text-sm text-slate-400 italic text-center py-4">Aucune ligne. Choisis une prestation ci-dessus ou &quot;+ Ligne libre&quot;.</p>
         )}
 
         {lignes.map((l, i) => (
@@ -1114,10 +1143,13 @@ function StepFacture({ interv, client, onCreated, onError }: {
               onClick={() => setTva(t)}
               className={`flex-1 py-2 rounded-lg font-bold text-sm ${tva === t ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-700'}`}
             >
-              {t}%
+              {t === 0 ? 'Franchise' : `${t}%`}
             </button>
           ))}
         </div>
+        {tva === 0 && (
+          <p className="text-xs text-slate-500">TVA non applicable — art. 293 B du CGI (auto-entrepreneur).</p>
+        )}
       </div>
 
       {/* Règlement */}
@@ -1152,10 +1184,14 @@ function StepFacture({ interv, client, onCreated, onError }: {
           <span className="text-slate-600">Total HT</span>
           <span className="font-bold tabular-nums">{totalHT.toFixed(2)} €</span>
         </div>
-        <div className="flex justify-between text-sm">
-          <span className="text-slate-600">TVA ({tva}%)</span>
-          <span className="font-bold tabular-nums">{totalTVA.toFixed(2)} €</span>
-        </div>
+        {tva === 0 ? (
+          <div className="text-xs text-slate-500 italic">TVA non applicable — art. 293 B du CGI</div>
+        ) : (
+          <div className="flex justify-between text-sm">
+            <span className="text-slate-600">TVA ({tva}%)</span>
+            <span className="font-bold tabular-nums">{totalTVA.toFixed(2)} €</span>
+          </div>
+        )}
         <div className="flex justify-between border-t border-blue-300 pt-2 mt-2">
           <span className="font-black text-lg">Total TTC</span>
           <span className="font-black text-lg tabular-nums text-blue-900">{totalTTC.toFixed(2)} €</span>

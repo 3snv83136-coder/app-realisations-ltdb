@@ -105,7 +105,7 @@ export default function FacturePage() {
         if (l.inclus) return sum
         return sum + (Number(l.pu_ht) || 0) * (Number(l.qte) || 0)
       }, 0)
-      const totalTTC = totalHT * (1 + ((facture.tva_taux ?? 10) / 100))
+      const totalTTC = totalHT * (1 + ((facture.tva_taux ?? 0) / 100))
       const technicienNom = typeof window !== 'undefined' ? (localStorage.getItem('ltdb_technicien') || '') : ''
       const client: ClientData = {
         nom: clientNom || '—',
@@ -148,7 +148,7 @@ export default function FacturePage() {
           // Champs persistance DB
           facture,
           totalHT,
-          tvaTaux: facture.tva_taux ?? 10,
+          tvaTaux: facture.tva_taux ?? 0,
           clientAdresse,
           clientCP,
         }),
@@ -262,7 +262,7 @@ export default function FacturePage() {
       lignes: [
         { designation: '', description: '', qte: 1, unite: 'forfait', pu_ht: 0, inclus: false },
       ],
-      tva_taux: 10,
+      tva_taux: 0, // Franchise en base de TVA (auto-entrepreneur) — art. 293 B du CGI
       mode_reglement: '',
       observations: '',
       recommandation: '',
@@ -276,7 +276,7 @@ export default function FacturePage() {
     if (l.inclus) return s
     return s + (Number(l.pu_ht) || 0) * (Number(l.qte) || 0)
   }, 0) || 0
-  const tvaTaux = facture?.tva_taux ?? 10
+  const tvaTaux = facture?.tva_taux ?? 0
   const tva = totalHT * tvaTaux / 100
   const ttc = totalHT + tva
 
@@ -592,6 +592,9 @@ export default function FacturePage() {
                     <span className="font-semibold ml-2">{tva.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €</span>
                   </div>
                 </div>
+                {tvaTaux === 0 && (
+                  <p className="text-[11px] text-slate-500 italic py-1">TVA non applicable — art. 293 B du CGI (franchise en base de TVA).</p>
+                )}
                 <div className="flex justify-between py-2 bg-[#0e2a52] text-white px-3 rounded-lg">
                   <span className="font-bold">Montant TTC</span>
                   <span className="font-bold">{ttc.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €</span>

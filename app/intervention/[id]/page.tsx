@@ -32,6 +32,11 @@ const VideoUploadPanel = dynamic(
   { ssr: false },
 )
 
+const RelancesControl = dynamic(
+  () => import('@/components/RelancesControl'),
+  { ssr: false },
+)
+
 type Statut = 'planifiee' | 'en_cours' | 'terminee' | 'annulee'
 
 type InterventionDetail = {
@@ -68,6 +73,9 @@ type InterventionDetail = {
   mail_envoye_at: string | null
   avis_relance_at: string | null
   avis_recu: boolean | null
+  avis_relance_ids: string[] | null
+  devis_relance_ids: string[] | null
+  devis_accepte_at: string | null
   photos_legendes: string[] | null
   created_at: string
   updated_at: string
@@ -640,6 +648,17 @@ export default function InterventionDetailPage({ params }: { params: { id: strin
             })
           }}
         />
+
+        {!editing ? (
+          <RelancesControl
+            interventionId={intervention.id}
+            avisRelanceCount={intervention.avis_relance_ids?.length || 0}
+            devisRelanceCount={intervention.devis_relance_ids?.length || 0}
+            avisRecu={!!intervention.avis_recu}
+            devisAccepteAt={intervention.devis_accepte_at}
+          />
+        ) : null}
+
         {!editing && intervention.statut === 'terminee' ? (
           <GenerateVideoButton
             interventionId={intervention.id}

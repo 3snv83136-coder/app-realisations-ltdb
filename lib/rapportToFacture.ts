@@ -135,7 +135,7 @@ export function buildFactureFromRapport(src: RapportToFactureSource): RapportToF
     objet,
     reference_dossier,
     lignes: buildLignesFromRapport(rapport, objet),
-    tva_taux: 10,
+    tva_taux: 0, // Franchise en base de TVA (auto-entrepreneur) — art. 293 B du CGI
     mode_reglement: '',
     observations: buildObservations(rapport),
     recommandation: buildRecommandation(rapport),
