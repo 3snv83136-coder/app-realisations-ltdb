@@ -42,3 +42,13 @@ export function getComptaAlertEmail(): Promise<string> {
   const fallback = process.env.COMPTA_ALERT_EMAIL || process.env.EMAIL_COMPTABLE || ''
   return getParametre('COMPTA_ALERT_EMAIL', fallback)
 }
+
+/**
+ * Boîte mail du gérant qui reçoit les confirmations d'envoi (rapports & factures).
+ * Configurable via la table `parametres` (clé `OWNER_NOTIFY_EMAIL`) ou la variable
+ * d'environnement `OWNER_NOTIFY_EMAIL`, sinon repli sur l'adresse Gmail LTDB.
+ */
+export function getOwnerNotifyEmail(): Promise<string> {
+  const fallback = process.env.OWNER_NOTIFY_EMAIL || 'lestechniciensdudebouchage@gmail.com'
+  return getParametre('OWNER_NOTIFY_EMAIL', fallback)
+}

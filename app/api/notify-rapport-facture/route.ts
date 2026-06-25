@@ -12,6 +12,7 @@ import {
 import { buildRapportFactureHtml } from "@/lib/rapport-facture-message"
 import { getSupabaseOrNull } from "@/lib/supabase"
 import { getTelPrincipal } from "@/lib/parametres"
+import { sendOwnerConfirmation } from "@/lib/owner-confirmation"
 import { fetchPdfAsBase64Robust } from "@/lib/supabase-pdf-fetch"
 
 export const maxDuration = 120
@@ -235,6 +236,22 @@ export async function POST(req: NextRequest) {
     }, { status: 500 })
   }
 
+  // Confirmation au gérant (best-effort — ne bloque jamais le flux client).
+  const ownerConfirmation = await sendOwnerConfirmation({
+    resend,
+    fromEmail,
+    type: 'rapport_facture',
+    clientNom,
+    clientEmail,
+    destinataireReel: recipient,
+    ville,
+    reference,
+    factureNumero: factureNum,
+    totalTTC,
+    ccEmail: ccEmail || undefined,
+    messageId: immediate.data?.id,
+  })
+
   // Relances paiement J+10, J+15, J+20 (si facture non réglée)
   let factureRelanceIds: string[] = []
   let factureRelanceErrors: string[] = []
@@ -295,6 +312,8 @@ export async function POST(req: NextRequest) {
     ok: true,
     immediate_id: immediate.data?.id,
     followUp_ids: relanceIds,
+    owner_confirmation: ownerConfirmation.sent,
+    ...(ownerConfirmation.error ? { owner_confirmation_warning: ownerConfirmation.error } : {}),
     ...(!factureReglee ? {
       facture_relances_planifiees: factureRelanceIds.length,
       facture_relance_ids: factureRelanceIds,

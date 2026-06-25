@@ -8,6 +8,7 @@ import {
 } from "@/lib/facture-relance"
 import { persistFacture } from "@/lib/persist"
 import { getTelPrincipal } from "@/lib/parametres"
+import { sendOwnerConfirmation } from "@/lib/owner-confirmation"
 
 export const maxDuration = 30
 
@@ -55,6 +56,20 @@ export async function POST(req: NextRequest) {
         : undefined,
     }, { status: 500 })
   }
+
+  // Confirmation au gérant (best-effort — ne bloque jamais le flux client).
+  const ownerConfirmation = await sendOwnerConfirmation({
+    resend,
+    fromEmail,
+    type: 'facture',
+    clientNom,
+    clientEmail,
+    destinataireReel: recipient,
+    ville,
+    factureNumero: numero,
+    totalTTC,
+    messageId: result.data?.id,
+  })
 
   let docId: string | null = null
   let persistError: string | null = null
@@ -108,6 +123,8 @@ export async function POST(req: NextRequest) {
     ok: true,
     id: result.data?.id,
     docId,
+    owner_confirmation: ownerConfirmation.sent,
+    ...(ownerConfirmation.error ? { owner_confirmation_warning: ownerConfirmation.error } : {}),
     ...(reglee
       ? {}
       : {
