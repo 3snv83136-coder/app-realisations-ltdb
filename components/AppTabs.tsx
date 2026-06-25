@@ -5,7 +5,7 @@ import { signOut } from "next-auth/react"
 import { type ComponentType, useEffect, useState } from "react"
 import {
   HomeIcon, CalendarIcon, DocumentIcon, CameraIcon, ClipboardIcon, ReceiptIcon,
-  CheckBadgeIcon, ArchiveIcon, ChartBarIcon, BriefcaseIcon, EnvelopeIcon,
+  CheckBadgeIcon, ArchiveIcon, ChartBarIcon, BriefcaseIcon, EnvelopeIcon, UsersIcon,
 } from "@/components/Icons"
 
 type Tab = {
@@ -25,6 +25,7 @@ const TABS: Tab[] = [
   { href: '/historique',   label: 'Historique',   Icon: ArchiveIcon },
   { href: '/statistiques', label: 'Statistiques', Icon: ChartBarIcon },
   { href: '/comptabilite', label: 'Comptabilité', Icon: BriefcaseIcon },
+  { href: '/rh',           label: 'RH',           Icon: UsersIcon },
   { href: '/mail',         label: 'Mail',         Icon: EnvelopeIcon },
 ]
 

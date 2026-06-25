@@ -1,6 +1,7 @@
 import crypto from "crypto"
 import { Resend } from "resend"
 import { escapeHtml, getResendFromEmail, getResendRecipient } from "@/lib/email-utils"
+import { parseAdditionalEmails } from "@/lib/email-regexp"
 import { fmtEUR } from "@/lib/format"
 import { getTelPrincipal } from "@/lib/parametres"
 
@@ -137,6 +138,8 @@ function emailDevisRelanceRistourne({
 export type PlanifierDevisEnvoiInput = {
   baseUrl: string
   clientEmail: string
+  /** Destinataires en copie (PDF initial uniquement, pas les relances). */
+  additionalEmails?: string[]
   clientNom?: string
   technicienNom?: string
   ville?: string
@@ -166,6 +169,7 @@ export async function planifierDevisAvecRelances(input: PlanifierDevisEnvoiInput
 
   const fromEmail = getResendFromEmail()
   const recipient = getResendRecipient(input.clientEmail)
+  const cc = parseAdditionalEmails(input.additionalEmails || [], recipient)
   const tech = input.technicienNom || "votre technicien"
   const tel = await getTelPrincipal()
   const signSecret = process.env.REVIEW_STOP_SECRET || process.env.NEXTAUTH_SECRET || resendKey
@@ -234,6 +238,7 @@ export async function planifierDevisAvecRelances(input: PlanifierDevisEnvoiInput
   const firstPayload = {
     from: `Les Techniciens du Débouchage <${fromEmail}>` as const,
     to: recipient,
+    ...(cc.length ? { cc } : {}),
     subject: subjectBase,
     html: emailDevisSemaine1({
       clientNom: input.clientNom,

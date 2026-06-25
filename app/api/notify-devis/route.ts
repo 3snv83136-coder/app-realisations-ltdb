@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { escapeHtml, initResend } from "@/lib/email-utils"
+import { parseAdditionalEmails } from "@/lib/email-regexp"
 import { planifierDevisAvecRelances } from "@/lib/devis-relance"
 import { fmtEUR } from "@/lib/format"
 import { persistDevis } from "@/lib/persist"
@@ -27,6 +28,10 @@ export async function POST(req: NextRequest) {
   if (!clientEmail) {
     return NextResponse.json({ error: 'Email client manquant' }, { status: 400 })
   }
+  const additionalEmails = parseAdditionalEmails(
+    Array.isArray(body.additionalEmails) ? body.additionalEmails.filter((e): e is string => typeof e === 'string') : [],
+    clientEmail,
+  )
   const {
     clientNom, technicienNom, ville, dateDevis, numero, totalTTC, validiteJours, pdfBase64, pdfFilename,
     devis, totalHT, tvaTaux, agence, clientAdresse, clientCP,
@@ -66,6 +71,7 @@ export async function POST(req: NextRequest) {
       const out = await planifierDevisAvecRelances({
         baseUrl: getBaseUrl(req),
         clientEmail,
+        additionalEmails,
         clientNom,
         technicienNom,
         ville,
@@ -93,6 +99,7 @@ export async function POST(req: NextRequest) {
       const result = await resend.emails.send({
         from: `Les Techniciens du Débouchage <${fromEmail}>`,
         to: recipient,
+        ...(additionalEmails.length ? { cc: additionalEmails } : {}),
         subject,
         html: emailDevisSimple({ clientNom, technicienNom: tech, ville, dateDevis, numero, totalTTC, validiteJours, tel }),
         attachments,

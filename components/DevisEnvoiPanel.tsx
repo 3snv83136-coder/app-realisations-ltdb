@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import type { DevisData } from "@/components/DevisPDF"
+import { EMAIL_RE } from "@/lib/email-regexp"
 
 type Props = {
   devis: DevisData
@@ -42,6 +43,32 @@ export default function DevisEnvoiPanel({
   const [sending, setSending] = useState(false)
   const [sent, setSent] = useState(false)
   const [error, setError] = useState('')
+  const [extraEmails, setExtraEmails] = useState<string[]>([])
+  const [newEmail, setNewEmail] = useState('')
+
+  function addRecipient() {
+    const e = newEmail.trim().toLowerCase()
+    if (!EMAIL_RE.test(e)) {
+      setError('Adresse email invalide.')
+      return
+    }
+    const primary = clientEmail.trim().toLowerCase()
+    if (e === primary) {
+      setError('Cet email est déjà le destinataire principal.')
+      return
+    }
+    if (extraEmails.includes(e)) {
+      setError('Destinataire déjà ajouté.')
+      return
+    }
+    setExtraEmails(prev => [...prev, e])
+    setNewEmail('')
+    setError('')
+  }
+
+  function removeRecipient(email: string) {
+    setExtraEmails(prev => prev.filter(x => x !== email))
+  }
 
   async function handleSend() {
     if (!clientEmail) {
@@ -98,6 +125,7 @@ export default function DevisEnvoiPanel({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           clientEmail,
+          additionalEmails: extraEmails,
           clientNom,
           technicienNom,
           ville: clientVille,
@@ -137,6 +165,7 @@ export default function DevisEnvoiPanel({
         <h2 className="font-bold text-[#0e2a52] text-lg">Envoi du devis au client</h2>
         <p className="text-xs text-slate-500 mt-1">
           3 emails sur 3 semaines : présence dans le secteur (S1–S2), puis <strong>-10 %</strong> si accord immédiat (S3).
+          Les destinataires supplémentaires reçoivent uniquement le PDF initial.
         </p>
       </div>
 
@@ -186,28 +215,79 @@ export default function DevisEnvoiPanel({
         </div>
       )}
 
-      <div className="flex flex-col sm:flex-row gap-2">
+      <div className="space-y-2">
+        <label className="block text-xs uppercase tracking-wide text-slate-500 font-semibold">
+          Destinataire principal
+        </label>
         <input
           type="email"
           value={clientEmail}
           onChange={(e) => onClientEmailChange(e.target.value)}
           placeholder="email@client.com"
-          className="flex-1 border-2 border-slate-200 focus:border-[#0e2a52] outline-none rounded-lg px-3 py-2 text-sm"
+          className="w-full border-2 border-slate-200 focus:border-[#0e2a52] outline-none rounded-lg px-3 py-2 text-sm"
           disabled={sending}
         />
-        <button
-          type="button"
-          onClick={handleSend}
-          disabled={sending || !clientEmail}
-          className="bg-[#0e2a52] text-white font-bold rounded-lg px-5 py-2.5 text-sm hover:bg-[#0a2047] disabled:opacity-50 whitespace-nowrap"
-        >
-          {sending ? 'Envoi…' : mode === 'now' ? 'Envoyer' : 'Programmer'}
-        </button>
       </div>
+
+      <div className="space-y-2">
+        <label className="block text-xs uppercase tracking-wide text-slate-500 font-semibold">
+          Autres destinataires (copie)
+        </label>
+        <div className="flex gap-2">
+          <input
+            type="email"
+            value={newEmail}
+            onChange={(e) => setNewEmail(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addRecipient() } }}
+            placeholder="syndic@exemple.fr"
+            className="flex-1 border-2 border-slate-200 focus:border-[#0e2a52] outline-none rounded-lg px-3 py-2 text-sm"
+            disabled={sending}
+          />
+          <button
+            type="button"
+            onClick={addRecipient}
+            disabled={sending || !newEmail.trim()}
+            className="bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold rounded-lg px-4 py-2 text-sm disabled:opacity-50 whitespace-nowrap"
+          >
+            + Ajouter
+          </button>
+        </div>
+        {extraEmails.length > 0 && (
+          <ul className="flex flex-wrap gap-2">
+            {extraEmails.map(email => (
+              <li
+                key={email}
+                className="inline-flex items-center gap-1 bg-slate-100 border border-slate-200 rounded-lg px-2 py-1 text-xs font-semibold text-slate-700"
+              >
+                {email}
+                <button
+                  type="button"
+                  onClick={() => removeRecipient(email)}
+                  className="text-red-600 hover:text-red-800 px-1"
+                  aria-label={`Retirer ${email}`}
+                >
+                  ✕
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+
+      <button
+        type="button"
+        onClick={handleSend}
+        disabled={sending || !clientEmail}
+        className="w-full bg-[#0e2a52] text-white font-bold rounded-lg px-5 py-2.5 text-sm hover:bg-[#0a2047] disabled:opacity-50"
+      >
+        {sending ? 'Envoi…' : mode === 'now' ? 'Envoyer' : 'Programmer'}
+      </button>
 
       {sent && (
         <p className="text-sm text-emerald-700">
-          ✓ {mode === 'now' ? 'Devis envoyé' : 'Envoi programmé'} — relances semaines 2 et 3 planifiées.
+          ✓ {mode === 'now' ? 'Devis envoyé' : 'Envoi programmé'}
+          {extraEmails.length > 0 ? ` à ${1 + extraEmails.length} destinataires` : ''}
+          {' '}— relances semaines 2 et 3 planifiées pour le destinataire principal.
         </p>
       )}
       {error && <p className="text-sm text-red-600">{error}</p>}
