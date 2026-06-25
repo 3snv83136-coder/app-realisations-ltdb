@@ -1,7 +1,7 @@
 'use client'
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { signOut } from "next-auth/react"
+import { signOut, useSession } from "next-auth/react"
 import { type ComponentType, useEffect, useState } from "react"
 import {
   HomeIcon, CalendarIcon, DocumentIcon, CameraIcon, ClipboardIcon, ReceiptIcon,
@@ -12,6 +12,8 @@ type Tab = {
   href: string
   label: string
   Icon: ComponentType<{ className?: string }>
+  /** Onglet réservé aux administrateurs (masqué pour les techniciens). */
+  adminOnly?: boolean
 }
 
 const TABS: Tab[] = [
@@ -25,7 +27,7 @@ const TABS: Tab[] = [
   { href: '/historique',   label: 'Historique',   Icon: ArchiveIcon },
   { href: '/statistiques', label: 'Statistiques', Icon: ChartBarIcon },
   { href: '/comptabilite', label: 'Comptabilité', Icon: BriefcaseIcon },
-  { href: '/rh',           label: 'RH',           Icon: UsersIcon },
+  { href: '/rh',           label: 'RH',           Icon: UsersIcon, adminOnly: true },
   { href: '/mail',         label: 'Mail',         Icon: EnvelopeIcon },
 ]
 
@@ -58,10 +60,14 @@ function MenuIcon({ className }: { className?: string }) {
 
 export default function AppTabs() {
   const pathname = usePathname() || ''
+  const { data: session } = useSession()
   const [menuOpen, setMenuOpen] = useState(false)
 
-  const activeTab = TABS.find(t => isTabActive(pathname, t.href)) ?? TABS[0]
-  const quickTabs = TABS.filter(t => (MOBILE_QUICK_HREFS as readonly string[]).includes(t.href))
+  const isAdmin = session?.user?.role === 'admin'
+  const tabs = TABS.filter(t => !t.adminOnly || isAdmin)
+
+  const activeTab = tabs.find(t => isTabActive(pathname, t.href)) ?? tabs[0]
+  const quickTabs = tabs.filter(t => (MOBILE_QUICK_HREFS as readonly string[]).includes(t.href))
 
   useEffect(() => { setMenuOpen(false) }, [pathname])
 
@@ -145,7 +151,7 @@ export default function AppTabs() {
               </div>
 
               <div className="overflow-y-auto p-3 grid grid-cols-2 gap-2">
-                {TABS.map(t => {
+                {tabs.map(t => {
                   const active = isTabActive(pathname, t.href)
                   const Icon = t.Icon
                   return (
@@ -187,7 +193,7 @@ export default function AppTabs() {
       {/* Desktop : barre horizontale classique */}
       <div className="hidden md:block">
         <div className="flex flex-wrap gap-1 p-1 bg-slate-100 rounded-2xl">
-          {TABS.map(t => {
+          {tabs.map(t => {
             const active = isTabActive(pathname, t.href)
             const Icon = t.Icon
             return (

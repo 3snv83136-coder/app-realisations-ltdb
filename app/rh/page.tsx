@@ -17,8 +17,14 @@ export default function RhPage() {
 
   useEffect(() => {
     if (status === 'loading') return
+    // Non connecté → login. Connecté mais non-admin → message explicite (pas de
+    // redirection silencieuse qui donne l'impression que « rien ne se passe »).
+    if (status === 'unauthenticated') {
+      router.replace('/login')
+      return
+    }
     if (session?.user?.role !== 'admin') {
-      router.replace('/')
+      setLoading(false)
       return
     }
     fetch('/api/rh/salaries', { cache: 'no-store' })
@@ -30,6 +36,8 @@ export default function RhPage() {
       .catch(e => setError(e instanceof Error ? e.message : String(e)))
       .finally(() => setLoading(false))
   }, [session, status, router])
+
+  const isAdmin = session?.user?.role === 'admin'
 
   return (
     <div className="min-h-screen bg-slate-50 pb-20">
@@ -43,16 +51,38 @@ export default function RhPage() {
             <h1 className="text-xl font-black">Ressources humaines</h1>
             <p className="text-sm text-white/70">Dossiers salariés, scans et documents RH</p>
           </div>
-          <Link
-            href="/rh/nouveau"
-            className="bg-white text-[#0e2a52] font-bold px-4 py-2.5 rounded-xl text-sm hover:bg-slate-100 transition"
-          >
-            + Nouveau salarié
-          </Link>
+          {isAdmin && (
+            <Link
+              href="/rh/nouveau"
+              className="bg-white text-[#0e2a52] font-bold px-4 py-2.5 rounded-xl text-sm hover:bg-slate-100 transition"
+            >
+              + Nouveau salarié
+            </Link>
+          )}
         </div>
       </header>
 
       <main className="max-w-6xl mx-auto px-4 py-6 space-y-4">
+        {!loading && !isAdmin ? (
+          <div className="bg-white border-2 border-slate-200 rounded-2xl p-6 text-center space-y-3">
+            <div className="text-4xl">🔒</div>
+            <h2 className="text-lg font-bold text-slate-800">Accès réservé à l&apos;administrateur</h2>
+            <p className="text-sm text-slate-600 max-w-md mx-auto">
+              Le module Ressources humaines n&apos;est accessible qu&apos;avec un compte administrateur (gérant).
+              Déconnecte-toi puis reconnecte-toi avec ton identifiant admin.
+            </p>
+            <button
+              type="button"
+              onClick={() => router.push('/')}
+              className="inline-block bg-[#0e2a52] text-white font-bold px-4 py-2.5 rounded-xl text-sm hover:bg-[#0e2a52]/90 transition"
+            >
+              Retour à l&apos;accueil
+            </button>
+          </div>
+        ) : null}
+
+        {isAdmin && (
+        <>
         <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-sm text-amber-900">
           Gabarits juridiques standards — à valider par votre conseil avant signature.
         </div>
@@ -81,6 +111,8 @@ export default function RhPage() {
             </li>
           ))}
         </ul>
+        </>
+        )}
       </main>
     </div>
   )
