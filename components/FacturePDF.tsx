@@ -32,14 +32,20 @@ const C = {
 const s = StyleSheet.create({
   page: {
     paddingHorizontal: 0,
+    // Réserve la hauteur du header (haut) et du footer (bas) sur CHAQUE page,
+    // pour éviter tout chevauchement quand le contenu déborde sur plusieurs pages.
+    // Le footer facture est plus haut (RIB + coordonnées société) → marge basse large.
+    paddingTop: 56,
+    paddingBottom: 92,
     fontFamily: 'Helvetica',
     fontSize: 9.5,
     color: C.text,
     backgroundColor: C.white,
     lineHeight: 1.45,
   },
-  /* Header */
+  /* Header (fixed, ancré en haut de chaque page) */
   headerTop: {
+    position: 'absolute', top: 0, left: 0, right: 0,
     paddingHorizontal: 40, paddingTop: 18, paddingBottom: 10,
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
     backgroundColor: C.white,
@@ -53,7 +59,7 @@ const s = StyleSheet.create({
   brandTag: { color: C.muted, fontSize: 8 },
   headerPhone: { color: C.text, fontSize: 8.5, fontFamily: 'Helvetica-Oblique' },
 
-  content: { paddingHorizontal: 40, paddingTop: 10, paddingBottom: 10, flexGrow: 1 },
+  content: { paddingHorizontal: 40, paddingTop: 8 },
 
   /* Title block */
   titleBlock: {
@@ -216,8 +222,9 @@ const s = StyleSheet.create({
   },
   tvaFranchiseText: { color: C.yellowDark, fontSize: 8, fontFamily: 'Helvetica-Bold' },
 
-  /* Footer */
+  /* Footer (fixed, ancré en bas de chaque page) */
   footer: {
+    position: 'absolute', bottom: 0, left: 0, right: 0,
     paddingHorizontal: 40, paddingTop: 8, paddingBottom: 14,
     borderTopWidth: 1, borderTopColor: C.border,
     backgroundColor: C.white,
