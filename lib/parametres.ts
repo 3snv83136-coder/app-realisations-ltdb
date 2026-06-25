@@ -49,6 +49,6 @@ export function getComptaAlertEmail(): Promise<string> {
  * d'environnement `OWNER_NOTIFY_EMAIL`, sinon repli sur l'adresse Gmail LTDB.
  */
 export function getOwnerNotifyEmail(): Promise<string> {
-  const fallback = process.env.OWNER_NOTIFY_EMAIL || 'lestechniciensdudebouchage@gmail.com'
+  const fallback = process.env.OWNER_NOTIFY_EMAIL || 'LesTechniciensDuDebouchage@gmail.com'
   return getParametre('OWNER_NOTIFY_EMAIL', fallback)
 }
