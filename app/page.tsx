@@ -31,7 +31,6 @@ const TOOLS: Tool[] = [
   { href: '/rh',                emoji: '👔', label: 'RH',              desc: 'Salariés & contrats',      bg: 'bg-gradient-to-br from-fuchsia-600 to-purple-800',  text: 'white' },
   { href: '/mail',              emoji: '📧', label: 'Mail',            desc: 'Emails envoyés',           bg: 'bg-gradient-to-br from-cyan-500 to-cyan-700',       text: 'white' },
   { href: '/post-gmb',          emoji: '📍', label: 'Post GMB',        desc: 'Google Business',          bg: 'bg-gradient-to-br from-indigo-500 to-indigo-700',   text: 'white' },
-  { href: 'https://adsconstructor.vercel.app/', emoji: '📢', label: 'ADS', desc: 'Publicités', bg: 'bg-gradient-to-br from-orange-500 to-pink-600', text: 'white', external: true },
   { href: '/accord/nouveau',    emoji: '✍️', label: 'Nouvel accord',   desc: 'Créer accord',             bg: 'bg-gradient-to-br from-red-400 to-rose-600',        text: 'white' },
 ]
 
