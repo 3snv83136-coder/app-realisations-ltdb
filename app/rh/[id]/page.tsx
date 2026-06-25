@@ -5,6 +5,7 @@ import Link from "next/link"
 import { useRouter } from "next/navigation"
 import AppTabs from "@/components/AppTabs"
 import SalarieForm, { formToPayload, salarieToForm, type SalarieFormValues } from "@/components/rh/SalarieForm"
+import FichePaiePanel from "@/components/rh/FichePaiePanel"
 import { proxyImageUrl } from "@/lib/proxyImageUrl"
 import type { RhDocumentGenereType, Salarie, SalarieDocument } from "@/lib/rh/types"
 import { RH_DOCUMENT_LABELS, RH_SCAN_TYPES } from "@/lib/rh/types"
@@ -212,6 +213,19 @@ export default function RhSalariePage({ params }: { params: { id: string } }) {
               ))}
             </ul>
           )}
+        </section>
+
+        <section className="bg-white rounded-2xl border-2 border-emerald-200 p-5 space-y-4">
+          <h2 className="font-bold text-[#0e2a52]">Fiche de paie</h2>
+          <p className="text-xs text-slate-600">
+            Bulletin conforme au format légal (R.3243-1) avec cotisations {new Date().getFullYear()} — barème non-cadre.
+          </p>
+          <FichePaiePanel
+            salarieId={params.id}
+            defaultBrut={values.salaire_brut_mensuel}
+            onError={setError}
+            onOk={setOk}
+          />
         </section>
 
         <section className="bg-white rounded-2xl border border-slate-200 p-5 space-y-3">
