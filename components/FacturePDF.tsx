@@ -126,7 +126,8 @@ const s = StyleSheet.create({
     color: C.navy, fontFamily: 'Helvetica-Bold', fontSize: 9.5,
     textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6,
   },
-  cardText: { color: C.text, fontSize: 9.5, lineHeight: 1.5, marginBottom: 4 },
+  cardText: { color: C.text, fontSize: 9.5, lineHeight: 1.5 },
+  cardPara: { marginBottom: 5 },
   cardStrong: { fontFamily: 'Helvetica-Bold' },
   ribRow: { flexDirection: 'row', marginBottom: 2 },
   ribLbl: { color: C.muted, fontSize: 9, width: 44 },
@@ -322,7 +323,7 @@ export function FactureDocument({ emetteur, client, facture, phone }: FacturePDF
           ) : null}
 
           {/* ===== Tableau prestations ===== */}
-          <View style={s.itemsHead} fixed>
+          <View style={s.itemsHead}>
             <Text style={[s.itemsHeadCell, { width: '50%' }]}>Description</Text>
             <Text style={[s.itemsHeadCell, { width: '18%', textAlign: 'right' }]}>Prix unitaire</Text>
             <Text style={[s.itemsHeadCell, { width: '14%', textAlign: 'center' }]}>Quantité</Text>
@@ -398,17 +399,22 @@ export function FactureDocument({ emetteur, client, facture, phone }: FacturePDF
             </View>
           ) : null}
 
-          {/* ===== Observations du technicien ===== */}
+          {/* ===== Observations du technicien =====
+              Pas de wrap={false} : le texte peut être long et doit pouvoir
+              se découper sur plusieurs pages sans se chevaucher. */}
           {(facture.observations || facture.recommandation) ? (
-            <View style={[s.card, s.cardAccentYellow]} wrap={false}>
+            <View style={[s.card, s.cardAccentYellow]}>
               <Text style={s.cardTitle}>Observations du technicien</Text>
-              {facture.observations ? <Text style={s.cardText}>{facture.observations}</Text> : null}
-              {facture.recommandation ? (
-                <Text style={s.cardText}>
-                  <Text style={s.cardStrong}>Recommandation : </Text>
-                  {facture.recommandation}
-                </Text>
-              ) : null}
+              <Text style={s.cardText}>
+                {facture.observations || ''}
+                {facture.observations && facture.recommandation ? '\n\n' : ''}
+                {facture.recommandation ? (
+                  <>
+                    <Text style={s.cardStrong}>Recommandation : </Text>
+                    {facture.recommandation}
+                  </>
+                ) : null}
+              </Text>
             </View>
           ) : null}
 

@@ -346,8 +346,8 @@ export function DevisDocument({ emetteur, client, devis, phone }: DevisPDFProps)
 
           {/* ===== Objet ===== */}
           {devis.objet ? (
-            <View wrap={false}>
-              <View style={s.bandNavy}>
+            <View>
+              <View style={s.bandNavy} wrap={false}>
                 <Text style={s.bandTxt}>Objet du devis</Text>
               </View>
               <View style={s.objetBox}>
@@ -363,7 +363,7 @@ export function DevisDocument({ emetteur, client, devis, phone }: DevisPDFProps)
                 <Text style={s.bandTxt}>Conforme</Text>
               </View>
               {devis.constats_conformes!.map((row, i) => (
-                <View key={i} style={s.constatItem} wrap={false}>
+                <View key={i} style={s.constatItem}>
                   <Text style={s.constatTitle}>{row.intitule}</Text>
                   {row.localisation ? <Text style={s.constatLoc}>{row.localisation}</Text> : null}
                   <Text style={s.constatDesc}>{row.description}</Text>
@@ -379,7 +379,7 @@ export function DevisDocument({ emetteur, client, devis, phone }: DevisPDFProps)
                 <Text style={s.bandTxt}>Critique</Text>
               </View>
               {devis.constats_critiques!.map((row, i) => (
-                <View key={i} style={s.constatItem} wrap={false}>
+                <View key={i} style={s.constatItem}>
                   <Text style={s.constatTitle}>{row.intitule}</Text>
                   {row.localisation ? <Text style={s.constatLoc}>{row.localisation}</Text> : null}
                   <Text style={s.constatDesc}>{row.description}</Text>
@@ -390,8 +390,8 @@ export function DevisDocument({ emetteur, client, devis, phone }: DevisPDFProps)
 
           {/* ===== Non garantie ===== */}
           {devis.non_garantie ? (
-            <View wrap={false}>
-              <View style={s.bandNavy}>
+            <View>
+              <View style={s.bandNavy} wrap={false}>
                 <Text style={s.bandTxt}>Non garantie suite à notre intervention</Text>
               </View>
               <View style={s.objetBox}>
@@ -401,7 +401,7 @@ export function DevisDocument({ emetteur, client, devis, phone }: DevisPDFProps)
           ) : null}
 
           {/* ===== Tableau prestations ===== */}
-          <View style={s.itemsHead} fixed>
+          <View style={s.itemsHead}>
             <Text style={[s.itemsHeadCell, { width: '50%' }]}>Description</Text>
             <Text style={[s.itemsHeadCell, { width: '18%', textAlign: 'right' }]}>Prix unitaire</Text>
             <Text style={[s.itemsHeadCell, { width: '14%', textAlign: 'center' }]}>Quantité</Text>
