@@ -32,20 +32,15 @@ const C = {
 const s = StyleSheet.create({
   page: {
     paddingHorizontal: 0,
-    // Réserve la hauteur réelle du header (haut) et du footer (bas) sur CHAQUE
-    // page : assez pour éviter le chevauchement en multi-pages, mais sans rogner
-    // l'espace de contenu (sinon une facture courte déborde sur une 2e page).
-    paddingTop: 46,
-    paddingBottom: 76,
     fontFamily: 'Helvetica',
     fontSize: 9.5,
     color: C.text,
     backgroundColor: C.white,
     lineHeight: 1.45,
   },
-  /* Header (fixed, ancré en haut de chaque page) */
+  /* Header (fixed = répété sur chaque page, en flux normal pour un rendu
+     compatible avec tous les lecteurs PDF, dont CoreGraphics/Aperçu/iOS). */
   headerTop: {
-    position: 'absolute', top: 0, left: 0, right: 0,
     paddingHorizontal: 40, paddingTop: 18, paddingBottom: 10,
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
     backgroundColor: C.white,
@@ -59,7 +54,7 @@ const s = StyleSheet.create({
   brandTag: { color: C.muted, fontSize: 8 },
   headerPhone: { color: C.text, fontSize: 8.5, fontFamily: 'Helvetica-Oblique' },
 
-  content: { paddingHorizontal: 40, paddingTop: 8 },
+  content: { paddingHorizontal: 40, paddingTop: 10, paddingBottom: 10, flexGrow: 1 },
 
   /* Title block */
   titleBlock: {
@@ -222,9 +217,8 @@ const s = StyleSheet.create({
   },
   tvaFranchiseText: { color: C.yellowDark, fontSize: 8, fontFamily: 'Helvetica-Bold' },
 
-  /* Footer (fixed, ancré en bas de chaque page) */
+  /* Footer (fixed = répété sur chaque page, en flux normal). */
   footer: {
-    position: 'absolute', bottom: 0, left: 0, right: 0,
     paddingHorizontal: 40, paddingTop: 8, paddingBottom: 14,
     borderTopWidth: 1, borderTopColor: C.border,
     backgroundColor: C.white,
@@ -535,7 +529,7 @@ export function FactureDocument({ emetteur, client, facture, phone }: FacturePDF
             </View>
           ) : null}
 
-          <View style={s.legalBox}>
+          <View style={s.legalBox} wrap={false}>
             <Text style={s.legalText}>{FACTURE_MENTIONS_LEGALES}</Text>
           </View>
         </View>

@@ -21,21 +21,15 @@ const C = {
 const s = StyleSheet.create({
   page: {
     paddingHorizontal: 0,
-    // Réserve la hauteur du header (haut) et du footer (bas) sur CHAQUE page,
-    // pour que le contenu qui déborde sur les pages suivantes ne chevauche pas.
-    // Le haut est calé sur la hauteur réelle du header (~42pt) pour ne pas rogner
-    // inutilement l'espace de contenu.
-    paddingTop: 46,
-    paddingBottom: 56,
     fontFamily: 'Helvetica',
     fontSize: 9.5,
     color: C.text,
     backgroundColor: C.white,
     lineHeight: 1.45,
   },
-  /* Header (fixed, ancré en haut de chaque page) */
+  /* Header (fixed = répété sur chaque page, en flux normal pour un rendu
+     compatible avec tous les lecteurs PDF, dont CoreGraphics/Aperçu/iOS). */
   headerTop: {
-    position: 'absolute', top: 0, left: 0, right: 0,
     paddingHorizontal: 40, paddingTop: 18, paddingBottom: 10,
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
     backgroundColor: C.white,
@@ -49,7 +43,7 @@ const s = StyleSheet.create({
   brandTag: { color: C.muted, fontSize: 8 },
   headerPhone: { color: C.text, fontSize: 8.5, fontFamily: 'Helvetica-Oblique' },
 
-  content: { paddingHorizontal: 40, paddingTop: 8 },
+  content: { paddingHorizontal: 40, paddingTop: 10, paddingBottom: 10, flexGrow: 1 },
 
   /* Title block */
   titleBlock: {
@@ -239,9 +233,8 @@ const s = StyleSheet.create({
   sigMention: { color: C.text, fontSize: 9, marginBottom: 6 },
   sigMentionStrong: { fontFamily: 'Helvetica-Bold' },
 
-  /* Footer (fixed, ancré en bas de chaque page) */
+  /* Footer (fixed = répété sur chaque page, en flux normal). */
   footer: {
-    position: 'absolute', bottom: 0, left: 0, right: 0,
     paddingHorizontal: 40, paddingTop: 10, paddingBottom: 14,
     borderTopWidth: 1, borderTopColor: C.border,
     flexDirection: 'row', justifyContent: 'space-between',
