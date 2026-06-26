@@ -80,13 +80,39 @@ export default function FacturePage() {
       if (payload.client_email) setClientEmail(payload.client_email)
 
       if (payload.facture) {
-        setFacture(payload.facture)
-        setStep('preview')
+        // Une facture issue d'un devis reçoit un NOUVEAU numéro de facture
+        // séquentiel (le numéro de devis ne devient jamais un numéro de facture).
+        void enterPreviewWithNumero(payload.facture)
       }
     } catch {
       // ignore
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // Alloue un numéro séquentiel continu (FA-2026-0001) côté serveur.
+  // Retourne null en cas d'échec (on garde alors le numéro provisoire).
+  async function allocateFactureNumero(): Promise<string | null> {
+    try {
+      const res = await fetch('/api/numero/allocate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'facture' }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (res.ok && data.numero) return data.numero as string
+    } catch {
+      // silencieux — repli sur le numéro provisoire
+    }
+    return null
+  }
+
+  // Entre en aperçu en figeant un numéro séquentiel définitif sur la facture.
+  async function enterPreviewWithNumero(f: FactureData) {
+    const numero = await allocateFactureNumero()
+    setFacture(numero ? { ...f, numero } : f)
+    setStep('preview')
+  }
 
   async function handleSendToClient() {
     if (!facture) return
@@ -218,8 +244,7 @@ export default function FacturePage() {
       if (!clientNom && data.facture?.client_nom_detecte) setClientNom(data.facture.client_nom_detecte)
       if (!clientAdresse && data.facture?.client_adresse_detectee) setClientAdresse(data.facture.client_adresse_detectee)
 
-      setFacture(data.facture)
-      setStep('preview')
+      await enterPreviewWithNumero(data.facture)
     } catch (e: any) {
       setError(`Erreur IA : ${e.message}`)
       setStep('capture')
@@ -249,12 +274,9 @@ export default function FacturePage() {
     })
   }
 
-  function handleCreateBlank() {
-    const today = new Date()
-    const seq = String(today.getHours()).padStart(2, '0') + String(today.getMinutes()).padStart(2, '0')
-    const numero = `FA-${today.getFullYear()}${String(today.getMonth() + 1).padStart(2, '0')}${String(today.getDate()).padStart(2, '0')}-${seq}`
+  async function handleCreateBlank() {
     const blank: FactureData = {
-      numero,
+      numero: '', // alloué par enterPreviewWithNumero (séquence FA-2026-0001)
       date_facture: dateFacture,
       echeance: 'À réception',
       objet: '',
@@ -268,8 +290,7 @@ export default function FacturePage() {
       recommandation: '',
     }
     setError('')
-    setFacture(blank)
-    setStep('preview')
+    await enterPreviewWithNumero(blank)
   }
 
   const totalHT = facture?.lignes.reduce((s, l) => {

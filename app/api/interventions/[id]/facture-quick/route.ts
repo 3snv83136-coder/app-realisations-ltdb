@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { getSupabaseOrNull } from "@/lib/supabase"
 import { buildFactureFromRapport } from "@/lib/rapportToFacture"
 import { persistFacture } from "@/lib/persist"
+import { allocateNumero } from "@/lib/numero"
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 30
@@ -126,6 +127,21 @@ export async function POST(req: NextRequest, { params }: Params) {
   if (typeof body.observations === 'string') facture.observations = body.observations
   if (typeof body.recommandation === 'string') facture.recommandation = body.recommandation
   if (typeof body.objet === 'string' && body.objet.trim()) facture.objet = body.objet.trim()
+
+  // Numéro séquentiel continu (FA-2026-0001) alloué atomiquement côté serveur.
+  // Idempotence : si une facture existe déjà pour cette intervention, on réutilise
+  // son numéro (re-création depuis le terrain) au lieu d'en brûler un nouveau.
+  const { data: existingFacture } = await sb
+    .from('documents')
+    .select('numero')
+    .eq('type', 'facture')
+    .eq('intervention_id', interventionId)
+    .not('numero', 'is', null)
+    .order('created_at', { ascending: true })
+    .limit(1)
+    .maybeSingle()
+  facture.numero = (existingFacture?.numero as string | undefined)
+    || (await allocateNumero(sb, 'facture'))
 
   // Calcul totaux
   const totalHT = facture.lignes.reduce((sum: number, l) => sum + (l.inclus ? 0 : (Number(l.qte) || 0) * (Number(l.pu_ht) || 0)), 0)

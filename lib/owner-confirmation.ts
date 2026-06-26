@@ -12,7 +12,7 @@ import { getOwnerNotifyEmail, getTelPrincipal } from "@/lib/parametres"
 export async function sendOwnerConfirmation(opts: {
   resend: Resend
   fromEmail: string
-  type: 'rapport_facture' | 'facture'
+  type: 'rapport_facture' | 'facture' | 'rapport'
   clientNom?: string
   clientEmail: string
   /** Adresse réellement utilisée pour l'envoi (peut différer en mode test). */
@@ -31,7 +31,11 @@ export async function sendOwnerConfirmation(opts: {
     }
 
     const tel = await getTelPrincipal()
-    const quoiLabel = opts.type === 'rapport_facture' ? 'Rapport + facture' : 'Facture'
+    const quoiLabel = opts.type === 'rapport_facture'
+      ? 'Rapport + facture'
+      : opts.type === 'rapport'
+        ? 'Rapport'
+        : 'Facture'
     const ttc = typeof opts.totalTTC === 'number'
       ? `${opts.totalTTC.toFixed(2).replace('.', ',')} €`
       : ''

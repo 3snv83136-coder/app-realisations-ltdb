@@ -179,8 +179,7 @@ function DevisPageContent() {
       if (!clientNom && data.devis?.client_nom_detecte) setClientNom(data.devis.client_nom_detecte)
       if (!clientAdresse && data.devis?.client_adresse_detectee) setClientAdresse(data.devis.client_adresse_detectee)
 
-      setDevis(data.devis)
-      setStep('preview')
+      await enterPreviewWithDevisNumero(data.devis)
     } catch (e: any) {
       setError(`Erreur IA : ${e.message}`)
       setStep('capture')
@@ -209,6 +208,28 @@ function DevisPageContent() {
         { section: lastSection, designation: '', description: '', qte: 1, unite: 'forfait', pu_ht: 0 },
       ],
     })
+  }
+
+  // Alloue un numéro de devis séquentiel continu (DV-2026-0001) côté serveur.
+  async function allocateDevisNumero(): Promise<string | null> {
+    try {
+      const res = await fetch('/api/numero/allocate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'devis' }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (res.ok && data.numero) return data.numero as string
+    } catch {
+      // silencieux — repli sur le numéro provisoire
+    }
+    return null
+  }
+
+  async function enterPreviewWithDevisNumero(d: DevisData) {
+    const numero = await allocateDevisNumero()
+    setDevis(numero ? { ...d, numero } : d)
+    setStep('preview')
   }
 
   function handleTransformToFacture() {
@@ -261,9 +282,8 @@ function DevisPageContent() {
 
   function handleManualEntry() {
     const today = new Date()
-    const seq = String(today.getHours()).padStart(2, '0') + String(today.getMinutes()).padStart(2, '0')
-    setDevis({
-      numero: `DV-${today.getFullYear()}${String(today.getMonth() + 1).padStart(2, '0')}${String(today.getDate()).padStart(2, '0')}-${seq}`,
+    void enterPreviewWithDevisNumero({
+      numero: '', // alloué par enterPreviewWithDevisNumero (séquence DV-2026-0001)
       date_devis: today.toISOString().split('T')[0],
       validite_jours: 30,
       objet: '',
@@ -286,7 +306,6 @@ function DevisPageContent() {
       constats_critiques: [],
       non_garantie: '',
     })
-    setStep('preview')
   }
 
   function updateConstat(

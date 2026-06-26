@@ -45,6 +45,8 @@ export default function DevisEnvoiPanel({
   const [error, setError] = useState('')
   const [extraEmails, setExtraEmails] = useState<string[]>([])
   const [newEmail, setNewEmail] = useState('')
+  // Numéro séquentiel définitif (DV-2026-0001), alloué une seule fois à l'envoi.
+  const [finalNumero, setFinalNumero] = useState<string | null>(null)
 
   function addRecipient() {
     const e = newEmail.trim().toLowerCase()
@@ -99,6 +101,24 @@ export default function DevisEnvoiPanel({
         }
       }
 
+      // Numéro de devis séquentiel continu (DV-2026-0001), alloué côté serveur
+      // AVANT la génération du PDF pour garantir la cohérence PDF ↔ DB.
+      let numero = finalNumero || devis.numero
+      if (!/^DV-\d{4}-\d{4}$/.test(numero || '')) {
+        try {
+          const r = await fetch('/api/numero/allocate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ type: 'devis' }),
+          })
+          const d = await r.json().catch(() => ({}))
+          if (r.ok && d.numero) { numero = d.numero; setFinalNumero(d.numero) }
+        } catch {
+          // repli : on garde le numéro provisoire
+        }
+      }
+      const devisToSend: DevisData = { ...devis, numero }
+
       const [{ DevisDocument }, { pdfDocumentToBase64 }, React] = await Promise.all([
         import('@/components/DevisPDF'),
         import('@/lib/pdfToBase64'),
@@ -113,11 +133,11 @@ export default function DevisEnvoiPanel({
         React.createElement(DevisDocument, {
           emetteur: LTDB_EMETTEUR,
           client,
-          devis,
+          devis: devisToSend,
           phone: LTDB_EMETTEUR.telephone,
         }),
       )
-      const filename = `devis-${devis.numero || 'sans-numero'}.pdf`.replace(/\s+/g, '-')
+      const filename = `devis-${devisToSend.numero || 'sans-numero'}.pdf`.replace(/\s+/g, '-')
       const technicienNom = typeof window !== 'undefined' ? localStorage.getItem('ltdb_technicien') || '' : ''
 
       const res = await fetch('/api/notify-devis', {
@@ -130,12 +150,12 @@ export default function DevisEnvoiPanel({
           technicienNom,
           ville: clientVille,
           dateDevis,
-          numero: devis.numero,
+          numero: devisToSend.numero,
           totalTTC,
-          validiteJours: devis.validite_jours,
+          validiteJours: devisToSend.validite_jours,
           pdfBase64,
           pdfFilename: filename,
-          devis,
+          devis: devisToSend,
           totalHT,
           tvaTaux,
           clientAdresse,

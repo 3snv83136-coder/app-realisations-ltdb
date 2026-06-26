@@ -3,6 +3,7 @@ import { Document, Page, Text, View, StyleSheet } from "@react-pdf/renderer"
 import type { EmetteurData, ClientData } from "./DevisPDF"
 import { FACTURE_MENTIONS_LEGALES } from "@/lib/entreprise"
 import { MENTION_TVA_FRANCHISE } from "@/lib/accord/blocs-legaux"
+import { PdfBanner, PDF_C } from "./PdfBranding"
 import type { Agence } from "@/lib/agences"
 
 export type { Agence } from "@/lib/agences"
@@ -10,22 +11,22 @@ export { AGENCES } from "@/lib/agences"
 
 /* ============ CHARTE ============ */
 const C = {
-  navy: '#1e3a6f',
-  navyDark: '#142a52',
-  red: '#c0392b',
-  greenDark: '#0f5132',
+  navy: PDF_C.navy,
+  navyDark: PDF_C.navyDark,
+  red: PDF_C.red,
+  white: PDF_C.white,
+  text: PDF_C.text,
+  muted: PDF_C.muted,
+  line: '#e3e8ef',
+  lineSoft: '#eef1f6',
+  green: '#0f7a3b',
   greenSoft: '#e8f3ec',
   greenBorder: '#a3c9b3',
   yellowDark: '#7c5e00',
   yellowSoft: '#fff8dc',
   yellowBorder: '#e8d384',
-  rowAlt: '#eaf1fa',
-  rowSoft: '#f2f6fb',
-  border: '#d9dfe7',
-  text: '#1e293b',
-  muted: '#6b7280',
-  white: '#ffffff',
-  black: '#000000',
+  blueSoft: '#eef4fc',
+  blueBorder: '#b9cce8',
 }
 
 /* ============ STYLES ============ */
@@ -38,195 +39,116 @@ const s = StyleSheet.create({
     backgroundColor: C.white,
     lineHeight: 1.45,
   },
-  /* Header (fixed = répété sur chaque page, en flux normal pour un rendu
-     compatible avec tous les lecteurs PDF, dont CoreGraphics/Aperçu/iOS). */
-  headerTop: {
-    paddingHorizontal: 40, paddingTop: 18, paddingBottom: 10,
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    backgroundColor: C.white,
-    borderBottomWidth: 2, borderBottomColor: C.red,
-  },
-  brandRow: { flexDirection: 'row', alignItems: 'baseline' },
-  brandName: {
-    color: C.navy, fontSize: 11, fontFamily: 'Helvetica-Bold',
-    letterSpacing: 0.4, marginRight: 8,
-  },
-  brandTag: { color: C.muted, fontSize: 8 },
-  headerPhone: { color: C.text, fontSize: 8.5, fontFamily: 'Helvetica-Oblique' },
+  content: { paddingHorizontal: 40, paddingTop: 16, paddingBottom: 10, flexGrow: 1 },
 
-  content: { paddingHorizontal: 40, paddingTop: 10, paddingBottom: 10, flexGrow: 1 },
+  /* Client + métadonnées */
+  infoRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 14 },
+  billTo: { flex: 1, paddingRight: 20 },
+  sectionLabel: {
+    color: C.navy, fontFamily: 'Helvetica-Bold', fontSize: 9,
+    textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 5,
+  },
+  clientName: { color: C.text, fontFamily: 'Helvetica-Bold', fontSize: 12, marginBottom: 3 },
+  clientLine: { color: C.text, fontSize: 9.5, lineHeight: 1.5 },
+  clientLabel: { color: C.text, fontFamily: 'Helvetica-Bold', fontSize: 9, marginTop: 5 },
 
-  /* Title block */
-  titleBlock: {
-    flexDirection: 'row', marginTop: 2, marginBottom: 10,
-  },
-  titleRedBar: { width: 6, backgroundColor: C.red },
-  titleInner: {
-    flex: 1, backgroundColor: C.navy,
-    paddingVertical: 12, paddingHorizontal: 22,
-  },
-  titleMain: {
-    color: C.white, fontSize: 24, fontFamily: 'Helvetica-Bold',
-    letterSpacing: 1, textTransform: 'uppercase', lineHeight: 1.15,
-  },
-  titleSub: { color: '#c8d4e8', fontSize: 10, marginTop: 10, lineHeight: 1.4 },
-
-  /* Métadonnées (3 colonnes) */
-  metaTable: {
-    flexDirection: 'row',
-    borderWidth: 1, borderColor: C.border,
-    marginBottom: 8,
-  },
-  metaCell: {
-    flex: 1, paddingVertical: 6, paddingHorizontal: 12,
-    borderRightWidth: 1, borderRightColor: C.border,
-  },
-  metaCellLast: { borderRightWidth: 0 },
-  metaLabel: { color: C.text, fontFamily: 'Helvetica-Bold', fontSize: 9 },
-  metaValue: { color: C.text, fontSize: 9, marginTop: 1 },
-  metaValueRegle: { color: '#0f7a3b', fontFamily: 'Helvetica-Bold' },
-
-  /* Émetteur / Client */
-  partyTable: {
-    flexDirection: 'row',
-    borderWidth: 1, borderColor: C.border, marginBottom: 10,
-  },
-  partyCol: { flex: 1 },
-  partyColSep: { borderRightWidth: 1, borderRightColor: C.border },
-  partyHead: {
-    paddingVertical: 7, paddingHorizontal: 12,
-    color: C.text, fontFamily: 'Helvetica-Bold', fontSize: 9.5,
-    letterSpacing: 0.5,
-  },
-  partyBody: {
-    paddingVertical: 8, paddingHorizontal: 12,
-  },
-  partyName: { color: C.text, fontFamily: 'Helvetica-Bold', fontSize: 10, marginBottom: 4 },
-  partyLine: { color: C.text, fontSize: 9, marginBottom: 2, lineHeight: 1.4 },
-  partyLabel: { color: C.text, fontFamily: 'Helvetica-Bold', fontSize: 9, marginTop: 6, marginBottom: 2 },
-  agenceBar: { height: 5, backgroundColor: C.black, marginTop: 10, marginBottom: 6 },
-  agenceText: { fontFamily: 'Helvetica-Oblique', fontSize: 9, color: C.text },
-
-  /* Objet (ligne simple) */
-  objetLine: { marginVertical: 6, fontSize: 9.5 },
-  objetLabel: { fontFamily: 'Helvetica-Bold' },
-
-  /* Tableau désignation */
-  itemsTable: {
-    borderWidth: 1, borderColor: C.border,
-    marginTop: 6, marginBottom: 10,
-  },
-  itemsHead: {
-    flexDirection: 'row', backgroundColor: C.navy,
-  },
-  itemsHeadCell: {
-    color: C.white, fontFamily: 'Helvetica-Bold', fontSize: 8.5,
-    paddingVertical: 9, paddingHorizontal: 10,
-    textTransform: 'uppercase', letterSpacing: 0.4,
-  },
-  itemsLine: {
-    flexDirection: 'row', borderTopWidth: 1, borderTopColor: C.border,
-  },
-  itemsDesig: {
-    paddingVertical: 9, paddingHorizontal: 10,
-    color: C.text, fontSize: 9, lineHeight: 1.45,
-  },
-  itemsDesigStrong: { fontFamily: 'Helvetica-Bold', color: C.text },
-  itemsDesigMuted: { color: C.muted, fontSize: 8.5 },
-  itemsCell: {
-    paddingVertical: 9, paddingHorizontal: 10,
-    color: C.text, fontSize: 9, textAlign: 'right',
-  },
-  itemsCellC: { textAlign: 'center' },
-  itemsInclus: { color: C.muted, fontStyle: 'italic' },
-
-  /* Totaux */
-  totauxWrap: {
-    alignSelf: 'flex-end',
-    width: '52%',
-    borderWidth: 1, borderColor: C.border,
-    marginBottom: 10,
-  },
-  totauxRow: {
+  metaBox: { width: '42%', borderWidth: 1, borderColor: C.line, borderRadius: 8 },
+  metaRow: {
     flexDirection: 'row', justifyContent: 'space-between',
     paddingVertical: 6, paddingHorizontal: 12,
-    borderBottomWidth: 1, borderBottomColor: C.border,
+    borderBottomWidth: 0.75, borderBottomColor: C.lineSoft,
   },
-  totauxRowLast: { borderBottomWidth: 0 },
-  totauxRowTtc: { backgroundColor: C.navy, borderBottomWidth: 0 },
-  totauxLbl: { color: C.text, fontFamily: 'Helvetica-Bold', fontSize: 9 },
-  totauxV: { color: C.text, fontSize: 9 },
-  totauxLblTtc: { color: C.white, fontFamily: 'Helvetica-Bold', fontSize: 10.5 },
-  totauxVTtc: { color: C.white, fontFamily: 'Helvetica-Bold', fontSize: 11 },
+  metaRowLast: { borderBottomWidth: 0 },
+  metaK: { color: C.muted, fontSize: 9 },
+  metaV: { color: C.text, fontSize: 9, fontFamily: 'Helvetica-Bold' },
+  metaVRegle: { color: C.green },
 
-  /* Mode de règlement (vert) */
-  reglementBox: {
-    backgroundColor: C.greenSoft,
-    borderWidth: 1, borderColor: C.greenBorder,
-    borderLeftWidth: 4,
-    paddingVertical: 10, paddingHorizontal: 14,
-    marginBottom: 8,
-  },
-  reglementTitle: {
-    color: C.greenDark, fontFamily: 'Helvetica-Bold', fontSize: 9.5,
-    textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4,
-  },
-  reglementText: { color: C.text, fontSize: 9.5, lineHeight: 1.5 },
+  /* Objet */
+  objet: { fontSize: 9.5, marginBottom: 8, lineHeight: 1.5 },
+  objetLabel: { fontFamily: 'Helvetica-Bold', color: C.navy },
 
-  /* Observations (jaune) */
-  obsBox: {
-    backgroundColor: C.yellowSoft,
-    borderWidth: 1, borderColor: C.yellowBorder,
-    borderLeftWidth: 4,
-    paddingVertical: 10, paddingHorizontal: 14,
-    marginBottom: 8,
+  /* Tableau prestations — en-tête « pilule » */
+  itemsHead: {
+    flexDirection: 'row', alignItems: 'center',
+    borderWidth: 1.2, borderColor: C.navy, borderRadius: 22,
+    paddingVertical: 7, paddingHorizontal: 8,
   },
-  obsTitle: {
-    color: C.yellowDark, fontFamily: 'Helvetica-Bold', fontSize: 9.5,
-    textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4,
+  itemsHeadCell: {
+    color: C.navy, fontFamily: 'Helvetica-Bold', fontSize: 8.5,
+    textTransform: 'uppercase', letterSpacing: 0.3, paddingHorizontal: 6,
   },
-  obsText: { color: C.text, fontSize: 9.5, lineHeight: 1.55, marginBottom: 6 },
-  obsStrong: { fontFamily: 'Helvetica-Bold' },
+  itemsRow: {
+    flexDirection: 'row', alignItems: 'flex-start',
+    paddingVertical: 8, paddingHorizontal: 8,
+    borderBottomWidth: 0.75, borderBottomColor: C.lineSoft,
+  },
+  cDesig: { width: '50%', paddingHorizontal: 6 },
+  cDesigName: { color: C.text, fontFamily: 'Helvetica-Bold', fontSize: 9.5 },
+  cDesigDesc: { color: C.muted, fontSize: 8.5, marginTop: 1, lineHeight: 1.4 },
+  cPu: { width: '18%', paddingHorizontal: 6, fontSize: 9.5, textAlign: 'right' },
+  cQte: { width: '14%', paddingHorizontal: 6, fontSize: 9.5, textAlign: 'center' },
+  cTot: { width: '18%', paddingHorizontal: 6, fontSize: 9.5, textAlign: 'right', fontFamily: 'Helvetica-Bold' },
+  cInclus: { color: C.muted, fontStyle: 'italic', fontFamily: 'Helvetica' },
 
-  /* Coordonnées bancaires (bleu) */
-  ribBox: {
-    backgroundColor: '#eef4fc',
-    borderWidth: 1, borderColor: '#b9cce8',
-    borderLeftWidth: 4, borderLeftColor: C.navy,
-    paddingVertical: 12, paddingHorizontal: 14,
-    marginBottom: 12,
+  /* Totaux : mini-lignes alignées à droite + barre rouge pleine largeur */
+  totalsMini: { alignSelf: 'flex-end', width: '46%', marginTop: 10 },
+  totalsMiniRow: {
+    flexDirection: 'row', justifyContent: 'space-between',
+    paddingVertical: 4, paddingHorizontal: 8,
   },
-  ribTitle: {
+  totalsMiniLbl: { color: C.muted, fontSize: 10 },
+  totalsMiniVal: { color: C.text, fontSize: 10, fontFamily: 'Helvetica-Bold' },
+
+  totalBar: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    backgroundColor: C.red, borderRadius: 8,
+    paddingVertical: 11, paddingHorizontal: 18,
+    marginTop: 8, marginBottom: 12,
+  },
+  totalBarLbl: { color: C.white, fontSize: 12.5, fontFamily: 'Helvetica-Bold', letterSpacing: 0.5 },
+  totalBarVal: { color: C.white, fontSize: 15, fontFamily: 'Helvetica-Bold' },
+
+  tvaFranchiseBox: {
+    marginTop: -4, marginBottom: 10, paddingVertical: 6, paddingHorizontal: 10,
+    borderWidth: 1, borderColor: C.yellowBorder, backgroundColor: C.yellowSoft, borderRadius: 6,
+  },
+  tvaFranchiseText: { color: C.yellowDark, fontSize: 8, fontFamily: 'Helvetica-Bold' },
+
+  /* Cartes (paiement / observations) */
+  card: {
+    borderWidth: 1, borderColor: C.line, borderRadius: 8,
+    padding: 12, marginBottom: 10,
+  },
+  cardAccentGreen: { borderLeftWidth: 4, borderLeftColor: C.green },
+  cardAccentBlue: { borderLeftWidth: 4, borderLeftColor: C.navy },
+  cardAccentYellow: { borderLeftWidth: 4, borderLeftColor: C.yellowBorder, backgroundColor: '#fffdf4' },
+  cardTitle: {
     color: C.navy, fontFamily: 'Helvetica-Bold', fontSize: 9.5,
     textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6,
   },
+  cardText: { color: C.text, fontSize: 9.5, lineHeight: 1.5, marginBottom: 4 },
+  cardStrong: { fontFamily: 'Helvetica-Bold' },
   ribRow: { flexDirection: 'row', marginBottom: 2 },
-  ribLbl: { color: C.muted, fontSize: 9, width: 50 },
+  ribLbl: { color: C.muted, fontSize: 9, width: 44 },
   ribVal: { color: C.text, fontFamily: 'Helvetica-Bold', fontSize: 9.5, letterSpacing: 0.5 },
   ribNote: { color: C.muted, fontSize: 8.5, marginTop: 4, fontStyle: 'italic' },
 
   legalBox: {
-    marginTop: 8, padding: 8, borderWidth: 1, borderColor: C.border,
-    borderRadius: 4, backgroundColor: '#fafbfc',
+    marginTop: 4, padding: 9, borderWidth: 1, borderColor: C.line,
+    borderRadius: 6, backgroundColor: '#fafbfc',
   },
   legalText: { color: C.muted, fontSize: 7.5, lineHeight: 1.45 },
-  partyMuted: { color: C.muted, fontSize: 8.5, marginTop: 4 },
-  tvaFranchiseBox: {
-    marginTop: 6, paddingVertical: 5, paddingHorizontal: 8,
-    borderWidth: 1, borderColor: C.yellowBorder, backgroundColor: C.yellowSoft, borderRadius: 4,
-  },
-  tvaFranchiseText: { color: C.yellowDark, fontSize: 8, fontFamily: 'Helvetica-Bold' },
 
-  /* Footer (fixed = répété sur chaque page, en flux normal). */
+  /* Footer */
   footer: {
     paddingHorizontal: 40, paddingTop: 8, paddingBottom: 14,
-    borderTopWidth: 1, borderTopColor: C.border,
+    borderTopWidth: 2, borderTopColor: C.red,
     backgroundColor: C.white,
   },
   footerBankRow: {
     flexDirection: 'row', justifyContent: 'space-between',
     paddingBottom: 6, marginBottom: 6,
-    borderBottomWidth: 0.5, borderBottomColor: C.border,
+    borderBottomWidth: 0.5, borderBottomColor: C.line,
   },
   footerBankCol: { fontSize: 7.5, color: C.text },
   footerBankLbl: { color: C.muted, fontFamily: 'Helvetica' },
@@ -247,16 +169,16 @@ export interface FactureLineData {
 }
 
 export interface FactureData {
-  numero: string                  // "FA-YYYYMMDD-XXXX"
-  date_facture: string            // ISO ou "JJ/MM/AAAA"
-  echeance: string                // "Réglée" | "À réception" | "30 jours fin de mois" | date FR
-  objet: string                   // ligne courte
+  numero: string
+  date_facture: string
+  echeance: string
+  objet: string
   reference_dossier?: string
   lignes: FactureLineData[]
-  tva_taux?: number               // 10 ou 20 (défaut 10)
-  mode_reglement?: string         // ex: "Intervention réglée par carte bancaire le 29/04/2026."
-  observations?: string           // constat technicien
-  recommandation?: string         // conseil préventif (optionnel)
+  tva_taux?: number
+  mode_reglement?: string
+  observations?: string
+  recommandation?: string
 }
 
 export interface FactureEmetteurData extends EmetteurData {
@@ -273,7 +195,7 @@ export interface FacturePDFProps {
 /* ============ HELPERS ============ */
 const fmtEur = (n: number) =>
   n.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-    .replace(/[     ]/g, ' ') + ' €'
+    .replace(/[\u00A0\u202F\u2007\u2009\u200A]/g, ' ') + ' €'
 
 const fmtDateFR = (raw: string) => {
   if (!raw) return ''
@@ -282,23 +204,10 @@ const fmtDateFR = (raw: string) => {
   return raw
 }
 
-const Header = ({ emetteur, phone }: { emetteur: FactureEmetteurData; phone?: string }) => (
-  <View style={s.headerTop} fixed>
-    <View style={s.brandRow}>
-      <Text style={s.brandName}>LTDB</Text>
-      <Text style={s.brandTag}>Assainissement · Débouchage · Pompage · Inspection caméra</Text>
-    </View>
-    <Text style={s.headerPhone}>Tél. {phone || emetteur.telephone}</Text>
-  </View>
-)
-
 const Footer = ({ emetteur }: { emetteur: FactureEmetteurData }) => {
   const iban = emetteur.iban || ''
   const bic = emetteur.bic || ''
-  const line1 = [
-    emetteur.raisonSociale,
-    ...emetteur.adresseLignes,
-  ].filter(Boolean).join(' · ')
+  const line1 = [emetteur.raisonSociale, ...emetteur.adresseLignes].filter(Boolean).join(' · ')
   const line2 = [
     emetteur.rcs || '',
     emetteur.siret ? `SIRET ${emetteur.siret}` : '',
@@ -324,7 +233,6 @@ const Footer = ({ emetteur }: { emetteur: FactureEmetteurData }) => {
           ) : null}
         </View>
       ) : null}
-      {/* Coordonnées société */}
       <View style={s.footerBottomRow}>
         <View>
           <Text style={s.footerL}>{line1}</Text>
@@ -354,129 +262,107 @@ export function FactureDocument({ emetteur, client, facture, phone }: FacturePDF
   return (
     <Document>
       <Page size="A4" style={s.page}>
-        <Header emetteur={emetteur} phone={phone} />
+        <View fixed>
+          <PdfBanner
+            title="FACTURE"
+            numero={facture.numero}
+            phone={phone || emetteur.telephone}
+            email={emetteur.email}
+          />
+        </View>
 
         <View style={s.content}>
-          {/* ===== Title ===== */}
-          <View style={s.titleBlock} wrap={false}>
-            <View style={s.titleRedBar} />
-            <View style={s.titleInner}>
-              <Text style={s.titleMain}>Facture</Text>
+          {/* ===== Client + métadonnées ===== */}
+          <View style={s.infoRow} wrap={false}>
+            <View style={s.billTo}>
+              <Text style={s.sectionLabel}>Facturé à</Text>
+              <Text style={s.clientName}>{client.nom}</Text>
+              {client.adresseLignes.map((l, i) => (
+                <Text key={i} style={s.clientLine}>{l}</Text>
+              ))}
+              {client.siret ? <Text style={s.clientLine}>SIRET {client.siret}</Text> : null}
+              {client.adresseChantier ? (
+                <>
+                  <Text style={s.clientLabel}>Adresse du chantier :</Text>
+                  <Text style={s.clientLine}>{client.adresseChantier}</Text>
+                </>
+              ) : null}
             </View>
-          </View>
-
-          {/* ===== Métadonnées (numéro / date / échéance) ===== */}
-          <View style={s.metaTable} wrap={false}>
-            <View style={s.metaCell}>
-              <Text style={s.metaLabel}>N° {facture.numero}</Text>
-            </View>
-            <View style={s.metaCell}>
-              <Text style={s.metaLabel}>Date : <Text style={s.metaValue}>{dateFmt}</Text></Text>
-            </View>
-            <View style={[s.metaCell, s.metaCellLast]}>
-              <Text style={s.metaLabel}>
-                Échéance : <Text style={isRegle ? s.metaValueRegle : s.metaValue}>{echeanceVal}</Text>
-              </Text>
-            </View>
-          </View>
-
-          {/* ===== Émetteur / Client ===== */}
-          <View style={s.partyTable} wrap={false}>
-            <View style={[s.partyCol, s.partyColSep]}>
-              <Text style={s.partyHead}>ÉMETTEUR</Text>
-              <View style={s.partyBody}>
-                <Text style={s.partyName}>{emetteur.raisonSociale}</Text>
-                {emetteur.adresseLignes.map((l, i) => (
-                  <Text key={i} style={s.partyLine}>{l}</Text>
-                ))}
-                {emetteur.telephone ? <Text style={s.partyLine}>Tél. {emetteur.telephone}</Text> : null}
-                {emetteur.email ? <Text style={s.partyLine}>{emetteur.email}</Text> : null}
-                {emetteur.rcs ? <Text style={s.partyMuted}>{emetteur.rcs}</Text> : null}
-                {emetteur.siret ? <Text style={s.partyMuted}>SIRET {emetteur.siret}</Text> : null}
-                {emetteur.tva ? <Text style={s.partyMuted}>TVA {emetteur.tva}</Text> : null}
-                {emetteur.capital ? <Text style={s.partyMuted}>{emetteur.capital}</Text> : null}
-                {emetteur.agence ? (
-                  <>
-                    <View style={s.agenceBar} />
-                    <Text style={s.agenceText}>{emetteur.agence}</Text>
-                  </>
-                ) : null}
+            <View style={s.metaBox}>
+              <View style={s.metaRow}>
+                <Text style={s.metaK}>Date</Text>
+                <Text style={s.metaV}>{dateFmt}</Text>
               </View>
-            </View>
-            <View style={s.partyCol}>
-              <Text style={s.partyHead}>CLIENT</Text>
-              <View style={s.partyBody}>
-                <Text style={s.partyName}>{client.nom}</Text>
-                {client.adresseLignes.map((l, i) => (
-                  <Text key={i} style={s.partyLine}>{l}</Text>
-                ))}
-                {client.siret ? <Text style={s.partyMuted}>SIRET {client.siret}</Text> : null}
-                {client.adresseChantier ? (
-                  <>
-                    <Text style={s.partyLabel}>Adresse du chantier :</Text>
-                    <Text style={s.partyLine}>{client.adresseChantier}</Text>
-                  </>
-                ) : null}
+              <View style={s.metaRow}>
+                <Text style={s.metaK}>Échéance</Text>
+                <Text style={[s.metaV, isRegle ? s.metaVRegle : {}]}>{echeanceVal}</Text>
               </View>
+              {facture.reference_dossier ? (
+                <View style={[s.metaRow, s.metaRowLast]}>
+                  <Text style={s.metaK}>Réf.</Text>
+                  <Text style={s.metaV}>{facture.reference_dossier}</Text>
+                </View>
+              ) : (
+                emetteur.agence ? (
+                  <View style={[s.metaRow, s.metaRowLast]}>
+                    <Text style={s.metaK}>Agence</Text>
+                    <Text style={s.metaV}>{emetteur.agence}</Text>
+                  </View>
+                ) : null
+              )}
             </View>
           </View>
 
           {/* ===== Objet ===== */}
           {facture.objet ? (
-            <Text style={s.objetLine} wrap={false}>
-              <Text style={s.objetLabel}>OBJET : </Text>
+            <Text style={s.objet} wrap={false}>
+              <Text style={s.objetLabel}>Objet : </Text>
               {facture.objet}
             </Text>
           ) : null}
 
-          {/* ===== Tableau désignation ===== */}
-          <View style={s.itemsTable}>
-            <View style={s.itemsHead} fixed>
-              <Text style={[s.itemsHeadCell, { width: '52%' }]}>Désignation</Text>
-              <Text style={[s.itemsHeadCell, { width: '10%', textAlign: 'center' }]}>Qté</Text>
-              <Text style={[s.itemsHeadCell, { width: '12%', textAlign: 'center' }]}>Unité</Text>
-              <Text style={[s.itemsHeadCell, { width: '13%', textAlign: 'right' }]}>P.U. H.T.</Text>
-              <Text style={[s.itemsHeadCell, { width: '13%', textAlign: 'right' }]}>Total H.T.</Text>
-            </View>
-
-            {facture.lignes.map((l, li) => (
-              <View key={li} style={s.itemsLine} wrap={false}>
-                <View style={{ width: '52%' }}>
-                  <Text style={[s.itemsDesig, s.itemsDesigStrong]}>{l.designation}</Text>
-                  {l.description ? (
-                    <Text style={[s.itemsDesig, s.itemsDesigMuted, { paddingTop: 0 }]}>{l.description}</Text>
-                  ) : null}
-                </View>
-                <Text style={[s.itemsCell, s.itemsCellC, { width: '10%' }]}>{l.qte}</Text>
-                <Text style={[s.itemsCell, s.itemsCellC, { width: '12%' }]}>{l.unite || '—'}</Text>
-                <Text style={[s.itemsCell, l.inclus ? s.itemsInclus : {}, { width: '13%' }]}>
-                  {l.inclus ? 'inclus' : fmtEur(l.pu_ht)}
-                </Text>
-                <Text style={[s.itemsCell, l.inclus ? s.itemsInclus : {}, { width: '13%' }]}>
-                  {l.inclus ? 'inclus' : fmtEur((l.pu_ht || 0) * (l.qte || 0))}
-                </Text>
-              </View>
-            ))}
+          {/* ===== Tableau prestations ===== */}
+          <View style={s.itemsHead} fixed>
+            <Text style={[s.itemsHeadCell, { width: '50%' }]}>Description</Text>
+            <Text style={[s.itemsHeadCell, { width: '18%', textAlign: 'right' }]}>Prix unitaire</Text>
+            <Text style={[s.itemsHeadCell, { width: '14%', textAlign: 'center' }]}>Quantité</Text>
+            <Text style={[s.itemsHeadCell, { width: '18%', textAlign: 'right' }]}>Total HT</Text>
           </View>
 
-          {/* ===== Totaux ===== */}
-          <View style={s.totauxWrap} wrap={false}>
-            <View style={s.totauxRow}>
-              <Text style={s.totauxLbl}>Total H.T.</Text>
-              <Text style={s.totauxV}>{fmtEur(totalHT)}</Text>
-            </View>
-            <View style={s.totauxRow}>
-              <Text style={s.totauxLbl}>
-                {tvaTaux === 0
-                  ? 'TVA non applicable'
-                  : `TVA ${tvaTaux} %${tvaTaux === 10 ? ' (taux réduit — travaux)' : ''}`}
+          {facture.lignes.map((l, li) => (
+            <View key={li} style={s.itemsRow} wrap={false}>
+              <View style={s.cDesig}>
+                <Text style={s.cDesigName}>{l.designation}</Text>
+                {l.description ? <Text style={s.cDesigDesc}>{l.description}</Text> : null}
+              </View>
+              <Text style={[s.cPu, l.inclus ? s.cInclus : {}]}>
+                {l.inclus ? 'inclus' : fmtEur(l.pu_ht)}
               </Text>
-              <Text style={s.totauxV}>{tvaTaux === 0 ? '—' : fmtEur(tva)}</Text>
+              <Text style={s.cQte}>{l.qte}{l.unite ? ` ${l.unite}` : ''}</Text>
+              <Text style={[s.cTot, l.inclus ? s.cInclus : {}]}>
+                {l.inclus ? 'inclus' : fmtEur((l.pu_ht || 0) * (l.qte || 0))}
+              </Text>
             </View>
-            <View style={[s.totauxRow, s.totauxRowTtc, s.totauxRowLast]}>
-              <Text style={s.totauxLblTtc}>{tvaTaux === 0 ? 'NET À PAYER' : 'MONTANT T.T.C.'}</Text>
-              <Text style={s.totauxVTtc}>{fmtEur(totalTTC)}</Text>
+          ))}
+
+          {/* ===== Totaux ===== */}
+          <View style={s.totalsMini} wrap={false}>
+            <View style={s.totalsMiniRow}>
+              <Text style={s.totalsMiniLbl}>Sous-total HT</Text>
+              <Text style={s.totalsMiniVal}>{fmtEur(totalHT)}</Text>
             </View>
+            <View style={s.totalsMiniRow}>
+              <Text style={s.totalsMiniLbl}>
+                {tvaTaux === 0
+                  ? 'TVA (non applicable)'
+                  : `TVA (${tvaTaux} %)${tvaTaux === 10 ? ' — taux réduit' : ''}`}
+              </Text>
+              <Text style={s.totalsMiniVal}>{tvaTaux === 0 ? '—' : fmtEur(tva)}</Text>
+            </View>
+          </View>
+          <View style={s.totalBar} wrap={false}>
+            <Text style={s.totalBarLbl}>{tvaTaux === 0 ? 'NET À PAYER' : 'TOTAL TTC'}</Text>
+            <Text style={s.totalBarVal}>{fmtEur(totalTTC)}</Text>
           </View>
 
           {tvaTaux === 0 ? (
@@ -485,44 +371,41 @@ export function FactureDocument({ emetteur, client, facture, phone }: FacturePDF
             </View>
           ) : null}
 
-          {/* ===== Mode de règlement (vert) ===== */}
-          {facture.mode_reglement ? (
-            <View style={s.reglementBox} wrap={false}>
-              <Text style={s.reglementTitle}>Mode de règlement</Text>
-              <Text style={s.reglementText}>{facture.mode_reglement}</Text>
-            </View>
-          ) : null}
-
-          {/* ===== Coordonnées bancaires (bleu) ===== */}
-          {!isRegle && emetteur.iban ? (
-            <View style={s.ribBox} wrap={false}>
-              <Text style={s.ribTitle}>Coordonnées bancaires — virement</Text>
-              <View style={s.ribRow}>
-                <Text style={s.ribLbl}>IBAN</Text>
-                <Text style={s.ribVal}>{emetteur.iban}</Text>
-              </View>
-              {emetteur.bic ? (
-                <View style={s.ribRow}>
-                  <Text style={s.ribLbl}>BIC</Text>
-                  <Text style={s.ribVal}>{emetteur.bic}</Text>
-                </View>
+          {/* ===== Informations de paiement ===== */}
+          {(facture.mode_reglement || (!isRegle && emetteur.iban)) ? (
+            <View style={[s.card, isRegle ? s.cardAccentGreen : s.cardAccentBlue]} wrap={false}>
+              <Text style={s.cardTitle}>Informations de paiement</Text>
+              {facture.mode_reglement ? (
+                <Text style={s.cardText}>{facture.mode_reglement}</Text>
               ) : null}
-              <Text style={s.ribNote}>
-                Merci d&apos;indiquer le numéro de facture {facture.numero} en référence du virement.
-              </Text>
+              {!isRegle && emetteur.iban ? (
+                <>
+                  <View style={s.ribRow}>
+                    <Text style={s.ribLbl}>IBAN</Text>
+                    <Text style={s.ribVal}>{emetteur.iban}</Text>
+                  </View>
+                  {emetteur.bic ? (
+                    <View style={s.ribRow}>
+                      <Text style={s.ribLbl}>BIC</Text>
+                      <Text style={s.ribVal}>{emetteur.bic}</Text>
+                    </View>
+                  ) : null}
+                  <Text style={s.ribNote}>
+                    Merci d&apos;indiquer le numéro de facture {facture.numero} en référence du virement.
+                  </Text>
+                </>
+              ) : null}
             </View>
           ) : null}
 
-          {/* ===== Observations technicien (jaune) ===== */}
+          {/* ===== Observations du technicien ===== */}
           {(facture.observations || facture.recommandation) ? (
-            <View style={s.obsBox} wrap={false}>
-              <Text style={s.obsTitle}>Observations du technicien</Text>
-              {facture.observations ? (
-                <Text style={s.obsText}>{facture.observations}</Text>
-              ) : null}
+            <View style={[s.card, s.cardAccentYellow]} wrap={false}>
+              <Text style={s.cardTitle}>Observations du technicien</Text>
+              {facture.observations ? <Text style={s.cardText}>{facture.observations}</Text> : null}
               {facture.recommandation ? (
-                <Text style={s.obsText}>
-                  <Text style={s.obsStrong}>Recommandation : </Text>
+                <Text style={s.cardText}>
+                  <Text style={s.cardStrong}>Recommandation : </Text>
                   {facture.recommandation}
                 </Text>
               ) : null}
@@ -539,4 +422,3 @@ export function FactureDocument({ emetteur, client, facture, phone }: FacturePDF
     </Document>
   )
 }
-

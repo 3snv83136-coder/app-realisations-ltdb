@@ -1,20 +1,21 @@
 'use client'
 import React from "react"
 import { Document, Page, Text, View, StyleSheet, PDFDownloadLink } from "@react-pdf/renderer"
+import { PdfBanner, PDF_C } from "./PdfBranding"
 
 /* ============ CHARTE ============ */
 const C = {
-  navy: '#1e3a6f',
-  navyDark: '#142a52',
-  navyMid: '#2d4f8f',
-  red: '#c0392b',
+  navy: PDF_C.navy,
+  navyDark: PDF_C.navyDark,
+  red: PDF_C.red,
+  white: PDF_C.white,
+  text: PDF_C.text,
+  muted: PDF_C.muted,
+  line: '#e3e8ef',
+  lineSoft: '#eef1f6',
   rowAlt: '#eaf1fa',
-  rowSoft: '#f2f6fb',
-  border: '#d9dfe7',
-  text: '#1e293b',
-  muted: '#6b7280',
-  white: '#ffffff',
-  bgSoft: '#f6f8fb',
+  rowSoft: '#f6f8fb',
+  teal: '#0d9488',
 }
 
 /* ============ STYLES ============ */
@@ -27,216 +28,124 @@ const s = StyleSheet.create({
     backgroundColor: C.white,
     lineHeight: 1.45,
   },
-  /* Header (fixed = répété sur chaque page, en flux normal pour un rendu
-     compatible avec tous les lecteurs PDF, dont CoreGraphics/Aperçu/iOS). */
-  headerTop: {
-    paddingHorizontal: 40, paddingTop: 18, paddingBottom: 10,
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    backgroundColor: C.white,
-    borderBottomWidth: 2, borderBottomColor: C.red,
-  },
-  brandRow: { flexDirection: 'row', alignItems: 'baseline' },
-  brandName: {
-    color: C.navy, fontSize: 11, fontFamily: 'Helvetica-Bold',
-    letterSpacing: 0.4, marginRight: 8,
-  },
-  brandTag: { color: C.muted, fontSize: 8 },
-  headerPhone: { color: C.text, fontSize: 8.5, fontFamily: 'Helvetica-Oblique' },
+  content: { paddingHorizontal: 40, paddingTop: 16, paddingBottom: 10, flexGrow: 1 },
 
-  content: { paddingHorizontal: 40, paddingTop: 10, paddingBottom: 10, flexGrow: 1 },
+  /* Client + métadonnées */
+  infoRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 14 },
+  billTo: { flex: 1, paddingRight: 20 },
+  sectionLabel: {
+    color: C.navy, fontFamily: 'Helvetica-Bold', fontSize: 9,
+    textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 5,
+  },
+  clientName: { color: C.text, fontFamily: 'Helvetica-Bold', fontSize: 12, marginBottom: 3 },
+  clientLine: { color: C.text, fontSize: 9.5, lineHeight: 1.5 },
+  clientLabel: { color: C.text, fontFamily: 'Helvetica-Bold', fontSize: 9, marginTop: 5 },
+  metaBox: { width: '42%', borderWidth: 1, borderColor: C.line, borderRadius: 8 },
+  metaRow: {
+    flexDirection: 'row', justifyContent: 'space-between',
+    paddingVertical: 6, paddingHorizontal: 12,
+    borderBottomWidth: 0.75, borderBottomColor: C.lineSoft,
+  },
+  metaRowLast: { borderBottomWidth: 0 },
+  metaK: { color: C.muted, fontSize: 9 },
+  metaV: { color: C.text, fontSize: 9, fontFamily: 'Helvetica-Bold' },
 
-  /* Title block */
-  titleBlock: {
-    flexDirection: 'row', marginTop: 4, marginBottom: 14,
-  },
-  titleRedBar: { width: 6, backgroundColor: C.red },
-  titleInner: {
-    flex: 1, backgroundColor: C.navy,
-    paddingVertical: 18, paddingHorizontal: 22,
-  },
-  titleMain: {
-    color: C.white, fontSize: 22, fontFamily: 'Helvetica-Bold',
-    letterSpacing: 0.5, textTransform: 'uppercase', lineHeight: 1.15,
-  },
-  titleSub: { color: '#c8d4e8', fontSize: 10, marginTop: 10, lineHeight: 1.4 },
+  /* Bandes de section */
+  bandNavy: { backgroundColor: C.navy, paddingVertical: 7, paddingHorizontal: 14, marginTop: 10, borderRadius: 6 },
+  bandRed: { backgroundColor: C.red, paddingVertical: 7, paddingHorizontal: 14, marginTop: 14, borderRadius: 6 },
+  bandTeal: { backgroundColor: C.teal, paddingVertical: 7, paddingHorizontal: 14, marginTop: 14, borderRadius: 6 },
+  bandTxt: { color: C.white, fontSize: 10, fontFamily: 'Helvetica-Bold', letterSpacing: 0.5, textTransform: 'uppercase' },
 
-  /* Émetteur / Client header table */
-  partyTable: {
-    flexDirection: 'row',
-    borderWidth: 1, borderColor: C.border, marginBottom: 14,
-  },
-  partyCol: { flex: 1 },
-  partyColSep: { borderRightWidth: 1, borderRightColor: C.border },
-  partyHead: {
-    backgroundColor: C.navy, paddingVertical: 7, paddingHorizontal: 12,
-    color: C.white, fontFamily: 'Helvetica-Bold', fontSize: 9.5,
-    letterSpacing: 0.5,
-  },
-  partyBody: {
-    paddingVertical: 10, paddingHorizontal: 12,
-  },
-  partyName: { color: C.text, fontFamily: 'Helvetica-Bold', fontSize: 10, marginBottom: 4 },
-  partyLine: { color: C.text, fontSize: 9, marginBottom: 2, lineHeight: 1.4 },
-  partyLabel: { color: C.text, fontFamily: 'Helvetica-Bold', fontSize: 9, marginTop: 6, marginBottom: 2 },
-  partyMuted: { color: C.muted, fontSize: 8.5, marginTop: 6 },
-
-  /* Section band */
-  bandNavy: {
-    backgroundColor: C.navy, paddingVertical: 8, paddingHorizontal: 14,
-    marginTop: 10, marginBottom: 0,
-  },
-  bandRed: {
-    backgroundColor: C.red, paddingVertical: 8, paddingHorizontal: 14,
-    marginTop: 14, marginBottom: 0,
-  },
-  bandTeal: {
-    backgroundColor: '#0d9488', paddingVertical: 8, paddingHorizontal: 14,
-    marginTop: 14, marginBottom: 0,
-  },
-  bandTxt: {
-    color: C.white, fontSize: 10, fontFamily: 'Helvetica-Bold',
-    letterSpacing: 0.5, textTransform: 'uppercase',
-  },
-
-  /* Objet (text box under band) */
   objetBox: {
-    borderWidth: 1, borderColor: C.border, borderTopWidth: 0,
-    backgroundColor: C.rowSoft,
-    paddingVertical: 12, paddingHorizontal: 14,
-    marginBottom: 10,
+    borderWidth: 1, borderColor: C.line, backgroundColor: C.rowSoft,
+    borderRadius: 6, paddingVertical: 11, paddingHorizontal: 14, marginTop: 6, marginBottom: 4,
   },
   objetText: { color: C.text, fontSize: 9.5, lineHeight: 1.5 },
 
-  /* Constats (conforme / critique / non garantie) */
   constatItem: {
-    borderWidth: 1, borderColor: C.border, borderTopWidth: 0,
-    paddingVertical: 10, paddingHorizontal: 12,
-    marginBottom: 0,
+    borderWidth: 1, borderColor: C.line, borderRadius: 6,
+    paddingVertical: 9, paddingHorizontal: 12, marginTop: 6,
   },
-  constatItemLast: { marginBottom: 10 },
   constatTitle: { fontFamily: 'Helvetica-Bold', fontSize: 9.5, color: C.navy, marginBottom: 4 },
   constatLoc: { fontSize: 8.5, color: C.muted, marginBottom: 4 },
   constatDesc: { fontSize: 9, color: C.text, lineHeight: 1.45 },
 
-  /* Devis table */
-  devisTable: {
-    borderWidth: 1, borderColor: C.border,
-    marginTop: 8, marginBottom: 12,
+  /* Tableau — en-tête « pilule » */
+  itemsHead: {
+    flexDirection: 'row', alignItems: 'center',
+    borderWidth: 1.2, borderColor: C.navy, borderRadius: 22,
+    paddingVertical: 7, paddingHorizontal: 8, marginTop: 8,
   },
-  devisHead: {
-    flexDirection: 'row', backgroundColor: C.navy,
+  itemsHeadCell: {
+    color: C.navy, fontFamily: 'Helvetica-Bold', fontSize: 8.5,
+    textTransform: 'uppercase', letterSpacing: 0.3, paddingHorizontal: 6,
   },
-  devisHeadCell: {
-    color: C.white, fontFamily: 'Helvetica-Bold', fontSize: 8.5,
-    paddingVertical: 9, paddingHorizontal: 10,
-    textTransform: 'uppercase', letterSpacing: 0.4,
+  sectionRow: { paddingTop: 8, paddingBottom: 2, paddingHorizontal: 8 },
+  sectionRowTxt: { color: C.navy, fontFamily: 'Helvetica-Bold', fontSize: 9 },
+  itemsRow: {
+    flexDirection: 'row', alignItems: 'flex-start',
+    paddingVertical: 8, paddingHorizontal: 8,
+    borderBottomWidth: 0.75, borderBottomColor: C.lineSoft,
   },
-  devisSectionRow: {
-    flexDirection: 'row', backgroundColor: C.rowAlt,
-    borderTopWidth: 1, borderTopColor: C.border,
-  },
-  devisSectionCell: {
-    width: '100%', paddingVertical: 6, paddingHorizontal: 12,
-    color: C.navy, fontFamily: 'Helvetica-Bold', fontSize: 9,
-  },
-  devisLine: {
-    flexDirection: 'row', borderTopWidth: 1, borderTopColor: C.border,
-  },
-  devisDesig: {
-    paddingVertical: 9, paddingHorizontal: 10,
-    color: C.text, fontSize: 9, lineHeight: 1.45,
-  },
-  devisDesigStrong: { fontFamily: 'Helvetica-Bold', color: C.text },
-  devisDesigMuted: { color: C.muted, fontSize: 8.5 },
-  devisCell: {
-    paddingVertical: 9, paddingHorizontal: 10,
-    color: C.text, fontSize: 9, textAlign: 'right',
-  },
-  devisCellC: { textAlign: 'center' },
+  cDesig: { width: '50%', paddingHorizontal: 6 },
+  cDesigName: { color: C.text, fontFamily: 'Helvetica-Bold', fontSize: 9.5 },
+  cDesigDesc: { color: C.muted, fontSize: 8.5, marginTop: 1, lineHeight: 1.4 },
+  cPu: { width: '18%', paddingHorizontal: 6, fontSize: 9.5, textAlign: 'right' },
+  cQte: { width: '14%', paddingHorizontal: 6, fontSize: 9.5, textAlign: 'center' },
+  cTot: { width: '18%', paddingHorizontal: 6, fontSize: 9.5, textAlign: 'right', fontFamily: 'Helvetica-Bold' },
 
-  /* Totaux (right-aligned) */
-  totauxWrap: {
-    alignSelf: 'flex-end',
-    width: '52%',
-    borderWidth: 1, borderColor: C.border,
-    marginBottom: 14,
+  /* Totaux */
+  totalsMini: { alignSelf: 'flex-end', width: '46%', marginTop: 10 },
+  totalsMiniRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 4, paddingHorizontal: 8 },
+  totalsMiniLbl: { color: C.muted, fontSize: 10 },
+  totalsMiniVal: { color: C.text, fontSize: 10, fontFamily: 'Helvetica-Bold' },
+  totalBar: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    backgroundColor: C.red, borderRadius: 8,
+    paddingVertical: 11, paddingHorizontal: 18, marginTop: 8, marginBottom: 12,
   },
-  totauxRow: {
-    flexDirection: 'row', justifyContent: 'space-between',
-    paddingVertical: 8, paddingHorizontal: 12,
-    borderBottomWidth: 1, borderBottomColor: C.border,
-  },
-  totauxRowLast: { borderBottomWidth: 0 },
-  totauxRowTtc: { backgroundColor: C.navy, borderBottomWidth: 0 },
-  totauxLbl: { color: C.text, fontFamily: 'Helvetica-Bold', fontSize: 9 },
-  totauxV: { color: C.text, fontSize: 9 },
-  totauxLblTtc: { color: C.white, fontFamily: 'Helvetica-Bold', fontSize: 10.5 },
-  totauxVTtc: { color: C.white, fontFamily: 'Helvetica-Bold', fontSize: 11 },
+  totalBarLbl: { color: C.white, fontSize: 12.5, fontFamily: 'Helvetica-Bold', letterSpacing: 0.5 },
+  totalBarVal: { color: C.white, fontSize: 15, fontFamily: 'Helvetica-Bold' },
 
-  /* Conditions table */
-  condTable: {
-    borderWidth: 1, borderColor: C.border,
-    marginBottom: 12,
-  },
-  condRow: {
-    flexDirection: 'row',
-    borderBottomWidth: 1, borderBottomColor: C.border,
-  },
+  /* Conditions */
+  condTable: { borderWidth: 1, borderColor: C.line, borderRadius: 6, marginTop: 6, marginBottom: 12 },
+  condRow: { flexDirection: 'row', borderBottomWidth: 0.75, borderBottomColor: C.lineSoft },
   condRowLast: { borderBottomWidth: 0 },
   condLabel: {
-    width: '35%', paddingVertical: 9, paddingHorizontal: 12,
+    width: '35%', paddingVertical: 8, paddingHorizontal: 12,
     color: C.navy, fontFamily: 'Helvetica-Bold', fontSize: 9,
-    borderRightWidth: 1, borderRightColor: C.border,
+    borderRightWidth: 0.75, borderRightColor: C.lineSoft,
   },
-  condValue: {
-    flex: 1, paddingVertical: 9, paddingHorizontal: 12,
-    color: C.text, fontSize: 9, lineHeight: 1.45,
-  },
+  condValue: { flex: 1, paddingVertical: 8, paddingHorizontal: 12, color: C.text, fontSize: 9, lineHeight: 1.45 },
 
-  /* Modalités box */
+  /* Modalités */
   modalitesBox: {
-    borderWidth: 1, borderColor: C.border, borderTopWidth: 0,
-    padding: 14, marginBottom: 10,
+    borderWidth: 1, borderColor: C.line, borderRadius: 6, borderLeftWidth: 4, borderLeftColor: C.red,
+    padding: 12, marginTop: 6, marginBottom: 10,
   },
-  modalitesP: {
-    color: C.text, fontSize: 9.5, marginBottom: 6, lineHeight: 1.5,
-  },
+  modalitesP: { color: C.text, fontSize: 9.5, marginBottom: 6, lineHeight: 1.5 },
   modalitesStrong: { fontFamily: 'Helvetica-Bold' },
-  modalitesMuted: {
-    color: C.muted, fontSize: 8, marginTop: 4, lineHeight: 1.4, fontStyle: 'italic',
-  },
+  modalitesMuted: { color: C.muted, fontSize: 8, marginTop: 4, lineHeight: 1.4, fontStyle: 'italic' },
 
-  /* Attestation TVA */
-  attestation: {
-    color: C.text, fontSize: 8.5, fontFamily: 'Helvetica-Oblique',
-    lineHeight: 1.5, marginVertical: 12,
-  },
+  attestation: { color: C.text, fontSize: 8.5, fontFamily: 'Helvetica-Oblique', lineHeight: 1.5, marginVertical: 12 },
   attestationStrong: { fontFamily: 'Helvetica-BoldOblique' },
 
-  /* Signature 2-col table */
-  sigTable: {
-    flexDirection: 'row',
-    borderWidth: 1, borderColor: C.border,
-    marginTop: 6, marginBottom: 10,
+  /* Signatures — encadrés arrondis (modèle) */
+  sigRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 8, marginBottom: 10 },
+  sigCard: {
+    width: '48%', borderWidth: 1.2, borderColor: C.line, borderRadius: 10,
+    padding: 12, minHeight: 96,
   },
-  sigCol: { flex: 1 },
-  sigColSep: { borderRightWidth: 1, borderRightColor: C.border },
-  sigHead: {
-    backgroundColor: C.navy,
-    paddingVertical: 7, paddingHorizontal: 12,
-    color: C.white, fontFamily: 'Helvetica-Bold', fontSize: 9,
-  },
-  sigBody: {
-    paddingVertical: 14, paddingHorizontal: 12, minHeight: 90,
-  },
+  sigCardClient: { borderColor: C.red },
+  sigHeadTxt: { color: C.navy, fontFamily: 'Helvetica-Bold', fontSize: 9, marginBottom: 10 },
   sigLine: { color: C.text, fontSize: 9, marginBottom: 10 },
   sigMention: { color: C.text, fontSize: 9, marginBottom: 6 },
   sigMentionStrong: { fontFamily: 'Helvetica-Bold' },
 
-  /* Footer (fixed = répété sur chaque page, en flux normal). */
+  /* Footer */
   footer: {
-    paddingHorizontal: 40, paddingTop: 10, paddingBottom: 14,
-    borderTopWidth: 1, borderTopColor: C.border,
+    paddingHorizontal: 40, paddingTop: 8, paddingBottom: 14,
+    borderTopWidth: 2, borderTopColor: C.red,
     flexDirection: 'row', justifyContent: 'space-between',
     backgroundColor: C.white,
   },
@@ -252,11 +161,11 @@ export interface DevisConstatItem {
 }
 
 export interface DevisLineData {
-  section?: string            // Titre de section (ex: "1. Suppression de la fosse septique")
-  designation: string         // Désignation principale
-  description?: string        // Précisions additionnelles (souvent entre parenthèses)
+  section?: string
+  designation: string
+  description?: string
   qte: number
-  unite?: string              // 'forfait', 'ml', 'm²', 'u', 'h'...
+  unite?: string
   pu_ht: number
 }
 
@@ -270,20 +179,20 @@ export interface DevisConditions {
 }
 
 export interface DevisModalites {
-  acompte_pct?: number        // % (défaut 30)
+  acompte_pct?: number
   modes_paiement?: string[]
 }
 
 export interface DevisData {
-  numero: string              // "DV-20260422-001"
-  date_devis: string          // ISO ou "JJ/MM/AAAA" — sera formaté
-  validite_jours?: number     // défaut 30
-  majoration_note?: string    // "100 % après 17 h, week-ends & jours fériés" ou ""
-  objet: string               // Paragraphe explicatif
-  reference_dossier?: string  // ex: "Rapport d'intervention du 11/04/2026"
+  numero: string
+  date_devis: string
+  validite_jours?: number
+  majoration_note?: string
+  objet: string
+  reference_dossier?: string
   lignes: DevisLineData[]
-  tva_taux?: number           // 10 ou 20 (défaut 10)
-  tva_reduite_attestation?: boolean   // si true, affiche paragraphe attestation
+  tva_taux?: number
+  tva_reduite_attestation?: boolean
   conditions?: DevisConditions
   modalites?: DevisModalites
   constats_conformes?: DevisConstatItem[]
@@ -293,7 +202,7 @@ export interface DevisData {
 
 export interface EmetteurData {
   raisonSociale: string
-  adresseLignes: string[]     // ["6 allée ...", "42000 Saint-Étienne"]
+  adresseLignes: string[]
   telephone: string
   email: string
   rcs?: string
@@ -305,17 +214,17 @@ export interface EmetteurData {
 }
 
 export interface ClientData {
-  nom: string                 // "M. EDREI"
-  adresseLignes: string[]     // ["1 place du Château", "01 Cuzieu"]
-  adresseChantier?: string    // "idem" ou autre
-  siret?: string              // client professionnel (B2B)
+  nom: string
+  adresseLignes: string[]
+  adresseChantier?: string
+  siret?: string
 }
 
 export interface DevisPDFProps {
   emetteur: EmetteurData
   client: ClientData
   devis: DevisData
-  phone?: string              // Téléphone affiché dans le header (défaut = emetteur.telephone)
+  phone?: string
 }
 
 /* ============ HELPERS ============ */
@@ -330,7 +239,6 @@ const fmtDateFR = (raw: string) => {
   return raw
 }
 
-/* Group lines by section (preserving order of first occurrence) */
 function groupBySection(lines: DevisLineData[]): { section: string; items: DevisLineData[] }[] {
   const order: string[] = []
   const map = new Map<string, DevisLineData[]>()
@@ -342,24 +250,12 @@ function groupBySection(lines: DevisLineData[]): { section: string; items: Devis
   return order.map(section => ({ section, items: map.get(section)! }))
 }
 
-const Header = ({ emetteur, phone }: { emetteur: EmetteurData; phone?: string }) => (
-  <View style={s.headerTop} fixed>
-    <View style={s.brandRow}>
-      <Text style={s.brandName}>LTDB</Text>
-      <Text style={s.brandTag}>Assainissement · Débouchage · Pompage · Inspection caméra</Text>
-    </View>
-    <Text style={s.headerPhone}>Tél. {phone || emetteur.telephone}</Text>
-  </View>
-)
-
 const Footer = ({ emetteur }: { emetteur: EmetteurData }) => {
-  const line1 = [
-    emetteur.raisonSociale,
-    ...emetteur.adresseLignes,
-  ].filter(Boolean).join(' · ')
+  const line1 = [emetteur.raisonSociale, ...emetteur.adresseLignes].filter(Boolean).join(' · ')
   const line2 = [
     emetteur.capital ? `Capital ${emetteur.capital}` : '',
     emetteur.rcs || '',
+    emetteur.siret ? `SIRET ${emetteur.siret}` : '',
     emetteur.email || '',
   ].filter(Boolean).join(' · ')
   return (
@@ -395,7 +291,6 @@ export function DevisDocument({ emetteur, client, devis, phone }: DevisPDFProps)
   const sections = groupBySection(devis.lignes)
 
   const subTitle = [
-    `N° ${devis.numero}`,
     `établi le ${dateFmt}`,
     `valable ${validite} jours`,
     devis.majoration_note ? `majoration ${devis.majoration_note}` : '',
@@ -404,56 +299,48 @@ export function DevisDocument({ emetteur, client, devis, phone }: DevisPDFProps)
   return (
     <Document>
       <Page size="A4" style={s.page}>
-        <Header emetteur={emetteur} phone={phone} />
+        <View fixed>
+          <PdfBanner
+            title="DEVIS"
+            numero={devis.numero}
+            subtitle={subTitle}
+            phone={phone || emetteur.telephone}
+            email={emetteur.email}
+          />
+        </View>
 
         <View style={s.content}>
-          {/* ===== Title ===== */}
-          <View style={s.titleBlock} wrap={false}>
-            <View style={s.titleRedBar} />
-            <View style={s.titleInner}>
-              <Text style={s.titleMain}>Devis estimatif</Text>
-              <Text style={s.titleSub}>{subTitle}</Text>
+          {/* ===== Client + métadonnées ===== */}
+          <View style={s.infoRow} wrap={false}>
+            <View style={s.billTo}>
+              <Text style={s.sectionLabel}>Devis pour</Text>
+              <Text style={s.clientName}>{client.nom}</Text>
+              {client.adresseLignes.map((l, i) => (
+                <Text key={i} style={s.clientLine}>{l}</Text>
+              ))}
+              {client.siret ? <Text style={s.clientLine}>SIRET {client.siret}</Text> : null}
+              {client.adresseChantier ? (
+                <>
+                  <Text style={s.clientLabel}>Adresse du chantier :</Text>
+                  <Text style={s.clientLine}>{client.adresseChantier}</Text>
+                </>
+              ) : null}
             </View>
-          </View>
-
-          {/* ===== Émetteur / Client ===== */}
-          <View style={s.partyTable} wrap={false}>
-            <View style={[s.partyCol, s.partyColSep]}>
-              <Text style={s.partyHead}>ÉMETTEUR</Text>
-              <View style={s.partyBody}>
-                <Text style={s.partyName}>{emetteur.raisonSociale}</Text>
-                {emetteur.adresseLignes.map((l, i) => (
-                  <Text key={i} style={s.partyLine}>{l}</Text>
-                ))}
-                <Text style={s.partyLine}>Tél. {emetteur.telephone}</Text>
-                <Text style={s.partyLine}>{emetteur.email}</Text>
-                {emetteur.rcs ? <Text style={s.partyMuted}>{emetteur.rcs}</Text> : null}
-                {emetteur.siret ? <Text style={s.partyMuted}>SIRET {emetteur.siret}</Text> : null}
-                {emetteur.tva ? <Text style={s.partyMuted}>TVA {emetteur.tva}</Text> : null}
-                {emetteur.capital ? <Text style={s.partyMuted}>{emetteur.capital}</Text> : null}
+            <View style={s.metaBox}>
+              <View style={s.metaRow}>
+                <Text style={s.metaK}>Date</Text>
+                <Text style={s.metaV}>{dateFmt}</Text>
               </View>
-            </View>
-            <View style={s.partyCol}>
-              <Text style={s.partyHead}>CLIENT</Text>
-              <View style={s.partyBody}>
-                <Text style={s.partyName}>{client.nom}</Text>
-                {client.adresseLignes.map((l, i) => (
-                  <Text key={i} style={s.partyLine}>{l}</Text>
-                ))}
-                {client.siret ? <Text style={s.partyMuted}>SIRET {client.siret}</Text> : null}
-                {client.adresseChantier ? (
-                  <>
-                    <Text style={s.partyLabel}>Adresse du chantier :</Text>
-                    <Text style={s.partyLine}>{client.adresseChantier}</Text>
-                  </>
-                ) : null}
-                {devis.reference_dossier ? (
-                  <Text style={[s.partyLine, { marginTop: 6 }]}>
-                    <Text style={s.modalitesStrong}>Réf. dossier : </Text>
-                    {devis.reference_dossier}
-                  </Text>
-                ) : null}
+              <View style={s.metaRow}>
+                <Text style={s.metaK}>Validité</Text>
+                <Text style={s.metaV}>{validite} jours</Text>
               </View>
+              {devis.reference_dossier ? (
+                <View style={[s.metaRow, s.metaRowLast]}>
+                  <Text style={s.metaK}>Réf.</Text>
+                  <Text style={s.metaV}>{devis.reference_dossier}</Text>
+                </View>
+              ) : null}
             </View>
           </View>
 
@@ -476,14 +363,7 @@ export function DevisDocument({ emetteur, client, devis, phone }: DevisPDFProps)
                 <Text style={s.bandTxt}>Conforme</Text>
               </View>
               {devis.constats_conformes!.map((row, i) => (
-                <View
-                  key={i}
-                  style={[
-                    s.constatItem,
-                    i === devis.constats_conformes!.length - 1 ? s.constatItemLast : {},
-                  ]}
-                  wrap={false}
-                >
+                <View key={i} style={s.constatItem} wrap={false}>
                   <Text style={s.constatTitle}>{row.intitule}</Text>
                   {row.localisation ? <Text style={s.constatLoc}>{row.localisation}</Text> : null}
                   <Text style={s.constatDesc}>{row.description}</Text>
@@ -499,14 +379,7 @@ export function DevisDocument({ emetteur, client, devis, phone }: DevisPDFProps)
                 <Text style={s.bandTxt}>Critique</Text>
               </View>
               {devis.constats_critiques!.map((row, i) => (
-                <View
-                  key={i}
-                  style={[
-                    s.constatItem,
-                    i === devis.constats_critiques!.length - 1 ? s.constatItemLast : {},
-                  ]}
-                  wrap={false}
-                >
+                <View key={i} style={s.constatItem} wrap={false}>
                   <Text style={s.constatTitle}>{row.intitule}</Text>
                   {row.localisation ? <Text style={s.constatLoc}>{row.localisation}</Text> : null}
                   <Text style={s.constatDesc}>{row.description}</Text>
@@ -527,59 +400,49 @@ export function DevisDocument({ emetteur, client, devis, phone }: DevisPDFProps)
             </View>
           ) : null}
 
-          {/* ===== Tableau désignation ===== */}
-          <View style={s.devisTable}>
-            <View style={s.devisHead} fixed>
-              <Text style={[s.devisHeadCell, { width: '52%' }]}>Désignation</Text>
-              <Text style={[s.devisHeadCell, { width: '10%', textAlign: 'center' }]}>Qté</Text>
-              <Text style={[s.devisHeadCell, { width: '12%', textAlign: 'center' }]}>Unité</Text>
-              <Text style={[s.devisHeadCell, { width: '13%', textAlign: 'right' }]}>P.U. H.T.</Text>
-              <Text style={[s.devisHeadCell, { width: '13%', textAlign: 'right' }]}>Total H.T.</Text>
-            </View>
-
-            {sections.map((sec, si) => (
-              <View key={si}>
-                <View style={s.devisSectionRow}>
-                  <Text style={s.devisSectionCell}>{sec.section}</Text>
-                </View>
-                {sec.items.map((l, li) => (
-                  <View key={li} style={s.devisLine} wrap={false}>
-                    <View style={{ width: '52%' }}>
-                      <Text style={[s.devisDesig, s.devisDesigStrong]}>{l.designation}</Text>
-                      {l.description ? (
-                        <Text style={[s.devisDesig, s.devisDesigMuted, { paddingTop: 0 }]}>{l.description}</Text>
-                      ) : null}
-                    </View>
-                    <Text style={[s.devisCell, s.devisCellC, { width: '10%' }]}>{l.qte}</Text>
-                    <Text style={[s.devisCell, s.devisCellC, { width: '12%' }]}>{l.unite || '—'}</Text>
-                    <Text style={[s.devisCell, { width: '13%' }]}>{fmtEur(l.pu_ht)}</Text>
-                    <Text style={[s.devisCell, { width: '13%' }]}>{fmtEur(l.pu_ht * l.qte)}</Text>
-                  </View>
-                ))}
-              </View>
-            ))}
+          {/* ===== Tableau prestations ===== */}
+          <View style={s.itemsHead} fixed>
+            <Text style={[s.itemsHeadCell, { width: '50%' }]}>Description</Text>
+            <Text style={[s.itemsHeadCell, { width: '18%', textAlign: 'right' }]}>Prix unitaire</Text>
+            <Text style={[s.itemsHeadCell, { width: '14%', textAlign: 'center' }]}>Quantité</Text>
+            <Text style={[s.itemsHeadCell, { width: '18%', textAlign: 'right' }]}>Total HT</Text>
           </View>
 
+          {sections.map((sec, si) => (
+            <View key={si}>
+              <View style={s.sectionRow}>
+                <Text style={s.sectionRowTxt}>{sec.section}</Text>
+              </View>
+              {sec.items.map((l, li) => (
+                <View key={li} style={s.itemsRow} wrap={false}>
+                  <View style={s.cDesig}>
+                    <Text style={s.cDesigName}>{l.designation}</Text>
+                    {l.description ? <Text style={s.cDesigDesc}>{l.description}</Text> : null}
+                  </View>
+                  <Text style={s.cPu}>{fmtEur(l.pu_ht)}</Text>
+                  <Text style={s.cQte}>{l.qte}{l.unite ? ` ${l.unite}` : ''}</Text>
+                  <Text style={s.cTot}>{fmtEur(l.pu_ht * l.qte)}</Text>
+                </View>
+              ))}
+            </View>
+          ))}
+
           {/* ===== Totaux ===== */}
-          <View style={s.totauxWrap} wrap={false}>
-            <View style={s.totauxRow}>
-              <Text style={s.totauxLbl}>Total H.T.</Text>
-              <Text style={s.totauxV}>{fmtEur(totalHT)}</Text>
+          <View style={s.totalsMini} wrap={false}>
+            <View style={s.totalsMiniRow}>
+              <Text style={s.totalsMiniLbl}>Sous-total HT</Text>
+              <Text style={s.totalsMiniVal}>{fmtEur(totalHT)}</Text>
             </View>
-            <View style={s.totauxRow}>
-              <Text style={s.totauxLbl}>Majoration</Text>
-              <Text style={s.totauxV}>—</Text>
-            </View>
-            <View style={s.totauxRow}>
-              <Text style={s.totauxLbl}>
-                TVA {tvaTaux} %{devis.tva_reduite_attestation ? ' (taux réduit — travaux d\'amélioration)' : ''}
+            <View style={s.totalsMiniRow}>
+              <Text style={s.totalsMiniLbl}>
+                TVA ({tvaTaux} %){devis.tva_reduite_attestation ? ' — taux réduit' : ''}
               </Text>
-              <Text style={s.totauxV}>{fmtEur(tva)}</Text>
+              <Text style={s.totalsMiniVal}>{tvaTaux === 0 ? '—' : fmtEur(tva)}</Text>
             </View>
-            <View style={[s.totauxRow, s.totauxRowTtc, s.totauxRowLast]}>
-              <Text style={s.totauxLblTtc}>MONTANT T.T.C.</Text>
-              <Text style={s.totauxVTtc}>{fmtEur(totalTTC)}</Text>
-            </View>
+          </View>
+          <View style={s.totalBar} wrap={false}>
+            <Text style={s.totalBarLbl}>TOTAL TTC</Text>
+            <Text style={s.totalBarVal}>{fmtEur(totalTTC)}</Text>
           </View>
 
           {/* ===== Conditions d'exécution ===== */}
@@ -638,25 +501,19 @@ export function DevisDocument({ emetteur, client, devis, phone }: DevisPDFProps)
           ) : null}
 
           {/* ===== Signatures ===== */}
-          <View style={s.sigTable} wrap={false}>
-            <View style={[s.sigCol, s.sigColSep]}>
-              <Text style={s.sigHead}>{emetteur.raisonSociale}</Text>
-              <View style={s.sigBody}>
-                <Text style={s.sigLine}>Date : {dateFmt}</Text>
-                <Text style={s.sigLine}>Cachet &amp; signature :</Text>
-              </View>
+          <View style={s.sigRow} wrap={false}>
+            <View style={s.sigCard}>
+              <Text style={s.sigHeadTxt}>{emetteur.raisonSociale}</Text>
+              <Text style={s.sigLine}>Date : {dateFmt}</Text>
+              <Text style={s.sigLine}>Cachet &amp; signature :</Text>
             </View>
-            <View style={s.sigCol}>
-              <Text style={s.sigHead}>Client — Bon pour accord, devis approuvé</Text>
-              <View style={s.sigBody}>
-                <Text style={s.sigMention}>
-                  <Text style={s.sigMentionStrong}>{client.nom}</Text>
-                </Text>
-                <Text style={s.sigLine}>Date : ______________________</Text>
-                <Text style={s.sigMention}>
-                  Mention « <Text style={s.sigMentionStrong}>Bon pour accord</Text> » + signature :
-                </Text>
-              </View>
+            <View style={[s.sigCard, s.sigCardClient]}>
+              <Text style={s.sigHeadTxt}>Client — Bon pour accord, devis approuvé</Text>
+              <Text style={s.sigMention}><Text style={s.sigMentionStrong}>{client.nom}</Text></Text>
+              <Text style={s.sigLine}>Date : ______________________</Text>
+              <Text style={s.sigMention}>
+                Mention « <Text style={s.sigMentionStrong}>Bon pour accord</Text> » + signature :
+              </Text>
             </View>
           </View>
         </View>

@@ -8,6 +8,7 @@ const DocumentDownloadButton = dynamic(() => import("@/components/DocumentDownlo
 const ResendEmailButton = dynamic(() => import("@/components/ResendEmailButton"), { ssr: false })
 const RequestReviewButton = dynamic(() => import("@/components/RequestReviewButton"), { ssr: false })
 const InterventionRapportDownloadButton = dynamic(() => import("@/components/InterventionRapportDownloadButton"), { ssr: false })
+const ResendRapportButton = dynamic(() => import("@/components/ResendRapportButton"), { ssr: false })
 
 type Intervention = {
   id: string
@@ -162,9 +163,19 @@ export default function HistoriquePage() {
     return () => clearTimeout(t)
   }, [q])
 
+  // Tri chronologique décroissant sur la date AFFICHÉE (et non created_at) :
+  // l'historique reflète ainsi l'ordre réel des interventions / émissions.
+  const sortedInterventions = useMemo(() => {
+    const key = (i: Intervention) => i.date_realisee || i.date_prevue || i.created_at || ''
+    return [...interventions].sort((a, b) => key(b).localeCompare(key(a)))
+  }, [interventions])
+
   const filteredDocuments = useMemo(() => {
-    if (tab === 'all' || tab === 'interventions') return documents
-    return documents.filter(d => d.type === tab)
+    const base = (tab === 'all' || tab === 'interventions')
+      ? documents
+      : documents.filter(d => d.type === tab)
+    const key = (d: Document) => d.date_emission || d.created_at || ''
+    return [...base].sort((a, b) => key(b).localeCompare(key(a)))
   }, [documents, tab])
 
   const showInterventions = tab === 'all' || tab === 'interventions'
@@ -261,7 +272,7 @@ export default function HistoriquePage() {
         {!loading && showInterventions && interventions.length > 0 && (
           <section className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
             <div className="px-4 py-3 bg-slate-50 border-b border-slate-200 flex justify-between items-center">
-              <h3 className="font-bold text-[#0e2a52]">🔧 Interventions ({interventions.length})</h3>
+              <h3 className="font-bold text-[#0e2a52]">🔧 Interventions ({sortedInterventions.length})</h3>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
@@ -279,7 +290,7 @@ export default function HistoriquePage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {interventions.map(i => (
+                  {sortedInterventions.map(i => (
                     <tr key={i.id} className={`border-t border-slate-100 hover:bg-slate-50 ${deletingId === i.id ? 'opacity-50' : ''}`}>
                       <td className="px-4 py-3 text-slate-600">{fmtDateFR(i.date_realisee || i.date_prevue || i.created_at)}</td>
                       <td className="px-4 py-3 font-mono text-xs text-[#0e2a52] font-bold">{i.reference || '—'}</td>
@@ -304,6 +315,9 @@ export default function HistoriquePage() {
                         <div className="inline-flex flex-col items-end gap-1">
                           {i.has_rapport && (
                             <InterventionRapportDownloadButton intervention={i} />
+                          )}
+                          {i.has_rapport && (
+                            <ResendRapportButton intervention={i} />
                           )}
                           <RequestReviewButton
                             clientEmail={i.client_email}
