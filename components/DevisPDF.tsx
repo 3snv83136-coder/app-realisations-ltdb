@@ -23,7 +23,9 @@ const s = StyleSheet.create({
     paddingHorizontal: 0,
     // Réserve la hauteur du header (haut) et du footer (bas) sur CHAQUE page,
     // pour que le contenu qui déborde sur les pages suivantes ne chevauche pas.
-    paddingTop: 56,
+    // Le haut est calé sur la hauteur réelle du header (~42pt) pour ne pas rogner
+    // inutilement l'espace de contenu.
+    paddingTop: 46,
     paddingBottom: 56,
     fontFamily: 'Helvetica',
     fontSize: 9.5,

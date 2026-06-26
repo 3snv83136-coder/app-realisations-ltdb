@@ -32,11 +32,11 @@ const C = {
 const s = StyleSheet.create({
   page: {
     paddingHorizontal: 0,
-    // Réserve la hauteur du header (haut) et du footer (bas) sur CHAQUE page,
-    // pour éviter tout chevauchement quand le contenu déborde sur plusieurs pages.
-    // Le footer facture est plus haut (RIB + coordonnées société) → marge basse large.
-    paddingTop: 56,
-    paddingBottom: 92,
+    // Réserve la hauteur réelle du header (haut) et du footer (bas) sur CHAQUE
+    // page : assez pour éviter le chevauchement en multi-pages, mais sans rogner
+    // l'espace de contenu (sinon une facture courte déborde sur une 2e page).
+    paddingTop: 46,
+    paddingBottom: 76,
     fontFamily: 'Helvetica',
     fontSize: 9.5,
     color: C.text,
@@ -63,12 +63,12 @@ const s = StyleSheet.create({
 
   /* Title block */
   titleBlock: {
-    flexDirection: 'row', marginTop: 4, marginBottom: 14,
+    flexDirection: 'row', marginTop: 2, marginBottom: 10,
   },
   titleRedBar: { width: 6, backgroundColor: C.red },
   titleInner: {
     flex: 1, backgroundColor: C.navy,
-    paddingVertical: 18, paddingHorizontal: 22,
+    paddingVertical: 12, paddingHorizontal: 22,
   },
   titleMain: {
     color: C.white, fontSize: 24, fontFamily: 'Helvetica-Bold',
@@ -80,10 +80,10 @@ const s = StyleSheet.create({
   metaTable: {
     flexDirection: 'row',
     borderWidth: 1, borderColor: C.border,
-    marginBottom: 10,
+    marginBottom: 8,
   },
   metaCell: {
-    flex: 1, paddingVertical: 8, paddingHorizontal: 12,
+    flex: 1, paddingVertical: 6, paddingHorizontal: 12,
     borderRightWidth: 1, borderRightColor: C.border,
   },
   metaCellLast: { borderRightWidth: 0 },
@@ -94,7 +94,7 @@ const s = StyleSheet.create({
   /* Émetteur / Client */
   partyTable: {
     flexDirection: 'row',
-    borderWidth: 1, borderColor: C.border, marginBottom: 14,
+    borderWidth: 1, borderColor: C.border, marginBottom: 10,
   },
   partyCol: { flex: 1 },
   partyColSep: { borderRightWidth: 1, borderRightColor: C.border },
@@ -104,7 +104,7 @@ const s = StyleSheet.create({
     letterSpacing: 0.5,
   },
   partyBody: {
-    paddingVertical: 10, paddingHorizontal: 12,
+    paddingVertical: 8, paddingHorizontal: 12,
   },
   partyName: { color: C.text, fontFamily: 'Helvetica-Bold', fontSize: 10, marginBottom: 4 },
   partyLine: { color: C.text, fontSize: 9, marginBottom: 2, lineHeight: 1.4 },
@@ -113,13 +113,13 @@ const s = StyleSheet.create({
   agenceText: { fontFamily: 'Helvetica-Oblique', fontSize: 9, color: C.text },
 
   /* Objet (ligne simple) */
-  objetLine: { marginVertical: 8, fontSize: 9.5 },
+  objetLine: { marginVertical: 6, fontSize: 9.5 },
   objetLabel: { fontFamily: 'Helvetica-Bold' },
 
   /* Tableau désignation */
   itemsTable: {
     borderWidth: 1, borderColor: C.border,
-    marginTop: 8, marginBottom: 12,
+    marginTop: 6, marginBottom: 10,
   },
   itemsHead: {
     flexDirection: 'row', backgroundColor: C.navy,
@@ -150,11 +150,11 @@ const s = StyleSheet.create({
     alignSelf: 'flex-end',
     width: '52%',
     borderWidth: 1, borderColor: C.border,
-    marginBottom: 14,
+    marginBottom: 10,
   },
   totauxRow: {
     flexDirection: 'row', justifyContent: 'space-between',
-    paddingVertical: 8, paddingHorizontal: 12,
+    paddingVertical: 6, paddingHorizontal: 12,
     borderBottomWidth: 1, borderBottomColor: C.border,
   },
   totauxRowLast: { borderBottomWidth: 0 },
@@ -169,12 +169,12 @@ const s = StyleSheet.create({
     backgroundColor: C.greenSoft,
     borderWidth: 1, borderColor: C.greenBorder,
     borderLeftWidth: 4,
-    paddingVertical: 12, paddingHorizontal: 14,
-    marginBottom: 12,
+    paddingVertical: 10, paddingHorizontal: 14,
+    marginBottom: 8,
   },
   reglementTitle: {
     color: C.greenDark, fontFamily: 'Helvetica-Bold', fontSize: 9.5,
-    textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6,
+    textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4,
   },
   reglementText: { color: C.text, fontSize: 9.5, lineHeight: 1.5 },
 
@@ -183,12 +183,12 @@ const s = StyleSheet.create({
     backgroundColor: C.yellowSoft,
     borderWidth: 1, borderColor: C.yellowBorder,
     borderLeftWidth: 4,
-    paddingVertical: 12, paddingHorizontal: 14,
-    marginBottom: 12,
+    paddingVertical: 10, paddingHorizontal: 14,
+    marginBottom: 8,
   },
   obsTitle: {
     color: C.yellowDark, fontFamily: 'Helvetica-Bold', fontSize: 9.5,
-    textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6,
+    textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4,
   },
   obsText: { color: C.text, fontSize: 9.5, lineHeight: 1.55, marginBottom: 6 },
   obsStrong: { fontFamily: 'Helvetica-Bold' },
@@ -211,7 +211,7 @@ const s = StyleSheet.create({
   ribNote: { color: C.muted, fontSize: 8.5, marginTop: 4, fontStyle: 'italic' },
 
   legalBox: {
-    marginTop: 10, padding: 10, borderWidth: 1, borderColor: C.border,
+    marginTop: 8, padding: 8, borderWidth: 1, borderColor: C.border,
     borderRadius: 4, backgroundColor: '#fafbfc',
   },
   legalText: { color: C.muted, fontSize: 7.5, lineHeight: 1.45 },
@@ -535,7 +535,7 @@ export function FactureDocument({ emetteur, client, facture, phone }: FacturePDF
             </View>
           ) : null}
 
-          <View style={s.legalBox} wrap={false}>
+          <View style={s.legalBox}>
             <Text style={s.legalText}>{FACTURE_MENTIONS_LEGALES}</Text>
           </View>
         </View>
