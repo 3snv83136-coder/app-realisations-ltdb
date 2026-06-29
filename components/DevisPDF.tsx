@@ -1,6 +1,6 @@
 'use client'
 import React from "react"
-import { Document, Page, Text, View, StyleSheet, PDFDownloadLink } from "@react-pdf/renderer"
+import { Document, Page, Text, View, StyleSheet, Image, PDFDownloadLink } from "@react-pdf/renderer"
 import { PdfBanner, PDF_C } from "./PdfBranding"
 
 /* ============ CHARTE ============ */
@@ -61,6 +61,17 @@ const s = StyleSheet.create({
     borderRadius: 6, paddingVertical: 11, paddingHorizontal: 14, marginTop: 6, marginBottom: 4,
   },
   objetText: { color: C.text, fontSize: 9.5, lineHeight: 1.5 },
+
+  /* Photos */
+  photosGrid: {
+    flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between',
+    marginTop: 8, marginBottom: 4,
+  },
+  photoCell: { width: '48.5%', marginBottom: 10 },
+  photoImg: {
+    width: '100%', height: 150, objectFit: 'cover',
+    borderRadius: 6, borderWidth: 1, borderColor: C.line,
+  },
 
   constatItem: {
     borderWidth: 1, borderColor: C.line, borderRadius: 6,
@@ -198,6 +209,7 @@ export interface DevisData {
   constats_conformes?: DevisConstatItem[]
   constats_critiques?: DevisConstatItem[]
   non_garantie?: string
+  photos?: string[]           // URLs ou data URIs (base64) — optionnel, non bloquant
 }
 
 export interface EmetteurData {
@@ -396,6 +408,22 @@ export function DevisDocument({ emetteur, client, devis, phone }: DevisPDFProps)
               </View>
               <View style={s.objetBox}>
                 <Text style={s.objetText}>{devis.non_garantie}</Text>
+              </View>
+            </View>
+          ) : null}
+
+          {/* ===== Photos (optionnel) ===== */}
+          {(devis.photos?.length ?? 0) > 0 ? (
+            <View>
+              <View style={s.bandNavy} wrap={false}>
+                <Text style={s.bandTxt}>Photos</Text>
+              </View>
+              <View style={s.photosGrid}>
+                {devis.photos!.map((src, i) => (
+                  <View key={i} style={s.photoCell} wrap={false}>
+                    <Image src={src} style={s.photoImg} />
+                  </View>
+                ))}
               </View>
             </View>
           ) : null}

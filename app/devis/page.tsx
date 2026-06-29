@@ -210,6 +210,34 @@ function DevisPageContent() {
     })
   }
 
+  // Photos optionnelles (non bloquantes) : compressées puis stockées en base64
+  // dans le payload du devis (rendu PDF côté client comme serveur).
+  const [photoBusy, setPhotoBusy] = useState(false)
+
+  async function handleAddPhotos(files: FileList | null) {
+    if (!devis || !files || files.length === 0) return
+    setPhotoBusy(true)
+    try {
+      const encoded: string[] = []
+      for (const file of Array.from(files)) {
+        if (!file.type.startsWith('image/')) continue
+        encoded.push(await compressToDataUrl(file))
+      }
+      if (encoded.length) {
+        setDevis(d => (d ? { ...d, photos: [...(d.photos || []), ...encoded] } : d))
+      }
+    } catch {
+      /* non bloquant : on ignore les photos en erreur */
+    } finally {
+      setPhotoBusy(false)
+    }
+  }
+
+  function removePhoto(index: number) {
+    if (!devis) return
+    setDevis({ ...devis, photos: (devis.photos || []).filter((_, i) => i !== index) })
+  }
+
   // Alloue un numéro de devis séquentiel continu (DV-2026-0001) côté serveur.
   async function allocateDevisNumero(): Promise<string | null> {
     try {
@@ -599,6 +627,42 @@ function DevisPageContent() {
             </div>
           </section>
 
+          {/* Photos (optionnel) */}
+          <section className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 space-y-3">
+            <div className="flex items-center justify-between">
+              <h2 className="font-bold text-[#0e2a52]">Photos <span className="text-xs font-normal text-slate-400">(optionnel)</span></h2>
+              <label className={`text-sm font-semibold cursor-pointer ${photoBusy ? 'text-slate-400' : 'text-blue-700 hover:text-blue-900'}`}>
+                {photoBusy ? 'Ajout…' : '+ Ajouter des photos'}
+                <input
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  className="hidden"
+                  disabled={photoBusy}
+                  onChange={e => { handleAddPhotos(e.target.files); e.target.value = '' }}
+                />
+              </label>
+            </div>
+            {(devis.photos || []).length === 0 ? (
+              <p className="text-xs text-slate-400 italic">Aucune photo. Tu peux en ajouter pour illustrer le devis — ce n&apos;est pas obligatoire.</p>
+            ) : (
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                {(devis.photos || []).map((src, i) => (
+                  <div key={i} className="relative group rounded-xl overflow-hidden border border-slate-200 bg-slate-50">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={src} alt={`Photo ${i + 1}`} className="w-full h-28 object-cover" />
+                    <button
+                      type="button"
+                      onClick={() => removePhoto(i)}
+                      className="absolute top-1 right-1 bg-red-600 text-white rounded-full w-6 h-6 text-sm leading-none font-bold shadow hover:bg-red-700"
+                      aria-label="Supprimer la photo"
+                    >×</button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+
           {/* Lignes */}
           <section className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 space-y-3">
             <div className="flex items-center justify-between">
@@ -904,6 +968,36 @@ function DevisPageContent() {
       </main>
     </div>
   )
+}
+
+// Compresse une image en JPEG (max 1280 px, qualité 0.7) et renvoie un data URI.
+// Garde le payload du devis raisonnable tout en restant autonome (pas d'upload).
+async function compressToDataUrl(file: File): Promise<string> {
+  const dataUrl = await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(reader.result as string)
+    reader.onerror = reject
+    reader.readAsDataURL(file)
+  })
+  return new Promise((resolve, reject) => {
+    const img = new window.Image()
+    img.onload = () => {
+      const maxDim = 1280
+      let { width, height } = img
+      if (width > maxDim || height > maxDim) {
+        if (width >= height) { height = Math.round(height * maxDim / width); width = maxDim }
+        else { width = Math.round(width * maxDim / height); height = maxDim }
+      }
+      const canvas = document.createElement('canvas')
+      canvas.width = width; canvas.height = height
+      const ctx = canvas.getContext('2d')
+      if (!ctx) return reject(new Error('Canvas non supporté'))
+      ctx.drawImage(img, 0, 0, width, height)
+      resolve(canvas.toDataURL('image/jpeg', 0.7))
+    }
+    img.onerror = () => reject(new Error('Lecture image impossible'))
+    img.src = dataUrl
+  })
 }
 
 function Field({
