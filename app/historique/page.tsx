@@ -9,6 +9,7 @@ const ResendEmailButton = dynamic(() => import("@/components/ResendEmailButton")
 const RequestReviewButton = dynamic(() => import("@/components/RequestReviewButton"), { ssr: false })
 const InterventionRapportDownloadButton = dynamic(() => import("@/components/InterventionRapportDownloadButton"), { ssr: false })
 const ResendRapportButton = dynamic(() => import("@/components/ResendRapportButton"), { ssr: false })
+const AccepterDevisButton = dynamic(() => import("@/components/AccepterDevisButton"), { ssr: false })
 
 type Intervention = {
   id: string
@@ -393,6 +394,15 @@ export default function HistoriquePage() {
                       <td className="px-4 py-3 text-xs text-slate-500">{d.envoye_email || '—'}</td>
                       <td className="px-4 py-3 text-right">
                         <div className="inline-flex flex-wrap gap-1 justify-end">
+                          {d.type === 'devis' && (
+                            <AccepterDevisButton
+                              devisId={d.id}
+                              numero={d.numero}
+                              statut={d.statut}
+                              interventionId={d.intervention_id}
+                              onAccepted={load}
+                            />
+                          )}
                           {d.pdf_url ? (
                             <a
                               href={d.pdf_url}

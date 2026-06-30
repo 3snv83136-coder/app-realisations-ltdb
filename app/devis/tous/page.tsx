@@ -1,10 +1,10 @@
 'use client'
 import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
-import { useRouter } from "next/navigation"
 import dynamic from "next/dynamic"
 import AppTabs from "@/components/AppTabs"
 import DevisTabs from "@/components/DevisTabs"
+import AccepterDevisButton from "@/components/AccepterDevisButton"
 import { fmtDateFR } from "@/lib/format"
 import type { HistoriqueDocument } from "@/components/DocumentDownloadButton"
 
@@ -49,12 +49,10 @@ function toHistoriqueDoc(d: DevisRow): HistoriqueDocument & { envoye_email?: str
 }
 
 export default function TousLesDevisPage() {
-  const router = useRouter()
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [devis, setDevis] = useState<DevisRow[]>([])
   const [deletingId, setDeletingId] = useState<string | null>(null)
-  const [acceptingId, setAcceptingId] = useState<string | null>(null)
   const [search, setSearch] = useState('')
   const [filterVille, setFilterVille] = useState<string>('')
   const [from, setFrom] = useState('')
@@ -66,34 +64,6 @@ export default function TousLesDevisPage() {
     if (json.error) throw new Error(json.error)
     const rows: DevisRow[] = (json.documents || []).filter((d: DevisRow) => d.type === 'devis')
     setDevis(rows)
-  }
-
-  async function handleAccepter(d: DevisRow) {
-    const ref = d.numero || d.id.slice(0, 8)
-    if (!confirm(
-      `Marquer le devis ${ref} comme accepté ?\n\n`
-      + `• Les relances automatiques (devis + avis) seront arrêtées.\n`
-      + `${d.intervention_id ? '• L\'intervention liée sera mise à jour.' : '• Une intervention sera créée dans le planning.'}`,
-    )) return
-    setAcceptingId(d.id); setError(null)
-    try {
-      const res = await fetch(`/api/devis/${d.id}/accepter`, { method: 'POST' })
-      const data = await res.json().catch(() => ({}))
-      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`)
-      await reload()
-      if (data.warning) {
-        setError(data.warning)
-      } else if (data.interventionId) {
-        const msg = data.created
-          ? 'Intervention créée dans le planning. Ouvrir la fiche pour fixer la date et le technicien ?'
-          : 'Devis accepté. Ouvrir la fiche de l\'intervention liée ?'
-        if (confirm(msg)) router.push(`/intervention/${data.interventionId}`)
-      }
-    } catch (e) {
-      setError(`Erreur acceptation : ${e instanceof Error ? e.message : String(e)}`)
-    } finally {
-      setAcceptingId(null)
-    }
   }
 
   async function handleSupprimer(d: DevisRow) {
@@ -185,6 +155,12 @@ export default function TousLesDevisPage() {
       <DevisTabs current="liste" />
 
       <main className="max-w-6xl mx-auto px-4 py-5 space-y-4">
+        <div className="bg-green-50 border border-green-200 rounded-xl px-4 py-3 text-sm text-green-900">
+          <strong>Devis accepté par le client ?</strong> Clique sur le bouton vert{' '}
+          <strong>« 📅 Accepter → Planning »</strong> : cela crée l&apos;intervention, l&apos;arrête les relances
+          et te propose d&apos;ouvrir la fiche pour fixer la date et le technicien.
+        </div>
+
         {/* Filtres */}
         <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 space-y-3">
           <div className="flex flex-wrap gap-2 items-center">
@@ -287,17 +263,13 @@ export default function TousLesDevisPage() {
                       </td>
                       <td className="px-4 py-3">
                         <div className="inline-flex flex-wrap gap-1 justify-end items-start">
-                          {d.statut !== 'accepte' && (
-                            <button
-                              type="button"
-                              onClick={() => handleAccepter(d)}
-                              disabled={acceptingId === d.id}
-                              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-green-600 hover:bg-green-700 text-white text-[11px] font-bold transition disabled:opacity-50 disabled:cursor-wait"
-                              title="Marquer comme accepté : arrête les relances et crée l'intervention dans le planning"
-                            >
-                              {acceptingId === d.id ? '…' : '✓ Accepté'}
-                            </button>
-                          )}
+                          <AccepterDevisButton
+                            devisId={d.id}
+                            numero={d.numero}
+                            statut={d.statut}
+                            interventionId={d.intervention_id}
+                            onAccepted={reload}
+                          />
                           <DocumentDownloadButton doc={toHistoriqueDoc(d)} label="PDF" />
                           {d.pdf_url && (
                             <a
