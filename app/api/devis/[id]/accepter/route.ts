@@ -111,9 +111,52 @@ export async function POST(req: NextRequest, { params }: Params) {
     if (c) client = c as ClientRow
   }
 
-  // 3. Création de l'intervention si nécessaire ---------------------------------
+  // Type d'intervention « classique » déduit de l'objet du devis. On évite le
+  // type "Devis" (= fiche sans mode terrain) : on veut une intervention normale
+  // avec wizard Mode Terrain.
+  const objet = typeof payload.objet === "string" ? (payload.objet as string) : ""
+  const detected = detectTypeIntervention(objet)
+  const realType = detected && detected !== "Devis" ? detected : "Débouchage canalisation"
+
+  // 3. Intervention classique (avec Mode Terrain) -------------------------------
   let interventionId: string | null = doc.intervention_id || null
   let created = false
+
+  if (interventionId) {
+    // Une intervention est déjà liée. Si c'est une fiche "Devis" (sans mode
+    // terrain) on la convertit en intervention classique pour débloquer le
+    // wizard Mode Terrain. On complète aussi l'adresse / le prix si manquants.
+    const { data: itv } = await sb
+      .from("interventions")
+      .select("id, type_intervention, adresse_chantier, ville, code_postal, prix_prevu")
+      .eq("id", interventionId)
+      .maybeSingle()
+    if (itv) {
+      const row = itv as {
+        type_intervention: string | null
+        adresse_chantier: string | null
+        ville: string | null
+        code_postal: string | null
+        prix_prevu: number | null
+      }
+      const update: Record<string, unknown> = {}
+      if (!row.type_intervention || row.type_intervention === "Devis") {
+        update.type_intervention = realType
+        update.terrain_step = 0
+        update.statut = "planifiee"
+      }
+      if (!row.adresse_chantier && client?.adresse) update.adresse_chantier = client.adresse
+      if (!row.ville && client?.ville) update.ville = client.ville
+      if (!row.code_postal && client?.code_postal) update.code_postal = client.code_postal
+      if (row.prix_prevu == null && typeof doc.montant_ttc === "number") update.prix_prevu = doc.montant_ttc
+      if (Object.keys(update).length) {
+        await sb.from("interventions").update(update).eq("id", interventionId)
+      }
+    } else {
+      // L'intervention liée n'existe plus : on en recrée une.
+      interventionId = null
+    }
+  }
 
   if (!interventionId) {
     if (!client) {
@@ -123,13 +166,9 @@ export async function POST(req: NextRequest, { params }: Params) {
       )
     }
 
-    const objet = typeof payload.objet === "string" ? (payload.objet as string) : ""
-    const detected = detectTypeIntervention(objet)
-    const type_intervention = detected && detected !== "Devis" ? detected : "Débouchage canalisation"
-
     const baseRow = {
       client_id: client.id,
-      type_intervention,
+      type_intervention: realType,
       adresse_chantier: client.adresse,
       ville: client.ville,
       code_postal: client.code_postal,
