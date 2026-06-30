@@ -1,7 +1,6 @@
 'use client'
 import { useState } from "react"
-import { buildSmsUri, isMobileForSms, openNativeSms } from "@/lib/sms"
-import { fetchJsonWithRetry } from "@/lib/fetchWithRetry"
+import SendSmsButton, { loadReviewSmsDraft } from "@/components/SendSmsButton"
 
 type Props = {
   clientNom: string
@@ -26,9 +25,8 @@ export default function TerrainAvisPanel({
 }: Props) {
   const [email, setEmail] = useState(clientEmail)
   const [telephone, setTelephone] = useState(clientTelephone)
-  const [busy, setBusy] = useState<"mail" | "sms" | null>(null)
+  const [busy, setBusy] = useState<"mail" | null>(null)
   const [mailOk, setMailOk] = useState(false)
-  const [smsUri, setSmsUri] = useState<string | null>(null)
 
   async function handleSendReviewMail() {
     const addr = email.trim()
@@ -55,40 +53,6 @@ export default function TerrainAvisPanel({
       const data = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`)
       setMailOk(true)
-    } catch (e) {
-      onError(e instanceof Error ? e.message : String(e))
-    } finally {
-      setBusy(null)
-    }
-  }
-
-  async function handleSendReviewSms() {
-    const phone = telephone.trim()
-    if (!phone || phone.replace(/\D/g, "").length < 10) {
-      onError("Saisis un numéro mobile valide pour le SMS avis.")
-      return
-    }
-    if (!isMobileForSms()) {
-      onError("Le SMS s'ouvre depuis un smartphone. Ouvre l'app sur ton téléphone.")
-      return
-    }
-    setBusy("sms")
-    onError("")
-    setSmsUri(null)
-    try {
-      const draft = await fetchJsonWithRetry<{ body: string }>("/api/notify-client/review-sms-draft", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          clientPhone: phone,
-          clientNom: clientNom.trim() || undefined,
-        }),
-        retries: 2,
-        timeoutMs: 20_000,
-      })
-      const uri = buildSmsUri(phone, draft.body)
-      setSmsUri(uri)
-      openNativeSms(phone, draft.body)
     } catch (e) {
       onError(e instanceof Error ? e.message : String(e))
     } finally {
@@ -149,24 +113,15 @@ export default function TerrainAvisPanel({
         >
           {busy === "mail" ? "Envoi…" : mailOk ? "✓ Mail avis envoyé" : "✉ Envoyer lien par mail"}
         </button>
-        <button
-          type="button"
-          onClick={handleSendReviewSms}
-          disabled={!!busy}
-          className="bg-white hover:bg-amber-100 disabled:opacity-50 text-amber-900 border-2 border-amber-300 rounded-xl py-3 font-bold text-sm transition"
-        >
-          {busy === "sms" ? "Ouverture…" : "💬 SMS lien avis"}
-        </button>
+        <SendSmsButton
+          variant="outline"
+          label="💬 SMS lien avis"
+          phone={telephone}
+          clientNom={clientNom.trim() || undefined}
+          loadMessage={() => loadReviewSmsDraft(telephone.trim(), clientNom.trim() || undefined)}
+          onError={onError}
+        />
       </div>
-
-      {smsUri && (
-        <a
-          href={smsUri}
-          className="block text-center text-sm font-bold text-amber-900 underline py-1"
-        >
-          Ouvrir le SMS si la messagerie ne s&apos;est pas lancée
-        </a>
-      )}
     </div>
   )
 }

@@ -2,12 +2,15 @@
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
+import SendSmsButton from "@/components/SendSmsButton"
 
 export type InterventionActionsHubProps = {
   interventionId: string
   hasRapport: boolean
   hasFacture: boolean
   clientEmail: string | null
+  clientTelephone?: string | null
+  clientNom?: string | null
   publieSlug: string | null
   /** Pré-rempli pour le bouton Aller à la facture si la facture n'existe pas encore. */
   onCreateFacture?: () => void
@@ -20,6 +23,8 @@ export default function InterventionActionsHub({
   hasRapport,
   hasFacture,
   clientEmail,
+  clientTelephone,
+  clientNom,
   publieSlug,
   onCreateFacture,
   publicBaseUrl = 'https://lestechniciensdudebouchage.fr/nos-realisations',
@@ -113,6 +118,14 @@ export default function InterventionActionsHub({
           accent="emerald"
           disabled={sendDisabled}
           onClick={() => setSendOpen(true)}
+        />
+
+        <SendSmsButton
+          variant="tile"
+          label="Envoyer SMS"
+          phone={clientTelephone || ''}
+          clientNom={clientNom || undefined}
+          reviewPreset
         />
 
         <ActionTile

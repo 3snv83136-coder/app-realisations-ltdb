@@ -627,6 +627,8 @@ export default function InterventionDetailPage({ params }: { params: { id: strin
           hasRapport={!!intervention.rapport_json && Object.keys(intervention.rapport_json || {}).length > 0}
           hasFacture={hasFacture}
           clientEmail={client?.email || null}
+          clientTelephone={client?.telephone || null}
+          clientNom={client?.nom || null}
           publieSlug={intervention.publie_slug}
           onCreateFacture={() => {
             if (!intervention.rapport_json) return
