@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { escapeHtml, initResend } from "@/lib/email-utils"
+import { buildUnsubscribeHeaders, escapeHtml, getReplyToEmail, htmlToText, initResend } from "@/lib/email-utils"
 import { parseAdditionalEmails } from "@/lib/email-regexp"
 import { planifierDevisAvecRelances } from "@/lib/devis-relance"
 import { fmtEUR } from "@/lib/format"
@@ -96,12 +96,16 @@ export async function POST(req: NextRequest) {
       const subject = numero
         ? `Votre devis ${numero}${ville ? ` — ${ville}` : ''}`
         : `Votre devis${ville ? ` — ${ville}` : ''}`
+      const htmlSimple = emailDevisSimple({ clientNom, technicienNom: tech, ville, dateDevis, numero, totalTTC, validiteJours, tel })
       const result = await resend.emails.send({
         from: `Les Techniciens du Débouchage <${fromEmail}>`,
         to: recipient,
+        replyTo: getReplyToEmail(),
         ...(additionalEmails.length ? { cc: additionalEmails } : {}),
         subject,
-        html: emailDevisSimple({ clientNom, technicienNom: tech, ville, dateDevis, numero, totalTTC, validiteJours, tel }),
+        html: htmlSimple,
+        text: htmlToText(htmlSimple),
+        headers: buildUnsubscribeHeaders(),
         attachments,
       })
       if (result.error) {
@@ -149,6 +153,22 @@ export async function POST(req: NextRequest) {
             await sb.from('interventions').update({ devis_relance_ids: reminderIds }).eq('id', interventionId)
           } catch { /* migration 018 non appliquée */ }
         }
+      }
+    }
+
+    // Devis sans intervention liée : on garde les IDs de relance dans le payload du
+    // document pour que « ✓ Accepté » (Devis > Tous) puisse aussi les stopper.
+    if (!interventionId && docId && reminderIds.length) {
+      try {
+        const { getSupabaseOrNull } = await import('@/lib/supabase')
+        const sb = getSupabaseOrNull()
+        if (sb) {
+          const { data: row } = await sb.from('documents').select('payload').eq('id', docId).maybeSingle()
+          const base = row?.payload && typeof row.payload === 'object' ? row.payload as Record<string, unknown> : {}
+          await sb.from('documents').update({ payload: { ...base, relance_ids: reminderIds } }).eq('id', docId)
+        }
+      } catch (e) {
+        console.error('[notify-devis] store relance_ids on document', e)
       }
     }
 

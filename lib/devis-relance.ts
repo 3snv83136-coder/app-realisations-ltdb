@@ -1,6 +1,6 @@
 import crypto from "crypto"
 import { Resend } from "resend"
-import { escapeHtml, getResendFromEmail, getResendRecipient } from "@/lib/email-utils"
+import { buildUnsubscribeHeaders, escapeHtml, getReplyToEmail, getResendFromEmail, getResendRecipient, htmlToText } from "@/lib/email-utils"
 import { parseAdditionalEmails } from "@/lib/email-regexp"
 import { fmtEUR } from "@/lib/format"
 import { getTelPrincipal } from "@/lib/parametres"
@@ -184,6 +184,7 @@ export async function planifierDevisAvecRelances(input: PlanifierDevisEnvoiInput
   const firstAt = anchor.getTime() > now + 60_000 ? anchor : new Date()
 
   const resend = new Resend(resendKey)
+  const replyTo = getReplyToEmail()
   const subjectBase = input.numero
     ? `Votre devis ${input.numero}${input.ville ? ` — ${input.ville}` : ""}`
     : `Votre devis${input.ville ? ` — ${input.ville}` : ""}`
@@ -196,33 +197,42 @@ export async function planifierDevisAvecRelances(input: PlanifierDevisEnvoiInput
 
   const isImmediate = firstAt.getTime() <= now + 60_000
 
+  const htmlSemaine2 = emailDevisRelanceSecteur({
+    clientNom: input.clientNom,
+    technicienNom: tech,
+    ville: input.ville,
+    numero: input.numero,
+    semaine: 2,
+    tel,
+  })
+  const htmlRistourne = emailDevisRelanceRistourne({
+    clientNom: input.clientNom,
+    technicienNom: tech,
+    ville: input.ville,
+    numero: input.numero,
+    totalTTC: input.totalTTC,
+    tel,
+  })
+
   const relances = await Promise.all([
     resend.emails.send({
       from: `Les Techniciens du Débouchage <${fromEmail}>`,
       to: recipient,
+      replyTo,
       subject: `Rappel devis${input.numero ? ` ${input.numero}` : ""} — semaine 2`,
-      html: emailDevisRelanceSecteur({
-        clientNom: input.clientNom,
-        technicienNom: tech,
-        ville: input.ville,
-        numero: input.numero,
-        semaine: 2,
-        tel,
-      }),
+      html: htmlSemaine2,
+      text: htmlToText(htmlSemaine2),
+      headers: buildUnsubscribeHeaders(),
       scheduledAt: scheduleAt(1),
     }),
     resend.emails.send({
       from: `Les Techniciens du Débouchage <${fromEmail}>`,
       to: recipient,
+      replyTo,
       subject: `Dernière relance devis${input.numero ? ` ${input.numero}` : ""} — -10 % si accord immédiat`,
-      html: emailDevisRelanceRistourne({
-        clientNom: input.clientNom,
-        technicienNom: tech,
-        ville: input.ville,
-        numero: input.numero,
-        totalTTC: input.totalTTC,
-        tel,
-      }),
+      html: htmlRistourne,
+      text: htmlToText(htmlRistourne),
+      headers: buildUnsubscribeHeaders(),
       scheduledAt: scheduleAt(2),
     }),
   ])
@@ -235,22 +245,26 @@ export async function planifierDevisAvecRelances(input: PlanifierDevisEnvoiInput
   const stopUrl = buildStopUrl(input.baseUrl, reminderIds, signSecret)
 
   let immediateId: string | undefined
+  const htmlSemaine1 = emailDevisSemaine1({
+    clientNom: input.clientNom,
+    technicienNom: tech,
+    ville: input.ville,
+    dateDevis: input.dateDevis,
+    numero: input.numero,
+    totalTTC: input.totalTTC,
+    validiteJours: input.validiteJours,
+    tel,
+    stopUrl: stopUrl || undefined,
+  })
   const firstPayload = {
     from: `Les Techniciens du Débouchage <${fromEmail}>` as const,
     to: recipient,
+    replyTo,
     ...(cc.length ? { cc } : {}),
     subject: subjectBase,
-    html: emailDevisSemaine1({
-      clientNom: input.clientNom,
-      technicienNom: tech,
-      ville: input.ville,
-      dateDevis: input.dateDevis,
-      numero: input.numero,
-      totalTTC: input.totalTTC,
-      validiteJours: input.validiteJours,
-      tel,
-      stopUrl: stopUrl || undefined,
-    }),
+    html: htmlSemaine1,
+    text: htmlToText(htmlSemaine1),
+    headers: buildUnsubscribeHeaders(stopUrl || undefined),
     attachments,
     ...(isImmediate ? {} : { scheduledAt: firstAt.toISOString() }),
   }

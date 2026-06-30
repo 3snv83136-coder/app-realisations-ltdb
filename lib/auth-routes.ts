@@ -23,6 +23,7 @@ const TECH_API_PREFIXES = [
   "/api/notify-client",
   "/api/proxy-image",
   "/api/siret",
+  "/api/sms",
   "/api/health",
 ] as const
 

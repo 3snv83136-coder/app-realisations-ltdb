@@ -38,6 +38,49 @@ export function getResendRecipient(clientEmail: string): string {
   return process.env.RESEND_TEST_EMAIL || clientEmail
 }
 
+/**
+ * Adresse de réponse (Reply-To) : les réponses des clients y arrivent.
+ * Améliore aussi la délivrabilité (en-tête présent, cohérent avec le domaine).
+ */
+export function getReplyToEmail(): string {
+  return process.env.RESEND_REPLY_TO || 'contact@lestechniciensdudebouchage.fr'
+}
+
+/**
+ * En-têtes anti-spam recommandés (List-Unsubscribe) : Gmail/Outlook les exigent
+ * de plus en plus pour les emails de relance. `stopUrl` = lien de désinscription
+ * (si disponible), complété d'un repli mailto.
+ */
+export function buildUnsubscribeHeaders(stopUrl?: string): Record<string, string> {
+  const mailto = `mailto:${getReplyToEmail()}?subject=STOP`
+  const value = stopUrl ? `<${stopUrl}>, <${mailto}>` : `<${mailto}>`
+  return { 'List-Unsubscribe': value }
+}
+
+/**
+ * Conversion HTML → texte brut (basique) pour fournir une alternative `text`
+ * aux emails. Un email multipart (HTML + texte) est nettement moins souvent
+ * classé en spam qu'un email HTML seul.
+ */
+export function htmlToText(html: string): string {
+  return String(html || '')
+    .replace(/<style[\s\S]*?<\/style>/gi, '')
+    .replace(/<head[\s\S]*?<\/head>/gi, '')
+    .replace(/<br\s*\/?>(?=)/gi, '\n')
+    .replace(/<\/(p|div|tr|h1|h2|h3|li)>/gi, '\n')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&#39;/g, "'")
+    .replace(/&quot;/g, '"')
+    .replace(/\n{3,}/g, '\n\n')
+    .replace(/[ \t]{2,}/g, ' ')
+    .split('\n').map(l => l.trim()).join('\n')
+    .trim()
+}
+
 /** Message d'aide si Resend rejette l'envoi (domaine non vérifié, sandbox, etc.). */
 export function resendErrorHint(payload: unknown): string | undefined {
   if (!payload || typeof payload !== "object") return undefined
