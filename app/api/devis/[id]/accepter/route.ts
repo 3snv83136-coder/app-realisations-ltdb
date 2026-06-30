@@ -34,6 +34,15 @@ function buildReference(): string {
   return `LTDB-${now.getFullYear()}${p(now.getMonth() + 1)}${p(now.getDate())}-${p(now.getHours())}${p(now.getMinutes())}`
 }
 
+type ClientRow = {
+  id: string
+  nom: string | null
+  telephone: string | null
+  adresse: string | null
+  code_postal: string | null
+  ville: string | null
+}
+
 /**
  * Marque un devis comme accepté :
  *  1. stoppe toutes les relances (devis + avis) encore planifiées,
@@ -92,21 +101,14 @@ export async function POST(req: NextRequest, { params }: Params) {
   await sb.from("documents").update({ statut: "accepte", payload }).eq("id", id)
 
   // Client (pour création d'intervention + éventuel SMS de confirmation).
-  let client: {
-    id: string
-    nom: string | null
-    telephone: string | null
-    adresse: string | null
-    code_postal: string | null
-    ville: string | null
-  } | null = null
+  let client: ClientRow | null = null
   if (doc.client_id) {
     const { data: c } = await sb
       .from("clients")
       .select("id, nom, telephone, adresse, code_postal, ville")
       .eq("id", doc.client_id)
       .maybeSingle()
-    client = c as typeof client
+    if (c) client = c as ClientRow
   }
 
   // 3. Création de l'intervention si nécessaire ---------------------------------
