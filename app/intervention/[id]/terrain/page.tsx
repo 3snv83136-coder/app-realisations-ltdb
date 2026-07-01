@@ -18,7 +18,6 @@ import { buildSmsUri, isMobileForSms, openNativeSms } from "@/lib/sms"
 import { isDevisIntervention } from "@/lib/types-intervention"
 import { isAccordFinDeMois } from "@/lib/fin-de-mois"
 import { getTravauxSupplementaires } from "@/lib/travaux-supplementaires"
-import TerrainAvisPanel from "@/components/terrain/TerrainAvisPanel"
 import RapportOfflineBanner from "@/components/rapport/RapportOfflineBanner"
 import VideoUploadPanel from "@/components/VideoUploadPanel"
 import { CATALOGUE_PRESTATIONS } from "@/lib/catalogue-prestations"
@@ -1197,14 +1196,6 @@ function StepFacture({ interv, client, onCreated, onError }: {
           <span className="font-black text-lg tabular-nums text-blue-900">{totalTTC.toFixed(2)} €</span>
         </div>
       </div>
-
-      <TerrainAvisPanel
-        clientNom={client?.nom || ''}
-        clientEmail={client?.email || ''}
-        clientTelephone={client?.telephone || ''}
-        ville={interv.ville}
-        onError={onError}
-      />
 
       <button
         type="button"
