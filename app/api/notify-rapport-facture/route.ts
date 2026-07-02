@@ -6,6 +6,7 @@ import { EMAIL_RE } from "@/lib/email-utils"
 import { getSessionUser, assertInterventionAccess, requireInterventionAccess } from "@/lib/intervention-access"
 import {
   isFactureReglee,
+  isFacturePayeeOuReglee,
   mergeFacturePayloadMeta,
   planifierFactureRelances,
 } from "@/lib/facture-relance"
@@ -159,7 +160,7 @@ export async function POST(req: NextRequest) {
   const reference = interv.reference || interv.id.slice(0, 8)
   const factureNum = facture.numero || ''
   const totalTTC = typeof facture.montant_ttc === 'number' ? facture.montant_ttc : null
-  const factureReglee = isFactureReglee(facture.echeance)
+  const factureReglee = isFacturePayeeOuReglee(facture.statut, facture.echeance)
   const dateFacture = facture.date_emission || dateInterv
 
   const tel = await getTelPrincipal()

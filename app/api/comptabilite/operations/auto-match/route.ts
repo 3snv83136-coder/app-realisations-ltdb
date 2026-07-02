@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { resoudreAffectation } from "@/lib/compta-affectation"
 import { bornesMois } from "@/lib/compta-kpis"
 import { suggererRapprochements } from "@/lib/compta-rapprochement"
+import { marquerFacturePayee } from "@/lib/facture-relance"
 import { getSupabaseOrNull } from "@/lib/supabase"
 
 export const dynamic = "force-dynamic"
@@ -132,7 +133,7 @@ export async function POST(req: NextRequest) {
     }
 
     if (s.type === "recette") {
-      await sb.from("documents").update({ statut: "paye", updated_at: now }).eq("id", s.cible_id)
+      await marquerFacturePayee(s.cible_id)
     }
     matched++
   }

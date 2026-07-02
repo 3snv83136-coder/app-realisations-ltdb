@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { escapeHtml, initResend } from "@/lib/email-utils"
 import { fmtEUR } from "@/lib/format"
 import {
-  isFactureReglee,
+  isFacturePayeeOuReglee,
   JOURS_RELANCE_FACTURE,
   planifierFactureRelances,
 } from "@/lib/facture-relance"
@@ -76,7 +76,10 @@ export async function POST(req: NextRequest) {
   let relanceIds: string[] = []
   let relanceErrors: string[] = []
 
-  const reglee = isFactureReglee(echeance)
+  const reglee = isFacturePayeeOuReglee(
+    typeof facture === "object" && facture && "statut" in facture ? String((facture as { statut?: string }).statut) : null,
+    echeance,
+  )
   const baseUrl =
     process.env.NEXTAUTH_URL ||
     process.env.NEXT_PUBLIC_APP_URL ||

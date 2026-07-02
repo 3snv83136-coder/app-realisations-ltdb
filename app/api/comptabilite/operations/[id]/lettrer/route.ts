@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { libelleEcriture, resoudreAffectation } from "@/lib/compta-affectation"
+import { marquerFacturePayee } from "@/lib/facture-relance"
 import { getSupabaseOrNull } from "@/lib/supabase"
 
 export const dynamic = "force-dynamic"
@@ -99,7 +100,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
   if (lettre && body.document_id) {
-    await sb.from("documents").update({ statut: "paye", updated_at: now }).eq("id", body.document_id)
+    await marquerFacturePayee(body.document_id)
   }
 
   const montant = credit > 0 ? credit : debit

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getSupabaseOrNull, type DocumentStatut } from "@/lib/supabase"
 import { cascadeDeleteDocument } from "@/lib/cascadeDelete"
-import { annulerRelancesFacture } from "@/lib/facture-relance"
+import { annulerRelancesFacture, marquerFacturePayee } from "@/lib/facture-relance"
 
 export const dynamic = 'force-dynamic'
 
@@ -138,12 +138,29 @@ export async function PATCH(
     return NextResponse.json({ error: 'Aucun champ à mettre à jour' }, { status: 400 })
   }
 
-  if (update.statut === 'paye' || update.statut === 'annule') {
+  if (update.statut === 'paye') {
+    try {
+      await marquerFacturePayee(id)
+      delete update.statut
+    } catch (e) {
+      console.error('[historique PATCH] marquer facture payée', e)
+    }
+  } else if (update.statut === 'annule') {
     try {
       await annulerRelancesFacture(id)
     } catch (e) {
       console.error('[historique PATCH] annuler relances facture', e)
     }
+  }
+
+  if (Object.keys(update).length === 0) {
+    const { data, error } = await sb
+      .from('documents')
+      .select('id, statut, envoye_at, envoye_email')
+      .eq('id', id)
+      .single()
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json({ ok: true, document: data })
   }
 
   const { data, error } = await sb

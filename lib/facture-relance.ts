@@ -24,6 +24,11 @@ export function isFactureReglee(echeance?: string | null): boolean {
   return /^r[ée]gl[ée]e?$/i.test((echeance || "").trim())
 }
 
+/** Facture sans relance paiement : statut payé en base OU échéance « réglée ». */
+export function isFacturePayeeOuReglee(statut?: string | null, echeance?: string | null): boolean {
+  return statut === "paye" || isFactureReglee(echeance)
+}
+
 export function mergeFacturePayloadMeta(
   facture: Record<string, unknown>,
   meta: { relance_ids?: string[]; relance_planifiees?: number },
@@ -71,6 +76,69 @@ export async function annulerRelancesFacture(documentId: string): Promise<number
     .eq("id", documentId)
 
   return canceled
+}
+
+/**
+ * Marque une facture payée et annule toutes ses relances Resend planifiées.
+ * À utiliser partout où le statut passe à « paye » (historique, compta…).
+ */
+export async function marquerFacturePayee(documentId: string): Promise<number> {
+  const canceled = await annulerRelancesFacture(documentId)
+  const sb = getSupabaseOrNull()
+  if (sb) {
+    await sb
+      .from("documents")
+      .update({ statut: "paye", updated_at: new Date().toISOString() })
+      .eq("id", documentId)
+      .eq("type", "facture")
+  }
+  return canceled
+}
+
+export type AnnulerRelancesPayeesResult = {
+  facturesPayees: number
+  avecRelances: number
+  relancesAnnulees: number
+  details: Array<{ id: string; numero: string | null; canceled: number }>
+}
+
+/**
+ * Rétroactif : annule les relances encore planifiées sur toutes les factures
+ * déjà marquées payées (ou échéance « réglée ») en base.
+ */
+export async function annulerRelancesToutesFacturesPayees(): Promise<AnnulerRelancesPayeesResult> {
+  const sb = getSupabaseOrNull()
+  if (!sb) {
+    return { facturesPayees: 0, avecRelances: 0, relancesAnnulees: 0, details: [] }
+  }
+
+  const { data: factures } = await sb
+    .from("documents")
+    .select("id, numero, statut, echeance, payload")
+    .eq("type", "facture")
+    .in("statut", ["paye", "envoye", "brouillon"])
+
+  const eligible = (factures || []).filter(
+    f => isFacturePayeeOuReglee(f.statut, f.echeance) && relanceIdsFromPayload(f.payload).length > 0,
+  )
+
+  let relancesAnnulees = 0
+  const details: AnnulerRelancesPayeesResult["details"] = []
+
+  for (const f of eligible) {
+    const canceled = await annulerRelancesFacture(f.id)
+    relancesAnnulees += canceled
+    details.push({ id: f.id, numero: f.numero, canceled })
+  }
+
+  const payeesCount = (factures || []).filter(f => isFacturePayeeOuReglee(f.statut, f.echeance)).length
+
+  return {
+    facturesPayees: payeesCount,
+    avecRelances: eligible.length,
+    relancesAnnulees,
+    details,
+  }
 }
 
 function buildStopUrl(baseUrl: string, reminderIds: string[], secret: string): string {
