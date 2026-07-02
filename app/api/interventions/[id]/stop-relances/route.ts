@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { Resend } from "resend"
 import { requireInterventionAccess } from "@/lib/intervention-access"
+import { annulerRelancesAvis } from "@/lib/avis-relance"
 import { getSupabaseOrNull } from "@/lib/supabase"
 
 export const dynamic = "force-dynamic"
@@ -16,7 +17,7 @@ const COLUMN: Record<RelanceType, string> = {
 /**
  * Annule depuis l'app les relances automatiques planifiées (avis Google ou
  * devis) pour une intervention — typiquement quand le client a laissé son avis
- * ou accepté le devis. Annule les emails Resend programmés puis vide la liste.
+ * ou accepté le devis.
  */
 export async function POST(req: NextRequest, { params }: Params) {
   const interventionId = params.id
@@ -39,13 +40,26 @@ export async function POST(req: NextRequest, { params }: Params) {
     return NextResponse.json({ error: "type doit être 'avis' ou 'devis'" }, { status: 400 })
   }
 
+  if (type === "avis") {
+    const r = await annulerRelancesAvis(interventionId)
+    const total = r.emailsCanceled + r.smsCanceled
+    return NextResponse.json({
+      ok: true,
+      type,
+      total,
+      canceled: total,
+      emailsCanceled: r.emailsCanceled,
+      smsCanceled: r.smsCanceled,
+    })
+  }
+
   const sb = getSupabaseOrNull()
   if (!sb) return NextResponse.json({ error: "Supabase non configuré" }, { status: 500 })
 
   const column = COLUMN[type]
   const { data: interv, error: readErr } = await sb
     .from("interventions")
-    .select("id, avis_relance_ids, devis_relance_ids")
+    .select("id, devis_relance_ids")
     .eq("id", interventionId)
     .maybeSingle()
   if (readErr) return NextResponse.json({ error: readErr.message }, { status: 500 })
@@ -54,7 +68,6 @@ export async function POST(req: NextRequest, { params }: Params) {
   const row = interv as unknown as Record<string, unknown>
   const ids: string[] = Array.isArray(row[column]) ? (row[column] as string[]) : []
 
-  // Annulation Resend (best-effort).
   let canceled = 0
   const resendKey = process.env.RESEND_API_KEY
   if (resendKey && ids.length > 0) {
@@ -69,14 +82,12 @@ export async function POST(req: NextRequest, { params }: Params) {
     }
   }
 
-  // Vide la liste + marque l'état correspondant.
-  const update: Record<string, unknown> = { [column]: [] }
-  if (type === "avis") update.avis_recu = true
-  if (type === "devis") update.devis_accepte_at = new Date().toISOString()
-
   const { error: updErr } = await sb
     .from("interventions")
-    .update(update)
+    .update({
+      devis_relance_ids: [],
+      devis_accepte_at: new Date().toISOString(),
+    })
     .eq("id", interventionId)
   if (updErr) return NextResponse.json({ error: updErr.message }, { status: 500 })
 

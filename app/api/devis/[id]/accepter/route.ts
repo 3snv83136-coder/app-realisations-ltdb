@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { Resend } from "resend"
 import { getSupabaseOrNull } from "@/lib/supabase"
 import { detectTypeIntervention } from "@/lib/types-intervention"
-import { isTwilioSmsConfigured, sendSmsTwilio } from "@/lib/sms-twilio"
+import { isSmsConfigured, sendSms } from "@/lib/sms-provider"
 import { getTelPrincipal } from "@/lib/parametres"
 
 export const dynamic = "force-dynamic"
@@ -213,18 +213,18 @@ export async function POST(req: NextRequest, { params }: Params) {
     await sb.from("documents").update({ intervention_id: interventionId }).eq("id", id)
   }
 
-  // 4. SMS de confirmation au client (best-effort, uniquement si Twilio configuré) -
+  // 4. SMS de confirmation au client (best-effort, Brevo ou Twilio) -
   let smsSent = false
-  if (isTwilioSmsConfigured() && client?.telephone) {
+  if (isSmsConfigured() && client?.telephone) {
     try {
       const tel = await getTelPrincipal()
       const num = doc.numero ? ` ${doc.numero}` : ""
       const message =
         `Les Techniciens du Debouchage : votre devis${num} est bien valide. `
         + `Nous planifions votre intervention. Une question ? ${tel}`
-      const r = await sendSmsTwilio({ to: client.telephone, content: message })
+      const r = await sendSms({ to: client.telephone, content: message })
       smsSent = r.ok
-      if (!r.ok) console.error("[devis/accepter] SMS Twilio", r.error)
+      if (!r.ok) console.error("[devis/accepter] SMS", r.error)
     } catch (e) {
       console.error("[devis/accepter] SMS", e)
     }

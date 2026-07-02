@@ -97,7 +97,7 @@ export default function RelancesControl({
             <p className="text-xs text-emerald-700 mt-1 font-semibold">✓ Avis reçu — relances stoppées</p>
           ) : avisCount > 0 ? (
             <>
-              <p className="text-xs text-slate-500 mt-1">{avisCount} relance{avisCount > 1 ? 's' : ''} programmée{avisCount > 1 ? 's' : ''}.</p>
+              <p className="text-xs text-slate-500 mt-1">{avisCount} relance{avisCount > 1 ? 's' : ''} programmée{avisCount > 1 ? 's' : ''} (SMS + mail).</p>
               <button
                 type="button"
                 onClick={() => stop('avis')}

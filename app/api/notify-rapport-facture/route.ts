@@ -1,8 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import crypto from "crypto"
-import { escapeHtml, initResend, resendErrorHint } from "@/lib/email-utils"
-import { fmtEUR } from "@/lib/format"
-import { EMAIL_RE } from "@/lib/email-utils"
+import { escapeHtml, initResend, resendErrorHint, EMAIL_RE } from "@/lib/email-utils"
 import { getSessionUser, assertInterventionAccess, requireInterventionAccess } from "@/lib/intervention-access"
 import {
   isFactureReglee,
@@ -10,6 +7,7 @@ import {
   mergeFacturePayloadMeta,
   planifierFactureRelances,
 } from "@/lib/facture-relance"
+import { planifierAvisRelances } from "@/lib/avis-relance"
 import { buildRapportFactureHtml } from "@/lib/rapport-facture-message"
 import { getSupabaseOrNull } from "@/lib/supabase"
 import { getTelPrincipal } from "@/lib/parametres"
@@ -24,10 +22,6 @@ function getBaseUrl(req: NextRequest): string {
     || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "")
   if (configured) return configured.replace(/\/+$/, "")
   return req.nextUrl.origin.replace(/\/+$/, "")
-}
-
-function signStopPayload(payload: string, exp: number, secret: string): string {
-  return crypto.createHmac("sha256", secret).update(`${payload}.${exp}`).digest("hex")
 }
 
 async function fetchPdfAsBase64(url: string, sb: ReturnType<typeof getSupabaseOrNull>): Promise<string | null> {
@@ -111,13 +105,18 @@ export async function POST(req: NextRequest) {
 
   let clientNom = ''
   let clientEmailFromDb = ''
+  let clientPhone = ''
   if (interv.client_id) {
     const { data: cl } = await sb
       .from('clients')
-      .select('nom, email')
+      .select('nom, email, telephone')
       .eq('id', interv.client_id)
       .single()
-    if (cl) { clientNom = cl.nom || ''; clientEmailFromDb = cl.email || '' }
+    if (cl) {
+      clientNom = cl.nom || ''
+      clientEmailFromDb = cl.email || ''
+      clientPhone = cl.telephone || ''
+    }
   }
   const clientEmail = (body.clientEmail || clientEmailFromDb).trim()
   if (!clientEmail) {
@@ -177,38 +176,37 @@ export async function POST(req: NextRequest) {
     if (paramRow?.valeur) reviewUrl = paramRow.valeur
   } catch { /* best-effort */ }
 
-  // Relances avis planifiées avant le mail principal (best-effort — n'interrompt jamais l'envoi).
-  const days = [2, 4, 6]
+  // Relances avis : J+1 SMS, J+2 mail, J+4 SMS, J+6 mail (best-effort).
   let relanceIds: string[] = []
+  let smsPlanned = 0
+  let avisRelanceErrors: string[] = []
+  let stopUrl = ''
   if (!skipReviews) {
     try {
-      const followUps = await Promise.all(
-        days.map(d => {
-          const scheduledAt = new Date(Date.now() + d * 24 * 60 * 60 * 1000).toISOString()
-          return resend.emails.send({
-            from: `Les Techniciens du Débouchage <${fromEmail}>`,
-            to: recipient,
-            subject: relanceSubject(d, (clientNom || 'Client').split(' ').slice(-1)[0]),
-            html: emailRelance({ clientNom, technicienNom, ville, reviewUrl, jour: d, tel }),
-            scheduledAt,
-          })
-        }),
-      )
-      relanceIds = followUps.map(f => f.data?.id).filter(Boolean) as string[]
+      const signSecret = process.env.REVIEW_STOP_SECRET || process.env.NEXTAUTH_SECRET || process.env.RESEND_API_KEY || ''
+      const rel = await planifierAvisRelances({
+        interventionId,
+        baseUrl: getBaseUrl(req),
+        resend,
+        fromEmail,
+        recipient,
+        clientPhone,
+        clientNom,
+        technicienNom,
+        ville,
+        reviewUrl,
+        tel,
+        signSecret,
+      })
+      relanceIds = rel.emailIds
+      smsPlanned = rel.smsPlanned
+      avisRelanceErrors = rel.errors
+      stopUrl = rel.stopUrl
     } catch (e) {
       console.error("[notify-rapport-facture] relances avis", e)
+      avisRelanceErrors.push(e instanceof Error ? e.message : String(e))
     }
   }
-
-  const signSecret = process.env.REVIEW_STOP_SECRET || process.env.NEXTAUTH_SECRET || process.env.RESEND_API_KEY || ''
-  const stopExp = Date.now() + 10 * 24 * 60 * 60 * 1000
-  const stopPayload = relanceIds.length > 0
-    ? Buffer.from(JSON.stringify({ ids: relanceIds }), 'utf-8').toString('base64url')
-    : ''
-  const stopSig = stopPayload && signSecret ? signStopPayload(stopPayload, stopExp, signSecret) : ''
-  const stopUrl = stopPayload && stopSig
-    ? `${getBaseUrl(req)}/api/notify-client/stop-review?p=${encodeURIComponent(stopPayload)}&exp=${stopExp}&sig=${stopSig}`
-    : ''
 
   const subject = `Votre rapport et facture${factureNum ? ` ${factureNum}` : ''}${ville ? ` — ${ville}` : ''}`
 
@@ -306,7 +304,7 @@ export async function POST(req: NextRequest) {
       .update({
         mail_envoye_at: new Date().toISOString(),
         terrain_step: 7,
-        ...(relanceIds.length ? { avis_relance_ids: relanceIds } : {}),
+        ...(relanceIds.length || smsPlanned ? { avis_relance_ids: relanceIds } : {}),
       })
       .eq('id', interventionId)
   } catch {}
@@ -315,6 +313,8 @@ export async function POST(req: NextRequest) {
     ok: true,
     immediate_id: immediate.data?.id,
     followUp_ids: relanceIds,
+    avis_sms_planifies: smsPlanned,
+    ...(avisRelanceErrors.length ? { avis_relance_warnings: avisRelanceErrors } : {}),
     owner_confirmation: ownerConfirmation.sent,
     ...(ownerConfirmation.error ? { owner_confirmation_warning: ownerConfirmation.error } : {}),
     ...(!factureReglee ? {
@@ -323,48 +323,4 @@ export async function POST(req: NextRequest) {
       ...(factureRelanceErrors.length ? { facture_relance_warnings: factureRelanceErrors } : {}),
     } : {}),
   })
-}
-
-function relanceSubject(jour: number, prenom: string) {
-  if (jour === 2) return `${prenom}, tout est rentré dans l'ordre ?`
-  if (jour === 4) return `Un petit avis pour Les Techniciens du Débouchage ?`
-  return `Dernière chance — partagez votre expérience`
-}
-
-function emailRelance({ clientNom, technicienNom, ville, reviewUrl, jour, tel }: { clientNom: string; technicienNom: string; ville: string; reviewUrl: string; jour: number; tel: string }) {
-  const cn = escapeHtml(clientNom || 'Madame, Monsieur')
-  const tn = escapeHtml(technicienNom)
-  const v = escapeHtml(ville)
-  const ru = encodeURI(reviewUrl)
-  const accroche = jour === 2
-    ? `Nous espérons que tout est rentré dans l'ordre depuis notre intervention${v ? ` à ${v}` : ''}.`
-    : jour === 4
-    ? `Votre satisfaction est notre priorité. Un petit retour de votre part ferait toute la différence.`
-    : `Nous ne voudrions pas vous solliciter davantage — c'est la dernière fois.`
-
-  return `<!doctype html>
-<html><body style="margin:0;padding:0;font-family:Arial,sans-serif;background:#f4f6fa">
-<table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f6fa;padding:30px 0">
-  <tr><td align="center">
-    <table width="560" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:8px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,.08)">
-      <tr><td style="background:#0e2a52;padding:24px;color:#fff;text-align:center">
-        <div style="font-size:36px">⭐⭐⭐⭐⭐</div>
-        <h1 style="margin:10px 0 0;font-size:20px">Votre avis compte pour nous</h1>
-      </td></tr>
-      <tr><td style="padding:30px;color:#1a1a1a">
-        <p>Bonjour ${cn},</p>
-        <p>${accroche}</p>
-        <p>Une petite étoile prend moins d'<strong>une minute</strong> et nous aide énormément.</p>
-        <div style="text-align:center;margin:30px 0">
-          <a href="${ru}" style="display:inline-block;background:#e67e22;color:#fff;padding:14px 32px;text-decoration:none;border-radius:8px;font-weight:bold;font-size:15px">⭐ Laisser un avis sur Google</a>
-        </div>
-        <p style="font-size:13px;color:#666">Merci pour votre confiance,<br><strong>${tn}</strong> — Expert en assainissement</p>
-      </td></tr>
-      <tr><td style="background:#0e2a52;color:#a0c0ff;padding:14px;text-align:center;font-size:11px">
-        Les Techniciens du Débouchage · ${escapeHtml(tel)}
-      </td></tr>
-    </table>
-  </td></tr>
-</table>
-</body></html>`
 }

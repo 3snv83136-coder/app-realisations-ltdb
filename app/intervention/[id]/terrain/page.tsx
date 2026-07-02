@@ -1965,9 +1965,9 @@ function TerrainDiffusionPanel({ interv, client, onRefresh, onError, techOnlyMai
         <div className="text-sm text-slate-700 space-y-1 pt-2">
           <div>📄 Rapport d&apos;intervention (PDF)</div>
           <div>🧾 Facture (PDF)</div>
-          <div>⭐ Demande d&apos;avis Google (mail)</div>
+          <div>⭐ Demande d&apos;avis Google</div>
           <div className="text-xs text-slate-500 pt-1">
-            Mail : avis Google J+2/4/6 · facture impayée : relances J+10/15/20 · SMS via votre téléphone
+            Avis : J+1 SMS · J+2 mail · J+4 SMS · J+6 mail (Brevo) · facture impayée : relances J+10/15/20
           </div>
         </div>
       </div>

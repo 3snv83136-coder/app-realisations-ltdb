@@ -1,19 +1,22 @@
 import { NextRequest, NextResponse } from "next/server"
-import { isTwilioSmsConfigured, sendSmsTwilio } from "@/lib/sms-twilio"
+import { isSmsConfigured, sendSms, smsProviderName } from "@/lib/sms-provider"
 
 export const dynamic = "force-dynamic"
 export const maxDuration = 20
 
 /** État de configuration (pour afficher/masquer les boutons SMS côté UI). */
 export async function GET() {
-  return NextResponse.json({ configured: isTwilioSmsConfigured() })
+  return NextResponse.json({
+    configured: isSmsConfigured(),
+    provider: smsProviderName(),
+  })
 }
 
 /** Envoi d'un SMS. Body : { to: string, message: string } */
 export async function POST(req: NextRequest) {
-  if (!isTwilioSmsConfigured()) {
+  if (!isSmsConfigured()) {
     return NextResponse.json(
-      { error: "SMS non configuré : ajoute TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN et TWILIO_FROM sur Vercel." },
+      { error: "SMS non configuré : ajoute BREVO_API_KEY (+ BREVO_SMS_SENDER) ou Twilio sur Vercel." },
       { status: 400 },
     )
   }
@@ -31,7 +34,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Champs requis : to, message" }, { status: 400 })
   }
 
-  const r = await sendSmsTwilio({ to, content: message })
+  const r = await sendSms({ to, content: message })
   if (!r.ok) return NextResponse.json({ error: r.error }, { status: 500 })
-  return NextResponse.json({ ok: true, messageId: r.messageId, status: r.status })
+  return NextResponse.json({ ok: true, messageId: r.messageId, provider: r.provider })
 }

@@ -8,6 +8,7 @@ import VilleCombobox from "@/components/VilleCombobox"
 import { fmtDateFR, fmtEUR } from "@/lib/format"
 import { CANAUX_ACQUISITION, canalIcon, canalLabel } from "@/lib/canaux"
 import { TYPES_INTERVENTION, isDevisIntervention } from "@/lib/types-intervention"
+import { countAvisRelancesPendantes } from "@/lib/avis-relance-utils"
 
 const InterventionMap = dynamic(() => import('@/components/InterventionMap'), { ssr: false })
 const InterventionRapportDownloadButton = dynamic(
@@ -74,6 +75,7 @@ type InterventionDetail = {
   avis_relance_at: string | null
   avis_recu: boolean | null
   avis_relance_ids: string[] | null
+  avis_sms_plan: unknown
   devis_relance_ids: string[] | null
   devis_accepte_at: string | null
   photos_legendes: string[] | null
@@ -654,7 +656,7 @@ export default function InterventionDetailPage({ params }: { params: { id: strin
         {!editing ? (
           <RelancesControl
             interventionId={intervention.id}
-            avisRelanceCount={intervention.avis_relance_ids?.length || 0}
+            avisRelanceCount={countAvisRelancesPendantes(intervention.avis_relance_ids, intervention.avis_sms_plan)}
             devisRelanceCount={intervention.devis_relance_ids?.length || 0}
             avisRecu={!!intervention.avis_recu}
             devisAccepteAt={intervention.devis_accepte_at}
