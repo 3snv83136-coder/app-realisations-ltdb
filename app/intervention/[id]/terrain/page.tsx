@@ -1555,7 +1555,7 @@ function StepDevisOption({ interv, client, onContinue, onError }: {
 // ============================================================
 // ÉTAPE 6 — Diffusion (mail, site, GMB, YouTube) — actions indépendantes
 // ============================================================
-type DiffusionAction = 'mail' | 'sms' | 'site' | 'gmb' | 'youtube' | null
+type DiffusionAction = 'mail' | 'sms' | 'review-sms' | 'site' | 'gmb' | 'youtube' | null
 
 async function waitTerrainPdfsReady(intervId: string, onProgress: (msg: string) => void, maxWaitMs = 130_000): Promise<void> {
   const started = Date.now()
@@ -1658,8 +1658,11 @@ function TerrainDiffusionPanel({ interv, client, onRefresh, onError, techOnlyMai
   const [gmbOk, setGmbOk] = useState(false)
   const [youtubeUrl, setYoutubeUrl] = useState(interv.video_youtube_url || '')
   const [smsOpenUri, setSmsOpenUri] = useState<string | null>(null)
+  const [reviewSmsDone, setReviewSmsDone] = useState(false)
+  const [smsApiConfigured, setSmsApiConfigured] = useState(false)
   const mailRef = useRef(false)
   const smsRef = useRef(false)
+  const reviewSmsRef = useRef(false)
 
   useWakeLock(!!busy)
 
@@ -1676,6 +1679,13 @@ function TerrainDiffusionPanel({ interv, client, onRefresh, onError, techOnlyMai
   useEffect(() => {
     setSmsOpenUri(null)
   }, [telephone])
+
+  useEffect(() => {
+    fetch('/api/sms', { cache: 'no-store' })
+      .then(r => r.json())
+      .then(j => setSmsApiConfigured(!!j.configured))
+      .catch(() => setSmsApiConfigured(false))
+  }, [])
 
   const mailDone = !!interv.mail_envoye_at
   const smsDone = !!interv.sms_envoye_at
@@ -1798,6 +1808,45 @@ function TerrainDiffusionPanel({ interv, client, onRefresh, onError, techOnlyMai
     } finally {
       setBusy(null)
       smsRef.current = false
+    }
+  }
+
+  async function handleSendReviewSms() {
+    if (reviewSmsRef.current || busy) return
+    const phone = telephone.trim()
+    if (!phone || phone.replace(/\D/g, '').length < 10) {
+      onError('Saisis un numéro de mobile valide pour le SMS avis Google.')
+      return
+    }
+    if (!smsApiConfigured) {
+      onError('Brevo SMS non configuré (BREVO_API_KEY manquante sur le serveur).')
+      return
+    }
+    reviewSmsRef.current = true
+    setBusy('review-sms')
+    onError('')
+    setProgress('⭐ Envoi SMS avis Google…')
+
+    try {
+      await linkClientBestEffort()
+      const res = await fetch(`/api/interventions/${interv.id}/send-review-sms`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          clientPhone: phone,
+          clientNom: nom.trim() || undefined,
+        }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`)
+      setReviewSmsDone(true)
+      setProgress('✓ SMS avis Google envoyé (Brevo)')
+    } catch (e) {
+      onError(e instanceof Error ? e.message : String(e))
+      setProgress('')
+    } finally {
+      setBusy(null)
+      reviewSmsRef.current = false
     }
   }
 
@@ -1942,7 +1991,7 @@ function TerrainDiffusionPanel({ interv, client, onRefresh, onError, techOnlyMai
             className="w-full border-2 border-slate-200 focus:border-blue-500 outline-none rounded-xl px-4 py-3 text-base"
           />
           <p className="text-[11px] text-slate-500 mt-1">
-            Prérempli depuis la fiche client · ouvre la messagerie de votre téléphone.
+            Rapport/facture : ouvre la messagerie du téléphone · Avis Google : envoi auto Brevo.
           </p>
         </div>
 
@@ -2016,8 +2065,27 @@ function TerrainDiffusionPanel({ interv, client, onRefresh, onError, techOnlyMai
           disabled={!!busy || !telephone.trim() || !nom.trim()}
           className={actionBtn(smsDone, 'bg-violet-600 hover:bg-violet-700')}
         >
-          {busy === 'sms' ? (progress || '⚙ SMS…') : smsDone ? '✓ SMS préparé (messagerie)' : '📱 Envoyer par SMS'}
+          {busy === 'sms' ? (progress || '⚙ SMS…') : smsDone ? '✓ SMS préparé (messagerie)' : '📱 Envoyer rapport + facture par SMS'}
         </button>
+
+        <button
+          type="button"
+          onClick={handleSendReviewSms}
+          disabled={!!busy || !telephone.trim() || !smsApiConfigured}
+          className={actionBtn(reviewSmsDone, 'bg-amber-600 hover:bg-amber-700')}
+          title={!smsApiConfigured ? 'Brevo non configuré sur le serveur' : undefined}
+        >
+          {busy === 'review-sms'
+            ? (progress || '⚙ Envoi SMS avis…')
+            : reviewSmsDone
+              ? '✓ SMS avis Google envoyé (Brevo)'
+              : '⭐ Envoyer SMS avis Google (Brevo)'}
+        </button>
+        {!smsApiConfigured && (
+          <p className="text-xs text-amber-700 font-semibold text-center">
+            SMS Brevo indisponible — vérifie BREVO_API_KEY sur Vercel.
+          </p>
+        )}
 
         {!techOnlyMail && (
           <>
@@ -2080,8 +2148,8 @@ function StepTermine({ interv, client, onRefresh, onError, techOnlyMail }: {
         <h1 className="text-2xl font-black text-emerald-800">Intervention terminée</h1>
         <p className="text-sm text-emerald-700 mt-2">
           {techOnlyMail
-            ? 'Tu peux encore envoyer le rapport et la facture par mail ou SMS ci-dessous.'
-            : 'Tu peux encore déclencher mail, site, GMB ou YouTube ci-dessous.'}
+            ? 'Tu peux encore envoyer le rapport et la facture par mail ou SMS, ou le SMS avis Google (Brevo).'
+            : 'Tu peux encore déclencher mail, SMS avis Google (Brevo), site, GMB ou YouTube ci-dessous.'}
         </p>
       </div>
 
