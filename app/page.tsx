@@ -22,6 +22,7 @@ const TOOLS: Tool[] = [
   { href: '/devis',             emoji: '📋', label: 'Devis',           desc: 'Nouveau devis',            bg: 'bg-gradient-to-br from-amber-400 to-amber-600',     text: 'white' },
   { href: '/devis/tous',        emoji: '📑', label: 'Tous devis',      desc: 'Historique devis',         bg: 'bg-gradient-to-br from-yellow-500 to-orange-600',   text: 'white' },
   { href: '/facture',           emoji: '🧾', label: 'Facturation',     desc: 'Suivi & relances',         bg: 'bg-gradient-to-br from-emerald-500 to-emerald-700', text: 'white' },
+  { href: '/relances',          emoji: '🔔', label: 'Relances',        desc: 'Arrêter avis/devis/factures', bg: 'bg-gradient-to-br from-orange-500 to-red-600',     text: 'white', featured: true },
   { href: '/facture/nouvelle',  emoji: '➕', label: 'Facture',         desc: 'Créer facture',            bg: 'bg-gradient-to-br from-lime-500 to-green-700',     text: 'white' },
   { href: '/attestation',       emoji: '✅', label: 'Attestation',     desc: 'SPANC',                    bg: 'bg-gradient-to-br from-[#a18249] to-[#6e5530]',     text: 'white' },
   { href: '/historique',        emoji: '📚', label: 'Historique',      desc: 'Interventions',            bg: 'bg-gradient-to-br from-slate-400 to-slate-600',     text: 'white' },
