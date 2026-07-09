@@ -4,6 +4,7 @@ import dynamic from "next/dynamic"
 import Link from "next/link"
 import React from "react"
 import { proxyImageUrl } from "@/lib/proxyImageUrl"
+import { getLtdbSignatureUrl, fetchAccordSignatureForRapport } from "@/lib/rapport-signatures"
 
 const TerrainPdfViewer = dynamic(
   () => import('@/components/terrain/TerrainPdfViewer'),
@@ -63,6 +64,7 @@ export default function PreviewPdfPage({ params }: { params: { id: string } }) {
             return
           }
           const { RealisationDocument } = await import('@/components/RealisationPDF')
+          const accordSig = await fetchAccordSignatureForRapport(params.id)
           if (cancelled) return
           setDoc(
             React.createElement(RealisationDocument, {
@@ -79,6 +81,9 @@ export default function PreviewPdfPage({ params }: { params: { id: string } }) {
                 url: proxyImageUrl(u),
                 legende: interv.photos_legendes?.[i] || `Photo ${i + 1}`,
               })),
+              signatureLtdbUrl: getLtdbSignatureUrl(),
+              signatureClientUrl: accordSig.url,
+              signatureClientDate: accordSig.date,
             }),
           )
           setError('')

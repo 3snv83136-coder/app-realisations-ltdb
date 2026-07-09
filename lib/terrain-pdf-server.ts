@@ -2,6 +2,7 @@ import crypto from "crypto"
 import { createElement, type ReactElement } from "react"
 import { ltdbFactureEmetteur } from "@/lib/emetteur"
 import { proxyImageUrlAbsolute } from "@/lib/proxyImageUrl"
+import { getLtdbSignatureUrl } from "@/lib/rapport-signatures"
 import type { SupabaseClient } from "@supabase/supabase-js"
 
 const PDFS_BUCKET = process.env.SUPABASE_PDFS_BUCKET || "intervention-pdfs"
@@ -97,6 +98,13 @@ export async function generateTerrainPdfsOnServer(input: GenerateTerrainPdfsInpu
   const facture = factures?.[0]
   if (!facture?.payload) throw new Error("Facture introuvable")
 
+  const { data: accord } = await sb
+    .from("accords_intervention")
+    .select("signature_image, valide_at, statut")
+    .eq("intervention_id", interventionId)
+    .eq("statut", "VALIDE")
+    .maybeSingle()
+
   const photos = ((interv.photos_urls as string[]) || []).map((url, i) => ({
     url: proxyImageUrlAbsolute(url, baseUrl),
     legende: ((interv.photos_legendes as string[]) || [])[i] || `Photo ${i + 1}`,
@@ -120,6 +128,9 @@ export async function generateTerrainPdfsOnServer(input: GenerateTerrainPdfsInpu
       rapport: interv.rapport_json,
       reference: (interv.reference as string) || undefined,
       photos,
+      signatureLtdbUrl: getLtdbSignatureUrl(baseUrl),
+      signatureClientUrl: (accord?.signature_image as string) || null,
+      signatureClientDate: (accord?.valide_at as string) || null,
     }) as ReactElement,
   )
 

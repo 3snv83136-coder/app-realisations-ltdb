@@ -1,6 +1,7 @@
 import React from "react"
 import { Document, Page, Text, View, Image, StyleSheet } from "@react-pdf/renderer"
 import { TEL_PRINCIPAL_FALLBACK } from "@/lib/parametres"
+import { getClientSignatureForPdf, LTDB_SIGNATURE_PATH } from "@/lib/rapport-signatures"
 
 /* ============ CHARTE FRANCE-ADPT-LIKE ============ */
 const C = {
@@ -248,6 +249,10 @@ const s = StyleSheet.create({
   sigLine: {
     color: C.muted, fontSize: 8.5, marginBottom: 10,
   },
+  sigImg: { height: 52, marginTop: 4, marginBottom: 4, objectFit: 'contain' },
+  sigPlaceholder: {
+    fontSize: 8, color: C.muted, fontFamily: 'Helvetica-Oblique', marginTop: 8,
+  },
 
   /* Footer (flow-placed + fixed) */
   footer: {
@@ -391,6 +396,11 @@ export interface PDFProps {
   phone?: string
   reference?: string
   photos?: { url: string; legende?: string }[]
+  /** Signature universelle LTDB (défaut : /signature-ltdb.png) */
+  signatureLtdbUrl?: string
+  /** Signature client (accord validé) */
+  signatureClientUrl?: string | null
+  signatureClientDate?: string | null
 }
 
 /* ============ HELPERS ============ */
@@ -403,6 +413,64 @@ const fmtDateFR = (iso: string) => {
   const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso)
   if (m) return `${m[3]} / ${m[2]} / ${m[1]}`
   return iso
+}
+
+const fmtDateHeureFR = (iso: string | null | undefined) => {
+  if (!iso) return ''
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return fmtDateFR(iso)
+  return d.toLocaleString('fr-FR', {
+    day: '2-digit', month: '2-digit', year: 'numeric',
+    hour: '2-digit', minute: '2-digit',
+  }).replace(/\s/g, ' ')
+}
+
+function RapportSignatures({
+  technicienNom,
+  clientNom,
+  dateIntervention,
+  signatureLtdbUrl,
+  signatureClientUrl,
+  signatureClientDate,
+  clientHead = 'Client — Lu et approuvé',
+}: {
+  technicienNom: string
+  clientNom: string
+  dateIntervention: string
+  signatureLtdbUrl: string
+  signatureClientUrl?: string | null
+  signatureClientDate?: string | null
+  clientHead?: string
+}) {
+  const clientSig = getClientSignatureForPdf(signatureClientUrl)
+  const clientDateLabel = signatureClientDate
+    ? fmtDateHeureFR(signatureClientDate)
+    : fmtDateFR(dateIntervention)
+
+  return (
+    <View style={s.sigTable} wrap={false}>
+      <View style={[s.sigCol, s.sigColSep]}>
+        <Text style={s.sigHead}>Les Techniciens du Débouchage</Text>
+        <View style={s.sigBody}>
+          <Text style={s.sigLine}>Technicien : {technicienNom || '—'}</Text>
+          <Text style={s.sigLine}>Date : {fmtDateFR(dateIntervention)}</Text>
+          <Image style={s.sigImg} src={signatureLtdbUrl} />
+        </View>
+      </View>
+      <View style={s.sigCol}>
+        <Text style={s.sigHead}>{clientHead}</Text>
+        <View style={s.sigBody}>
+          <Text style={s.sigLine}>{clientNom || '—'}</Text>
+          <Text style={s.sigLine}>Date : {clientDateLabel}</Text>
+          {clientSig ? (
+            <Image style={s.sigImg} src={clientSig} />
+          ) : (
+            <Text style={s.sigPlaceholder}>Signature :</Text>
+          )}
+        </View>
+      </View>
+    </View>
+  )
 }
 
 const statutLabel = (statut: Statut): { text: string; bg: string; barColor: string } => {
@@ -463,9 +531,13 @@ const SectionBand = ({
 export function RealisationDocument({
   clientNom, adresse, ville, codePostal, dateIntervention, typeIntervention,
   technicienNom, rapport, reference, photos, phone,
+  signatureLtdbUrl,
+  signatureClientUrl,
+  signatureClientDate,
 }: PDFProps) {
   const ref = reference || rapport.reference || `LTDB-${dateIntervention.replace(/-/g, '')}`
   const hasPhotos = (photos?.length ?? 0) > 0
+  const ltdbSigUrl = signatureLtdbUrl || LTDB_SIGNATURE_PATH
 
   /* Section numbering (stable: skip empty sections) */
   const hasContexte     = !!(rapport.contexte && rapport.contexte.trim())
@@ -750,28 +822,17 @@ export function RealisationDocument({
                   <Text style={s.conclusionP}>{rapport.commentaire_technicien}</Text>
                 )}
               </View>
-
-              {/* Signatures */}
-              <View style={s.sigTable} wrap={false}>
-                <View style={[s.sigCol, s.sigColSep]}>
-                  <Text style={s.sigHead}>LTDB — Technicien intervenant</Text>
-                  <View style={s.sigBody}>
-                    <Text style={s.sigLine}>Date : {fmtDateFR(dateIntervention)}</Text>
-                    <Text style={s.sigLine}>Nom : {technicienNom || '—'}</Text>
-                    <Text style={s.sigLine}>Signature :</Text>
-                  </View>
-                </View>
-                <View style={s.sigCol}>
-                  <Text style={s.sigHead}>Client — Lu et approuvé</Text>
-                  <View style={s.sigBody}>
-                    <Text style={s.sigLine}>{clientNom || '—'}</Text>
-                    <Text style={s.sigLine}>Date : {fmtDateFR(dateIntervention)}</Text>
-                    <Text style={s.sigLine}>Signature :</Text>
-                  </View>
-                </View>
-              </View>
             </View>
           )}
+
+          <RapportSignatures
+            technicienNom={technicienNom}
+            clientNom={clientNom}
+            dateIntervention={dateIntervention}
+            signatureLtdbUrl={ltdbSigUrl}
+            signatureClientUrl={signatureClientUrl}
+            signatureClientDate={signatureClientDate}
+          />
         </View>
 
         <Footer />
@@ -868,24 +929,15 @@ export function RealisationDocument({
               </View>
             )}
 
-            <View style={s.sigTable} wrap={false}>
-              <View style={[s.sigCol, s.sigColSep]}>
-                <Text style={s.sigHead}>Établi par — LTDB</Text>
-                <View style={s.sigBody}>
-                  <Text style={s.sigLine}>Nom : {technicienNom || '—'}</Text>
-                  <Text style={s.sigLine}>Date : {fmtDateFR(dateIntervention)}</Text>
-                  <Text style={s.sigLine}>Signature :</Text>
-                </View>
-              </View>
-              <View style={s.sigCol}>
-                <Text style={s.sigHead}>Bon pour accord — Client</Text>
-                <View style={s.sigBody}>
-                  <Text style={s.sigLine}>Nom : {clientNom || '—'}</Text>
-                  <Text style={s.sigLine}>Date :</Text>
-                  <Text style={s.sigLine}>Mention « Bon pour accord » + signature :</Text>
-                </View>
-              </View>
-            </View>
+            <RapportSignatures
+              technicienNom={technicienNom}
+              clientNom={clientNom}
+              dateIntervention={dateIntervention}
+              signatureLtdbUrl={ltdbSigUrl}
+              signatureClientUrl={signatureClientUrl}
+              signatureClientDate={signatureClientDate}
+              clientHead="Bon pour accord — Client"
+            />
           </View>
 
           <Footer />

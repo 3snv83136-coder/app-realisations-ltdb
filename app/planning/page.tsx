@@ -119,7 +119,6 @@ export default function PlanningPage() {
   const [filterDate, setFilterDate] = useState<DateFilter>('week')
 
   const [showForm, setShowForm] = useState(false)
-  const [showTechs, setShowTechs] = useState(false)
 
   async function loadAll() {
     setLoading(true); setError('')
@@ -194,12 +193,6 @@ export default function PlanningPage() {
           </div>
           {!isTech && (
             <div className="flex items-center gap-2">
-              <button
-                onClick={() => setShowTechs(true)}
-                className="text-sm font-semibold bg-white/10 hover:bg-white/20 px-3 py-2 rounded-lg transition"
-              >
-                👥 Techniciens
-              </button>
               <button
                 onClick={() => setShowForm(true)}
                 className="bg-white text-[#0e2a52] px-4 py-2 rounded-xl font-bold text-sm hover:bg-slate-100 transition shadow"
@@ -301,12 +294,6 @@ export default function PlanningPage() {
         />
       )}
 
-      {!isTech && showTechs && (
-        <TechniciensDrawer
-          onClose={() => setShowTechs(false)}
-          onChanged={() => { loadAll() }}
-        />
-      )}
     </div>
   )
 }
@@ -1091,142 +1078,5 @@ function Field({
         className="w-full border-2 border-slate-200 focus:border-blue-500 outline-none rounded-lg px-3 py-2 mt-1"
       />
     </label>
-  )
-}
-
-// ====================================================================
-// Drawer techniciens
-// ====================================================================
-function TechniciensDrawer({
-  onClose, onChanged,
-}: {
-  onClose: () => void
-  onChanged: () => void
-}) {
-  const [list, setList] = useState<Technicien[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
-
-  const [nom, setNom] = useState('')
-  const [email, setEmail] = useState('')
-  const [tel, setTel] = useState('')
-  const [agence, setAgence] = useState<string>('')
-  const [submitting, setSubmitting] = useState(false)
-
-  async function load() {
-    setLoading(true); setError('')
-    try {
-      const res = await fetch('/api/techniciens?all=1', { cache: 'no-store' })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`)
-      setList(data.techniciens || [])
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e))
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  useEffect(() => { load() }, [])
-
-  async function handleAdd() {
-    if (!nom.trim()) { setError('Nom requis'); return }
-    setSubmitting(true); setError('')
-    try {
-      const res = await fetch('/api/techniciens', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ nom, email, telephone: tel, agence }),
-      })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`)
-      setNom(''); setEmail(''); setTel(''); setAgence('')
-      await load()
-      onChanged()
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e))
-    } finally {
-      setSubmitting(false)
-    }
-  }
-
-  async function toggleActif(t: Technicien) {
-    try {
-      const res = await fetch('/api/techniciens', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: t.id, actif: !t.actif }),
-      })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`)
-      await load()
-      onChanged()
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e))
-    }
-  }
-
-  return (
-    <div className="fixed inset-0 z-50 bg-black/50 flex items-stretch justify-end">
-      <div className="bg-white w-full max-w-md h-full overflow-y-auto shadow-2xl flex flex-col">
-        <div className="sticky top-0 bg-white border-b border-slate-200 px-5 py-4 flex justify-between items-center">
-          <h2 className="text-lg font-black text-[#0e2a52]">👥 Techniciens</h2>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-700 text-2xl leading-none">×</button>
-        </div>
-
-        <div className="p-5 space-y-5">
-          {/* Add form */}
-          <section className="bg-slate-50 rounded-xl p-4 space-y-3 border border-slate-200">
-            <h3 className="font-bold text-[#0e2a52] text-sm">Ajouter un technicien</h3>
-            <div className="grid grid-cols-1 gap-2">
-              <Field label="Nom *" value={nom} onChange={setNom} placeholder="Jean Dupont" />
-              <Field label="Email" type="email" value={email} onChange={setEmail} placeholder="jean@ltdb.fr" />
-              <Field label="Téléphone" value={tel} onChange={setTel} placeholder="06 12 34 56 78" />
-              <label className="block text-sm">
-                <span className="text-xs uppercase tracking-wide text-slate-500 font-semibold">Agence</span>
-                <select value={agence} onChange={e => setAgence(e.target.value)} className="w-full border-2 border-slate-200 focus:border-blue-500 outline-none rounded-lg px-3 py-2 mt-1 bg-white">
-                  <option value="">—</option>
-                  {AGENCES.map(a => <option key={a} value={a}>{a}</option>)}
-                </select>
-              </label>
-            </div>
-            <button
-              onClick={handleAdd}
-              disabled={submitting}
-              className="w-full bg-[#0e2a52] text-white px-4 py-2.5 rounded-xl font-bold disabled:opacity-50"
-            >
-              {submitting ? 'Ajout…' : '+ Ajouter'}
-            </button>
-          </section>
-
-          {error && <div className="bg-red-50 border border-red-200 text-red-700 p-3 rounded-xl text-sm">{error}</div>}
-
-          {/* List */}
-          <section className="space-y-2">
-            <h3 className="font-bold text-[#0e2a52] text-sm">Liste ({list.length})</h3>
-            {loading && <div className="text-slate-500 text-sm">Chargement…</div>}
-            {!loading && list.length === 0 && <div className="text-slate-500 text-sm">Aucun technicien.</div>}
-            {list.map(t => (
-              <div key={t.id} className={`border-2 rounded-xl p-3 ${t.actif ? 'border-slate-200 bg-white' : 'border-slate-200 bg-slate-50 opacity-70'}`}>
-                <div className="flex justify-between items-start gap-2">
-                  <div className="min-w-0">
-                    <div className="font-bold text-[#0e2a52] truncate">{t.nom}</div>
-                    <div className="text-xs text-slate-500 truncate">{t.email || '—'}</div>
-                    <div className="text-xs text-slate-500 truncate">{t.telephone || '—'}</div>
-                    {t.agence && <div className="text-[10px] text-slate-500 mt-1">{t.agence}</div>}
-                  </div>
-                  <button
-                    onClick={() => toggleActif(t)}
-                    className={`text-xs font-bold px-3 py-1.5 rounded-full ${t.actif ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-600'}`}
-                  >
-                    {t.actif ? 'Actif' : 'Inactif'}
-                  </button>
-                </div>
-              </div>
-            ))}
-          </section>
-        </div>
-      </div>
-    </div>
   )
 }

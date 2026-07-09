@@ -2,6 +2,7 @@
 import React, { useState } from "react"
 import { pdfDocumentToBase64 } from "@/lib/pdfToBase64"
 import { safeFilename } from "@/lib/filename"
+import { getLtdbSignatureUrl, fetchAccordSignatureForRapport } from "@/lib/rapport-signatures"
 import { RealisationDocument, type RapportData } from "./RealisationPDF"
 
 export interface ResendRapportIntervention {
@@ -32,6 +33,11 @@ async function buildRapportBase64(i: ResendRapportIntervention): Promise<{ base6
     .filter(u => typeof u === 'string' && u.trim())
     .map(url => ({ url, legende: '' }))
 
+  const [accordSig, ltdbSig] = await Promise.all([
+    fetchAccordSignatureForRapport(i.id),
+    Promise.resolve(getLtdbSignatureUrl()),
+  ])
+
   const element = React.createElement(RealisationDocument, {
     clientNom: i.client_nom || '—',
     adresse: i.adresse_chantier || i.client_adresse || '',
@@ -43,6 +49,9 @@ async function buildRapportBase64(i: ResendRapportIntervention): Promise<{ base6
     rapport,
     photos,
     reference: i.reference || rapport.reference || undefined,
+    signatureLtdbUrl: ltdbSig,
+    signatureClientUrl: accordSig.url,
+    signatureClientDate: accordSig.date,
   })
 
   const base64 = await pdfDocumentToBase64(element)

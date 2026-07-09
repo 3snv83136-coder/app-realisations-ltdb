@@ -2,6 +2,7 @@
 import React, { useState } from "react"
 import { pdfElementToBlob } from "@/lib/pdfToBase64"
 import { safeFilename } from "@/lib/filename"
+import { getLtdbSignatureUrl, fetchAccordSignatureForRapport } from "@/lib/rapport-signatures"
 import { RealisationDocument, type RapportData } from "./RealisationPDF"
 
 export interface HistoriqueIntervention {
@@ -34,6 +35,11 @@ async function buildPdfBlob(i: HistoriqueIntervention): Promise<{ blob: Blob; fi
     .filter(u => typeof u === 'string' && u.trim())
     .map(url => ({ url, legende: '' }))
 
+  const [accordSig, ltdbSig] = await Promise.all([
+    fetchAccordSignatureForRapport(i.id),
+    Promise.resolve(getLtdbSignatureUrl()),
+  ])
+
   const element = React.createElement(RealisationDocument, {
     clientNom: i.client_nom || '—',
     adresse,
@@ -45,6 +51,9 @@ async function buildPdfBlob(i: HistoriqueIntervention): Promise<{ blob: Blob; fi
     rapport,
     photos,
     reference: i.reference || rapport.reference || undefined,
+    signatureLtdbUrl: ltdbSig,
+    signatureClientUrl: accordSig.url,
+    signatureClientDate: accordSig.date,
   })
 
   const blob = await pdfElementToBlob(element)

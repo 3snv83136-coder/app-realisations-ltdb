@@ -73,3 +73,25 @@ export async function POST(req: NextRequest, { params }: Params) {
 
   return NextResponse.json({ ok: true, technicien: updated, photo_url: photoUrl })
 }
+
+/** Supprime la photo portrait d'un technicien (admin). */
+export async function DELETE(_req: NextRequest, { params }: Params) {
+  const auth = await requireAdminApi()
+  if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
+
+  const sb = getSupabaseOrNull()
+  if (!sb) return NextResponse.json({ error: 'Supabase non configuré' }, { status: 500 })
+
+  const technicienId = params.id?.trim()
+  if (!technicienId) return NextResponse.json({ error: 'ID technicien manquant' }, { status: 400 })
+
+  const { data: updated, error } = await sb
+    .from('techniciens')
+    .update({ photo_url: null })
+    .eq('id', technicienId)
+    .select('id, nom, email, telephone, agence, actif, photo_url, annees_experience, titre_metier')
+    .single()
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  return NextResponse.json({ ok: true, technicien: updated })
+}
