@@ -8,6 +8,8 @@ import TerrainStepper from "@/components/terrain/TerrainStepper"
 import TerrainPhotoCapture from "@/components/terrain/TerrainPhotoCapture"
 import TerrainExtraPhotos from "@/components/terrain/TerrainExtraPhotos"
 import StepTravauxSupplementaires from "@/components/terrain/StepTravauxSupplementaires"
+import StepGaranti from "@/components/terrain/StepGaranti"
+import StepSignatureAccord from "@/components/terrain/StepSignatureAccord"
 import TerrainOceanLoader from "@/components/terrain/TerrainOceanLoader"
 import DevisEnvoiPanel from "@/components/DevisEnvoiPanel"
 import type { DevisData, DevisLineData } from "@/components/DevisPDF"
@@ -232,7 +234,7 @@ function TerrainPageBody({
         </div>
       </nav>
 
-      <TerrainStepper current={step} onStepClick={setStep} hiddenSteps={isTech ? [7] : []} />
+      <TerrainStepper current={step} onStepClick={setStep} hiddenSteps={isTech ? [9] : []} />
 
       <main className="max-w-2xl mx-auto px-4 py-6">
         {error && (
@@ -268,16 +270,20 @@ function TerrainPageBody({
           />
         )}
         {step === 3 && <StepRapport interv={interv} technicien={technicien} onSaved={load} onError={setError} />}
-        {step === 4 && <StepFacture interv={interv} client={client} onCreated={load} onError={setError} />}
-        {step === 5 && (
+        {step === 4 && <StepGaranti interv={interv} onSaved={load} onError={setError} />}
+        {step === 5 && <StepFacture interv={interv} client={client} onCreated={load} onError={setError} />}
+        {step === 6 && (
+          <StepSignatureAccord interv={interv} client={client} onDone={load} onError={setError} />
+        )}
+        {step === 7 && (
           <StepDevisOption
             interv={interv}
             client={client}
-            onContinue={() => setStep(6)}
+            onContinue={() => setStep(8)}
             onError={setError}
           />
         )}
-        {step === 6 && (
+        {step === 8 && (
           <TerrainDiffusionPanel
             interv={interv}
             client={client}
@@ -286,7 +292,7 @@ function TerrainPageBody({
             techOnlyMail={isTech}
           />
         )}
-        {step >= 7 && !isTech && (
+        {step >= 9 && (
           <StepTermine interv={interv} client={client} onRefresh={load} onError={setError} techOnlyMail={isTech} />
         )}
       </main>
@@ -914,7 +920,7 @@ function PreviewField({ label, value }: { label: string; value: string }) {
 }
 
 // ============================================================
-// ÉTAPE 4 — Facture (éditeur complet : lignes, TVA 0/10/20, preview)
+// ÉTAPE 5 — Facture (éditeur complet : lignes, TVA 0/10/20, preview)
 // ============================================================
 type LigneFacture = {
   designation: string
@@ -1258,7 +1264,7 @@ function StepFacture({ interv, client, onCreated, onError }: {
 }
 
 // ============================================================
-// ÉTAPE 5 — Devis optionnel (envoi séparé du mail rapport+facture)
+// ÉTAPE 7 — Devis optionnel (envoi séparé du mail rapport+facture)
 // ============================================================
 function StepDevisOption({ interv, client, onContinue, onError }: {
   interv: Intervention

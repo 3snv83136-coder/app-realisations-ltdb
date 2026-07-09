@@ -139,9 +139,19 @@ export async function POST(req: NextRequest) {
 
   // Priorité aux PDF fournis en base64 (wizard Mode Terrain).
   // Fallback : fetch depuis les URLs Storage (flux historique /nouveau).
-  const [rapportB64, factureB64] = await Promise.all([
+  const [rapportB64, factureB64, accordB64] = await Promise.all([
     body.pdfRapportBase64 || (interv.pdf_rapport_url ? fetchPdfAsBase64(interv.pdf_rapport_url, sb) : null),
     body.pdfFactureBase64 || (facture.pdf_url ? fetchPdfAsBase64(facture.pdf_url, sb) : null),
+    (async () => {
+      const { data: accord } = await sb
+        .from('accords_intervention')
+        .select('pdf_url, reference, statut')
+        .eq('intervention_id', interventionId)
+        .eq('statut', 'VALIDE')
+        .maybeSingle()
+      if (!accord?.pdf_url) return null
+      return fetchPdfAsBase64(accord.pdf_url, sb)
+    })(),
   ])
   if (!rapportB64) {
     return NextResponse.json({
@@ -223,6 +233,7 @@ export async function POST(req: NextRequest) {
     attachments: [
       { filename: `rapport-${reference}.pdf`, content: rapportB64 },
       { filename: `facture${factureNum ? `-${factureNum}` : ''}.pdf`, content: factureB64 },
+      ...(accordB64 ? [{ filename: `accord-${reference}.pdf`, content: accordB64 }] : []),
     ],
   })
 
@@ -296,14 +307,14 @@ export async function POST(req: NextRequest) {
       .eq('id', facture.id)
   } catch {}
 
-  // Marque l'intervention : mail envoyé + bump terrain_step à 7 (= diffusion OK, étape réseaux)
+  // Marque l'intervention : mail envoyé + bump terrain_step à 9 (= diffusion OK, étape réseaux)
   // + stocke les IDs des relances avis pour pouvoir les stopper depuis l'app.
   try {
     await sb
       .from('interventions')
       .update({
         mail_envoye_at: new Date().toISOString(),
-        terrain_step: 7,
+        terrain_step: 9,
         ...(relanceIds.length || smsPlanned ? { avis_relance_ids: relanceIds } : {}),
       })
       .eq('id', interventionId)

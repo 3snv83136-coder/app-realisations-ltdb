@@ -22,7 +22,7 @@ type Params = { params: { id: string } }
  *   }
  *
  * Réponse : { ok: true, factureId: string, payload: <facture complète prête à l'envoi> }
- *           Bump terrain_step à 5 (étape devis optionnel).
+ *           Bump terrain_step à 6 (étape signature accord).
  */
 export async function POST(req: NextRequest, { params }: Params) {
   const sb = getSupabaseOrNull()
@@ -169,12 +169,12 @@ export async function POST(req: NextRequest, { params }: Params) {
     return NextResponse.json({ error: 'Sauvegarde facture impossible' }, { status: 500 })
   }
 
-  // Bump terrain_step à 5 (devis optionnel) si pas déjà plus loin
+  // Bump terrain_step à 6 (signature accord) si pas déjà plus loin
   const currentStep = interv.terrain_step ?? 0
-  if (currentStep < 5) {
+  if (currentStep < 6) {
     await sb
       .from('interventions')
-      .update({ terrain_step: 5 })
+      .update({ terrain_step: 6 })
       .eq('id', interventionId)
   }
 

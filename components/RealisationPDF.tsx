@@ -326,6 +326,14 @@ const s = StyleSheet.create({
     textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 6,
   },
   conditionsItem: { color: C.text, fontSize: 9, marginBottom: 3 },
+
+  garantieBlock: {
+    borderWidth: 2, borderRadius: 4, paddingVertical: 12, paddingHorizontal: 14, marginBottom: 14,
+  },
+  garantieTitle: {
+    fontFamily: 'Helvetica-Bold', fontSize: 10, textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 6,
+  },
+  garantieText: { fontSize: 9, lineHeight: 1.5 },
 })
 
 /* ============ TYPES ============ */
@@ -364,6 +372,11 @@ export interface RapportData {
   preconisations?: Preco[]
   devis?: Devis | null
   reference?: string
+  garantie_intervention?: {
+    est_garanti: boolean
+    commentaire?: string
+    saisi_at?: string
+  } | null
 }
 
 export interface PDFProps {
@@ -463,6 +476,8 @@ export function RealisationDocument({
     !!(rapport.avis_technique?.diagnostic_final || rapport.avis_technique?.recommandation_urgente) ||
     !!(rapport.diagnostic && rapport.diagnostic.trim()) ||
     !!(rapport.commentaire_technicien && rapport.commentaire_technicien.trim())
+  const garantie = rapport.garantie_intervention
+  const hasGarantie = garantie != null && typeof garantie.est_garanti === 'boolean'
 
   const sections: string[] = []
   if (hasContexte) sections.push('contexte')
@@ -470,6 +485,7 @@ export function RealisationDocument({
   if (hasAnomalies) sections.push('anomalies')
   if (hasPhotos) sections.push('photos')
   if (hasPrecos) sections.push('precos')
+  if (hasGarantie) sections.push('garantie')
   if (hasConclusion) sections.push('conclusion')
 
   const numOf = (key: string) => String(sections.indexOf(key) + 1)
@@ -676,6 +692,43 @@ export function RealisationDocument({
                   <Text style={s.para}>{rapport.recommandations}</Text>
                 </>
               )}
+            </View>
+          )}
+
+          {/* Section — Garantie d'intervention */}
+          {hasGarantie && garantie && (
+            <View>
+              <SectionBand
+                num={numOf('garantie')}
+                title="Garantie d'intervention"
+                variant={garantie.est_garanti ? 'teal' : 'orange'}
+              />
+              <View
+                style={[
+                  s.garantieBlock,
+                  garantie.est_garanti
+                    ? { borderColor: C.teal, backgroundColor: '#ecfdf5' }
+                    : { borderColor: C.red, backgroundColor: '#fef2f2' },
+                ]}
+              >
+                <Text
+                  style={[
+                    s.garantieTitle,
+                    { color: garantie.est_garanti ? C.teal : C.red },
+                  ]}
+                >
+                  {garantie.est_garanti ? 'Intervention garantie' : 'Intervention non garantie'}
+                </Text>
+                {garantie.commentaire ? (
+                  <Text style={s.garantieText}>{garantie.commentaire}</Text>
+                ) : (
+                  <Text style={s.garantieText}>
+                    {garantie.est_garanti
+                      ? 'Les travaux réalisés font l\'objet d\'une garantie selon nos conditions générales.'
+                      : 'Les travaux réalisés ne sont pas couverts par une garantie spécifique au-delà des dispositions légales applicables.'}
+                  </Text>
+                )}
+              </View>
             </View>
           )}
 
