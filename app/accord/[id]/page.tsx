@@ -39,7 +39,7 @@ const STATUT_BADGE: Record<AccordStatut, string> = {
 
 async function loadAccord(
   id: string,
-): Promise<{ accord: AccordIntervention; lignes: LigneDevis[] } | null> {
+): Promise<{ accord: AccordIntervention; lignes: LigneDevis[]; technicienNom?: string } | null> {
   const sb = getSupabaseOrNull()
   if (!sb) return null
 
@@ -60,7 +60,24 @@ async function loadAccord(
     .eq('accord_id', id)
     .order('position', { ascending: true })
 
-  return { accord, lignes: (lData as LigneDevis[]) || [] }
+  let technicienNom: string | undefined
+  if (accord.intervention_id) {
+    const { data: interv } = await sb
+      .from('interventions')
+      .select('technicien_id')
+      .eq('id', accord.intervention_id)
+      .maybeSingle()
+    if (interv?.technicien_id) {
+      const { data: tech } = await sb
+        .from('techniciens')
+        .select('nom')
+        .eq('id', interv.technicien_id)
+        .maybeSingle()
+      technicienNom = (tech?.nom as string) || undefined
+    }
+  }
+
+  return { accord, lignes: (lData as LigneDevis[]) || [], technicienNom }
 }
 
 function ShellHeader({ children }: { children: React.ReactNode }) {
@@ -94,7 +111,7 @@ export default async function AccordDetailPage({ params }: { params: { id: strin
     )
   }
 
-  const { accord, lignes } = result
+  const { accord, lignes, technicienNom } = result
   const session = await auth()
   const isTech = session?.user?.role === 'tech'
   if (isTech && !isAccordFinDeMois()) {
@@ -156,7 +173,13 @@ export default async function AccordDetailPage({ params }: { params: { id: strin
         </section>
 
         {/* Aperçu du document */}
-        <ApercuAccord accord={accord} lignes={lignes} emetteur={emetteur} telephone={telephone} />
+        <ApercuAccord
+          accord={accord}
+          lignes={lignes}
+          emetteur={emetteur}
+          telephone={telephone}
+          technicienNom={technicienNom}
+        />
 
         {/* Actions selon le statut */}
         {accord.statut === 'BROUILLON' && (
@@ -166,6 +189,7 @@ export default async function AccordDetailPage({ params }: { params: { id: strin
               lignes={lignes}
               emetteur={emetteur}
               telephone={telephone}
+              technicienNom={technicienNom}
             />
             <section className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 space-y-3">
               <h3 className="text-sm font-bold uppercase tracking-wider text-slate-500">Aperçu PDF</h3>
@@ -177,6 +201,7 @@ export default async function AccordDetailPage({ params }: { params: { id: strin
                 lignes={lignes}
                 emetteur={emetteur}
                 telephone={telephone}
+                technicienNom={technicienNom}
                 pdfUrl={accord.pdf_url}
               />
             </section>
@@ -194,6 +219,7 @@ export default async function AccordDetailPage({ params }: { params: { id: strin
               lignes={lignes}
               emetteur={emetteur}
               telephone={telephone}
+              technicienNom={technicienNom}
               pdfUrl={accord.pdf_url}
             />
             <div className="border-t border-slate-100 pt-3 space-y-2">

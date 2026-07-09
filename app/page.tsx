@@ -10,43 +10,163 @@ type Tool = {
   bg: string
   text: 'white' | 'black'
   external?: boolean
-  featured?: boolean
 }
 
-const TOOLS: Tool[] = [
-  { href: '/accord',            emoji: '🤝', label: 'Accord',          desc: 'Accords signés',           bg: 'bg-gradient-to-br from-red-500 to-red-700',         text: 'white', featured: true },
-  { href: '/planning',          emoji: '📅', label: 'Planning',        desc: 'RDV & tournées',           bg: 'bg-gradient-to-br from-blue-500 to-blue-700',       text: 'white', featured: true },
-  { href: '/nouveau',           emoji: '📝', label: 'Rapport',         desc: 'Terrain',                  bg: 'bg-gradient-to-br from-slate-700 to-slate-900',     text: 'white' },
-  { href: '/rapports',          emoji: '📄', label: 'Rapports',        desc: 'Liste & publication',      bg: 'bg-gradient-to-br from-slate-500 to-slate-700',     text: 'white' },
-  { href: '/inspection',        emoji: '📹', label: 'Caméra',          desc: 'Inspection NF',            bg: 'bg-gradient-to-br from-sky-400 to-sky-600',         text: 'white' },
-  { href: '/devis',             emoji: '📋', label: 'Devis',           desc: 'Nouveau devis',            bg: 'bg-gradient-to-br from-amber-400 to-amber-600',     text: 'white' },
-  { href: '/devis/tous',        emoji: '📑', label: 'Tous devis',      desc: 'Historique devis',         bg: 'bg-gradient-to-br from-yellow-500 to-orange-600',   text: 'white' },
-  { href: '/facture',           emoji: '🧾', label: 'Facturation',     desc: 'Suivi & relances',         bg: 'bg-gradient-to-br from-emerald-500 to-emerald-700', text: 'white' },
-  { href: '/relances',          emoji: '🔔', label: 'Relances',        desc: 'Arrêter avis/devis/factures', bg: 'bg-gradient-to-br from-orange-500 to-red-600',     text: 'white', featured: true },
-  { href: '/facture/nouvelle',  emoji: '➕', label: 'Facture',         desc: 'Créer facture',            bg: 'bg-gradient-to-br from-lime-500 to-green-700',     text: 'white' },
-  { href: '/attestation',       emoji: '✅', label: 'Attestation',     desc: 'SPANC',                    bg: 'bg-gradient-to-br from-[#a18249] to-[#6e5530]',     text: 'white' },
-  { href: '/historique',        emoji: '📚', label: 'Historique',      desc: 'Interventions',            bg: 'bg-gradient-to-br from-slate-400 to-slate-600',     text: 'white' },
-  { href: '/clients',           emoji: '👥', label: 'Clients',         desc: 'Annuaire',                 bg: 'bg-gradient-to-br from-teal-500 to-teal-700',       text: 'white' },
-  { href: '/statistiques',      emoji: '📊', label: 'Statistiques',    desc: 'Acquisition',              bg: 'bg-gradient-to-br from-rose-500 to-rose-700',       text: 'white' },
-  { href: '/comptabilite',      emoji: '💼', label: 'Comptabilité',    desc: 'Bilan & FEC',              bg: 'bg-gradient-to-br from-violet-500 to-violet-700',   text: 'white' },
-  { href: '/rh',                emoji: '👔', label: 'RH',              desc: 'Salariés & contrats',      bg: 'bg-gradient-to-br from-fuchsia-600 to-purple-800',  text: 'white' },
-  { href: '/techniciens',       emoji: '🦺', label: 'Techniciens',     desc: 'Photos & profils site',    bg: 'bg-gradient-to-br from-orange-500 to-amber-700',    text: 'white' },
-  { href: '/mail',              emoji: '📧', label: 'Mail',            desc: 'Emails envoyés',           bg: 'bg-gradient-to-br from-cyan-500 to-cyan-700',       text: 'white' },
-  { href: '/post-gmb',          emoji: '📍', label: 'Post GMB',        desc: 'Google Business',          bg: 'bg-gradient-to-br from-indigo-500 to-indigo-700',   text: 'white' },
-  { href: '/accord/nouveau',    emoji: '✍️', label: 'Nouvel accord',   desc: 'Créer accord',             bg: 'bg-gradient-to-br from-red-400 to-rose-600',        text: 'white' },
+type HubGroup = {
+  id: string
+  title: string
+  desc: string
+  bg: string
+  emoji: string
+  links: { href: string; label: string; sub?: string }[]
+}
+
+/** Seul module en vedette pleine largeur. */
+const HERO: Tool = {
+  href: '/planning',
+  emoji: '📅',
+  label: 'Planning',
+  desc: 'RDV, dispatch & tournées',
+  bg: 'bg-gradient-to-br from-blue-500 to-blue-700',
+  text: 'white',
+}
+
+/** Hubs regroupés (doublons fusionnés) — très visibles, filigrane LTDB. */
+const HUBS: HubGroup[] = [
+  {
+    id: 'rapports',
+    title: 'Rapports',
+    desc: 'Terrain & publication',
+    bg: 'bg-gradient-to-br from-slate-600 to-slate-900',
+    emoji: '📄',
+    links: [
+      { href: '/nouveau', label: 'Nouveau rapport', sub: 'Mode terrain' },
+      { href: '/rapports', label: 'Tous les rapports', sub: 'Liste & envoi' },
+    ],
+  },
+  {
+    id: 'devis',
+    title: 'Devis',
+    desc: 'Création & suivi',
+    bg: 'bg-gradient-to-br from-amber-500 to-orange-700',
+    emoji: '📋',
+    links: [
+      { href: '/devis', label: 'Nouveau devis', sub: 'Rédiger' },
+      { href: '/devis/tous', label: 'Tous les devis', sub: 'Historique' },
+    ],
+  },
+  {
+    id: 'facturation',
+    title: 'Facturation',
+    desc: 'Factures & relances',
+    bg: 'bg-gradient-to-br from-emerald-500 to-green-800',
+    emoji: '🧾',
+    links: [
+      { href: '/facture/nouvelle', label: 'Nouvelle facture', sub: 'Créer' },
+      { href: '/facture', label: 'Suivi facturation', sub: 'Liste & paiements' },
+    ],
+  },
 ]
 
-function ToolTile({ t, introClass }: { t: Tool; introClass?: string }) {
-  const textColor = t.text === 'white' ? 'text-white' : 'text-black'
-  const tileClass = t.featured
-    ? `group relative min-h-[108px] sm:min-h-[120px] rounded-xl sm:rounded-2xl overflow-hidden flex flex-col justify-end p-3 sm:p-4 shadow-md transition-all duration-200 hover:shadow-xl hover:scale-[1.02] ${t.bg} ${textColor} ${introClass || ''}`
-    : `group relative min-h-[100px] sm:min-h-[108px] rounded-xl overflow-hidden flex flex-col justify-end p-3 shadow-sm transition-all duration-200 hover:shadow-lg hover:scale-[1.02] ${t.bg} ${textColor} ${introClass || ''}`
+/** Petites tuiles — tout le reste (accord, relances, etc.). */
+const SMALL_TOOLS: Tool[] = [
+  { href: '/accord',           emoji: '🤝', label: 'Accords',       desc: 'Liste signés',        bg: 'bg-gradient-to-br from-red-500 to-red-700',       text: 'white' },
+  { href: '/accord/nouveau',   emoji: '✍️', label: 'Nouvel accord', desc: 'Créer',               bg: 'bg-gradient-to-br from-red-400 to-rose-600',      text: 'white' },
+  { href: '/relances',         emoji: '🔔', label: 'Relances',      desc: 'Stop avis/devis',     bg: 'bg-gradient-to-br from-orange-500 to-red-600',    text: 'white' },
+  { href: '/inspection',       emoji: '📹', label: 'Caméra',        desc: 'Inspection NF',       bg: 'bg-gradient-to-br from-sky-400 to-sky-600',       text: 'white' },
+  { href: '/attestation',      emoji: '✅', label: 'Attestation',   desc: 'SPANC',               bg: 'bg-gradient-to-br from-[#a18249] to-[#6e5530]',   text: 'white' },
+  { href: '/historique',       emoji: '📚', label: 'Historique',    desc: 'Interventions',       bg: 'bg-gradient-to-br from-slate-400 to-slate-600',   text: 'white' },
+  { href: '/clients',          emoji: '👥', label: 'Clients',       desc: 'Annuaire',            bg: 'bg-gradient-to-br from-teal-500 to-teal-700',     text: 'white' },
+  { href: '/statistiques',     emoji: '📊', label: 'Statistiques',  desc: 'Acquisition',         bg: 'bg-gradient-to-br from-rose-500 to-rose-700',     text: 'white' },
+  { href: '/comptabilite',     emoji: '💼', label: 'Comptabilité',  desc: 'Bilan & FEC',         bg: 'bg-gradient-to-br from-violet-500 to-violet-700', text: 'white' },
+  { href: '/rh',               emoji: '👔', label: 'RH',            desc: 'Salariés',              bg: 'bg-gradient-to-br from-fuchsia-600 to-purple-800', text: 'white' },
+  { href: '/techniciens',      emoji: '🦺', label: 'Techniciens',   desc: 'Profils site',        bg: 'bg-gradient-to-br from-orange-500 to-amber-700',  text: 'white' },
+  { href: '/mail',             emoji: '📧', label: 'Mail',          desc: 'Emails envoyés',      bg: 'bg-gradient-to-br from-cyan-500 to-cyan-700',     text: 'white' },
+  { href: '/post-gmb',         emoji: '📍', label: 'Post GMB',      desc: 'Google Business',     bg: 'bg-gradient-to-br from-indigo-500 to-indigo-700', text: 'white' },
+]
 
-  const inner = (
-    <>
+function LtdbWatermark() {
+  return (
+    <span
+      aria-hidden
+      className="pointer-events-none select-none absolute inset-0 flex items-center justify-center overflow-hidden"
+    >
+      <span className="text-[4.5rem] sm:text-[6rem] md:text-[7rem] font-black tracking-tighter text-white/[0.07] leading-none rotate-[-12deg] translate-y-2">
+        LTDB
+      </span>
+    </span>
+  )
+}
+
+function HeroTile({ t, introClass }: { t: Tool; introClass?: string }) {
+  return (
+    <Link
+      href={t.href}
+      title={t.desc}
+      className={`group relative min-h-[132px] sm:min-h-[148px] rounded-2xl overflow-hidden flex flex-col justify-end p-4 sm:p-5 shadow-lg transition-all duration-200 hover:shadow-xl hover:scale-[1.01] ${t.bg} text-white ${introClass || ''}`}
+    >
+      <LtdbWatermark />
       <span
         aria-hidden
-        className="pointer-events-none select-none absolute -top-1 -right-1 text-[2.75rem] sm:text-[3.25rem] leading-none opacity-20 transition-transform group-hover:scale-105"
+        className="pointer-events-none absolute top-3 right-3 text-[3.5rem] sm:text-[4rem] leading-none opacity-25"
+      >
+        {t.emoji}
+      </span>
+      <div className="relative z-10">
+        <div className="text-2xl sm:text-3xl font-black tracking-tight drop-shadow-sm">{t.label}</div>
+        <p className="mt-1 text-xs sm:text-sm opacity-90 font-medium">{t.desc}</p>
+      </div>
+    </Link>
+  )
+}
+
+function HubTile({ hub, introClass }: { hub: HubGroup; introClass?: string }) {
+  return (
+    <div
+      className={`group relative min-h-[168px] sm:min-h-[180px] rounded-2xl overflow-hidden shadow-md ${hub.bg} text-white ${introClass || ''}`}
+    >
+      <LtdbWatermark />
+      <span
+        aria-hidden
+        className="pointer-events-none absolute top-2 right-2 text-[2.75rem] sm:text-[3.25rem] leading-none opacity-20"
+      >
+        {hub.emoji}
+      </span>
+      <div className="relative z-10 flex flex-col h-full p-3.5 sm:p-4">
+        <div className="mb-3">
+          <div className="text-lg sm:text-xl font-black tracking-tight drop-shadow-sm">{hub.title}</div>
+          <p className="text-[10px] sm:text-xs opacity-85 font-medium">{hub.desc}</p>
+        </div>
+        <div className="mt-auto grid grid-cols-1 gap-1.5">
+          {hub.links.map(link => (
+            <Link
+              key={link.href}
+              href={link.href}
+              className="flex items-center justify-between gap-2 rounded-xl bg-black/20 hover:bg-black/30 backdrop-blur-sm px-3 py-2.5 transition border border-white/10"
+            >
+              <span className="text-sm font-bold leading-tight">{link.label}</span>
+              {link.sub && (
+                <span className="text-[10px] opacity-75 shrink-0 hidden sm:inline">{link.sub}</span>
+              )}
+            </Link>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function SmallTile({ t }: { t: Tool }) {
+  const textColor = t.text === 'white' ? 'text-white' : 'text-black'
+  return (
+    <Link
+      href={t.href}
+      title={t.desc}
+      className={`group relative min-h-[100px] sm:min-h-[108px] rounded-xl overflow-hidden flex flex-col justify-end p-3 shadow-sm transition-all duration-200 hover:shadow-lg hover:scale-[1.02] ${t.bg} ${textColor}`}
+    >
+      <span
+        aria-hidden
+        className="pointer-events-none select-none absolute -top-1 -right-1 text-[2.75rem] sm:text-[3.25rem] leading-none opacity-20"
       >
         {t.emoji}
       </span>
@@ -58,20 +178,6 @@ function ToolTile({ t, introClass }: { t: Tool; introClass?: string }) {
           {t.desc}
         </p>
       </div>
-    </>
-  )
-
-  if (t.external) {
-    return (
-      <a href={t.href} target="_blank" rel="noopener noreferrer" title={t.desc} className={tileClass}>
-        {inner}
-      </a>
-    )
-  }
-
-  return (
-    <Link href={t.href} title={t.desc} className={tileClass}>
-      {inner}
     </Link>
   )
 }
@@ -85,14 +191,13 @@ export default function Home() {
     sessionStorage.setItem('ltdb_seen_intro', '1')
   }, [])
 
-  const featured = TOOLS.filter(t => t.featured)
-  const rest = TOOLS.filter(t => !t.featured)
+  const introClass = intro ? 'ltdb-drop' : ''
 
   return (
     <main className="min-h-dvh bg-[#0a1f3d] text-slate-100 pb-[max(1rem,env(safe-area-inset-bottom))]">
       <header className="sticky top-0 z-20 bg-[#0e2a52]/95 backdrop-blur-md text-white border-b border-white/10 pt-[env(safe-area-inset-top)]">
         <div className="max-w-6xl mx-auto px-3 sm:px-5 py-3 sm:py-4 flex items-center justify-between gap-3">
-          <div className={`flex items-baseline gap-2 sm:gap-3 ${intro ? 'ltdb-drop' : ''}`}>
+          <div className={`flex items-baseline gap-2 sm:gap-3 ${introClass}`}>
             <h1 className="text-xl sm:text-3xl font-black tracking-tight leading-none">LTDB</h1>
             <div className="text-[9px] sm:text-[10px] uppercase tracking-[0.2em] text-white/60 font-semibold hidden sm:block">
               CRM
@@ -109,24 +214,27 @@ export default function Home() {
           <h2 className="text-[10px] uppercase tracking-[0.18em] text-white/50 font-semibold mb-2 px-0.5">
             Priorités
           </h2>
-          <div className="grid grid-cols-2 gap-2 sm:gap-3">
-            {featured.map(t => (
-              <ToolTile key={t.href} t={t} introClass={intro ? 'ltdb-drop' : ''} />
-            ))}
+          <div className="space-y-2 sm:space-y-3">
+            <HeroTile t={HERO} introClass={introClass} />
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-3">
+              {HUBS.map(hub => (
+                <HubTile key={hub.id} hub={hub} introClass={introClass} />
+              ))}
+            </div>
           </div>
         </section>
 
         <section>
           <h2 className="text-[10px] uppercase tracking-[0.18em] text-white/50 font-semibold mb-2 px-0.5">
             Tous les modules
-            <span className="ml-2 text-white/40 tabular-nums">{TOOLS.length}</span>
+            <span className="ml-2 text-white/40 tabular-nums">{SMALL_TOOLS.length}</span>
           </h2>
           <div
             className="grid gap-2 sm:gap-2.5"
             style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 118px), 1fr))' }}
           >
-            {rest.map(t => (
-              <ToolTile key={`${t.href}-${t.label}`} t={t} />
+            {SMALL_TOOLS.map(t => (
+              <SmallTile key={`${t.href}-${t.label}`} t={t} />
             ))}
           </div>
         </section>

@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import SignatureCanvas from '@/components/accord/SignatureCanvas'
 import { AccordDocument } from '@/components/accord/AccordPDF'
 import { pdfElementToBlob } from '@/lib/pdfToBase64'
+import { getLtdbSignatureUrl } from '@/lib/rapport-signatures'
 import { LTDB_EMETTEUR } from '@/lib/emetteur'
 import { TEL_PRINCIPAL_FALLBACK } from '@/lib/parametres'
 import type { AccordIntervention, LigneDevis } from '@/lib/supabase'
@@ -38,11 +39,12 @@ type FacturePayload = {
 type Props = {
   interv: InterventionLite
   client: ClientInfo
+  technicienNom?: string
   onDone: () => void | Promise<void>
   onError: (msg: string) => void
 }
 
-export default function StepSignatureAccord({ interv, client, onDone, onError }: Props) {
+export default function StepSignatureAccord({ interv, client, technicienNom, onDone, onError }: Props) {
   const [loading, setLoading] = useState(true)
   const [factureTTC, setFactureTTC] = useState<number | null>(null)
   const [factureNumero, setFactureNumero] = useState('')
@@ -115,6 +117,8 @@ export default function StepSignatureAccord({ interv, client, onDone, onError }:
           email: LTDB_EMETTEUR.email,
         }}
         telephone={TEL_PRINCIPAL_FALLBACK}
+        signatureLtdbUrl={getLtdbSignatureUrl()}
+        technicienNom={technicienNom}
       />,
     )
     const fd = new FormData()

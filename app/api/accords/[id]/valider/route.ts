@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getSupabaseOrNull } from "@/lib/supabase"
+import { syncClientSignatureToRapport } from "@/lib/sync-signature-rapport"
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 30
@@ -49,7 +50,7 @@ export async function POST(req: NextRequest, { params }: Params) {
   // L'accord doit exister et être encore en brouillon.
   const { data: accord } = await sb
     .from('accords_intervention')
-    .select('id, statut')
+    .select('id, statut, intervention_id')
     .eq('id', accordId)
     .maybeSingle()
   if (!accord) return NextResponse.json({ error: 'Accord introuvable' }, { status: 404 })
@@ -108,6 +109,11 @@ export async function POST(req: NextRequest, { params }: Params) {
     .eq('id', accordId)
   if (error) {
     return NextResponse.json({ error: `DB update échouée : ${error.message}` }, { status: 500 })
+  }
+
+  const interventionId = accord.intervention_id as string | null
+  if (interventionId) {
+    await syncClientSignatureToRapport(sb, interventionId, signatureUrl, valideAt)
   }
 
   return NextResponse.json({ ok: true, valide_at: valideAt, signature_url: signatureUrl })

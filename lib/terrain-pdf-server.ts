@@ -3,6 +3,7 @@ import { createElement, type ReactElement } from "react"
 import { ltdbFactureEmetteur } from "@/lib/emetteur"
 import { proxyImageUrlAbsolute } from "@/lib/proxyImageUrl"
 import { getLtdbSignatureUrl } from "@/lib/rapport-signatures"
+import { getSignatureClientFromRapport } from "@/lib/sync-signature-rapport"
 import type { SupabaseClient } from "@supabase/supabase-js"
 
 const PDFS_BUCKET = process.env.SUPABASE_PDFS_BUCKET || "intervention-pdfs"
@@ -116,6 +117,8 @@ export async function generateTerrainPdfsOnServer(input: GenerateTerrainPdfsInpu
     import("@/components/FacturePDF"),
   ])
 
+  const sigFromRapport = getSignatureClientFromRapport(interv.rapport_json)
+
   const rapportBuf = await renderToBuffer(
     createElement(RealisationDocument, {
       clientNom,
@@ -129,8 +132,8 @@ export async function generateTerrainPdfsOnServer(input: GenerateTerrainPdfsInpu
       reference: (interv.reference as string) || undefined,
       photos,
       signatureLtdbUrl: getLtdbSignatureUrl(baseUrl),
-      signatureClientUrl: (accord?.signature_image as string) || null,
-      signatureClientDate: (accord?.valide_at as string) || null,
+      signatureClientUrl: (accord?.signature_image as string) || sigFromRapport?.image_url || null,
+      signatureClientDate: (accord?.valide_at as string) || sigFromRapport?.valide_at || null,
     }) as ReactElement,
   )
 

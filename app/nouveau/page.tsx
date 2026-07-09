@@ -472,9 +472,6 @@ export default function NouveauPage() {
     const objet = ville
       ? `${typeIntervention} — ${ville}`
       : typeIntervention
-    const observations = (rapport && typeof rapport.synthese === 'string')
-      ? rapport.synthese
-      : ''
     const payload = {
       client_nom: clientNom,
       client_adresse: adresse,
@@ -501,7 +498,7 @@ export default function NouveauPage() {
         ],
         tva_taux: 10,
         mode_reglement: '',
-        observations,
+        observations: '',
         recommandation: '',
       },
     }

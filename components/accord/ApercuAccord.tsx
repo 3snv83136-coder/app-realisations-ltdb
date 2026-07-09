@@ -1,5 +1,6 @@
 import type { AccordIntervention, LigneDevis } from "@/lib/supabase"
 import { fmtEUR, fmtDateFR } from "@/lib/format"
+import { LTDB_SIGNATURE_PATH } from "@/lib/rapport-signatures"
 import {
   ACCORD_TITRE,
   MENTION_TVA_FRANCHISE,
@@ -21,6 +22,7 @@ type Props = {
   lignes: LigneDevis[]
   emetteur: EmetteurInfo
   telephone: string
+  technicienNom?: string
 }
 
 /**
@@ -28,7 +30,7 @@ type Props = {
  * + information rétractation (C). Composant de pur affichage — mêmes textes
  * que le PDF (source commune : lib/accord/blocs-legaux).
  */
-export default function ApercuAccord({ accord, lignes, emetteur, telephone }: Props) {
+export default function ApercuAccord({ accord, lignes, emetteur, telephone, technicienNom }: Props) {
   const dateAccord = accord.valide_at || accord.created_at
   const dateHeure = formatDateHeureFR(dateAccord)
   const adresseClient = adresseClientComplete(accord)
@@ -136,34 +138,57 @@ export default function ApercuAccord({ accord, lignes, emetteur, telephone }: Pr
           )}
         </Bloc>
 
-        {/* Validation */}
+        {/* Signatures */}
         <div className="border-t border-slate-200 pt-4">
-          <div className="text-[11px] uppercase tracking-wider text-slate-500 font-bold mb-2">
-            Validation du client
+          <div className="text-[11px] uppercase tracking-wider text-slate-500 font-bold mb-3">
+            Signatures
           </div>
-          {accord.statut === 'VALIDE' && accord.signature_image ? (
-            <div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="border border-slate-200 rounded-lg p-3">
+              <div className="text-[10px] uppercase tracking-wider text-slate-500 font-bold mb-2">
+                {emetteur.raisonSociale}
+              </div>
+              {technicienNom ? (
+                <p className="text-xs text-slate-600 mb-1">Technicien : {technicienNom}</p>
+              ) : null}
+              <p className="text-xs text-slate-500 mb-2">Date : {fmtDateFR(dateAccord)}</p>
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
-                src={accord.signature_image}
-                alt="Signature du client"
-                className="h-24 border border-slate-200 rounded-lg bg-white"
+                src={LTDB_SIGNATURE_PATH}
+                alt="Signature Les Techniciens du Débouchage"
+                className="h-16 object-contain"
               />
-              <p className="text-[11px] text-slate-500 mt-1">
-                Validé le {formatDateHeureFR(accord.valide_at)}
-                {accord.canal_validation ? ` · signature ${accord.canal_validation === 'SMS' ? 'à distance' : 'sur place'}` : ''}
-              </p>
             </div>
-          ) : accord.statut === 'REFUSE' ? (
-            <p className="text-sm text-red-600">
-              Refusé par le client
-              {accord.motif_refus ? ` — ${accord.motif_refus}` : ''}.
-            </p>
-          ) : (
-            <p className="text-sm text-slate-400 italic">
-              Document non encore validé — signature à recueillir.
-            </p>
-          )}
+            <div className="border border-slate-200 rounded-lg p-3">
+              <div className="text-[10px] uppercase tracking-wider text-slate-500 font-bold mb-2">
+                Client — bon pour accord
+              </div>
+              <p className="text-xs text-slate-600 mb-1">{accord.client_nom || '—'}</p>
+              {accord.statut === 'VALIDE' && accord.signature_image ? (
+                <>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={accord.signature_image}
+                    alt="Signature du client"
+                    className="h-16 border border-slate-200 rounded-lg bg-white object-contain"
+                  />
+                  <p className="text-[11px] text-slate-500 mt-1">
+                    Validé le {formatDateHeureFR(accord.valide_at)}
+                    {accord.canal_validation
+                      ? ` · signature ${accord.canal_validation === 'SMS' ? 'à distance' : 'sur place'}`
+                      : ''}
+                  </p>
+                </>
+              ) : accord.statut === 'REFUSE' ? (
+                <p className="text-sm text-red-600">
+                  Refusé par le client
+                  {accord.motif_refus ? ` — ${accord.motif_refus}` : ''}.
+                </p>
+              ) : (
+                <p className="text-sm text-slate-400 italic">Signature à recueillir.</p>
+              )}
+            </div>
+          </div>
         </div>
       </div>
     </article>

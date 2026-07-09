@@ -273,7 +273,13 @@ function TerrainPageBody({
         {step === 4 && <StepGaranti interv={interv} onSaved={load} onError={setError} />}
         {step === 5 && <StepFacture interv={interv} client={client} onCreated={load} onError={setError} />}
         {step === 6 && (
-          <StepSignatureAccord interv={interv} client={client} onDone={load} onError={setError} />
+          <StepSignatureAccord
+            interv={interv}
+            client={client}
+            technicienNom={technicien?.nom || undefined}
+            onDone={load}
+            onError={setError}
+          />
         )}
         {step === 7 && (
           <StepDevisOption
@@ -945,8 +951,6 @@ function StepFacture({ interv, client, onCreated, onError }: {
   const [echeance, setEcheance] = useState<'Réglée' | 'À réception' | '30 jours'>('Réglée')
   // Franchise en base de TVA (auto-entrepreneur) : 0 % par défaut.
   const [tva, setTva] = useState<0 | 10 | 20>(0)
-  const [observations, setObservations] = useState('')
-  const [recommandation, setRecommandation] = useState('')
   const [loading, setLoading] = useState(true)
   const [creating, setCreating] = useState(false)
   const [numero, setNumero] = useState('')
@@ -974,8 +978,6 @@ function StepFacture({ interv, client, onCreated, onError }: {
           setObjet(facture.objet || '')
           // Auto-entrepreneur : franchise en base, 0 % par défaut.
           setTva(facture.tva_taux === 10 || facture.tva_taux === 20 ? facture.tva_taux : 0)
-          setObservations(facture.observations || '')
-          setRecommandation(facture.recommandation || '')
           setNumero(facture.numero || '')
           if (typeof facture.echeance === 'string') {
             if (/r[ée]gl[ée]e?/i.test(facture.echeance)) setEcheance('Réglée')
@@ -1036,8 +1038,6 @@ function StepFacture({ interv, client, onCreated, onError }: {
           mode_reglement: modeReglement || undefined,
           echeance,
           tva_taux: tva,
-          observations: observations || undefined,
-          recommandation: recommandation || undefined,
         }),
       })
       const data = await res.json()

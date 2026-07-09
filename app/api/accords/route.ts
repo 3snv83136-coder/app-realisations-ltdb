@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { getSupabaseOrNull } from "@/lib/supabase"
 import { calculDevis, totalLigne, type LigneDraft } from "@/lib/accord/calcul-devis"
 import { getSessionUser, assertInterventionAccess } from "@/lib/intervention-access"
+import { syncClientSignatureToRapport } from "@/lib/sync-signature-rapport"
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 30
@@ -240,6 +241,10 @@ export async function POST(req: NextRequest) {
     await sb.from('accords_intervention').delete().eq('id', accord.id)
     console.error('[POST /api/accords] insert lignes', lignesError)
     return NextResponse.json({ error: lignesError.message }, { status: 500 })
+  }
+
+  if (estValide && interventionId && signatureUrl) {
+    await syncClientSignatureToRapport(sb, interventionId, signatureUrl, valideAtDevice)
   }
 
   return NextResponse.json({

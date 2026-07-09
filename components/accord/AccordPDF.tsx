@@ -4,6 +4,7 @@ import { Document, Page, Text, View, StyleSheet, Image } from "@react-pdf/render
 import type { AccordIntervention, LigneDevis } from "@/lib/supabase"
 import type { EmetteurInfo } from "@/components/accord/ApercuAccord"
 import { proxyImageUrl } from "@/lib/proxyImageUrl"
+import { LTDB_SIGNATURE_PATH } from "@/lib/rapport-signatures"
 import {
   ACCORD_TITRE,
   MENTION_TVA_FRANCHISE,
@@ -19,6 +20,10 @@ export type AccordPdfProps = {
   lignes: LigneDevis[]
   emetteur: EmetteurInfo
   telephone: string
+  /** Signature universelle LTDB (défaut : /signature-ltdb.png) */
+  signatureLtdbUrl?: string
+  /** Technicien intervenant (affiché sous la signature LTDB) */
+  technicienNom?: string
 }
 
 /* ============ CHARTE ============ */
@@ -158,12 +163,13 @@ const fmtDate = (raw: string | null | undefined) => {
 }
 
 /** Document PDF de l'accord d'intervention (blocs A / B / C + signature). */
-export function AccordDocument({ accord, lignes, emetteur, telephone }: AccordPdfProps) {
+export function AccordDocument({ accord, lignes, emetteur, telephone, signatureLtdbUrl, technicienNom }: AccordPdfProps) {
   const dateAccord = accord.valide_at || accord.created_at
   const dateHeure = formatDateHeureFR(dateAccord)
   const adresseClient = adresseClientComplete(accord)
   const sousTotal = lignes.reduce((sum, l) => sum + (l.total_ligne || 0), 0)
   const sansTVA = !accord.taux_tva || accord.taux_tva <= 0
+  const ltdbSigUrl = signatureLtdbUrl || LTDB_SIGNATURE_PATH
 
   return (
     <Document title={`${ACCORD_TITRE} ${accord.reference || ''}`.trim()}>
@@ -297,13 +303,17 @@ export function AccordDocument({ accord, lignes, emetteur, telephone }: AccordPd
           <View style={s.sigTable} wrap={false}>
             <View style={[s.sigCol, s.sigColSep]}>
               <Text style={s.sigHead}>{emetteur.raisonSociale}</Text>
+              {technicienNom ? (
+                <Text style={s.sigLine}>Technicien : {technicienNom}</Text>
+              ) : null}
               <Text style={s.sigLine}>Date : {fmtDate(dateAccord)}</Text>
-              <Text style={s.sigLine}>Cachet &amp; signature</Text>
+              <Image style={s.sigImg} src={ltdbSigUrl} />
             </View>
             <View style={s.sigCol}>
               <Text style={s.sigHead}>
                 Client — bon pour accord, demande expresse &amp; renonciation
               </Text>
+              <Text style={s.sigLine}>{accord.client_nom || '—'}</Text>
               {accord.signature_image ? (
                 <>
                   <Image style={s.sigImg} src={proxyImageUrl(accord.signature_image)} />

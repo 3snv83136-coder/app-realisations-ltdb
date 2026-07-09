@@ -308,7 +308,7 @@ export default function FacturePage() {
         <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-8 max-w-md w-full text-center">
           <div className="inline-block animate-spin rounded-full h-12 w-12 border-4 border-blue-200 border-t-[#0e2a52] mb-4" />
           <h2 className="text-xl font-black text-[#0e2a52]">Analyse de la dictée…</h2>
-          <p className="text-sm text-slate-500 mt-2">L&apos;IA structure la facture (objet, lignes, observations, mode de règlement).</p>
+          <p className="text-sm text-slate-500 mt-2">L&apos;IA structure la facture (objet, lignes, mode de règlement).</p>
         </div>
       </div>
     )
@@ -634,26 +634,6 @@ export default function FacturePage() {
               rows={2}
               placeholder="ex: Intervention réglée par carte bancaire le 29/04/2026. Aucun solde restant dû."
               className="w-full border-2 border-slate-200 focus:border-emerald-500 outline-none rounded-lg px-3 py-2 text-sm transition-colors"
-            />
-          </section>
-
-          {/* Observations technicien */}
-          <section className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 space-y-3">
-            <h2 className="font-bold text-[#0e2a52]">Observations du technicien</h2>
-            <p className="text-xs text-slate-500">Affichées dans l&apos;encadré jaune.</p>
-            <textarea
-              value={facture.observations || ''}
-              onChange={e => setFacture({ ...facture, observations: e.target.value })}
-              rows={4}
-              placeholder="Constat technique : état de la canalisation, nature du bouchon…"
-              className="w-full border-2 border-slate-200 focus:border-amber-500 outline-none rounded-lg px-3 py-2 text-sm transition-colors"
-            />
-            <textarea
-              value={facture.recommandation || ''}
-              onChange={e => setFacture({ ...facture, recommandation: e.target.value })}
-              rows={2}
-              placeholder="Recommandation préventive (optionnel)"
-              className="w-full border-2 border-slate-200 focus:border-amber-500 outline-none rounded-lg px-3 py-2 text-sm transition-colors"
             />
           </section>
 

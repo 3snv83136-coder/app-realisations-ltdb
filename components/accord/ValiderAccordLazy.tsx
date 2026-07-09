@@ -21,6 +21,7 @@ type Props = {
   lignes: LigneDevis[]
   emetteur: EmetteurInfo
   telephone: string
+  technicienNom?: string
 }
 
 export default function ValiderAccordLazy(props: Props) {

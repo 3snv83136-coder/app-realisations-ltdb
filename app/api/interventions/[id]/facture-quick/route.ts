@@ -124,9 +124,9 @@ export async function POST(req: NextRequest, { params }: Params) {
   if (typeof body.mode_reglement === 'string') facture.mode_reglement = body.mode_reglement
   if (typeof body.echeance === 'string' && body.echeance.trim()) facture.echeance = body.echeance.trim()
   if (body.tva_taux === 0 || body.tva_taux === 10 || body.tva_taux === 20) facture.tva_taux = body.tva_taux
-  if (typeof body.observations === 'string') facture.observations = body.observations
-  if (typeof body.recommandation === 'string') facture.recommandation = body.recommandation
   if (typeof body.objet === 'string' && body.objet.trim()) facture.objet = body.objet.trim()
+  facture.observations = ''
+  facture.recommandation = ''
 
   // Numéro séquentiel continu (FA-2026-0001) alloué atomiquement côté serveur.
   // Idempotence : si une facture existe déjà pour cette intervention, on réutilise

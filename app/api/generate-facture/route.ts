@@ -85,8 +85,6 @@ INFOS CONNUES :
 - "lignes[]" : une ligne par prestation. Première ligne = "Déplacement" si mentionné (souvent inclus).
 - "tva_taux" : 10 par défaut (travaux d'amélioration sur habitation > 2 ans). 20 si neuf ou commercial explicitement mentionné.
 - "mode_reglement" : phrase courte décrivant le règlement effectué (ex: "Intervention réglée par carte bancaire le ${dateFR}. Aucun solde restant dû."). Reformule à partir de la dictée. Si "À réception" → "" (champ vide).
-- "observations" : 2-3 phrases factuelles sur le constat technique fait par le technicien (état de la canalisation, nature du bouchon, configuration du réseau, etc.). Ton neutre et professionnel, vocabulaire métier exact (graisses alimentaires, lingettes, racines, dépôts calcaires, EU/EP, etc.). N'INVENTE PAS — reste fidèle à ce que dit la dictée.
-- "recommandation" : 1-2 phrases de conseil préventif au client (ex: "Ne plus jeter d'huile de cuisson..."). Si la dictée n'en suggère pas explicitement, laisse "".
 
 Réponds UNIQUEMENT avec ce JSON (sans markdown, sans backticks) :
 {
@@ -107,8 +105,6 @@ Réponds UNIQUEMENT avec ce JSON (sans markdown, sans backticks) :
   ],
   "tva_taux": 10,
   "mode_reglement": "phrase de règlement ou chaîne vide si non payé",
-  "observations": "constat technique 2-3 phrases",
-  "recommandation": "conseil préventif 1-2 phrases ou chaîne vide",
   "client_nom_detecte": "si un nom client est identifiable dans la dictée, mets-le ici, sinon chaîne vide",
   "client_adresse_detectee": "si une adresse client est identifiable dans la dictée, mets-la ici, sinon chaîne vide"
 }`
@@ -152,8 +148,8 @@ Réponds UNIQUEMENT avec ce JSON (sans markdown, sans backticks) :
   // Accepte 0 / 10 / 20 (le 0 % — auto-liquidation / franchise — est légitime).
   data.tva_taux = [0, 10, 20].includes(Number(data.tva_taux)) ? Number(data.tva_taux) : 10
   data.mode_reglement = typeof data.mode_reglement === 'string' ? data.mode_reglement : ''
-  data.observations = typeof data.observations === 'string' ? data.observations : ''
-  data.recommandation = typeof data.recommandation === 'string' ? data.recommandation : ''
+  data.observations = ''
+  data.recommandation = ''
   data.objet = typeof data.objet === 'string' ? data.objet : ''
 
   return NextResponse.json({ facture: data })

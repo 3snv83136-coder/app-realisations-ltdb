@@ -2,6 +2,7 @@
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { pdfElementToBlob } from "@/lib/pdfToBase64"
+import { getLtdbSignatureUrl } from "@/lib/rapport-signatures"
 import { AccordDocument } from "@/components/accord/AccordPDF"
 import SignatureCanvas from "@/components/accord/SignatureCanvas"
 import type { AccordIntervention, LigneDevis } from "@/lib/supabase"
@@ -12,6 +13,7 @@ type Props = {
   lignes: LigneDevis[]
   emetteur: EmetteurInfo
   telephone: string
+  technicienNom?: string
 }
 
 /**
@@ -19,7 +21,7 @@ type Props = {
  * renonciation), ou refus client. À la validation, le PDF signé est régénéré
  * et archivé (signature embarquée en data URL — pas de problème de CORS).
  */
-export default function ValiderAccord({ accord, lignes, emetteur, telephone }: Props) {
+export default function ValiderAccord({ accord, lignes, emetteur, telephone, technicienNom }: Props) {
   const router = useRouter()
   const [signature, setSignature] = useState<string | null>(null)
   const [demandeExpresse, setDemandeExpresse] = useState(false)
@@ -42,7 +44,14 @@ export default function ValiderAccord({ accord, lignes, emetteur, telephone }: P
       renonciation_retractation: true,
     }
     const blob = await pdfElementToBlob(
-      <AccordDocument accord={accordSigne} lignes={lignes} emetteur={emetteur} telephone={telephone} />,
+      <AccordDocument
+        accord={accordSigne}
+        lignes={lignes}
+        emetteur={emetteur}
+        telephone={telephone}
+        signatureLtdbUrl={getLtdbSignatureUrl()}
+        technicienNom={technicienNom}
+      />,
     )
     const fd = new FormData()
     fd.append('pdf', new File([blob], `accord-${accord.reference || accord.id}.pdf`, { type: 'application/pdf' }))

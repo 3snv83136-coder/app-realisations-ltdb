@@ -2,6 +2,7 @@
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { pdfElementToBlob } from "@/lib/pdfToBase64"
+import { getLtdbSignatureUrl } from "@/lib/rapport-signatures"
 import { AccordDocument, type AccordPdfProps } from "@/components/accord/AccordPDF"
 
 type Props = AccordPdfProps & { pdfUrl: string | null }
@@ -10,7 +11,7 @@ type Props = AccordPdfProps & { pdfUrl: string | null }
  * Génère le PDF de l'accord côté client (@react-pdf/renderer), puis l'envoie
  * à /api/accords/[id]/pdf qui l'archive sur Supabase Storage.
  */
-export default function GenererPdfButton({ accord, lignes, emetteur, telephone, pdfUrl }: Props) {
+export default function GenererPdfButton({ accord, lignes, emetteur, telephone, technicienNom, pdfUrl }: Props) {
   const router = useRouter()
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -21,7 +22,14 @@ export default function GenererPdfButton({ accord, lignes, emetteur, telephone, 
     setError(null)
     try {
       const blob = await pdfElementToBlob(
-        <AccordDocument accord={accord} lignes={lignes} emetteur={emetteur} telephone={telephone} />,
+        <AccordDocument
+          accord={accord}
+          lignes={lignes}
+          emetteur={emetteur}
+          telephone={telephone}
+          signatureLtdbUrl={getLtdbSignatureUrl()}
+          technicienNom={technicienNom}
+        />,
       )
       const filename = `accord-${accord.reference || accord.id}.pdf`
       const fd = new FormData()

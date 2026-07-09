@@ -87,24 +87,6 @@ function buildLignesFromRapport(rapport: RapportData, fallbackType: string): Fac
   return lignes
 }
 
-function buildObservations(rapport: RapportData): string {
-  // Priorité : diagnostic_final → diagnostic → commentaire technicien
-  const candidates = [
-    rapport.avis_technique?.diagnostic_final,
-    rapport.diagnostic,
-    rapport.commentaire_technicien,
-  ].filter((s): s is string => typeof s === 'string' && s.trim().length > 0)
-  return candidates[0]?.trim() || ''
-}
-
-function buildRecommandation(rapport: RapportData): string {
-  const candidates = [
-    rapport.avis_technique?.recommandation_urgente,
-    rapport.recommandations,
-  ].filter((s): s is string => typeof s === 'string' && s.trim().length > 0)
-  return candidates[0]?.trim() || ''
-}
-
 /**
  * Construit un payload de facture pré-rempli à partir d'un rapport d'intervention.
  * Le payload est compatible avec celui que la page Devis → Facture stocke dans
@@ -137,8 +119,8 @@ export function buildFactureFromRapport(src: RapportToFactureSource): RapportToF
     lignes: buildLignesFromRapport(rapport, objet),
     tva_taux: 0, // Franchise en base de TVA (auto-entrepreneur) — art. 293 B du CGI
     mode_reglement: '',
-    observations: buildObservations(rapport),
-    recommandation: buildRecommandation(rapport),
+    observations: '',
+    recommandation: '',
   }
 
   return {

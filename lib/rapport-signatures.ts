@@ -1,4 +1,5 @@
 import { proxyImageUrl, proxyImageUrlAbsolute } from '@/lib/proxyImageUrl'
+import { getSignatureClientFromRapport } from '@/lib/sync-signature-rapport'
 
 /** Fichier statique dans /public — signature universelle LTDB sur les rapports. */
 export const LTDB_SIGNATURE_PATH = '/signature-ltdb.png'
@@ -25,20 +26,28 @@ export type RapportSignatureProps = {
   signatureClientDate?: string | null
 }
 
-/** Charge signature client depuis l'accord validé lié à l'intervention. */
+/** Charge la signature client (accord validé ou copie dans rapport_json). */
 export async function fetchAccordSignatureForRapport(
   interventionId: string,
 ): Promise<{ url: string | null; date: string | null }> {
   try {
-    const res = await fetch(`/api/interventions/${interventionId}/accord`, { cache: 'no-store' })
-    const data = await res.json()
-    if (!res.ok || !data.accord || data.accord.statut !== 'VALIDE') {
-      return { url: null, date: null }
+    const [accordRes, intRes] = await Promise.all([
+      fetch(`/api/interventions/${interventionId}/accord`, { cache: 'no-store' }),
+      fetch(`/api/interventions/${interventionId}`, { cache: 'no-store' }),
+    ])
+    const accordData = await accordRes.json()
+    if (accordRes.ok && accordData.accord?.statut === 'VALIDE' && accordData.accord.signature_image) {
+      return {
+        url: accordData.accord.signature_image,
+        date: accordData.accord.valide_at || null,
+      }
     }
-    return {
-      url: data.accord.signature_image || null,
-      date: data.accord.valide_at || null,
+    const intData = await intRes.json()
+    const fromRapport = getSignatureClientFromRapport(intData.intervention?.rapport_json)
+    if (fromRapport) {
+      return { url: fromRapport.image_url, date: fromRapport.valide_at || null }
     }
+    return { url: null, date: null }
   } catch {
     return { url: null, date: null }
   }

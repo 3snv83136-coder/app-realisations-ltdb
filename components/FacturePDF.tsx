@@ -399,25 +399,6 @@ export function FactureDocument({ emetteur, client, facture, phone }: FacturePDF
             </View>
           ) : null}
 
-          {/* ===== Observations du technicien =====
-              Pas de wrap={false} : le texte peut être long et doit pouvoir
-              se découper sur plusieurs pages sans se chevaucher. */}
-          {(facture.observations || facture.recommandation) ? (
-            <View style={[s.card, s.cardAccentYellow]}>
-              <Text style={s.cardTitle}>Observations du technicien</Text>
-              <Text style={s.cardText}>
-                {facture.observations || ''}
-                {facture.observations && facture.recommandation ? '\n\n' : ''}
-                {facture.recommandation ? (
-                  <>
-                    <Text style={s.cardStrong}>Recommandation : </Text>
-                    {facture.recommandation}
-                  </>
-                ) : null}
-              </Text>
-            </View>
-          ) : null}
-
           <View style={s.legalBox} wrap={false}>
             <Text style={s.legalText}>{FACTURE_MENTIONS_LEGALES}</Text>
           </View>
