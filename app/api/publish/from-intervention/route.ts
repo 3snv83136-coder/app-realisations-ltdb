@@ -153,7 +153,8 @@ export async function POST(req: NextRequest) {
   const photoBlobs = await Promise.all(
     photoMetaSorted.map(async (meta, i) => {
       try {
-        const r = await fetch(toRenderUrl(meta.url))
+        const renderUrl = toRenderUrl(meta.url)
+        const r = await fetch(renderUrl)
         if (!r.ok) throw new Error(`HTTP ${r.status}`)
         const blob = await r.blob()
         return {
@@ -161,6 +162,7 @@ export async function POST(req: NextRequest) {
           filename: `${nomBase}-${i + 1}.jpg`,
           legende: meta.legende,
           categorie: meta.categorie,
+          url: renderUrl,
         }
       } catch (e) {
         console.error('[publish/from-intervention] photo fetch', meta.url, e)
@@ -181,7 +183,7 @@ export async function POST(req: NextRequest) {
     typeIntervention: interv.type_intervention,
     ville,
     codePostal,
-    photos: validPhotos.map((p) => ({ legende: p.legende, categorie: p.categorie })),
+    photos: validPhotos.map((p) => ({ legende: p.legende, categorie: p.categorie, url: p.url })),
     technicien: technicienNom
       ? {
           nom: technicienNom,

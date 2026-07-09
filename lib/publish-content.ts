@@ -47,8 +47,8 @@ type PhotoMeta = {
   legende: string
   alt?: string
   categorie?: PhotoCategory
-  /** Index dans le tableau photos trié pour placeholder {PHOTO_N_URL} */
-  photoIndex: number
+  /** URL publique réelle — sans URL, la photo n'est pas affichée sur le site */
+  url?: string
 }
 
 /** Reconstruit le HTML article quand seo.contenu_principal est vide (mode terrain). */
@@ -222,10 +222,11 @@ function buildGalleryByCategory(
   typeIntervention?: string | null,
   ville?: string,
 ): string {
-  if (photos.length === 0) return ""
+  const withUrl = photos.filter((p) => typeof p.url === "string" && p.url.trim())
+  if (withUrl.length === 0) return ""
 
   const byCat = new Map<PhotoCategory, PhotoMeta[]>()
-  for (const p of photos) {
+  for (const p of withUrl) {
     const cat = p.categorie || "autre"
     if (!byCat.has(cat)) byCat.set(cat, [])
     byCat.get(cat)!.push(p)
@@ -238,13 +239,15 @@ function buildGalleryByCategory(
     const label = PHOTO_CATEGORY_LABELS[cat]
     const cards = items
       .map((p) => {
+        const src = p.url!.trim()
         const legendePropre = /^photo \d+$/i.test(p.legende) ? label : p.legende
         const alt =
           p.alt ||
           `${typeIntervention || "Intervention"} à ${ville || ""}${legendePropre ? ` — ${legendePropre}` : ""}`
-        return `<figure class="photo-card"><img src="{PHOTO_${p.photoIndex + 1}_URL}" alt="${escapeHtml(alt)}" loading="lazy"><figcaption>${escapeHtml(legendePropre)}</figcaption></figure>`
+        return `<figure class="photo-card"><img src="${escapeHtml(src)}" alt="${escapeHtml(alt)}" loading="lazy"><figcaption>${escapeHtml(legendePropre)}</figcaption></figure>`
       })
       .join("")
+    if (!cards.trim()) continue
     sections.push(`<div class="photo-category-section"><h3>${escapeHtml(label)}</h3><div class="photo-grid">${cards}</div></div>`)
   }
 
@@ -308,11 +311,10 @@ export function buildPublishContentHtml(opts: {
     typeof seo.expertise_locale === "string" ? seo.expertise_locale.trim() : ""
   const expertiseHtml = buildExpertiseLocaleHtml(expertiseLocale)
 
-  const photosWithIndex: PhotoMeta[] = (opts.photos || []).map((p, i) => ({
-    ...p,
-    photoIndex: i,
-  }))
-  const galleryHtml = buildGalleryByCategory(photosWithIndex, typeIntervention, ville)
+  const photosWithUrl: PhotoMeta[] = (opts.photos || []).filter(
+    (p) => typeof p.url === "string" && p.url.trim(),
+  )
+  const galleryHtml = buildGalleryByCategory(photosWithUrl, typeIntervention, ville)
 
   const faq = Array.isArray(seo.faq) ? seo.faq : []
   const faqHtml =

@@ -176,16 +176,25 @@ async function main() {
         titreMetier: "technicien déboucheur",
       },
       photos: [
-        { legende: "Avant", categorie: "avant" },
-        { legende: "Pendant hydrocurage", categorie: "pendant" },
-        { legende: "Après", categorie: "apres" },
-        { legende: "Écran caméra", categorie: "camera" },
+        { legende: "Avant", categorie: "avant" as const, url: "https://example.com/avant.jpg" },
+        { legende: "Pendant hydrocurage", categorie: "pendant" as const, url: "https://example.com/pendant.jpg" },
+        { legende: "Après", categorie: "apres" as const, url: "https://example.com/apres.jpg" },
+        { legende: "Écran caméra", categorie: "camera" as const, url: "https://example.com/camera.jpg" },
       ],
     })
     content.includes("ai-summary-block") ? ok("Bloc résumé IA") : ko("Bloc résumé IA")
     content.includes("technicien-block") && content.includes("Spencer") ? ok("Bloc technicien") : ko("Bloc technicien")
     content.includes("expertise-block") || content.includes("Notre retour terrain") ? ok("Bloc expertise locale") : ko("Bloc expertise")
     content.includes("photo-category-section") ? ok("Galerie par catégorie") : ko("Galerie catégories")
+
+    const { content: noPhotoContent } = buildPublishContentHtml({
+      seo,
+      rapport,
+      typeIntervention: "Débouchage canalisation",
+      ville: "Carqueiranne",
+      photos: [{ legende: "Sans URL", categorie: "avant" }],
+    })
+    !noPhotoContent.includes("gallery-block") ? ok("Pas de galerie sans URL") : ko("Galerie vide affichée")
   }
 
   if (SKIP_PUBLISH) {

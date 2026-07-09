@@ -526,7 +526,10 @@ export default function NouveauPage() {
       rapport: rapport as Record<string, unknown> | null,
       typeIntervention,
       ville,
-      photos: photos.map((p) => ({ legende: p.legende || `Photo` })),
+      photos: photos.map((p) => ({
+        legende: p.legende || `Photo`,
+        url: p.dataUrl || undefined,
+      })),
     })
     // Tronque title/description pour respecter les CharField Django
     // (title max_length=100 côté backend ; description max ~200). DeepSeek
