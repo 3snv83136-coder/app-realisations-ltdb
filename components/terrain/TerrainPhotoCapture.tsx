@@ -1,9 +1,12 @@
 'use client'
 import { useRef, useState } from "react"
+import { isPhotoCategory, type PhotoCategory } from "@/lib/photo-categories"
 
 interface TerrainPhotoCaptureProps {
   interventionId: string
   legendeDefaut: string
+  /** Catégorie sémantique pour publication site (avant, apres, camera…) */
+  categorie?: PhotoCategory
   /** Appelé après upload réussi (URL publique de la photo) */
   onUploaded: (url: string, terrain_step: number) => void
   /** Texte du gros bouton principal */
@@ -17,6 +20,7 @@ interface TerrainPhotoCaptureProps {
 export default function TerrainPhotoCapture({
   interventionId,
   legendeDefaut,
+  categorie,
   onUploaded,
   titre = 'Prendre une photo',
 }: TerrainPhotoCaptureProps) {
@@ -74,6 +78,9 @@ export default function TerrainPhotoCapture({
       const fd = new FormData()
       fd.append('photo', compressed)
       fd.append('legende', legendeDefaut)
+      if (categorie && isPhotoCategory(categorie)) {
+        fd.append('categorie', categorie)
+      }
 
       const res = await fetch(`/api/interventions/${interventionId}/photo`, {
         method: 'POST',

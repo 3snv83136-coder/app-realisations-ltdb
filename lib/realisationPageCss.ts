@@ -62,6 +62,70 @@ export const REALISATION_PAGE_STYLE = `<style>
 }
 .resume-block h2 { border-bottom-color: #f3d9bd; }
 
+.ai-summary-block {
+  background: #f0f7ff;
+  border: 1px solid #c5daf0;
+  border-left: 5px solid #2980b9;
+}
+.ai-summary-block h2 { border-bottom-color: #c5daf0; }
+.ai-summary-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.ai-summary-list li {
+  margin: 8px 0;
+  padding: 8px 0;
+  border-bottom: 1px solid #e1ecf7;
+  font-size: 15px;
+  line-height: 1.5;
+}
+.ai-summary-list li:last-child { border-bottom: none; }
+
+.technicien-block { padding: 0; overflow: hidden; }
+.technicien-card {
+  display: flex;
+  gap: 20px;
+  align-items: flex-start;
+  padding: 24px 28px;
+}
+.technicien-photo {
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+  border: 3px solid var(--ltdb-orange);
+}
+.technicien-photo-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--ltdb-navy);
+  color: #fff;
+  font-size: 42px;
+  font-weight: 700;
+}
+.technicien-info h2 {
+  margin: 0 0 8px;
+  font-size: 20px;
+  border-bottom: none;
+  padding-bottom: 0;
+  display: block;
+}
+.technicien-role { color: var(--ltdb-muted); margin: 0 0 10px; }
+.technicien-materiel { margin: 0; font-size: 14px; }
+
+.expertise-block .info-box { margin: 0; }
+
+.photo-category-section { margin-top: 20px; }
+.photo-category-section h3 {
+  margin: 0 0 10px;
+  font-size: 16px;
+  color: var(--ltdb-navy-light);
+  font-weight: 700;
+}
+
 .info-box {
   background: #e9f2fb;
   border-left: 4px solid #2980b9;
@@ -142,5 +206,7 @@ export const REALISATION_PAGE_STYLE = `<style>
 
 @media (max-width: 560px) {
   .content-block { padding: 20px; }
+  .technicien-card { flex-direction: column; align-items: center; text-align: center; }
+  .technicien-photo { width: 100px; height: 100px; }
 }
 </style>`

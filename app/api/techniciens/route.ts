@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server"
+import { requireAdminApi } from "@/lib/rh/require-admin"
 import { getSupabaseOrNull } from "@/lib/supabase"
 
 export const dynamic = 'force-dynamic'
 
-const UPDATABLE = new Set(['nom', 'email', 'telephone', 'agence', 'actif'])
+const UPDATABLE = new Set(['nom', 'email', 'telephone', 'agence', 'actif', 'photo_url', 'annees_experience', 'titre_metier'])
 
 export async function GET(req: NextRequest) {
   const sb = getSupabaseOrNull()
@@ -19,7 +20,7 @@ export async function GET(req: NextRequest) {
 
   let query = sb
     .from('techniciens')
-    .select('id, nom, email, telephone, agence, actif, created_at')
+    .select('id, nom, email, telephone, agence, actif, photo_url, annees_experience, titre_metier, created_at')
     .order('nom', { ascending: true })
 
   if (!all) query = query.eq('actif', true)
@@ -30,6 +31,9 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  const auth = await requireAdminApi()
+  if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
+
   const sb = getSupabaseOrNull()
   if (!sb) {
     return NextResponse.json({
@@ -53,6 +57,8 @@ export async function POST(req: NextRequest) {
     telephone: typeof body.telephone === 'string' ? body.telephone.trim() || null : null,
     agence: typeof body.agence === 'string' ? body.agence.trim() || null : null,
     actif: typeof body.actif === 'boolean' ? body.actif : true,
+    titre_metier: typeof body.titre_metier === 'string' ? body.titre_metier.trim() || 'technicien déboucheur' : 'technicien déboucheur',
+    annees_experience: typeof body.annees_experience === 'number' ? body.annees_experience : null,
   }
 
   const { data, error } = await sb
@@ -66,6 +72,9 @@ export async function POST(req: NextRequest) {
 }
 
 export async function PUT(req: NextRequest) {
+  const auth = await requireAdminApi()
+  if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
+
   const sb = getSupabaseOrNull()
   if (!sb) {
     return NextResponse.json({
@@ -86,6 +95,10 @@ export async function PUT(req: NextRequest) {
   const update: Record<string, unknown> = {}
   for (const [k, v] of Object.entries(body)) {
     if (!UPDATABLE.has(k)) continue
+    if (k === 'annees_experience') {
+      update[k] = typeof v === 'number' ? v : v === null ? null : Number(v) || null
+      continue
+    }
     update[k] = v
   }
 

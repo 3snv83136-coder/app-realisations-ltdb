@@ -6,6 +6,7 @@ import { useSession } from "next-auth/react"
 import dynamic from "next/dynamic"
 import TerrainStepper from "@/components/terrain/TerrainStepper"
 import TerrainPhotoCapture from "@/components/terrain/TerrainPhotoCapture"
+import TerrainExtraPhotos from "@/components/terrain/TerrainExtraPhotos"
 import StepTravauxSupplementaires from "@/components/terrain/StepTravauxSupplementaires"
 import TerrainOceanLoader from "@/components/terrain/TerrainOceanLoader"
 import DevisEnvoiPanel from "@/components/DevisEnvoiPanel"
@@ -51,6 +52,7 @@ type Intervention = {
   rapport_json: any
   photos_urls: string[] | null
   photos_legendes: string[] | null
+  photos_categories?: string[] | null
   publie_slug: string | null
   prix_prevu: number | null
   video_urls?: { horizontal?: string; vertical?: string; square?: string } | null
@@ -69,10 +71,19 @@ type Client = {
   ville: string | null
 } | null
 
+type Technicien = {
+  id: string
+  nom: string
+  annees_experience?: number | null
+  titre_metier?: string | null
+  photo_url?: string | null
+} | null
+
 export default function TerrainPage({ params }: { params: { id: string } }) {
   const router = useRouter()
   const [interv, setInterv] = useState<Intervention | null>(null)
   const [client, setClient] = useState<Client>(null)
+  const [technicien, setTechnicien] = useState<Technicien>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
@@ -88,6 +99,7 @@ export default function TerrainPage({ params }: { params: { id: string } }) {
       }
       setInterv(data.intervention)
       setClient(data.client)
+      setTechnicien(data.technicien || null)
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
     } finally {
@@ -151,6 +163,7 @@ export default function TerrainPage({ params }: { params: { id: string } }) {
     <TerrainPageBody
       interv={interv}
       client={client}
+      technicien={technicien}
       step={step}
       error={error}
       setError={setError}
@@ -165,6 +178,7 @@ export default function TerrainPage({ params }: { params: { id: string } }) {
 function TerrainPageBody({
   interv,
   client,
+  technicien,
   step,
   error,
   setError,
@@ -175,6 +189,7 @@ function TerrainPageBody({
 }: {
   interv: Intervention
   client: Client
+  technicien: Technicien
   step: number
   error: string
   setError: (e: string) => void
@@ -252,7 +267,7 @@ function TerrainPageBody({
             }}
           />
         )}
-        {step === 3 && <StepRapport interv={interv} onSaved={load} onError={setError} />}
+        {step === 3 && <StepRapport interv={interv} technicien={technicien} onSaved={load} onError={setError} />}
         {step === 4 && <StepFacture interv={interv} client={client} onCreated={load} onError={setError} />}
         {step === 5 && (
           <StepDevisOption
@@ -312,6 +327,7 @@ function StepPhotoAvant({ interv, onPhotoUploaded, onSkip, onError }: {
       <TerrainPhotoCapture
         interventionId={interv.id}
         legendeDefaut="Photo avant intervention"
+        categorie="avant"
         titre={hasPhotoAvant ? 'Remplacer la photo AVANT' : 'Prendre la photo AVANT'}
         onUploaded={(_url, terrainStep) => {
           void onPhotoUploaded(terrainStep >= 1 ? terrainStep : 1)
@@ -451,6 +467,7 @@ function StepEnCours({ interv, client, onPhotoUploaded, onRefresh, onTerminer, o
           <TerrainPhotoCapture
             interventionId={interv.id}
             legendeDefaut="Photo après intervention"
+            categorie="apres"
             titre="Photo APRÈS"
             onUploaded={onPhotoUploaded}
           />
@@ -471,6 +488,14 @@ function StepEnCours({ interv, client, onPhotoUploaded, onRefresh, onTerminer, o
           </div>
         )}
       </div>
+
+      <TerrainExtraPhotos
+        interventionId={interv.id}
+        photosUrls={interv.photos_urls || []}
+        photosLegendes={interv.photos_legendes || []}
+        photosCategories={interv.photos_categories || []}
+        onUploaded={() => { void onRefresh() }}
+      />
 
       <div className="bg-white rounded-2xl border-2 border-slate-200 p-5 space-y-4">
         <div>
@@ -539,7 +564,12 @@ function StepEnCours({ interv, client, onPhotoUploaded, onRefresh, onTerminer, o
 // ============================================================
 // ÉTAPE 3 — Rapport (dictée + génération + preview + validation)
 // ============================================================
-function StepRapport({ interv, onSaved, onError }: { interv: Intervention; onSaved: () => void; onError: (e: string) => void }) {
+function StepRapport({ interv, technicien, onSaved, onError }: {
+  interv: Intervention
+  technicien: Technicien
+  onSaved: () => void
+  onError: (e: string) => void
+}) {
   const [transcription, setTranscription] = useState('')
   const [generating, setGenerating] = useState(false)
   const [genDone, setGenDone] = useState(false)
@@ -632,6 +662,9 @@ function StepRapport({ interv, onSaved, onError }: { interv: Intervention; onSav
           type_intervention: interv.type_intervention || 'Intervention',
           ville: interv.ville || '',
           code_postal: interv.code_postal || '',
+          technicien_nom: technicien?.nom || '',
+          technicien_annees: technicien?.annees_experience ?? undefined,
+          technicien_titre: technicien?.titre_metier || undefined,
         }),
         signal: AbortSignal.timeout(180_000),
       })
@@ -718,6 +751,21 @@ function StepRapport({ interv, onSaved, onError }: { interv: Intervention; onSav
               <div className="text-[11px] uppercase tracking-wider text-slate-500 font-bold mb-1">Titre</div>
               <h2 className="text-lg font-black text-slate-800">{seoPreview.titre_h1}</h2>
             </div>
+          )}
+
+          {seoPreview?.resume_intervention && (
+            <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-sm space-y-1">
+              <div className="text-[11px] uppercase tracking-wider text-blue-700 font-bold mb-2">Résumé intervention (site)</div>
+              {seoPreview.resume_intervention.lieu && <p>📍 {seoPreview.resume_intervention.lieu}</p>}
+              {seoPreview.resume_intervention.probleme && <p><strong>Problème :</strong> {seoPreview.resume_intervention.probleme}</p>}
+              {seoPreview.resume_intervention.cause && <p><strong>Cause :</strong> {seoPreview.resume_intervention.cause}</p>}
+              {seoPreview.resume_intervention.solution && <p><strong>Solution :</strong> {seoPreview.resume_intervention.solution}</p>}
+              {seoPreview.resume_intervention.duree && <p><strong>Durée :</strong> {seoPreview.resume_intervention.duree}</p>}
+              {seoPreview.resume_intervention.resultat && <p><strong>Résultat :</strong> {seoPreview.resume_intervention.resultat}</p>}
+            </div>
+          )}
+          {seoPreview?.expertise_locale && (
+            <PreviewField label="Retour terrain" value={seoPreview.expertise_locale} />
           )}
 
           {rapportPreview.objet && (

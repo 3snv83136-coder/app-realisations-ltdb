@@ -24,7 +24,15 @@ function slugify(s: string) {
 }
 
 export async function POST(req: NextRequest) {
-  const { transcription, type_intervention, ville, code_postal } = await req.json()
+  const {
+    transcription,
+    type_intervention,
+    ville,
+    code_postal,
+    technicien_nom,
+    technicien_annees,
+    technicien_titre,
+  } = await req.json()
   if (!transcription || !type_intervention || !ville) {
     return NextResponse.json({ error: 'Champs manquants' }, { status: 400 })
   }
@@ -123,6 +131,13 @@ Si et seulement si le technicien mentionne explicitement des prix/montants/devis
   "conditions": ["Validité 30 jours.", "Acompte 30 % à la signature."]
 }`
 
+  const techNom = typeof technicien_nom === 'string' ? technicien_nom.trim() : ''
+  const techAnnees = typeof technicien_annees === 'number' ? technicien_annees : null
+  const techTitre = typeof technicien_titre === 'string' ? technicien_titre.trim() : 'technicien déboucheur'
+  const techContext = techNom
+    ? `\nTechnicien sur place : ${techNom}${techAnnees ? ` (${techAnnees} ans d'expérience dans le Var)` : ''}, ${techTitre}.`
+    : ''
+
   // === APPEL 2 — SEO unique (contenu différent à chaque génération) ===
   const seoPrompt = `Tu es un rédacteur web expérimenté en plomberie/assainissement local. Tu écris une page de réalisation client UNIQUE qui sera publiée sur ${SITE}.
 
@@ -153,7 +168,7 @@ ${transcription}
 """
 
 Intervention : ${type_intervention} à ${ville} (${cp})
-Référence unique : ${reference}
+Référence unique : ${reference}${techContext}
 
 SERVICES DU SITE (pour maillage interne) :
 ${SERVICES.map(s => `- ${s.label} → ${SITE}/${s.slug}`).join('\n')}
@@ -210,6 +225,12 @@ Les 3 champs "titre_h1", "meta_description" et "resume_rich_snippet" doivent pou
 - 8-12 mots-clés longue traîne, vrais termes de recherche humains.
 - GEO / citabilité IA : phrases courtes, vérifiables, ancrage local précis, style factuel.
 
+🧑 E-E-A-T — TECHNICIEN ET EXPERTISE LOCALE
+${techNom ? `- Mets en avant ${techNom} comme auteur de l'intervention (prénom/nom, pas seulement l'entreprise).` : '- Si le technicien n\'est pas nommé, utilise "notre technicien" sans inventer de prénom.'}
+- "expertise_locale" : 1-2 phrases au style "Notre retour terrain : sur le secteur de ${ville}, …" avec une cause fréquente ou un constat local vérifiable (racines PVC, graisse cuisine, calcaire…). Ancré sur la dictée ou le type d'intervention, sans inventer de faits précis non dictés.
+- "resume_intervention" : résumé structuré digeste pour moteurs IA (lieu, problème, cause, solution, durée, résultat). Chaque champ = 1 phrase courte max.
+- Le "contenu_principal" doit contenir des détails UNIQUES à CE chantier (symptômes, accès, particularités). Évite de répéter mot pour mot les blocs génériques services/assurances/villes — garde le maillage interne mais avec des formulations différentes à chaque page.
+
 Réponds UNIQUEMENT avec ce JSON (sans markdown, sans backticks).
 IMPORTANT : respecte EXACTEMENT cet ordre de clés. "contenu_principal" est
 volumineux et vient en DERNIER — les champs courts (faq, related_services)
@@ -218,6 +239,15 @@ sont placés avant pour ne jamais être perdus si la réponse est longue.
   "titre_h1": "titre unique et spécifique — ne pas copier d'autres pages",
   "meta_description": "description unique avec angle distinctif",
   "resume_rich_snippet": "résumé court 2-3 phrases, factuel, citable, sans promo excessive",
+  "resume_intervention": {
+    "lieu": "${ville} (${cp})",
+    "probleme": "problème constaté en 1 phrase",
+    "cause": "cause identifiée en 1 phrase",
+    "solution": "méthode utilisée en 1 phrase",
+    "duree": "durée si connue, sinon vide",
+    "resultat": "résultat observable en 1 phrase"
+  },
+  "expertise_locale": "Notre retour terrain : sur le secteur de ${ville}, …",
   "meta_keywords": ["ville+service","longue traîne 1","longue traîne 2","..."],
   "faq": [
     {"question":"...","reponse":"..."},
@@ -322,6 +352,20 @@ sont placés avant pour ne jamais être perdus si la réponse est longue.
         reponse: typeof f.reponse === 'string' ? f.reponse : '',
       }))
     : []
+  seo.expertise_locale = typeof seo.expertise_locale === 'string' ? seo.expertise_locale : ''
+  if (seo.resume_intervention && typeof seo.resume_intervention === 'object') {
+    const r = seo.resume_intervention as Record<string, unknown>
+    seo.resume_intervention = {
+      lieu: typeof r.lieu === 'string' ? r.lieu : '',
+      probleme: typeof r.probleme === 'string' ? r.probleme : '',
+      cause: typeof r.cause === 'string' ? r.cause : '',
+      solution: typeof r.solution === 'string' ? r.solution : '',
+      duree: typeof r.duree === 'string' ? r.duree : '',
+      resultat: typeof r.resultat === 'string' ? r.resultat : '',
+    }
+  } else {
+    seo.resume_intervention = null
+  }
 
   // Slug + référence déterministes côté serveur
   seo.slug = realisationSlug
@@ -393,10 +437,19 @@ sont placés avant pour ne jamais être perdus si la réponse est longue.
         "abstract": seo.resume_rich_snippet,
         "datePublished": datePublished,
         "dateModified": datePublished,
-        "author": { "@type": "Organization", "name": "Les Techniciens du Débouchage" },
+        "author": techNom
+          ? { "@type": "Person", "name": techNom, "jobTitle": techTitre || "Technicien déboucheur" }
+          : { "@type": "Organization", "name": "Les Techniciens du Débouchage" },
         "publisher": { "@id": `${SITE}/#business` },
         "mainEntityOfPage": pageUrl,
       },
+      ...(techNom ? [{
+        "@type": "Person",
+        "@id": `${pageUrl}#technicien`,
+        "name": techNom,
+        "jobTitle": techTitre || "Technicien déboucheur",
+        "worksFor": { "@id": `${SITE}/#business` },
+      }] : []),
       {
         "@type": "FAQPage",
         "@id": `${pageUrl}#faq`,

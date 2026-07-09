@@ -49,10 +49,13 @@ export async function POST(req: NextRequest, { params }: Params) {
   }
 
   const legende = String(formData.get('legende') || '').trim().slice(0, 200)
+  const categorieRaw = String(formData.get('categorie') || '').trim().toLowerCase()
+  const validCategories = new Set(['avant', 'pendant', 'apres', 'camera', 'dechets', 'autre'])
+  const categorie = validCategories.has(categorieRaw) ? categorieRaw : null
 
   const { data: interv, error: intErr } = await sb
     .from('interventions')
-    .select('id, photos_urls, photos_legendes, terrain_step')
+    .select('id, photos_urls, photos_legendes, photos_categories, terrain_step')
     .eq('id', interventionId)
     .maybeSingle()
   if (intErr) return NextResponse.json({ error: intErr.message }, { status: 500 })
@@ -78,6 +81,11 @@ export async function POST(req: NextRequest, { params }: Params) {
 
   const photosUrls = [...(interv.photos_urls || []), url]
   const photosLegendes = [...(interv.photos_legendes || []), legende || defaultLegende(photosUrls.length - 1)]
+  const photosCategories = [...(interv.photos_categories || [])]
+  while (photosCategories.length < photosUrls.length - 1) {
+    photosCategories.push(inferCategoryFromIndex(photosCategories.length, interv.photos_legendes?.[photosCategories.length] || ''))
+  }
+  photosCategories.push(categorie || inferCategoryFromLegende(legende, photosUrls.length - 1))
 
   // Bump terrain_step : photo avant → 1, photo après → 4 (rapport).
   // Les photos « travaux supplémentaires » ne font pas avancer le wizard.
@@ -97,10 +105,11 @@ export async function POST(req: NextRequest, { params }: Params) {
     .update({
       photos_urls: photosUrls,
       photos_legendes: photosLegendes,
+      photos_categories: photosCategories,
       terrain_step: nextStep,
     })
     .eq('id', interventionId)
-    .select('id, photos_urls, photos_legendes, terrain_step')
+    .select('id, photos_urls, photos_legendes, photos_categories, terrain_step')
     .single()
   if (upErr) return NextResponse.json({ error: upErr.message }, { status: 500 })
 
@@ -109,8 +118,25 @@ export async function POST(req: NextRequest, { params }: Params) {
     url,
     photos_urls: updated.photos_urls,
     photos_legendes: updated.photos_legendes,
+    photos_categories: updated.photos_categories,
     terrain_step: updated.terrain_step,
   })
+}
+
+function inferCategoryFromLegende(legende: string, index: number): string {
+  const leg = legende.toLowerCase()
+  if (leg.includes('avant')) return 'avant'
+  if (leg.includes('après') || leg.includes('apres')) return 'apres'
+  if (leg.includes('caméra') || leg.includes('camera')) return 'camera'
+  if (leg.includes('déchets') || leg.includes('dechets') || leg.includes('racines')) return 'dechets'
+  if (leg.includes('pendant')) return 'pendant'
+  if (index === 0) return 'avant'
+  if (index === 1) return 'apres'
+  return 'autre'
+}
+
+function inferCategoryFromIndex(index: number, legende: string): string {
+  return inferCategoryFromLegende(legende, index)
 }
 
 function defaultLegende(index: number): string {

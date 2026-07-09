@@ -29,6 +29,7 @@ const TABS: Tab[] = [
   { href: '/statistiques', label: 'Statistiques', Icon: ChartBarIcon },
   { href: '/comptabilite', label: 'Comptabilité', Icon: BriefcaseIcon },
   { href: '/rh',           label: 'RH',           Icon: UsersIcon, adminOnly: true },
+  { href: '/techniciens',  label: 'Techniciens',  Icon: UsersIcon, adminOnly: true },
   { href: '/mail',         label: 'Mail',         Icon: EnvelopeIcon },
 ]
 

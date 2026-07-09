@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from "next/server"
 import { formatDjangoPublishError } from "@/lib/django-publish-error"
+import { resolvePhotoCategory } from "@/lib/photo-categories"
 import { buildPublishDescription } from "@/lib/publish-description"
-import { buildPublishContentHtml } from "@/lib/publish-content"
+import {
+  buildPublishContentHtml,
+  sortPhotosForPublish,
+} from "@/lib/publish-content"
 import { getSupabaseOrNull } from "@/lib/supabase"
 import { REALISATION_PAGE_STYLE } from "@/lib/realisationPageCss"
 
@@ -38,7 +42,7 @@ export async function POST(req: NextRequest) {
 
   const { data: interv, error: intErr } = await sb
     .from('interventions')
-    .select('id, reference, type_intervention, ville, code_postal, adresse_chantier, date_realisee, date_prevue, client_id, technicien_id, rapport_json, seo_json, transcription, photos_urls, photos_legendes, publie_slug')
+    .select('id, reference, type_intervention, ville, code_postal, adresse_chantier, date_realisee, date_prevue, client_id, technicien_id, rapport_json, seo_json, transcription, photos_urls, photos_legendes, photos_categories, publie_slug')
     .eq('id', interventionId)
     .maybeSingle()
   if (intErr) return NextResponse.json({ error: intErr.message }, { status: 500 })
@@ -81,13 +85,19 @@ export async function POST(req: NextRequest) {
   // (commit Django a904cfb). Sans ça, le serializer accepte sans valeur et
   // create() écrit null → IntegrityError 500. Fallback vide si pas de tech.
   let technicienNom = ''
+  let technicienPhotoUrl: string | null = null
+  let technicienAnnees: number | null = null
+  let technicienTitre: string | null = null
   if (interv.technicien_id) {
     const { data: t } = await sb
       .from('techniciens')
-      .select('nom')
+      .select('nom, photo_url, annees_experience, titre_metier')
       .eq('id', interv.technicien_id)
       .maybeSingle()
     technicienNom = t?.nom || ''
+    technicienPhotoUrl = t?.photo_url || null
+    technicienAnnees = t?.annees_experience ?? null
+    technicienTitre = t?.titre_metier || null
   }
 
   // Localisation effective (fallback sur la fiche client quand l'intervention
@@ -129,18 +139,34 @@ export async function POST(req: NextRequest) {
     return `${transformed}${sep}width=1280&quality=70`
   }
 
+  const photosLegendes: string[] = Array.isArray(interv.photos_legendes) ? interv.photos_legendes : []
+  const photosCategories: string[] = Array.isArray(interv.photos_categories) ? interv.photos_categories : []
+
+  const photoMetaSorted = sortPhotosForPublish(
+    photosUrls.map((url, i) => ({
+      url,
+      legende: photosLegendes[i] || `Photo ${i + 1}`,
+      categorie: resolvePhotoCategory(photosCategories, photosLegendes, i),
+    })),
+  )
+
   const photoBlobs = await Promise.all(
-    photosUrls.map(async (url, i) => {
+    photoMetaSorted.map(async (meta, i) => {
       try {
-        const r = await fetch(toRenderUrl(url))
+        const r = await fetch(toRenderUrl(meta.url))
         if (!r.ok) throw new Error(`HTTP ${r.status}`)
         const blob = await r.blob()
-        return { blob, filename: `${nomBase}-${i + 1}.jpg`, legende: interv.photos_legendes?.[i] || `Photo ${i + 1}` }
+        return {
+          blob,
+          filename: `${nomBase}-${i + 1}.jpg`,
+          legende: meta.legende,
+          categorie: meta.categorie,
+        }
       } catch (e) {
-        console.error('[publish/from-intervention] photo fetch', url, e)
+        console.error('[publish/from-intervention] photo fetch', meta.url, e)
         return null
       }
-    })
+    }),
   )
   const validPhotos = photoBlobs.filter((p): p is NonNullable<typeof p> => p !== null)
   if (validPhotos.length === 0) {
@@ -154,7 +180,16 @@ export async function POST(req: NextRequest) {
     rapport: interv.rapport_json as Record<string, unknown> | null,
     typeIntervention: interv.type_intervention,
     ville,
-    photos: validPhotos.map((p) => ({ legende: p.legende })),
+    codePostal,
+    photos: validPhotos.map((p) => ({ legende: p.legende, categorie: p.categorie })),
+    technicien: technicienNom
+      ? {
+          nom: technicienNom,
+          photoUrl: technicienPhotoUrl,
+          anneesExperience: technicienAnnees,
+          titreMetier: technicienTitre,
+        }
+      : null,
   })
 
   const dateIntervention = interv.date_realisee || interv.date_prevue || new Date().toISOString().slice(0, 10)
@@ -222,9 +257,13 @@ export async function POST(req: NextRequest) {
   // tomber dans un code path différent qui finit en 500 silencieux.
   const toFile = (b: { blob: Blob; filename: string }) =>
     new File([b.blob], b.filename, { type: b.blob.type || 'image/jpeg' })
-  fd.append('before_image', toFile(validPhotos[0]))
-  fd.append('after_image', toFile(validPhotos[1] || validPhotos[0]))
-  validPhotos.slice(2).forEach((p, i) => fd.append(`extra_image_${i}`, toFile(p)))
+  const beforePhoto = validPhotos.find(p => p.categorie === 'avant') || validPhotos[0]
+  const afterPhoto = validPhotos.find(p => p.categorie === 'apres') || validPhotos[1] || validPhotos[0]
+  const extraPhotos = validPhotos.filter(p => p !== beforePhoto && p !== afterPhoto)
+
+  fd.append('before_image', toFile(beforePhoto))
+  fd.append('after_image', toFile(afterPhoto))
+  extraPhotos.forEach((p, i) => fd.append(`extra_image_${i}`, toFile(p)))
 
   // Métadonnées photos structurées — permet à Django de renommer chaque
   // fichier (SEO : activité + ville) et d'écrire des alt / ImageObject précis,
@@ -233,12 +272,17 @@ export async function POST(req: NextRequest) {
   fd.append(
     'photos_json',
     JSON.stringify(
-      validPhotos.map((p, i) => ({
-        field: i === 0 ? 'before_image' : i === 1 ? 'after_image' : `extra_image_${i - 2}`,
-        ordre: i,
-        filename: p.filename,
-        legende: p.legende,
-      })),
+      [
+        { field: 'before_image', ordre: 0, filename: beforePhoto.filename, legende: beforePhoto.legende, categorie: beforePhoto.categorie },
+        { field: 'after_image', ordre: 1, filename: afterPhoto.filename, legende: afterPhoto.legende, categorie: afterPhoto.categorie },
+        ...extraPhotos.map((p, i) => ({
+          field: `extra_image_${i}`,
+          ordre: i + 2,
+          filename: p.filename,
+          legende: p.legende,
+          categorie: p.categorie,
+        })),
+      ],
     ),
   )
 

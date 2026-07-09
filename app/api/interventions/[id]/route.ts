@@ -66,7 +66,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
   if (intervention.technicien_id) {
     const { data: t } = await sb
       .from('techniciens')
-      .select('id, nom, email, telephone, agence')
+      .select('id, nom, email, telephone, agence, photo_url, annees_experience, titre_metier')
       .eq('id', intervention.technicien_id)
       .maybeSingle()
     technicien = t || null
