@@ -20,6 +20,7 @@ const PUBLIC_PREFIXES = [
 export default auth((req) => {
   const { pathname } = req.nextUrl
   const role = req.auth?.user?.role
+  const isDemo = req.auth?.user?.isDemo === true
 
   if (!process.env.AUTH_USER_1 && !process.env.AUTH_TECH_1) {
     return NextResponse.next()
@@ -41,6 +42,13 @@ export default auth((req) => {
     const loginUrl = new URL("/login", req.nextUrl.origin)
     loginUrl.searchParams.set("callbackUrl", pathname + req.nextUrl.search)
     return NextResponse.redirect(loginUrl)
+  }
+
+  if (isDemo && (pathname.startsWith("/acces-demo") || pathname.startsWith("/api/demo-access"))) {
+    if (pathname.startsWith("/api/")) {
+      return NextResponse.json({ error: "Accès refusé" }, { status: 403 })
+    }
+    return NextResponse.redirect(new URL("/", req.nextUrl.origin))
   }
 
   if (role === "tech") {

@@ -153,12 +153,12 @@ export default function LoginPage() {
           <input
             name="password"
             type="password"
-            placeholder="Mot de passe (techniciens)"
+            placeholder="Mot de passe (démo & techniciens)"
             autoComplete="current-password"
             className="w-full rounded-xl border-2 border-slate-200 px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-500/15"
           />
           <p className="text-[11px] text-slate-500 -mt-1">
-            Admins : identifiant seul. Techniciens : identifiant + mot de passe.
+            Gérant : identifiant seul. Démo &amp; techniciens : identifiant + mot de passe.
           </p>
           {error && (
             <p className="rounded-lg bg-red-50 px-3 py-2 text-sm font-semibold text-red-600">

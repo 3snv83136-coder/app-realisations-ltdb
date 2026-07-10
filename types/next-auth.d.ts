@@ -6,6 +6,7 @@ declare module "next-auth" {
   interface User {
     role?: AuthRole
     technicienId?: string | null
+    isDemo?: boolean
   }
   interface Session {
     user: {
@@ -15,6 +16,7 @@ declare module "next-auth" {
       image?: string | null
       role?: AuthRole
       technicienId?: string | null
+      isDemo?: boolean
     }
   }
 }
@@ -23,5 +25,6 @@ declare module "next-auth/jwt" {
   interface JWT {
     role?: AuthRole
     technicienId?: string | null
+    isDemo?: boolean
   }
 }

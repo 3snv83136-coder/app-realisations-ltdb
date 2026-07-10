@@ -10,6 +10,8 @@ export type AuthAccount = {
   passwordHash: string | null
   /** UUID technicien Supabase (comptes tech) */
   technicienId: string | null
+  /** Compte démo temporaire (admin complet mais non gérant) */
+  isDemo?: boolean
 }
 
 function normalizeBcryptHash(raw: string): string {
@@ -109,7 +111,12 @@ export async function verifyCredentials(
   }
 
   const techDef = loadTechFromEnv().find(t => t.login.toLowerCase() === login.toLowerCase())
-  if (!techDef) return null
+  if (!techDef) {
+    const { verifyDemoCredentials } = await import('@/lib/demo-access')
+    const demo = await verifyDemoCredentials(login, password)
+    if (demo) return demo
+    return null
+  }
 
   const pwd = password ?? ""
   if (!pwd) return null

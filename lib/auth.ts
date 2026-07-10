@@ -46,6 +46,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           name: account.login,
           role: account.role,
           technicienId: account.technicienId,
+          isDemo: account.isDemo ?? false,
         }
       },
     }),
@@ -57,6 +58,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       if (user) {
         token.role = user.role
         token.technicienId = user.technicienId ?? null
+        token.isDemo = user.isDemo ?? false
       }
       return token
     },
@@ -64,6 +66,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       if (session.user) {
         session.user.role = token.role
         session.user.technicienId = token.technicienId ?? null
+        session.user.isDemo = token.isDemo ?? false
       }
       return session
     },

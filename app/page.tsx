@@ -1,6 +1,7 @@
 'use client'
 import { useEffect, useState } from "react"
 import Link from "next/link"
+import { useSession } from "next-auth/react"
 
 type Tool = {
   href: string
@@ -10,6 +11,8 @@ type Tool = {
   bg: string
   text: 'white' | 'black'
   external?: boolean
+  /** Visible uniquement par le gérant (pas les comptes démo). */
+  ownerOnly?: boolean
 }
 
 type HubGroup = {
@@ -81,6 +84,7 @@ const SMALL_TOOLS: Tool[] = [
   { href: '/comptabilite',     emoji: '💼', label: 'Comptabilité',  desc: 'Bilan & FEC',         bg: 'bg-gradient-to-br from-violet-500 to-violet-700', text: 'white' },
   { href: '/rh',               emoji: '👔', label: 'RH',            desc: 'Salariés',              bg: 'bg-gradient-to-br from-fuchsia-600 to-purple-800', text: 'white' },
   { href: '/techniciens',      emoji: '🦺', label: 'Techniciens',   desc: 'Profils site',        bg: 'bg-gradient-to-br from-orange-500 to-amber-700',  text: 'white' },
+  { href: '/acces-demo',       emoji: '🔑', label: 'Accès démo',    desc: 'Essai client',        bg: 'bg-gradient-to-br from-yellow-500 to-amber-700',  text: 'white', ownerOnly: true },
   { href: '/mail',             emoji: '📧', label: 'Mail',          desc: 'Emails envoyés',      bg: 'bg-gradient-to-br from-cyan-500 to-cyan-700',     text: 'white' },
   { href: '/post-gmb',         emoji: '📍', label: 'Post GMB',      desc: 'Google Business',     bg: 'bg-gradient-to-br from-indigo-500 to-indigo-700', text: 'white' },
 ]
@@ -183,6 +187,10 @@ function SmallTile({ t }: { t: Tool }) {
 }
 
 export default function Home() {
+  const { data: session } = useSession()
+  const isOwner = session?.user?.role === 'admin' && !session?.user?.isDemo
+  const visibleTools = SMALL_TOOLS.filter(t => !t.ownerOnly || isOwner)
+
   const [intro, setIntro] = useState(false)
 
   useEffect(() => {
@@ -227,13 +235,13 @@ export default function Home() {
         <section>
           <h2 className="text-[10px] uppercase tracking-[0.18em] text-white/50 font-semibold mb-2 px-0.5">
             Tous les modules
-            <span className="ml-2 text-white/40 tabular-nums">{SMALL_TOOLS.length}</span>
+            <span className="ml-2 text-white/40 tabular-nums">{visibleTools.length}</span>
           </h2>
           <div
             className="grid gap-2 sm:gap-2.5"
             style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 118px), 1fr))' }}
           >
-            {SMALL_TOOLS.map(t => (
+            {visibleTools.map(t => (
               <SmallTile key={`${t.href}-${t.label}`} t={t} />
             ))}
           </div>
