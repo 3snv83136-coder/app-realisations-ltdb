@@ -1,26 +1,33 @@
 import React from "react"
 import { Document, Page, Text, View, Image, StyleSheet } from "@react-pdf/renderer"
 import { TEL_PRINCIPAL_FALLBACK } from "@/lib/parametres"
+import { LTDB_EMETTEUR } from "@/lib/emetteur"
 import { getClientSignatureForPdf, LTDB_SIGNATURE_PATH } from "@/lib/rapport-signatures"
+import { PdfBanner, PDF_C } from "./PdfBranding"
 
-/* ============ CHARTE FRANCE-ADPT-LIKE ============ */
+/* ============ CHARTE (alignée facture / devis) ============ */
 const C = {
-  navy: '#1e3a6f',
-  navyDark: '#142a52',
+  navy: PDF_C.navy,
+  navyDark: PDF_C.navyDark,
   navyMid: '#2d4f8f',
-  red: '#c0392b',
+  red: PDF_C.red,
   redSoft: '#fdecea',
   orange: '#e67e22',
   orangeSoft: '#fdf0e3',
-  teal: '#3fb8a8',
-  tealSoft: '#e7f6f4',
-  rowAlt: '#eaf1fa',
-  border: '#d9dfe7',
-  text: '#1e293b',
-  muted: '#6b7280',
+  teal: '#0f7a3b',
+  tealSoft: '#e8f3ec',
+  greenBorder: '#a3c9b3',
+  rowAlt: '#eef4fc',
+  border: '#e3e8ef',
+  lineSoft: '#eef1f6',
+  text: PDF_C.text,
+  muted: PDF_C.muted,
   mutedLight: '#9ca3af',
-  white: '#ffffff',
-  bgSoft: '#f6f8fb',
+  white: PDF_C.white,
+  bgSoft: '#fafbfc',
+  yellowDark: '#7c5e00',
+  yellowSoft: '#fff8dc',
+  yellowBorder: '#e8d384',
 }
 
 /* ============ STYLES ============ */
@@ -33,43 +40,52 @@ const s = StyleSheet.create({
     backgroundColor: C.white,
     lineHeight: 1.45,
   },
-  /* Header (flow-placed + fixed) */
-  headerTop: {
-    paddingHorizontal: 40, paddingTop: 18, paddingBottom: 10,
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    backgroundColor: C.white,
-    borderBottomWidth: 2, borderBottomColor: C.red,
-  },
-  brandRow: { flexDirection: 'row', alignItems: 'baseline' },
-  brandName: {
-    color: C.navy, fontSize: 11, fontFamily: 'Helvetica-Bold',
-    letterSpacing: 0.4, marginRight: 8,
-  },
-  brandTag: { color: C.muted, fontSize: 8 },
-  headerPhone: { color: C.text, fontSize: 8.5 },
+  content: { paddingHorizontal: 40, paddingTop: 16, paddingBottom: 72, flexGrow: 1 },
 
-  /* Content container */
-  content: { paddingHorizontal: 40, paddingTop: 10, paddingBottom: 10, flexGrow: 1 },
+  /* Bloc client + métadonnées (comme facture) */
+  infoRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 14 },
+  billTo: { flex: 1, paddingRight: 20 },
+  sectionLabel: {
+    color: C.navy, fontFamily: 'Helvetica-Bold', fontSize: 9,
+    textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 5,
+  },
+  clientName: { color: C.text, fontFamily: 'Helvetica-Bold', fontSize: 12, marginBottom: 3 },
+  clientLine: { color: C.text, fontSize: 9.5, lineHeight: 1.5 },
+  clientLabel: { color: C.text, fontFamily: 'Helvetica-Bold', fontSize: 9, marginTop: 5 },
 
-  /* Cover title block (navy filled, red left bar) */
-  titleBlock: {
-    flexDirection: 'row', marginTop: 4, marginBottom: 14,
+  metaBox: { width: '42%', borderWidth: 1, borderColor: C.border, borderRadius: 8 },
+  metaRow: {
+    flexDirection: 'row', justifyContent: 'space-between',
+    paddingVertical: 6, paddingHorizontal: 12,
+    borderBottomWidth: 0.75, borderBottomColor: C.lineSoft,
   },
-  titleRedBar: { width: 6, backgroundColor: C.red },
-  titleInner: {
-    flex: 1, backgroundColor: C.navy,
-    paddingVertical: 20, paddingHorizontal: 22,
-  },
-  titleMain: {
-    color: C.white, fontSize: 22, fontFamily: 'Helvetica-Bold',
-    letterSpacing: 0.5, textTransform: 'uppercase', lineHeight: 1.15,
-  },
-  titleSub: { color: '#c8d4e8', fontSize: 10.5, marginTop: 10, lineHeight: 1.35 },
+  metaRowLast: { borderBottomWidth: 0 },
+  metaK: { color: C.muted, fontSize: 9 },
+  metaV: { color: C.text, fontSize: 9, fontFamily: 'Helvetica-Bold', maxWidth: '58%', textAlign: 'right' },
 
-  /* Identity table */
+  objet: { fontSize: 9.5, marginBottom: 12, lineHeight: 1.5 },
+  objetLabel: { fontFamily: 'Helvetica-Bold', color: C.navy },
+
+  /* Sections contenu */
+  card: {
+    borderWidth: 1, borderColor: C.border, borderRadius: 8,
+    padding: 12, marginBottom: 10,
+  },
+  cardAccentBlue: { borderLeftWidth: 4, borderLeftColor: C.navy },
+  cardAccentOrange: { borderLeftWidth: 4, borderLeftColor: C.orange },
+  cardAccentTeal: { borderLeftWidth: 4, borderLeftColor: C.teal },
+  cardAccentRed: { borderLeftWidth: 4, borderLeftColor: C.red },
+  cardAccentGreen: { borderLeftWidth: 4, borderLeftColor: C.teal },
+  cardTitle: {
+    color: C.navy, fontFamily: 'Helvetica-Bold', fontSize: 9.5,
+    textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 6,
+  },
+  cardText: { color: C.text, fontSize: 9.5, lineHeight: 1.5 },
+
+  /* Legacy id table — conservé pour compatibilité interne */
   idTable: {
-    borderWidth: 1, borderColor: C.border,
-    marginBottom: 14,
+    borderWidth: 1, borderColor: C.border, borderRadius: 8,
+    marginBottom: 14, overflow: 'hidden',
   },
   idRow: {
     flexDirection: 'row',
@@ -115,7 +131,7 @@ const s = StyleSheet.create({
   numBoxNavyDark: { backgroundColor: C.navyDark },
 
   /* Paragraph */
-  para: { marginBottom: 8, color: C.text, fontSize: 9.5, lineHeight: 1.5 },
+  para: { marginBottom: 6, color: C.text, fontSize: 9.5, lineHeight: 1.5 },
 
   /* Declarative red-bordered callout (ÉLÉMENT ESSENTIEL) */
   callout: {
@@ -188,7 +204,7 @@ const s = StyleSheet.create({
     borderWidth: 1, borderColor: C.border,
     padding: 6, backgroundColor: C.white,
   },
-  photoImg: { width: '100%', height: 150, objectFit: 'cover' },
+  photoImg: { width: '100%', height: 130, objectFit: 'cover' },
   photoCap: {
     marginTop: 6, color: C.text, fontSize: 8,
     textAlign: 'center', paddingHorizontal: 2,
@@ -254,17 +270,76 @@ const s = StyleSheet.create({
     fontSize: 8, color: C.muted, fontFamily: 'Helvetica-Oblique', marginTop: 8,
   },
 
-  /* Footer (flow-placed + fixed) */
+  /* Footer (aligné facture) */
   footer: {
-    paddingHorizontal: 40, paddingTop: 10, paddingBottom: 14,
-    borderTopWidth: 1, borderTopColor: C.border,
-    flexDirection: 'row', justifyContent: 'space-between',
+    paddingHorizontal: 40, paddingTop: 8, paddingBottom: 14,
+    borderTopWidth: 2, borderTopColor: C.red,
     backgroundColor: C.white,
   },
+  footerBottomRow: { flexDirection: 'row', justifyContent: 'space-between' },
   footerL: { color: C.muted, fontSize: 7.5, lineHeight: 1.4 },
   footerR: { color: C.muted, fontSize: 7.5, textAlign: 'right' },
 
-  /* Devis */
+  /* Devis intégré — style facture */
+  itemsHead: {
+    flexDirection: 'row', alignItems: 'center',
+    borderWidth: 1.2, borderColor: C.navy, borderRadius: 22,
+    paddingVertical: 7, paddingHorizontal: 8, marginBottom: 0,
+  },
+  itemsHeadCell: {
+    color: C.navy, fontFamily: 'Helvetica-Bold', fontSize: 8.5,
+    textTransform: 'uppercase', letterSpacing: 0.3, paddingHorizontal: 6,
+  },
+  itemsRow: {
+    flexDirection: 'row', alignItems: 'flex-start',
+    paddingVertical: 8, paddingHorizontal: 8,
+    borderBottomWidth: 0.75, borderBottomColor: C.lineSoft,
+  },
+  cDesig: { width: '52%', paddingHorizontal: 6 },
+  cDesigName: { color: C.text, fontFamily: 'Helvetica-Bold', fontSize: 9.5 },
+  cDesigDesc: { color: C.muted, fontSize: 8.5, marginTop: 1, lineHeight: 1.4 },
+  cQte: { width: '12%', paddingHorizontal: 6, fontSize: 9.5, textAlign: 'right' },
+  cPu: { width: '18%', paddingHorizontal: 6, fontSize: 9.5, textAlign: 'right' },
+  cTot: { width: '18%', paddingHorizontal: 6, fontSize: 9.5, textAlign: 'right', fontFamily: 'Helvetica-Bold' },
+
+  totalsMini: { alignSelf: 'flex-end', width: '46%', marginTop: 10 },
+  totalsMiniRow: {
+    flexDirection: 'row', justifyContent: 'space-between',
+    paddingVertical: 4, paddingHorizontal: 8,
+  },
+  totalsMiniLbl: { color: C.muted, fontSize: 10 },
+  totalsMiniVal: { color: C.text, fontSize: 10, fontFamily: 'Helvetica-Bold' },
+  totalBar: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    backgroundColor: C.red, borderRadius: 8,
+    paddingVertical: 11, paddingHorizontal: 18,
+    marginTop: 8, marginBottom: 12,
+  },
+  totalBarLbl: { color: C.white, fontSize: 12.5, fontFamily: 'Helvetica-Bold', letterSpacing: 0.5 },
+  totalBarVal: { color: C.white, fontSize: 15, fontFamily: 'Helvetica-Bold' },
+
+  conditions: {
+    borderLeftWidth: 4, borderLeftColor: C.orange,
+    backgroundColor: C.orangeSoft,
+    paddingVertical: 10, paddingHorizontal: 14,
+    marginBottom: 10, borderRadius: 6,
+  },
+  conditionsTitle: {
+    color: C.navy, fontFamily: 'Helvetica-Bold', fontSize: 9,
+    textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 6,
+  },
+  conditionsItem: { color: C.text, fontSize: 9, marginBottom: 3, lineHeight: 1.45 },
+
+  garantieBlock: {
+    borderWidth: 1, borderRadius: 8, paddingVertical: 10, paddingHorizontal: 12, marginBottom: 4,
+  },
+  garantieTitle: {
+    fontFamily: 'Helvetica-Bold', fontSize: 9.5, textTransform: 'uppercase',
+    letterSpacing: 0.3, marginBottom: 5,
+  },
+  garantieText: { fontSize: 9.5, lineHeight: 1.5 },
+
+  /* Legacy devis — conservé */
   devisHeader: {
     flexDirection: 'row', justifyContent: 'space-between',
     backgroundColor: C.navy, padding: 16, marginTop: 2, marginBottom: 14,
@@ -320,25 +395,6 @@ const s = StyleSheet.create({
   totauxLblTtc: { color: '#c8d4e8', fontSize: 10, fontFamily: 'Helvetica-Bold' },
   totauxVTtc: { color: C.white, fontSize: 11, fontFamily: 'Helvetica-Bold' },
 
-  conditions: {
-    borderLeftWidth: 4, borderLeftColor: C.orange,
-    backgroundColor: C.orangeSoft,
-    paddingVertical: 10, paddingHorizontal: 14,
-    marginBottom: 10,
-  },
-  conditionsTitle: {
-    color: C.navy, fontFamily: 'Helvetica-Bold', fontSize: 9,
-    textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 6,
-  },
-  conditionsItem: { color: C.text, fontSize: 9, marginBottom: 3 },
-
-  garantieBlock: {
-    borderWidth: 2, borderRadius: 4, paddingVertical: 12, paddingHorizontal: 14, marginBottom: 14,
-  },
-  garantieTitle: {
-    fontFamily: 'Helvetica-Bold', fontSize: 10, textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 6,
-  },
-  garantieText: { fontSize: 9, lineHeight: 1.5 },
 })
 
 /* ============ TYPES ============ */
@@ -483,46 +539,65 @@ const statutLabel = (statut: Statut): { text: string; bg: string; barColor: stri
   }
 }
 
-const Header = ({ phone }: { phone?: string }) => (
-  <View style={s.headerTop} fixed>
-    <View style={s.brandRow}>
-      <Text style={s.brandName}>LTDB</Text>
-      <Text style={s.brandTag}>Débouchage · Curage · Inspection caméra · Assainissement</Text>
-    </View>
-    <Text style={s.headerPhone}>Tél. {phone || TEL_PRINCIPAL_FALLBACK}</Text>
+const Header = ({
+  title = 'RAPPORT',
+  refNum,
+  subtitle,
+  phone,
+}: {
+  title?: string
+  refNum: string
+  subtitle: string
+  phone?: string
+}) => (
+  <View fixed>
+    <PdfBanner
+      title={title}
+      numero={refNum}
+      subtitle={subtitle}
+      phone={phone || TEL_PRINCIPAL_FALLBACK}
+      email={LTDB_EMETTEUR.email}
+    />
   </View>
 )
 
-const Footer = () => (
+const Footer = ({ phone }: { phone?: string }) => (
   <View style={s.footer} fixed>
-    <View>
-      <Text style={s.footerL}>
-        Les Techniciens du Débouchage · Intervention et assainissement dans le Var
-      </Text>
-      <Text style={s.footerL}>
-        Tél. {TEL_PRINCIPAL_FALLBACK} · contact@lestechniciensdudebouchage.fr · www.lestechniciensdudebouchage.fr
-      </Text>
+    <View style={s.footerBottomRow}>
+      <View>
+        <Text style={s.footerL}>
+          {[LTDB_EMETTEUR.raisonSociale, ...LTDB_EMETTEUR.adresseLignes].join(' · ')}
+        </Text>
+        <Text style={s.footerL}>
+          Tél. {phone || TEL_PRINCIPAL_FALLBACK} · {LTDB_EMETTEUR.email} · lestechniciensdudebouchage.fr
+        </Text>
+      </View>
+      <Text
+        style={s.footerR}
+        render={({ pageNumber, totalPages }) => `Page ${pageNumber} / ${totalPages}`}
+      />
     </View>
-    <Text style={s.footerR} render={({ pageNumber, totalPages }) => `Page ${pageNumber} / ${totalPages}`} />
   </View>
 )
 
-const SectionBand = ({
-  num, title, variant,
-}: { num: number | string; title: string; variant?: 'default' | 'red' | 'orange' | 'teal' }) => {
-  const bandStyle =
-    variant === 'red' ? s.bandRed :
-    variant === 'orange' ? s.bandOrange :
-    variant === 'teal' ? s.bandTeal : {}
-  const numStyle = variant ? s.numBoxNavyDark : {}
+const SectionCard = ({
+  num, title, accent, children,
+}: {
+  num: string
+  title: string
+  accent?: 'blue' | 'orange' | 'teal' | 'red' | 'green'
+  children: React.ReactNode
+}) => {
+  const accentStyle =
+    accent === 'orange' ? s.cardAccentOrange :
+    accent === 'teal' ? s.cardAccentTeal :
+    accent === 'red' ? s.cardAccentRed :
+    accent === 'green' ? s.cardAccentGreen :
+    s.cardAccentBlue
   return (
-    <View style={s.sectionBand} wrap={false}>
-      <View style={[s.sectionNumBox, numStyle]}>
-        <Text style={s.sectionNumTxt}>{num}</Text>
-      </View>
-      <View style={[s.sectionTitleBox, bandStyle]}>
-        <Text style={s.sectionTitleTxt}>{title}</Text>
-      </View>
+    <View style={[s.card, accentStyle]} wrap>
+      <Text style={s.cardTitle}>{num} — {title}</Text>
+      {children}
     </View>
   )
 }
@@ -538,6 +613,8 @@ export function RealisationDocument({
   const ref = reference || rapport.reference || `LTDB-${dateIntervention.replace(/-/g, '')}`
   const hasPhotos = (photos?.length ?? 0) > 0
   const ltdbSigUrl = signatureLtdbUrl || LTDB_SIGNATURE_PATH
+  const bannerSubtitle = rapport.objet || `${typeIntervention} — ${ville}`
+  const chantierLine = [adresse, [codePostal, ville].filter(Boolean).join(' ')].filter(Boolean).join(' — ')
 
   /* Section numbering (stable: skip empty sections) */
   const hasContexte     = !!(rapport.contexte && rapport.contexte.trim())
@@ -591,65 +668,58 @@ export function RealisationDocument({
     <Document>
       {/* ============ RAPPORT (flow sur plusieurs pages) ============ */}
       <Page size="A4" style={s.page}>
-        <Header phone={phone} />
+        <Header refNum={ref} subtitle={bannerSubtitle} phone={phone} />
 
         <View style={s.content}>
-          {/* Title block */}
-          <View style={s.titleBlock} wrap={false}>
-            <View style={s.titleRedBar} />
-            <View style={s.titleInner}>
-              <Text style={s.titleMain}>Rapport d&apos;intervention</Text>
-              <Text style={s.titleSub}>
-                {rapport.objet || `${typeIntervention} — ${ville}`}
-              </Text>
+          {/* Client + métadonnées (style facture) */}
+          <View style={s.infoRow} wrap={false}>
+            <View style={s.billTo}>
+              <Text style={s.sectionLabel}>Client</Text>
+              <Text style={s.clientName}>{clientNom || '—'}</Text>
+              {chantierLine ? (
+                <>
+                  <Text style={s.clientLabel}>Adresse du chantier</Text>
+                  <Text style={s.clientLine}>{chantierLine}</Text>
+                </>
+              ) : null}
+            </View>
+            <View style={s.metaBox}>
+              <View style={s.metaRow}>
+                <Text style={s.metaK}>Date</Text>
+                <Text style={s.metaV}>{fmtDateFR(dateIntervention)}</Text>
+              </View>
+              <View style={s.metaRow}>
+                <Text style={s.metaK}>Référence</Text>
+                <Text style={s.metaV}>{ref}</Text>
+              </View>
+              <View style={s.metaRow}>
+                <Text style={s.metaK}>Intervention</Text>
+                <Text style={s.metaV}>{typeIntervention || '—'}</Text>
+              </View>
+              <View style={[s.metaRow, s.metaRowLast]}>
+                <Text style={s.metaK}>Technicien</Text>
+                <Text style={s.metaV}>{technicienNom || '—'}</Text>
+              </View>
             </View>
           </View>
 
-          {/* Identity table */}
-          <View style={s.idTable} wrap={false}>
-            <View style={s.idRow}>
-              <Text style={s.idLabel}>Société</Text>
-              <Text style={s.idValue}>Les Techniciens du Débouchage</Text>
-            </View>
-            <View style={[s.idRow, s.idRowAlt]}>
-              <Text style={s.idLabel}>Date d&apos;intervention</Text>
-              <Text style={s.idValue}>{fmtDateFR(dateIntervention)}</Text>
-            </View>
-            <View style={s.idRow}>
-              <Text style={s.idLabel}>Client</Text>
-              <Text style={s.idValue}>{clientNom || '—'}</Text>
-            </View>
-            <View style={[s.idRow, s.idRowAlt]}>
-              <Text style={s.idLabel}>Adresse du chantier</Text>
-              <Text style={s.idValue}>
-                {[adresse, [codePostal, ville].filter(Boolean).join(' ')].filter(Boolean).join(' — ')}
-              </Text>
-            </View>
-            <View style={s.idRow}>
-              <Text style={s.idLabel}>Nature de l&apos;intervention</Text>
-              <Text style={s.idValue}>{typeIntervention}</Text>
-            </View>
-            <View style={[s.idRow, s.idRowAlt]}>
-              <Text style={s.idLabel}>Technicien intervenant</Text>
-              <Text style={s.idValue}>{technicienNom || '—'}</Text>
-            </View>
-            <View style={[s.idRow, s.idRowLast]}>
-              <Text style={s.idLabel}>Référence dossier</Text>
-              <Text style={s.idValue}>{ref}</Text>
-            </View>
-          </View>
+          {rapport.objet ? (
+            <Text style={s.objet}>
+              <Text style={s.objetLabel}>Objet : </Text>
+              {rapport.objet}
+            </Text>
+          ) : null}
 
-          {/* Section 1 — CONTEXTE */}
+          {/* Section — CONTEXTE */}
           {hasContexte && (
-            <View>
-              <SectionBand num={numOf('contexte')} title="Contexte de l'intervention" />
-              <Text style={s.para}>{rapport.contexte}</Text>
+            <SectionCard num={numOf('contexte')} title="Contexte de l'intervention">
+              <Text style={s.cardText}>{rapport.contexte}</Text>
 
               {showCritical && (
-                <View style={s.callout} wrap={false}>
+                <View style={[s.callout, { marginTop: 8 }]} wrap={false}>
                   <View style={s.calloutHead}>
                     <Text style={s.calloutHeadTxt}>
-                      !  Élément essentiel — {rapport.avis_technique?.titre || 'Point de vigilance'}
+                      Élément essentiel — {rapport.avis_technique?.titre || 'Point de vigilance'}
                     </Text>
                   </View>
                   <View style={s.calloutBody}>
@@ -662,30 +732,28 @@ export function RealisationDocument({
                   </View>
                 </View>
               )}
-            </View>
+            </SectionCard>
           )}
 
-          {/* Section 2 — MÉTHODOLOGIE */}
+          {/* Section — MÉTHODOLOGIE */}
           {hasMethodo && (
-            <View>
-              <SectionBand num={numOf('methodo')} title="Méthodologie d'investigation" />
+            <SectionCard num={numOf('methodo')} title="Méthodologie d'investigation">
               {methoSteps.map((step, i) => (
-                <View key={i} style={s.methStep} wrap={false}>
+                <View key={i} style={s.methStep}>
                   <Text style={s.methNum}>{i + 1}</Text>
                   <Text style={s.methText}>{step}</Text>
                 </View>
               ))}
-            </View>
+            </SectionCard>
           )}
 
-          {/* Section 3 — ANOMALIES */}
+          {/* Section — ANOMALIES */}
           {hasAnomalies && (
-            <View>
-              <SectionBand num={numOf('anomalies')} title="Anomalies constatées" variant="orange" />
+            <SectionCard num={numOf('anomalies')} title="Anomalies constatées" accent="orange">
               {rapport.analyse_table!.map((row, i) => {
                 const st = statutLabel(row.statut)
                 return (
-                  <View key={i} style={s.anomaly} wrap={false}>
+                  <View key={i} style={s.anomaly}>
                     <View style={[s.anomalyBar, { backgroundColor: st.barColor }]} />
                     <View style={s.anomalyBody}>
                       <View style={s.anomalyHead}>
@@ -701,13 +769,12 @@ export function RealisationDocument({
                   </View>
                 )
               })}
-            </View>
+            </SectionCard>
           )}
 
-          {/* Section 4 — PHOTOS */}
+          {/* Section — PHOTOS */}
           {hasPhotos && (
-            <View>
-              <SectionBand num={numOf('photos')} title="Documents photographiques" />
+            <SectionCard num={numOf('photos')} title="Documents photographiques">
               <Text style={s.photosIntro}>
                 Clichés pris lors de l&apos;intervention, annexés au présent rapport à titre de constat :
               </Text>
@@ -724,28 +791,26 @@ export function RealisationDocument({
                   </View>
                 ))}
               </View>
-            </View>
+            </SectionCard>
           )}
 
-          {/* Section 5 — PRESCRIPTIONS */}
+          {/* Section — PRESCRIPTIONS */}
           {hasPrecos && (
-            <View>
-              <SectionBand num={numOf('precos')} title="Prescriptions & travaux à engager" variant="teal" />
-
+            <SectionCard num={numOf('precos')} title="Prescriptions & travaux à engager" accent="teal">
               {(rapport.preconisations?.length ?? 0) > 0 ? (
                 rapport.preconisations!.map((p, idx) => {
                   const kind = idx % 3 === 0 ? 'red' : idx % 3 === 1 ? 'blue' : 'teal'
                   const bandStyle = kind === 'red' ? s.subBandRed : kind === 'blue' ? s.subBandBlue : s.subBandTeal
                   const sqStyle = kind === 'red' ? s.sqRed : kind === 'blue' ? s.sqBlue : s.sqTeal
                   return (
-                    <View key={idx}>
+                    <View key={idx} style={{ marginBottom: 8 }}>
                       <View style={[s.subBand, bandStyle]} wrap={false}>
                         <Text style={s.subBandTxt}>
-                          {`5.${idx + 1}`}  {p.titre || p.tag}
+                          {`${numOf('precos')}.${idx + 1}`}  {p.titre || p.tag}
                         </Text>
                       </View>
                       {(Array.isArray(p.items) ? p.items : []).map((it, j) => (
-                        <View key={j} style={s.precoItem} wrap={false}>
+                        <View key={j} style={s.precoItem}>
                           <View style={[s.precoSquare, sqStyle]} />
                           <Text style={s.precoTxt}>
                             {it?.k ? <Text style={{ fontFamily: 'Helvetica-Bold' }}>{it.k} : </Text> : null}
@@ -757,30 +822,24 @@ export function RealisationDocument({
                   )
                 })
               ) : (
-                <>
-                  <View style={[s.subBand, s.subBandBlue]} wrap={false}>
-                    <Text style={s.subBandTxt}>5.1  Recommandations</Text>
-                  </View>
-                  <Text style={s.para}>{rapport.recommandations}</Text>
-                </>
+                <Text style={s.cardText}>{rapport.recommandations}</Text>
               )}
-            </View>
+            </SectionCard>
           )}
 
-          {/* Section — Garantie d'intervention */}
+          {/* Section — Garantie */}
           {hasGarantie && garantie && (
-            <View>
-              <SectionBand
-                num={numOf('garantie')}
-                title="Garantie d'intervention"
-                variant={garantie.est_garanti ? 'teal' : 'orange'}
-              />
+            <SectionCard
+              num={numOf('garantie')}
+              title="Garantie d'intervention"
+              accent={garantie.est_garanti ? 'green' : 'red'}
+            >
               <View
                 style={[
                   s.garantieBlock,
                   garantie.est_garanti
-                    ? { borderColor: C.teal, backgroundColor: '#ecfdf5' }
-                    : { borderColor: C.red, backgroundColor: '#fef2f2' },
+                    ? { borderColor: C.greenBorder, backgroundColor: C.tealSoft }
+                    : { borderColor: C.red, backgroundColor: C.redSoft },
                 ]}
               >
                 <Text
@@ -801,123 +860,114 @@ export function RealisationDocument({
                   </Text>
                 )}
               </View>
-            </View>
+            </SectionCard>
           )}
 
-          {/* Section 6 — CONCLUSION */}
+          {/* Section — CONCLUSION */}
           {hasConclusion && (
-            <View>
-              <SectionBand num={numOf('conclusion')} title="Conclusion" />
-              <View style={s.conclusionBlock}>
-                {rapport.avis_technique?.diagnostic_final && (
-                  <Text style={s.conclusionP}>{rapport.avis_technique.diagnostic_final}</Text>
-                )}
-                {rapport.avis_technique?.recommandation_urgente && (
-                  <Text style={s.conclusionP}>{rapport.avis_technique.recommandation_urgente}</Text>
-                )}
-                {!rapport.avis_technique?.diagnostic_final && rapport.diagnostic && (
-                  <Text style={s.conclusionP}>{rapport.diagnostic}</Text>
-                )}
-                {rapport.commentaire_technicien && (
-                  <Text style={s.conclusionP}>{rapport.commentaire_technicien}</Text>
-                )}
-              </View>
-            </View>
+            <SectionCard num={numOf('conclusion')} title="Conclusion">
+              {rapport.avis_technique?.diagnostic_final && (
+                <Text style={s.cardText}>{rapport.avis_technique.diagnostic_final}</Text>
+              )}
+              {rapport.avis_technique?.recommandation_urgente && (
+                <Text style={[s.cardText, { marginTop: 6 }]}>{rapport.avis_technique.recommandation_urgente}</Text>
+              )}
+              {!rapport.avis_technique?.diagnostic_final && rapport.diagnostic && (
+                <Text style={s.cardText}>{rapport.diagnostic}</Text>
+              )}
+              {rapport.commentaire_technicien && (
+                <Text style={[s.cardText, { marginTop: 6 }]}>{rapport.commentaire_technicien}</Text>
+              )}
+            </SectionCard>
           )}
 
-          <RapportSignatures
-            technicienNom={technicienNom}
-            clientNom={clientNom}
-            dateIntervention={dateIntervention}
-            signatureLtdbUrl={ltdbSigUrl}
-            signatureClientUrl={signatureClientUrl}
-            signatureClientDate={signatureClientDate}
-          />
+          <View wrap={false}>
+            <RapportSignatures
+              technicienNom={technicienNom}
+              clientNom={clientNom}
+              dateIntervention={dateIntervention}
+              signatureLtdbUrl={ltdbSigUrl}
+              signatureClientUrl={signatureClientUrl}
+              signatureClientDate={signatureClientDate}
+            />
+          </View>
         </View>
 
-        <Footer />
+        <Footer phone={phone} />
       </Page>
 
       {/* ============ DEVIS (page dédiée si présent) ============ */}
       {rapport.devis && (
         <Page size="A4" style={s.page}>
-          <Header phone={phone} />
+          <Header
+            title="DEVIS"
+            refNum={rapport.devis.numero || `DV-${ref}`}
+            subtitle={`Travaux complémentaires — ${fmtDateFR(dateIntervention)}`}
+            phone={phone}
+          />
 
           <View style={s.content}>
-            <View style={s.devisHeader} wrap={false}>
-              <View>
-                <Text style={s.devisHeaderTitle}>
-                  DEVIS Nº {rapport.devis.numero || `DV-${ref}`}
-                </Text>
-                <Text style={s.devisHeaderSub}>
-                  Travaux complémentaires — intervention du {fmtDateFR(dateIntervention)}
-                </Text>
+            <View style={s.infoRow} wrap={false}>
+              <View style={s.billTo}>
+                <Text style={s.sectionLabel}>Client</Text>
+                <Text style={s.clientName}>{clientNom || '—'}</Text>
+                <Text style={s.clientLine}>{chantierLine}</Text>
               </View>
-              <View style={s.devisHeaderRight}>
-                <Text style={s.devisHeaderLbl}>VALIDITÉ</Text>
-                <Text style={s.devisHeaderV}>{rapport.devis.validite_jours || 30} jours</Text>
-                <Text style={s.devisHeaderLbl}>ÉMIS LE</Text>
-                <Text style={s.devisHeaderV}>{fmtDateFR(dateIntervention)}</Text>
-              </View>
-            </View>
-
-            <View style={s.devisMetaRow} wrap={false}>
-              <View style={[s.devisMetaCell, { borderRightWidth: 1, borderRightColor: C.border }]}>
-                <Text style={s.devisMetaK}>CLIENT</Text>
-                <Text style={s.devisMetaV}>{clientNom || '—'}</Text>
-              </View>
-              <View style={s.devisMetaCell}>
-                <Text style={s.devisMetaK}>CHANTIER</Text>
-                <Text style={s.devisMetaV}>{adresse}, {codePostal} {ville}</Text>
-              </View>
-              <View style={[s.devisMetaCell, { borderRightWidth: 1, borderRightColor: C.border, borderBottomWidth: 0 }]}>
-                <Text style={s.devisMetaK}>RÉFÉRENCE INTERVENTION</Text>
-                <Text style={s.devisMetaV}>{ref}</Text>
-              </View>
-              <View style={[s.devisMetaCell, { borderBottomWidth: 0 }]}>
-                <Text style={s.devisMetaK}>DÉLAI D&apos;EXÉCUTION</Text>
-                <Text style={s.devisMetaV}>Sous 15 jours après acceptation</Text>
-              </View>
-            </View>
-
-            <View style={s.devisTable}>
-              <View style={s.devisHead} fixed>
-                <Text style={[s.devisHeadCell, { width: '52%' }]}>Désignation</Text>
-                <Text style={[s.devisHeadCell, { width: '12%', textAlign: 'right' }]}>Qté</Text>
-                <Text style={[s.devisHeadCell, { width: '18%', textAlign: 'right' }]}>PU HT</Text>
-                <Text style={[s.devisHeadCell, { width: '18%', textAlign: 'right' }]}>Total HT</Text>
-              </View>
-              {Array.from(devisSectionsMap.entries()).map(([sec, items], si) => (
-                <View key={si}>
-                  <View style={s.devisSectionRow}><Text style={s.devisSectionTxt}>{sec}</Text></View>
-                  {items.map((l, li) => (
-                    <View key={li} style={s.devisLine} wrap={false}>
-                      <View style={{ width: '52%' }}>
-                        <Text style={s.devisDesignation}>{l.designation}</Text>
-                        {l.description ? <Text style={s.devisDescription}>{l.description}</Text> : null}
-                      </View>
-                      <Text style={[s.devisCell, { width: '12%', textAlign: 'right' }]}>{l.qte}</Text>
-                      <Text style={[s.devisCell, { width: '18%', textAlign: 'right' }]}>{fmtEur(l.pu_ht)}</Text>
-                      <Text style={[s.devisCell, { width: '18%', textAlign: 'right' }]}>{fmtEur(l.pu_ht * l.qte)}</Text>
-                    </View>
-                  ))}
+              <View style={s.metaBox}>
+                <View style={s.metaRow}>
+                  <Text style={s.metaK}>Émis le</Text>
+                  <Text style={s.metaV}>{fmtDateFR(dateIntervention)}</Text>
                 </View>
-              ))}
+                <View style={s.metaRow}>
+                  <Text style={s.metaK}>Validité</Text>
+                  <Text style={s.metaV}>{rapport.devis.validite_jours || 30} jours</Text>
+                </View>
+                <View style={[s.metaRow, s.metaRowLast]}>
+                  <Text style={s.metaK}>Réf. intervention</Text>
+                  <Text style={s.metaV}>{ref}</Text>
+                </View>
+              </View>
             </View>
 
-            <View style={s.totaux} wrap={false}>
-              <View style={s.totauxRow}>
-                <Text style={s.totauxLbl}>Total HT</Text>
-                <Text style={s.totauxV}>{fmtEur(totalHT)}</Text>
+            <View style={s.itemsHead} wrap={false}>
+              <Text style={[s.itemsHeadCell, { width: '52%' }]}>Désignation</Text>
+              <Text style={[s.itemsHeadCell, { width: '12%', textAlign: 'right' }]}>Qté</Text>
+              <Text style={[s.itemsHeadCell, { width: '18%', textAlign: 'right' }]}>PU HT</Text>
+              <Text style={[s.itemsHeadCell, { width: '18%', textAlign: 'right' }]}>Total HT</Text>
+            </View>
+
+            {Array.from(devisSectionsMap.entries()).map(([sec, items], si) => (
+              <View key={si}>
+                <View style={s.devisSectionRow} wrap={false}>
+                  <Text style={s.devisSectionTxt}>{sec}</Text>
+                </View>
+                {items.map((l, li) => (
+                  <View key={li} style={s.itemsRow}>
+                    <View style={s.cDesig}>
+                      <Text style={s.cDesigName}>{l.designation}</Text>
+                      {l.description ? <Text style={s.cDesigDesc}>{l.description}</Text> : null}
+                    </View>
+                    <Text style={s.cQte}>{l.qte}</Text>
+                    <Text style={s.cPu}>{fmtEur(l.pu_ht)}</Text>
+                    <Text style={s.cTot}>{fmtEur(l.pu_ht * l.qte)}</Text>
+                  </View>
+                ))}
               </View>
-              <View style={s.totauxRow}>
-                <Text style={s.totauxLbl}>TVA {tvaTaux} %</Text>
-                <Text style={s.totauxV}>{fmtEur(tva)}</Text>
+            ))}
+
+            <View style={s.totalsMini} wrap={false}>
+              <View style={s.totalsMiniRow}>
+                <Text style={s.totalsMiniLbl}>Total HT</Text>
+                <Text style={s.totalsMiniVal}>{fmtEur(totalHT)}</Text>
               </View>
-              <View style={[s.totauxRow, s.totauxRowTtc]}>
-                <Text style={s.totauxLblTtc}>TOTAL TTC</Text>
-                <Text style={s.totauxVTtc}>{fmtEur(totalTTC)}</Text>
+              <View style={s.totalsMiniRow}>
+                <Text style={s.totalsMiniLbl}>TVA {tvaTaux} %</Text>
+                <Text style={s.totalsMiniVal}>{fmtEur(tva)}</Text>
               </View>
+            </View>
+            <View style={s.totalBar} wrap={false}>
+              <Text style={s.totalBarLbl}>TOTAL TTC</Text>
+              <Text style={s.totalBarVal}>{fmtEur(totalTTC)}</Text>
             </View>
 
             {rapport.devis.conditions && rapport.devis.conditions.length > 0 && (
@@ -929,18 +979,20 @@ export function RealisationDocument({
               </View>
             )}
 
-            <RapportSignatures
-              technicienNom={technicienNom}
-              clientNom={clientNom}
-              dateIntervention={dateIntervention}
-              signatureLtdbUrl={ltdbSigUrl}
-              signatureClientUrl={signatureClientUrl}
-              signatureClientDate={signatureClientDate}
-              clientHead="Bon pour accord — Client"
-            />
+            <View wrap={false}>
+              <RapportSignatures
+                technicienNom={technicienNom}
+                clientNom={clientNom}
+                dateIntervention={dateIntervention}
+                signatureLtdbUrl={ltdbSigUrl}
+                signatureClientUrl={signatureClientUrl}
+                signatureClientDate={signatureClientDate}
+                clientHead="Bon pour accord — Client"
+              />
+            </View>
           </View>
 
-          <Footer />
+          <Footer phone={phone} />
         </Page>
       )}
     </Document>
