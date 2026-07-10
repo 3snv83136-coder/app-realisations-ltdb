@@ -1,5 +1,5 @@
 import { getSupabaseOrNull } from "@/lib/supabase"
-import { EMAIL_RE } from "@/lib/email-utils"
+import { EMAIL_RE } from "@/lib/email-constants"
 
 /**
  * Numéro de téléphone principal LTDB — source unique de vérité côté code.

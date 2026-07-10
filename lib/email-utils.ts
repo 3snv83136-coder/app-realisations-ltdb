@@ -1,15 +1,7 @@
 import { Resend } from "resend"
+import { EMAIL_RE } from "@/lib/email-constants"
 
-/**
- * Helpers partagés par toutes les routes /api/notify-* :
- * - validation d'email
- * - escape HTML pour les templates
- * - configuration Resend (clé API + adresse expéditeur, avec fallback automatique
- *   sur le domaine `onboarding@resend.dev` quand le domaine de prod n'est pas
- *   encore vérifié).
- */
-
-export const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/
+export { EMAIL_RE } from "@/lib/email-constants"
 
 export function escapeHtml(s: unknown): string {
   return String(s ?? '')
