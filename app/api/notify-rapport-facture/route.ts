@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { escapeHtml, initResend, resendErrorHint, EMAIL_RE } from "@/lib/email-utils"
+import { escapeHtml, initResend, resendErrorHint, EMAIL_RE, isResendTestMode, getResendRecipient } from "@/lib/email-utils"
 import { getSessionUser, assertInterventionAccess, requireInterventionAccess } from "@/lib/intervention-access"
 import {
   isFactureReglee,
@@ -39,6 +39,8 @@ export async function POST(req: NextRequest) {
     pdfRapportBase64?: string
     /** PDF facture en base64, fourni par le wizard — bypass le besoin de facture.pdf_url */
     pdfFactureBase64?: string
+    /** Ignore l'idempotence 30 min (renvoi explicite). */
+    forceResend?: boolean
   }
   try {
     body = await req.json()
@@ -73,14 +75,6 @@ export async function POST(req: NextRequest) {
     .single()
   if (intErr || !interv) {
     return NextResponse.json({ error: 'Intervention introuvable' }, { status: 404 })
-  }
-  // Idempotence : si le mail a déjà été envoyé dans les 30 dernières minutes,
-  // on ne re-spamme pas Resend + relances avis. Retourne 200 OK silencieux.
-  if (interv.mail_envoye_at) {
-    const ageMs = Date.now() - new Date(interv.mail_envoye_at).getTime()
-    if (ageMs < 30 * 60 * 1000) {
-      return NextResponse.json({ ok: true, alreadySent: true, mail_envoye_at: interv.mail_envoye_at })
-    }
   }
   if (!interv.pdf_rapport_url && !body.pdfRapportBase64) {
     return NextResponse.json({ error: 'Aucun PDF rapport publié pour cette intervention. Publie le rapport d\'abord.' }, { status: 400 })
@@ -121,6 +115,21 @@ export async function POST(req: NextRequest) {
   const clientEmail = (body.clientEmail || clientEmailFromDb).trim()
   if (!clientEmail) {
     return NextResponse.json({ error: 'Email client manquant. Renseigne-le côté UI.' }, { status: 400 })
+  }
+
+  // Idempotence : si le mail a déjà été envoyé dans les 30 dernières minutes,
+  // on ne re-spamme pas Resend + relances avis.
+  if (!body.forceResend && interv.mail_envoye_at) {
+    const ageMs = Date.now() - new Date(interv.mail_envoye_at).getTime()
+    if (ageMs < 30 * 60 * 1000) {
+      return NextResponse.json({
+        ok: true,
+        alreadySent: true,
+        mail_envoye_at: interv.mail_envoye_at,
+        recipient: getResendRecipient(clientEmail),
+        warning: 'Mail déjà envoyé il y a moins de 30 minutes — aucun nouvel envoi effectué.',
+      })
+    }
   }
 
   let technicienNom = 'votre technicien'
@@ -323,11 +332,25 @@ export async function POST(req: NextRequest) {
   return NextResponse.json({
     ok: true,
     immediate_id: immediate.data?.id,
+    recipient,
+    client_email: clientEmail,
+    test_mode: isResendTestMode(),
+    attachments: {
+      rapport: true,
+      facture: true,
+      accord: !!accordB64,
+    },
     followUp_ids: relanceIds,
     avis_sms_planifies: smsPlanned,
     ...(avisRelanceErrors.length ? { avis_relance_warnings: avisRelanceErrors } : {}),
     owner_confirmation: ownerConfirmation.sent,
     ...(ownerConfirmation.error ? { owner_confirmation_warning: ownerConfirmation.error } : {}),
+    ...(!accordB64 ? {
+      accord_warning: 'Accord signé introuvable ou PDF non archivé — mail envoyé sans pièce accord.',
+    } : {}),
+    ...(isResendTestMode() ? {
+      test_mode_warning: `Mode test actif : le mail est redirigé vers ${recipient}, pas vers le client.`,
+    } : {}),
     ...(!factureReglee ? {
       facture_relances_planifiees: factureRelanceIds.length,
       facture_relance_ids: factureRelanceIds,

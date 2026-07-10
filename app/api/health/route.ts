@@ -40,7 +40,7 @@ async function checkResend(): Promise<Check> {
     if (!res.ok) return { ok: false, latencyMs: Date.now() - start, detail: `HTTP ${res.status}` }
 
     if (fromDomain === 'resend.dev') {
-      return { ok: true, latencyMs: Date.now() - start, detail: 'test mode via resend.dev (RESEND_TEST_EMAIL set)' }
+      return { ok: false, latencyMs: Date.now() - start, detail: 'RESEND_TEST_EMAIL actif — les mails ne vont pas aux clients' }
     }
 
     const body = await res.json().catch(() => null) as { data?: Array<{ name: string; status: string }> } | null
@@ -64,6 +64,7 @@ export async function GET() {
     env_ltdb_api_url: { ok: !!process.env.LTDB_API_URL } as Check,
     env_nextauth_secret: { ok: !!process.env.NEXTAUTH_SECRET } as Check,
     env_resend_key: { ok: !!process.env.RESEND_API_KEY } as Check,
+    env_resend_test_mode: { ok: !process.env.RESEND_TEST_EMAIL, detail: process.env.RESEND_TEST_EMAIL ? 'RESEND_TEST_EMAIL actif' : 'off' } as Check,
     llm_api: llmCheck,
     // Compat monitoring externe (clés historiques)
     env_anthropic_key: { ok: llmIsConfigured() } as Check,

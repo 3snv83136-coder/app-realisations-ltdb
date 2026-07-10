@@ -1714,6 +1714,13 @@ function TerrainDiffusionPanel({ interv, client, onRefresh, onError, techOnlyMai
   const [smsOpenUri, setSmsOpenUri] = useState<string | null>(null)
   const [reviewSmsDone, setReviewSmsDone] = useState(false)
   const [smsApiConfigured, setSmsApiConfigured] = useState(false)
+  const [mailResult, setMailResult] = useState<{
+    recipient?: string
+    alreadySent?: boolean
+    ownerConfirmation?: boolean
+    attachments?: { rapport?: boolean; facture?: boolean; accord?: boolean }
+    warnings: string[]
+  } | null>(null)
   const mailRef = useRef(false)
   const smsRef = useRef(false)
   const reviewSmsRef = useRef(false)
@@ -1761,15 +1768,28 @@ function TerrainDiffusionPanel({ interv, client, onRefresh, onError, techOnlyMai
     } catch { /* best-effort */ }
   }
 
-  async function handleSendMail() {
+  async function handleSendMail(forceResend = false) {
     if (mailRef.current || busy) return
     mailRef.current = true
     setBusy('mail')
     onError('')
+    setMailResult(null)
 
     try {
       setProgress('📄 Préparation et envoi du mail…')
-      const result = await fetchJsonWithRetry<{ ok?: boolean; alreadySent?: boolean }>(
+      const result = await fetchJsonWithRetry<{
+        ok?: boolean
+        alreadySent?: boolean
+        recipient?: string
+        client_email?: string
+        owner_confirmation?: boolean
+        owner_confirmation_warning?: string
+        accord_warning?: string
+        test_mode_warning?: string
+        warning?: string
+        attachments?: { rapport?: boolean; facture?: boolean; accord?: boolean }
+        immediate_id?: string
+      }>(
         `/api/interventions/${interv.id}/send-terrain-mail`,
         {
           method: 'POST',
@@ -1779,16 +1799,38 @@ function TerrainDiffusionPanel({ interv, client, onRefresh, onError, techOnlyMai
             nom: nom.trim(),
             ccEmail: emailCc.trim() || undefined,
             telephone: telephone.trim() || undefined,
+            forceResend,
           }),
           retries: 2,
           timeoutMs: 120_000,
         },
       )
 
-      if (result.alreadySent) {
-        setProgress('✓ Mail déjà envoyé récemment')
+      const alreadySent = !!result.alreadySent
+      const warnings: string[] = []
+      if (result.warning) warnings.push(result.warning)
+      if (result.test_mode_warning) warnings.push(result.test_mode_warning)
+      if (result.accord_warning) warnings.push(result.accord_warning)
+      if (result.owner_confirmation_warning) warnings.push(`Accusé gérant : ${result.owner_confirmation_warning}`)
+      if (alreadySent) {
+        warnings.unshift('Aucun nouvel envoi — le mail avait déjà été envoyé récemment.')
+        setProgress('⚠ Mail déjà envoyé récemment')
       } else {
-        setProgress('✓ Mail envoyé')
+        setProgress('✓ Mail transmis au serveur d\'envoi')
+      }
+
+      setMailResult({
+        recipient: result.recipient || result.client_email || email.trim(),
+        alreadySent,
+        ownerConfirmation: result.owner_confirmation,
+        attachments: result.attachments,
+        warnings,
+      })
+
+      if (alreadySent) {
+        onError('Le mail n\'a pas été renvoyé (envoi récent). Utilisez « Renvoyer maintenant » si le client n\'a rien reçu.')
+      } else if (!result.owner_confirmation) {
+        onError('Mail envoyé au client, mais l\'accusé de réception gérant n\'a pas pu partir. Vérifiez votre boîte LesTechniciensDuDebouchage@gmail.com et les spams.')
       }
 
       try {
@@ -1806,7 +1848,6 @@ function TerrainDiffusionPanel({ interv, client, onRefresh, onError, techOnlyMai
       onError(e instanceof Error ? e.message : String(e))
     } finally {
       setBusy(null)
-      setProgress('')
       mailRef.current = false
     }
   }
@@ -2103,15 +2144,46 @@ function TerrainDiffusionPanel({ interv, client, onRefresh, onError, techOnlyMai
         </div>
       )}
 
+      {mailResult && (
+        <div className={`rounded-2xl border-2 p-4 text-sm space-y-2 ${mailResult.alreadySent ? 'bg-amber-50 border-amber-300 text-amber-900' : 'bg-emerald-50 border-emerald-300 text-emerald-900'}`}>
+          <p className="font-bold">
+            {mailResult.alreadySent ? '⚠ Pas de nouvel envoi' : '✓ Transmission confirmée'}
+          </p>
+          <p>Destinataire : <strong>{mailResult.recipient}</strong></p>
+          {mailResult.attachments && (
+            <p>
+              Pièces jointes : rapport {mailResult.attachments.rapport ? '✓' : '✗'}
+              {' · '}facture {mailResult.attachments.facture ? '✓' : '✗'}
+              {' · '}accord {mailResult.attachments.accord ? '✓' : '✗'}
+            </p>
+          )}
+          <p>Accusé gérant : {mailResult.ownerConfirmation ? '✓ envoyé' : '✗ non reçu'}</p>
+          {mailResult.warnings.map((w, i) => (
+            <p key={i} className="text-xs font-semibold">{w}</p>
+          ))}
+        </div>
+      )}
+
       <div className="space-y-3">
         <button
           type="button"
-          onClick={handleSendMail}
+          onClick={() => handleSendMail()}
           disabled={!!busy || !email || !nom.trim()}
           className={actionBtn(mailDone, 'bg-emerald-600 hover:bg-emerald-700')}
         >
           {busy === 'mail' ? (progress || '⚙ Envoi…') : mailDone ? '✓ Mail envoyé au client' : '✉ Envoyer par mail'}
         </button>
+
+        {mailDone && (
+          <button
+            type="button"
+            onClick={() => handleSendMail(true)}
+            disabled={!!busy || !email || !nom.trim()}
+            className="w-full disabled:opacity-50 border-2 border-amber-400 text-amber-800 bg-amber-50 hover:bg-amber-100 rounded-2xl py-3 font-bold text-sm"
+          >
+            {busy === 'mail' ? 'Renvoi…' : '↻ Renvoyer maintenant (forcer)'}
+          </button>
+        )}
 
         <button
           type="button"

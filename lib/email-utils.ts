@@ -38,6 +38,11 @@ export function getResendRecipient(clientEmail: string): string {
   return process.env.RESEND_TEST_EMAIL || clientEmail
 }
 
+/** Mode test Resend : les mails ne partent pas au client réel. */
+export function isResendTestMode(): boolean {
+  return !!process.env.RESEND_TEST_EMAIL?.trim()
+}
+
 /**
  * Adresse de réponse (Reply-To) : les réponses des clients y arrivent.
  * Améliore aussi la délivrabilité (en-tête présent, cohérent avec le domaine).

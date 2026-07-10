@@ -52,8 +52,16 @@ export default function InterventionActionsHub({
       const j = await res.json()
       if (!res.ok || j.error) {
         setStatus(j.error || 'Erreur envoi')
+      } else if (j.alreadySent) {
+        setStatus(`⚠ Déjà envoyé récemment — aucun nouvel envoi (${j.recipient || email})`)
       } else {
-        setStatus(`Envoyé ✓ (relances avis : J+1 SMS · J+2 mail · J+4 SMS · J+6 mail)`)
+        const pj = j.attachments
+          ? `rapport ${j.attachments.rapport ? '✓' : '✗'}, facture ${j.attachments.facture ? '✓' : '✗'}, accord ${j.attachments.accord ? '✓' : '✗'}`
+          : ''
+        const ack = j.owner_confirmation ? 'Accusé gérant ✓' : 'Accusé gérant ✗'
+        setStatus(`Envoyé à ${j.recipient || email} · ${pj} · ${ack}`)
+        if (j.accord_warning) setStatus(s => `${s} · ${j.accord_warning}`)
+        if (j.owner_confirmation_warning) setStatus(s => `${s} · ${j.owner_confirmation_warning}`)
       }
     } catch (e) {
       setStatus(e instanceof Error ? e.message : 'Erreur réseau')
