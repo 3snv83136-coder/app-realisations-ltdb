@@ -9,6 +9,7 @@ const ResendEmailButton = dynamic(() => import("@/components/ResendEmailButton")
 const RequestReviewButton = dynamic(() => import("@/components/RequestReviewButton"), { ssr: false })
 const InterventionRapportDownloadButton = dynamic(() => import("@/components/InterventionRapportDownloadButton"), { ssr: false })
 const ResendRapportButton = dynamic(() => import("@/components/ResendRapportButton"), { ssr: false })
+const ResendAllButton = dynamic(() => import("@/components/ResendAllButton"), { ssr: false })
 const AccepterDevisButton = dynamic(() => import("@/components/AccepterDevisButton"), { ssr: false })
 
 type Intervention = {
@@ -31,9 +32,11 @@ type Intervention = {
   client_code_postal: string | null
   client_ville: string | null
   technicien_nom: string | null
+  technicien_photo_url?: string | null
   rapport_json: any
   photos_urls: string[] | null
   has_rapport: boolean
+  has_facture?: boolean
 }
 
 type Document = {
@@ -319,6 +322,9 @@ export default function HistoriquePage() {
                           )}
                           {i.has_rapport && (
                             <ResendRapportButton intervention={i} />
+                          )}
+                          {i.has_rapport && i.has_facture && (
+                            <ResendAllButton intervention={i} />
                           )}
                           <RequestReviewButton
                             clientEmail={i.client_email}

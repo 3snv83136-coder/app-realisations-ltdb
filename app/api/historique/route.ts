@@ -68,18 +68,23 @@ export async function GET(req: NextRequest) {
   // Charge techniciens référencés
   const techIds = new Set<string>()
   rawInterventions.forEach(i => i.technicien_id && techIds.add(i.technicien_id))
-  let techniciens: Record<string, { id: string; nom: string; agence: string | null }> = {}
+  let techniciens: Record<string, { id: string; nom: string; agence: string | null; photo_url: string | null }> = {}
   if (techIds.size > 0) {
     const { data: techData } = await sb
       .from('techniciens')
-      .select('id, nom, agence')
+      .select('id, nom, agence, photo_url')
       .in('id', Array.from(techIds))
     if (techData) {
       techniciens = Object.fromEntries(techData.map(t => [t.id, t]))
     }
   }
 
-  // Décoration
+  // Décoration + indicateurs documents liés
+  const factureByIntervention = new Set<string>()
+  rawDocuments.forEach(d => {
+    if (d.type === 'facture' && d.intervention_id) factureByIntervention.add(d.intervention_id as string)
+  })
+
   const decoratedInterventions = rawInterventions.map(i => {
     const c = i.client_id ? clients[i.client_id] : null
     const t = i.technicien_id ? techniciens[i.technicien_id] : null
@@ -91,7 +96,9 @@ export async function GET(req: NextRequest) {
       client_code_postal: c?.code_postal || null,
       client_ville: c?.ville || null,
       technicien_nom: t?.nom || null,
+      technicien_photo_url: t?.photo_url || null,
       has_rapport: !!(i.rapport_json && Object.keys(i.rapport_json || {}).length > 0),
+      has_facture: factureByIntervention.has(i.id),
     }
   })
   const decoratedDocuments = rawDocuments.map(d => {

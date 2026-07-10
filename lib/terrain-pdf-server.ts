@@ -77,9 +77,11 @@ export async function generateTerrainPdfsOnServer(input: GenerateTerrainPdfsInpu
   }
 
   let technicienNom = "Technicien"
+  let technicienPhotoUrl: string | null = null
   if (interv.technicien_id) {
-    const { data: t } = await sb.from("techniciens").select("nom").eq("id", interv.technicien_id).maybeSingle()
+    const { data: t } = await sb.from("techniciens").select("nom, photo_url").eq("id", interv.technicien_id).maybeSingle()
     if (t?.nom) technicienNom = t.nom as string
+    if (t?.photo_url) technicienPhotoUrl = proxyImageUrlAbsolute(t.photo_url as string, baseUrl)
   }
 
   let clientRow: { adresse?: string; code_postal?: string; ville?: string } | null = null
@@ -128,6 +130,7 @@ export async function generateTerrainPdfsOnServer(input: GenerateTerrainPdfsInpu
       dateIntervention: (interv.date_realisee as string) || (interv.date_prevue as string) || "",
       typeIntervention: (interv.type_intervention as string) || "",
       technicienNom,
+      technicienPhotoUrl,
       rapport: interv.rapport_json,
       reference: (interv.reference as string) || undefined,
       photos,

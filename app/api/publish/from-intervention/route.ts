@@ -7,10 +7,19 @@ import {
   sortPhotosForPublish,
 } from "@/lib/publish-content"
 import { getSupabaseOrNull } from "@/lib/supabase"
+import { proxyImageUrlAbsolute } from "@/lib/proxyImageUrl"
 import { REALISATION_PAGE_STYLE } from "@/lib/realisationPageCss"
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
+
+function getBaseUrl(req: NextRequest): string {
+  const configured = process.env.APP_BASE_URL
+    || process.env.NEXTAUTH_URL
+    || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "")
+  if (configured) return configured.replace(/\/+$/, "")
+  return req.nextUrl.origin.replace(/\/+$/, "")
+}
 
 /**
  * Publication directe d'une intervention déjà saisie (avec rapport_json,
@@ -187,7 +196,9 @@ export async function POST(req: NextRequest) {
     technicien: technicienNom
       ? {
           nom: technicienNom,
-          photoUrl: technicienPhotoUrl,
+          photoUrl: technicienPhotoUrl
+            ? proxyImageUrlAbsolute(technicienPhotoUrl, getBaseUrl(req))
+            : null,
           anneesExperience: technicienAnnees,
           titreMetier: technicienTitre,
         }
@@ -254,6 +265,12 @@ export async function POST(req: NextRequest) {
   fd.append('client_adresse', `${adresse} ${codePostal} ${ville}`.trim())
   fd.append('intervention_id', interventionId)
   fd.append('technicien_name', technicienNom)
+  if (technicienPhotoUrl) {
+    fd.append(
+      'technicien_photo_url',
+      proxyImageUrlAbsolute(technicienPhotoUrl, getBaseUrl(req)),
+    )
+  }
   // Wrap les Blob en File explicite : certains parseurs multipart (Django
   // notamment) discriminent en fonction de l'objet, et un Blob "nu" peut
   // tomber dans un code path différent qui finit en 500 silencieux.

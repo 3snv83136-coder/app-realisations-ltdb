@@ -31,7 +31,7 @@ const C = {
 }
 
 /** Réserve verticale bandeau fixe (sans sous-titre) + vague rouge */
-const PAGE_HEADER_RESERVE = 118
+const PAGE_HEADER_RESERVE = 108
 /** Réserve pied de page fixe */
 const PAGE_FOOTER_RESERVE = 48
 
@@ -46,6 +46,18 @@ const s = StyleSheet.create({
     color: C.text,
     backgroundColor: C.white,
     lineHeight: 1.45,
+  },
+  headerFixed: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+  },
+  footerFixed: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
   },
   content: { paddingHorizontal: 40, paddingTop: 8, paddingBottom: 8 },
 
@@ -69,6 +81,8 @@ const s = StyleSheet.create({
   metaRowLast: { borderBottomWidth: 0 },
   metaK: { color: C.muted, fontSize: 9 },
   metaV: { color: C.text, fontSize: 9, fontFamily: 'Helvetica-Bold', maxWidth: '58%', textAlign: 'right' },
+  metaTechRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', maxWidth: '58%' },
+  techPhoto: { width: 22, height: 22, borderRadius: 11, marginRight: 6, objectFit: 'cover' },
 
   objet: { fontSize: 9.5, marginBottom: 12, lineHeight: 1.5 },
   objetLabel: { fontFamily: 'Helvetica-Bold', color: C.navy },
@@ -467,6 +481,7 @@ export interface PDFProps {
   dateIntervention: string
   typeIntervention: string
   technicienNom: string
+  technicienPhotoUrl?: string | null
   rapport: RapportData
   phone?: string
   reference?: string
@@ -567,7 +582,7 @@ const Header = ({
   refNum: string
   phone?: string
 }) => (
-  <View fixed>
+  <View fixed style={s.headerFixed}>
     <PdfBanner
       title={title}
       numero={refNum}
@@ -578,7 +593,7 @@ const Header = ({
 )
 
 const Footer = ({ phone }: { phone?: string }) => (
-  <View style={s.footer} fixed>
+  <View style={[s.footer, s.footerFixed]} fixed>
     <View style={s.footerBottomRow}>
       <View>
         <Text style={s.footerL}>
@@ -625,7 +640,7 @@ const SectionCard = ({
 /* ============ DOCUMENT ============ */
 export function RealisationDocument({
   clientNom, adresse, ville, codePostal, dateIntervention, typeIntervention,
-  technicienNom, rapport, reference, photos, phone,
+  technicienNom, technicienPhotoUrl, rapport, reference, photos, phone,
   signatureLtdbUrl,
   signatureClientUrl,
   signatureClientDate,
@@ -717,7 +732,13 @@ export function RealisationDocument({
               </View>
               <View style={[s.metaRow, s.metaRowLast]}>
                 <Text style={s.metaK}>Technicien</Text>
-                <Text style={s.metaV}>{technicienNom || '—'}</Text>
+                <View style={s.metaTechRow}>
+                  {technicienPhotoUrl ? (
+                    // eslint-disable-next-line jsx-a11y/alt-text
+                    <Image style={s.techPhoto} src={technicienPhotoUrl} />
+                  ) : null}
+                  <Text style={[s.metaV, { maxWidth: '100%', textAlign: 'right' }]}>{technicienNom || '—'}</Text>
+                </View>
               </View>
             </View>
           </View>

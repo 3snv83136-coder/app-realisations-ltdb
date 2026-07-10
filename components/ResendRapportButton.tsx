@@ -2,6 +2,7 @@
 import React, { useState } from "react"
 import { pdfDocumentToBase64 } from "@/lib/pdfToBase64"
 import { safeFilename } from "@/lib/filename"
+import { proxyImageUrl } from "@/lib/proxyImageUrl"
 import { getLtdbSignatureUrl, fetchAccordSignatureForRapport } from "@/lib/rapport-signatures"
 import { RealisationDocument, type RapportData } from "./RealisationPDF"
 
@@ -22,6 +23,7 @@ export interface ResendRapportIntervention {
   client_code_postal: string | null
   client_ville: string | null
   technicien_nom: string | null
+  technicien_photo_url?: string | null
 }
 
 async function buildRapportBase64(i: ResendRapportIntervention): Promise<{ base64: string; filename: string } | null> {
@@ -46,6 +48,7 @@ async function buildRapportBase64(i: ResendRapportIntervention): Promise<{ base6
     dateIntervention,
     typeIntervention: i.type_intervention || 'Intervention',
     technicienNom: i.technicien_nom || '',
+    technicienPhotoUrl: i.technicien_photo_url ? proxyImageUrl(i.technicien_photo_url) : null,
     rapport,
     photos,
     reference: i.reference || rapport.reference || undefined,
