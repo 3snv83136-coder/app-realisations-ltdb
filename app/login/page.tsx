@@ -1,6 +1,6 @@
 'use client'
 import { signIn } from "next-auth/react"
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 
 /**
@@ -29,6 +29,13 @@ export default function LoginPage() {
   const router = useRouter()
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    const revoked = new URLSearchParams(window.location.search).get('revoked')
+    if (revoked === '1') {
+      setError('Votre accès démo a été révoqué. Contactez le gérant pour un nouvel accès.')
+    }
+  }, [])
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()

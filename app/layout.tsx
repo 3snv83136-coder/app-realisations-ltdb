@@ -3,6 +3,7 @@ import { Inter } from "next/font/google"
 import "./globals.css"
 import { SessionProvider } from "next-auth/react"
 import { PwaScript } from "@/components/PwaScript"
+import { DemoRevocationGuard } from "@/components/DemoRevocationGuard"
 
 const inter = Inter({ subsets: ["latin"] })
 
@@ -38,6 +39,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="fr">
       <body className={inter.className}>
         <SessionProvider>
+          <DemoRevocationGuard />
           {children}
         </SessionProvider>
         <PwaScript />

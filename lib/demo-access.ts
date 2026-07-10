@@ -76,6 +76,25 @@ export async function verifyDemoCredentials(
   }
 }
 
+/** Accès démo encore valide (non révoqué, non expiré). */
+export async function isDemoAccessActive(login: string): Promise<boolean> {
+  const normalized = normalizeDemoLogin(login)
+  if (!normalized) return false
+
+  const sb = getSupabaseOrNull()
+  if (!sb) return false
+
+  const { data, error } = await sb
+    .from('demo_access')
+    .select('actif, expires_at, revoked_at')
+    .eq('login', normalized)
+    .maybeSingle()
+
+  if (error || !data || !data.actif || data.revoked_at) return false
+  if (data.expires_at && new Date(data.expires_at as string).getTime() <= Date.now()) return false
+  return true
+}
+
 export async function listDemoAccess(includeRevoked = true): Promise<DemoAccessRow[]> {
   const sb = getSupabaseOrNull()
   if (!sb) return []

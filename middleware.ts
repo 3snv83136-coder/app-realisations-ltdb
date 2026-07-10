@@ -1,5 +1,6 @@
 import { auth } from "@/lib/auth"
 import { homePathForRole, isTechApiAllowed, isTechPageAllowed } from "@/lib/auth-routes"
+import { isDemoAccessActive } from "@/lib/demo-access"
 import { NextResponse } from "next/server"
 
 const INTERVENTION_FICHE = /^\/intervention\/([^/]+)$/
@@ -17,7 +18,7 @@ const PUBLIC_PREFIXES = [
   "/api/cron/",
 ]
 
-export default auth((req) => {
+export default auth(async (req) => {
   const { pathname } = req.nextUrl
   const role = req.auth?.user?.role
   const isDemo = req.auth?.user?.isDemo === true
@@ -44,7 +45,25 @@ export default auth((req) => {
     return NextResponse.redirect(loginUrl)
   }
 
-  if (isDemo && (pathname.startsWith("/acces-demo") || pathname.startsWith("/api/demo-access"))) {
+  // Accès démo révoqué ou expiré → déconnexion forcée
+  if (isDemo) {
+    const login = req.auth.user?.name || ""
+    const stillActive = login ? await isDemoAccessActive(login) : false
+    if (!stillActive) {
+      if (pathname.startsWith("/api/")) {
+        return NextResponse.json({ error: "Accès révoqué", revoked: true }, { status: 401 })
+      }
+      const signOutUrl = new URL("/api/auth/signout", req.nextUrl.origin)
+      signOutUrl.searchParams.set("callbackUrl", "/login?revoked=1")
+      return NextResponse.redirect(signOutUrl)
+    }
+  }
+
+  const demoMgmtBlocked =
+    pathname.startsWith("/acces-demo")
+    || (pathname.startsWith("/api/demo-access") && !pathname.startsWith("/api/demo-access/check"))
+
+  if (isDemo && demoMgmtBlocked) {
     if (pathname.startsWith("/api/")) {
       return NextResponse.json({ error: "Accès refusé" }, { status: 403 })
     }
