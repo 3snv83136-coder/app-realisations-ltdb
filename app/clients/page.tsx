@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useMemo, useState } from "react"
+import { useState } from "react"
 import Link from "next/link"
 
 type Client = {
@@ -55,11 +55,23 @@ type DocRow = {
   client_ville: string | null
 }
 
+type AccordRow = {
+  id: string
+  reference: string | null
+  statut: string
+  total_ttc: number | null
+  valide_at: string | null
+  created_at: string
+  pdf_url: string | null
+  intervention_id: string | null
+}
+
 type ClientDossier = {
   key: string
   client: Client
   interventions: Intervention[]
   documents: DocRow[]
+  accords: AccordRow[]
   caTotal: number
   caPaye: number
   lastDate: string | null
@@ -70,6 +82,14 @@ const TYPE_LABEL: Record<string, string> = {
   devis: 'Devis',
   attestation: 'Attestation',
   rapport: 'Rapport',
+}
+
+const ACCORD_STATUT_LABEL: Record<string, string> = {
+  BROUILLON: 'Brouillon',
+  EN_ATTENTE_SMS: 'En attente SMS',
+  VALIDE: 'Validé',
+  REFUSE: 'Refusé',
+  ANNULE: 'Annulé',
 }
 
 function fmtMontant(n: number | null | undefined): string {
@@ -107,23 +127,20 @@ function downloadCsv(filename: string, rows: (string | number | null | undefined
   URL.revokeObjectURL(url)
 }
 
-function clientKey(c: { id: string | null; nom: string; email: string | null }): string {
-  if (c.id) return `id:${c.id}`
-  return `noid:${(c.nom || '').toLowerCase().trim()}|${(c.email || '').toLowerCase().trim()}`
+function hasFilters(f: { nom: string; telephone: string; email: string; ville: string }): boolean {
+  return !!(f.nom.trim() || f.telephone.trim() || f.email.trim() || f.ville.trim())
 }
 
 export default function ClientsPage() {
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [allClients, setAllClients] = useState<Client[]>([])
-  const [interventions, setInterventions] = useState<Intervention[]>([])
-  const [documents, setDocuments] = useState<DocRow[]>([])
+  const [dossiers, setDossiers] = useState<ClientDossier[]>([])
+  const [searched, setSearched] = useState(false)
 
-  const [search, setSearch] = useState('')
-  const [filterVille, setFilterVille] = useState<string>('')
-  const [filterType, setFilterType] = useState<string>('')
-  const [from, setFrom] = useState('')
-  const [to, setTo] = useState('')
+  const [filterNom, setFilterNom] = useState('')
+  const [filterTelephone, setFilterTelephone] = useState('')
+  const [filterEmail, setFilterEmail] = useState('')
+  const [filterVille, setFilterVille] = useState('')
   const [expanded, setExpanded] = useState<Record<string, boolean>>({})
 
   const [sendModal, setSendModal] = useState<{ open: boolean; dossier: ClientDossier | null; email: string; sending: boolean; status: string | null }>({
@@ -190,7 +207,11 @@ export default function ClientsPage() {
       if (!res.ok) throw new Error(body?.error || `HTTP ${res.status}`)
       const updated = body?.client as Client | undefined
       if (updated) {
-        setAllClients(prev => prev.map(c => c.id === updated.id ? { ...c, ...updated } : c))
+        setDossiers(prev => prev.map(d => (
+          d.client.id === updated.id
+            ? { ...d, client: { ...d.client, ...updated } }
+            : d
+        )))
       }
       setEditModal(s => ({ ...s, open: false, saving: false }))
     } catch (e) {
@@ -205,11 +226,12 @@ export default function ClientsPage() {
       setDeleteError(`"${d.client.nom}" n'est pas un client enregistré en base (agrégé depuis des interventions sans fiche client) — rien à supprimer.`)
       return
     }
-    if (d.interventions.length > 0 || d.documents.length > 0) {
+    if (d.interventions.length > 0 || d.documents.length > 0 || d.accords.length > 0) {
       const parts: string[] = []
       if (d.interventions.length > 0) parts.push(`${d.interventions.length} intervention(s)`)
       if (d.documents.length > 0) parts.push(`${d.documents.length} document(s)`)
-      setDeleteError(`Impossible de supprimer "${d.client.nom}" : ${parts.join(' et ')} y ${d.interventions.length + d.documents.length > 1 ? 'sont' : 'est'} rattaché(s). Supprime-les d'abord depuis l'historique.`)
+      if (d.accords.length > 0) parts.push(`${d.accords.length} accord(s)`)
+      setDeleteError(`Impossible de supprimer "${d.client.nom}" : ${parts.join(' et ')} y ${parts.length > 1 ? 'sont' : 'est'} rattaché(s). Supprime-les d'abord depuis l'historique.`)
       return
     }
     if (!confirm(`Supprimer définitivement le client "${d.client.nom}" ? Cette action est irréversible.`)) return
@@ -218,7 +240,7 @@ export default function ClientsPage() {
       const res = await fetch(`/api/clients/${id}`, { method: 'DELETE' })
       const body = await res.json().catch(() => null)
       if (!res.ok) throw new Error(body?.error || `HTTP ${res.status}`)
-      setAllClients(prev => prev.filter(c => c.id !== id))
+      setDossiers(prev => prev.filter(d => d.client.id !== id))
       setExpanded(s => { const next = { ...s }; delete next[d.key]; return next })
     } catch (e) {
       setDeleteError(e instanceof Error ? e.message : 'Suppression échouée')
@@ -227,157 +249,56 @@ export default function ClientsPage() {
     }
   }
 
-  useEffect(() => {
-    let alive = true
-    async function load() {
-      setLoading(true); setError(null)
-      try {
-        const [hRes, cRes] = await Promise.all([
-          fetch('/api/historique?limit=500', { cache: 'no-store' }),
-          fetch('/api/clients?limit=1000', { cache: 'no-store' }),
-        ])
-        const hJson = await hRes.json()
-        const cJson = await cRes.json()
-        if (!alive) return
-        if (hJson.error) throw new Error(hJson.error)
-        if (cJson.error) throw new Error(cJson.error)
-        setInterventions(hJson.interventions || [])
-        setDocuments(hJson.documents || [])
-        setAllClients(cJson.clients || [])
-      } catch (e) {
-        if (!alive) return
-        setError(e instanceof Error ? e.message : 'Erreur de chargement')
-      } finally {
-        if (alive) setLoading(false)
-      }
+  async function runSearch(e?: React.FormEvent) {
+    e?.preventDefault()
+    if (!hasFilters({ nom: filterNom, telephone: filterTelephone, email: filterEmail, ville: filterVille })) {
+      setError('Indique au moins un critère : nom, téléphone, email ou ville.')
+      setSearched(false)
+      setDossiers([])
+      return
     }
-    load()
-    return () => { alive = false }
-  }, [])
-
-  const dossiers = useMemo<ClientDossier[]>(() => {
-    const map = new Map<string, ClientDossier>()
-
-    const ensure = (c: Client): ClientDossier => {
-      const k = clientKey(c)
-      const existing = map.get(k)
-      if (existing) {
-        if (!existing.client.email && c.email) existing.client.email = c.email
-        if (!existing.client.telephone && c.telephone) existing.client.telephone = c.telephone
-        if (!existing.client.adresse && c.adresse) existing.client.adresse = c.adresse
-        if (!existing.client.code_postal && c.code_postal) existing.client.code_postal = c.code_postal
-        if (!existing.client.ville && c.ville) existing.client.ville = c.ville
-        return existing
-      }
-      const fresh: ClientDossier = {
-        key: k,
-        client: { ...c },
-        interventions: [],
-        documents: [],
-        caTotal: 0,
-        caPaye: 0,
-        lastDate: null,
-      }
-      map.set(k, fresh)
-      return fresh
+    setLoading(true)
+    setError(null)
+    setSearched(true)
+    try {
+      const params = new URLSearchParams()
+      if (filterNom.trim()) params.set('nom', filterNom.trim())
+      if (filterTelephone.trim()) params.set('telephone', filterTelephone.trim())
+      if (filterEmail.trim()) params.set('email', filterEmail.trim())
+      if (filterVille.trim()) params.set('ville', filterVille.trim())
+      const res = await fetch(`/api/clients/dossier?${params}`, { cache: 'no-store' })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`)
+      const rows = (data.dossiers || []) as ClientDossier[]
+      setDossiers(rows)
+      const openAll: Record<string, boolean> = {}
+      for (const d of rows) openAll[d.key] = true
+      setExpanded(openAll)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erreur de recherche')
+      setDossiers([])
+    } finally {
+      setLoading(false)
     }
+  }
 
-    for (const c of allClients) ensure(c)
+  function resetFilters() {
+    setFilterNom('')
+    setFilterTelephone('')
+    setFilterEmail('')
+    setFilterVille('')
+    setDossiers([])
+    setExpanded({})
+    setSearched(false)
+    setError(null)
+  }
 
-    for (const i of interventions) {
-      const c: Client = {
-        id: i.client_id,
-        nom: i.client_nom || 'Client sans nom',
-        email: i.client_email,
-        telephone: null,
-        adresse: null,
-        code_postal: null,
-        ville: i.client_ville || i.ville,
-      }
-      const d = ensure(c)
-      d.interventions.push(i)
-      const dt = i.date_realisee || i.date_prevue || i.created_at
-      if (dt && (!d.lastDate || dt > d.lastDate)) d.lastDate = dt
-    }
-
-    for (const doc of documents) {
-      const c: Client = {
-        id: doc.client_id,
-        nom: doc.client_nom || 'Client sans nom',
-        email: doc.client_email,
-        telephone: null,
-        adresse: null,
-        code_postal: null,
-        ville: doc.client_ville,
-      }
-      const d = ensure(c)
-      d.documents.push(doc)
-      if (doc.type === 'facture' && typeof doc.montant_ttc === 'number') {
-        d.caTotal += doc.montant_ttc
-        if (doc.statut === 'paye') d.caPaye += doc.montant_ttc
-      }
-      const dt = doc.date_emission || doc.created_at
-      if (dt && (!d.lastDate || dt > d.lastDate)) d.lastDate = dt
-    }
-
-    return Array.from(map.values()).sort((a, b) => {
-      if (a.lastDate && b.lastDate) return b.lastDate.localeCompare(a.lastDate)
-      if (a.lastDate) return -1
-      if (b.lastDate) return 1
-      return a.client.nom.localeCompare(b.client.nom, 'fr')
-    })
-  }, [allClients, interventions, documents])
-
-  const villes = useMemo(() => {
-    const set = new Set<string>()
-    for (const d of dossiers) {
-      if (d.client.ville) set.add(d.client.ville)
-      for (const i of d.interventions) if (i.ville) set.add(i.ville)
-    }
-    return Array.from(set).sort((a, b) => a.localeCompare(b, 'fr'))
-  }, [dossiers])
-
-  const filtered = useMemo(() => {
-    const s = search.trim().toLowerCase()
-    return dossiers.filter(d => {
-      if (s) {
-        const blob = [
-          d.client.nom, d.client.email, d.client.ville, d.client.telephone,
-          ...d.interventions.map(i => `${i.reference || ''} ${i.ville || ''} ${i.type_intervention || ''}`),
-          ...d.documents.map(doc => `${doc.numero || ''} ${doc.type || ''}`),
-        ].join(' ').toLowerCase()
-        if (!blob.includes(s)) return false
-      }
-      if (filterVille) {
-        const villesD = new Set<string>([
-          ...(d.client.ville ? [d.client.ville] : []),
-          ...d.interventions.map(i => i.ville || '').filter(Boolean),
-        ])
-        if (!villesD.has(filterVille)) return false
-      }
-      if (filterType) {
-        const hasType = d.documents.some(doc => doc.type === filterType)
-        if (!hasType) return false
-      }
-      if (from || to) {
-        const inRange = (iso: string | null | undefined) => {
-          if (!iso) return false
-          const ymd = iso.slice(0, 10)
-          if (from && ymd < from) return false
-          if (to && ymd > to) return false
-          return true
-        }
-        const anyMatch = d.interventions.some(i => inRange(i.date_realisee || i.date_prevue || i.created_at))
-          || d.documents.some(doc => inRange(doc.date_emission || doc.created_at))
-        if (!anyMatch) return false
-      }
-      return true
-    })
-  }, [dossiers, search, filterVille, filterType, from, to])
+  const filtered = dossiers
 
   const totalCa = filtered.reduce((s, d) => s + d.caTotal, 0)
   const totalInterv = filtered.reduce((s, d) => s + d.interventions.length, 0)
   const totalDocs = filtered.reduce((s, d) => s + d.documents.length, 0)
+  const totalAccords = filtered.reduce((s, d) => s + d.accords.length, 0)
 
   function exportClientCsv(d: ClientDossier) {
     const safeName = (d.client.nom || 'client').replace(/[^\w\-]+/g, '_').toLowerCase()
@@ -408,12 +329,25 @@ export default function ClientsPage() {
         doc.pdf_url || '',
       ])
     }
+    for (const a of d.accords) {
+      rows.push([
+        'Accord',
+        fmtDate(a.valide_at || a.created_at),
+        a.reference || '',
+        '',
+        '',
+        a.statut || '',
+        a.total_ttc !== null && a.total_ttc !== undefined
+          ? a.total_ttc.toFixed(2).replace('.', ',') : '',
+        a.pdf_url || '',
+      ])
+    }
     downloadCsv(`ltdb-client-${safeName}.csv`, rows)
   }
 
   function exportAllCsv() {
     const rows: (string | number | null | undefined)[][] = []
-    rows.push(['Client', 'Email', 'Téléphone', 'Ville', 'Nb interventions', 'Nb documents', 'CA total TTC', 'CA payé TTC', 'Dernière activité'])
+    rows.push(['Client', 'Email', 'Téléphone', 'Ville', 'Nb interventions', 'Nb documents', 'Nb accords', 'CA total TTC', 'CA payé TTC', 'Dernière activité'])
     for (const d of filtered) {
       rows.push([
         d.client.nom,
@@ -422,6 +356,7 @@ export default function ClientsPage() {
         d.client.ville || '',
         d.interventions.length,
         d.documents.length,
+        d.accords.length,
         d.caTotal.toFixed(2).replace('.', ','),
         d.caPaye.toFixed(2).replace('.', ','),
         fmtDate(d.lastDate),
@@ -465,6 +400,13 @@ export default function ClientsPage() {
             statut: doc.statut,
             pdf_url: doc.pdf_url,
           })),
+          accords: d.accords.map(a => ({
+            reference: a.reference,
+            date: a.valide_at || a.created_at,
+            statut: a.statut,
+            montant_ttc: a.total_ttc,
+            pdf_url: a.pdf_url,
+          })),
           caTotal: d.caTotal,
           caPaye: d.caPaye,
         }),
@@ -495,63 +437,79 @@ export default function ClientsPage() {
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 space-y-5">
         {/* Stats résumé */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          <Stat label="Clients" value={String(filtered.length)} />
-          <Stat label="Interventions" value={String(totalInterv)} />
-          <Stat label="Documents" value={String(totalDocs)} />
-          <Stat label="CA total" value={fmtMontant(totalCa)} />
-        </div>
+        {searched && (
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+            <Stat label="Clients" value={String(filtered.length)} />
+            <Stat label="Interventions" value={String(totalInterv)} />
+            <Stat label="Documents" value={String(totalDocs)} />
+            <Stat label="Accords" value={String(totalAccords)} />
+            <Stat label="CA total" value={fmtMontant(totalCa)} />
+          </div>
+        )}
 
         {/* Filtres */}
-        <div className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 space-y-3 shadow-sm">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+        <form onSubmit={runSearch} className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 space-y-3 shadow-sm">
+          <p className="text-sm text-slate-600">
+            Recherche un client par <strong>nom</strong>, <strong>téléphone</strong>, <strong>email</strong> ou <strong>ville</strong> — le dossier complet s&apos;affiche ensuite (rapports, factures, devis, accords).
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
             <input
               type="text"
-              placeholder="Rechercher (nom, email, ville, n°…)"
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              className="lg:col-span-2 w-full px-3 py-2 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:border-[#0e2a52] outline-none text-sm"
+              placeholder="Nom"
+              value={filterNom}
+              onChange={e => setFilterNom(e.target.value)}
+              className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:border-[#0e2a52] outline-none text-sm"
             />
-            <select
+            <input
+              type="tel"
+              placeholder="Téléphone"
+              value={filterTelephone}
+              onChange={e => setFilterTelephone(e.target.value)}
+              className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:border-[#0e2a52] outline-none text-sm"
+            />
+            <input
+              type="email"
+              placeholder="Email"
+              value={filterEmail}
+              onChange={e => setFilterEmail(e.target.value)}
+              className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:border-[#0e2a52] outline-none text-sm"
+            />
+            <input
+              type="text"
+              placeholder="Ville"
               value={filterVille}
               onChange={e => setFilterVille(e.target.value)}
               className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:border-[#0e2a52] outline-none text-sm"
-            >
-              <option value="">Toutes villes</option>
-              {villes.map(v => <option key={v} value={v}>{v}</option>)}
-            </select>
-            <select
-              value={filterType}
-              onChange={e => setFilterType(e.target.value)}
-              className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:border-[#0e2a52] outline-none text-sm"
-            >
-              <option value="">Tout type doc</option>
-              <option value="facture">Facture</option>
-              <option value="devis">Devis</option>
-              <option value="attestation">Attestation</option>
-            </select>
-            <div className="grid grid-cols-2 gap-2">
-              <input type="date" value={from} onChange={e => setFrom(e.target.value)} className="w-full px-2 py-2 rounded-xl border border-slate-200 bg-slate-50 text-xs" />
-              <input type="date" value={to} onChange={e => setTo(e.target.value)} className="w-full px-2 py-2 rounded-xl border border-slate-200 bg-slate-50 text-xs" />
-            </div>
+            />
           </div>
           <div className="flex items-center justify-between flex-wrap gap-2">
-            <div className="text-xs text-slate-500">{filtered.length} client{filtered.length > 1 ? 's' : ''} affiché{filtered.length > 1 ? 's' : ''}</div>
+            <div className="text-xs text-slate-500">
+              {searched
+                ? `${filtered.length} client${filtered.length > 1 ? 's' : ''} trouvé${filtered.length > 1 ? 's' : ''}`
+                : 'Aucune recherche lancée'}
+            </div>
             <div className="flex gap-2">
-              {(search || filterVille || filterType || from || to) && (
+              {searched && (
                 <button
-                  onClick={() => { setSearch(''); setFilterVille(''); setFilterType(''); setFrom(''); setTo('') }}
+                  type="button"
+                  onClick={resetFilters}
                   className="px-3 py-1.5 text-xs rounded-lg border border-slate-200 hover:bg-slate-50"
                 >Réinitialiser</button>
               )}
               <button
+                type="submit"
+                disabled={loading}
+                className="px-4 py-1.5 text-xs rounded-lg bg-[#0e2a52] text-white hover:bg-[#0a1f3d] disabled:opacity-40"
+              >{loading ? 'Recherche…' : '🔍 Rechercher'}</button>
+              <button
+                type="button"
                 onClick={exportAllCsv}
                 disabled={filtered.length === 0}
-                className="px-3 py-1.5 text-xs rounded-lg bg-[#0e2a52] text-white hover:bg-[#0a1f3d] disabled:opacity-40"
+                className="px-3 py-1.5 text-xs rounded-lg border border-slate-200 hover:bg-slate-50 disabled:opacity-40"
               >📥 Exporter CSV</button>
             </div>
           </div>
-        </div>
+        </form>
 
         {/* Liste */}
         {loading && <div className="text-center py-12 text-slate-500 text-sm">Chargement…</div>}
@@ -562,8 +520,13 @@ export default function ClientsPage() {
             <button onClick={() => setDeleteError(null)} className="text-amber-600 hover:text-amber-900 font-bold shrink-0">✕</button>
           </div>
         )}
-        {!loading && !error && filtered.length === 0 && (
-          <div className="text-center py-12 text-slate-500 text-sm">Aucun client ne correspond aux filtres.</div>
+        {!loading && !error && searched && filtered.length === 0 && (
+          <div className="text-center py-12 text-slate-500 text-sm">Aucun client ne correspond à ces critères.</div>
+        )}
+        {!searched && !loading && (
+          <div className="text-center py-16 text-slate-400 text-sm">
+            Saisis au moins un critère puis clique sur <strong>Rechercher</strong> pour afficher le dossier client.
+          </div>
         )}
 
         <div className="space-y-3">
@@ -595,8 +558,8 @@ export default function ClientsPage() {
                   <button
                     onClick={() => handleDeleteClient(d)}
                     disabled={deletingKey === d.key}
-                    title={d.interventions.length > 0 || d.documents.length > 0
-                      ? 'Ce client a des interventions/documents — supprime-les d\'abord'
+                    title={d.interventions.length > 0 || d.documents.length > 0 || d.accords.length > 0
+                      ? 'Ce client a des interventions/documents/accords — supprime-les d\'abord'
                       : 'Supprimer ce client'}
                     className="px-3 sm:px-4 flex items-center justify-center text-slate-300 hover:text-red-600 hover:bg-red-50 border-l border-slate-100 transition-colors disabled:opacity-40"
                   >
@@ -619,7 +582,7 @@ export default function ClientsPage() {
                       >📥 Exporter ce client (CSV)</button>
                       <button
                         onClick={() => openSendModal(d)}
-                        disabled={!d.client.email && !d.documents.length && !d.interventions.length}
+                        disabled={!d.client.email && !d.documents.length && !d.interventions.length && !d.accords.length}
                         className="px-3 py-1.5 text-xs rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-40"
                       >✉ Envoyer le récap</button>
                       <button
@@ -628,10 +591,10 @@ export default function ClientsPage() {
                         className="px-3 py-1.5 text-xs rounded-lg bg-white border border-red-200 text-red-700 hover:bg-red-50 disabled:opacity-40"
                       >{deletingKey === d.key ? '⏳ Suppression…' : '🗑 Supprimer ce client'}</button>
                     </div>
-                    {(d.interventions.length > 0 || d.documents.length > 0) && (
+                    {(d.interventions.length > 0 || d.documents.length > 0 || d.accords.length > 0) && (
                       <p className="text-[11px] text-slate-500">
-                        ⚠ Ce client a {d.interventions.length} intervention(s) et {d.documents.length} document(s) liés.
-                        Sa suppression est bloquée tant qu'ils existent.
+                        ⚠ Ce client a {d.interventions.length} intervention(s), {d.documents.length} document(s) et {d.accords.length} accord(s) liés.
+                        Sa suppression est bloquée tant qu&apos;ils existent.
                       </p>
                     )}
 
@@ -641,12 +604,14 @@ export default function ClientsPage() {
                       const factures = d.documents.filter(doc => doc.type === 'facture')
                       const devis = d.documents.filter(doc => doc.type === 'devis')
                       const attestations = d.documents.filter(doc => doc.type === 'attestation')
+                      const accords = d.accords
                       return (
                         <>
                           <div className="flex flex-wrap gap-2 text-[11px] text-slate-600">
                             <Pill className="bg-indigo-50 text-indigo-700 border-indigo-100">📝 {rapports.length} rapport{rapports.length > 1 ? 's' : ''}</Pill>
                             <Pill className="bg-emerald-50 text-emerald-700 border-emerald-100">🧾 {factures.length} facture{factures.length > 1 ? 's' : ''}</Pill>
                             <Pill className="bg-amber-50 text-amber-700 border-amber-100">📋 {devis.length} devis</Pill>
+                            <Pill className="bg-violet-50 text-violet-700 border-violet-100">🤝 {accords.length} accord{accords.length > 1 ? 's' : ''}</Pill>
                             <Pill className="bg-stone-50 text-stone-700 border-stone-100">✅ {attestations.length} attestation{attestations.length > 1 ? 's' : ''}</Pill>
                           </div>
 
@@ -684,6 +649,12 @@ export default function ClientsPage() {
                             ))}
                           </DocSection>
 
+                          <DocSection title="🤝 Accords d'intervention" count={accords.length} accent="violet">
+                            {accords.map(a => (
+                              <AccordRowView key={a.id} accord={a} />
+                            ))}
+                          </DocSection>
+
                           <DocSection title="✅ Attestations" count={attestations.length} accent="stone">
                             {attestations.map(doc => (
                               <DocRowView key={doc.id} doc={doc} />
@@ -714,8 +685,8 @@ export default function ClientsPage() {
                             </DocSection>
                           )}
 
-                          {d.interventions.length === 0 && d.documents.length === 0 && (
-                            <div className="text-xs text-slate-500 italic">Aucune intervention ni document pour ce client.</div>
+                          {d.interventions.length === 0 && d.documents.length === 0 && d.accords.length === 0 && (
+                            <div className="text-xs text-slate-500 italic">Aucune intervention, document ni accord pour ce client.</div>
                           )}
                         </>
                       )
@@ -737,7 +708,7 @@ export default function ClientsPage() {
               <button onClick={() => setSendModal({ open: false, dossier: null, email: '', sending: false, status: null })} className="text-slate-400 hover:text-slate-700 text-xl leading-none">×</button>
             </div>
             <p className="text-xs text-slate-500 mb-3">
-              Récap pour <strong>{sendModal.dossier.client.nom}</strong> : {sendModal.dossier.interventions.length} intervention(s) et {sendModal.dossier.documents.length} document(s).
+              Récap pour <strong>{sendModal.dossier.client.nom}</strong> : {sendModal.dossier.interventions.length} intervention(s), {sendModal.dossier.documents.length} document(s) et {sendModal.dossier.accords.length} accord(s).
             </p>
             <label className="block text-xs font-medium text-slate-600 mb-1">Email destinataire</label>
             <input
@@ -892,7 +863,7 @@ function statutClass(s: string): string {
   }
 }
 
-type Accent = 'indigo' | 'emerald' | 'amber' | 'stone' | 'slate'
+type Accent = 'indigo' | 'emerald' | 'amber' | 'stone' | 'slate' | 'violet'
 
 const ACCENT_CLASSES: Record<Accent, string> = {
   indigo: 'text-indigo-700 border-indigo-100 bg-indigo-50/50',
@@ -900,6 +871,7 @@ const ACCENT_CLASSES: Record<Accent, string> = {
   amber: 'text-amber-700 border-amber-100 bg-amber-50/50',
   stone: 'text-stone-700 border-stone-100 bg-stone-50/50',
   slate: 'text-slate-700 border-slate-100 bg-slate-50/50',
+  violet: 'text-violet-700 border-violet-100 bg-violet-50/50',
 }
 
 function DocSection({ title, count, accent, children }: { title: string; count: number; accent: Accent; children: React.ReactNode }) {
@@ -930,6 +902,39 @@ function DocRowView({ doc }: { doc: DocRow }) {
       </div>
     </div>
   )
+}
+
+function AccordRowView({ accord }: { accord: AccordRow }) {
+  return (
+    <div className="flex items-center justify-between gap-3 bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm">
+      <div className="flex-1 min-w-0">
+        <span className="font-medium">{accord.reference || accord.id.slice(0, 8)}</span>
+        {accord.statut && (
+          <span className={`ml-2 px-1.5 py-0.5 rounded text-[10px] uppercase ${accordStatutClass(accord.statut)}`}>
+            {ACCORD_STATUT_LABEL[accord.statut] || accord.statut}
+          </span>
+        )}
+      </div>
+      <div className="text-xs text-slate-600 shrink-0 flex items-center gap-3">
+        {typeof accord.total_ttc === 'number' && <span className="font-medium">{fmtMontant(accord.total_ttc)}</span>}
+        <span className="text-slate-500">{fmtDate(accord.valide_at || accord.created_at)}</span>
+        {accord.pdf_url && (
+          <a href={accord.pdf_url} target="_blank" rel="noreferrer" className="px-2 py-1 rounded bg-violet-600 text-white hover:bg-violet-700 text-[11px]">📄 PDF</a>
+        )}
+        <Link href={`/accord/${accord.id}`} className="text-[#0e2a52] hover:underline">Voir →</Link>
+      </div>
+    </div>
+  )
+}
+
+function accordStatutClass(s: string): string {
+  switch (s) {
+    case 'VALIDE': return 'bg-emerald-100 text-emerald-700'
+    case 'BROUILLON': return 'bg-slate-100 text-slate-600'
+    case 'REFUSE': return 'bg-red-100 text-red-700'
+    case 'EN_ATTENTE_SMS': return 'bg-amber-100 text-amber-700'
+    default: return 'bg-slate-100 text-slate-600'
+  }
 }
 
 function docStatutClass(s: string): string {

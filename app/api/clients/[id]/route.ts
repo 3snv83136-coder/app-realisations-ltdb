@@ -84,20 +84,24 @@ export async function DELETE(_req: NextRequest, { params }: Params) {
   if (!id) return NextResponse.json({ error: 'ID client manquant' }, { status: 400 })
 
   // Garde : refuse la suppression si des entités sont rattachées
-  const [{ count: nbInterventions }, { count: nbDocuments }] = await Promise.all([
+  const [{ count: nbInterventions }, { count: nbDocuments }, { count: nbAccords }] = await Promise.all([
     sb.from('interventions').select('id', { count: 'exact', head: true }).eq('client_id', id),
     sb.from('documents').select('id', { count: 'exact', head: true }).eq('client_id', id),
+    sb.from('accords_intervention').select('id', { count: 'exact', head: true }).eq('client_id', id),
   ])
   const interventions = nbInterventions || 0
   const documents = nbDocuments || 0
-  if (interventions > 0 || documents > 0) {
+  const accords = nbAccords || 0
+  if (interventions > 0 || documents > 0 || accords > 0) {
     const parts: string[] = []
     if (interventions > 0) parts.push(`${interventions} intervention${interventions > 1 ? 's' : ''}`)
     if (documents > 0) parts.push(`${documents} document${documents > 1 ? 's' : ''} (factures/devis)`)
+    if (accords > 0) parts.push(`${accords} accord${accords > 1 ? 's' : ''}`)
     return NextResponse.json({
-      error: `Impossible de supprimer ce client : ${parts.join(' et ')} y ${interventions + documents > 1 ? 'sont' : 'est'} rattaché${interventions + documents > 1 ? 's' : ''}. Supprime-les d'abord.`,
+      error: `Impossible de supprimer ce client : ${parts.join(' et ')} y ${interventions + documents + accords > 1 ? 'sont' : 'est'} rattaché${interventions + documents + accords > 1 ? 's' : ''}. Supprime-les d'abord.`,
       interventions,
       documents,
+      accords,
     }, { status: 409 })
   }
 
