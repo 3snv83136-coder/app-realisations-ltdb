@@ -47,18 +47,6 @@ const s = StyleSheet.create({
     backgroundColor: C.white,
     lineHeight: 1.45,
   },
-  headerFixed: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-  },
-  footerFixed: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-  },
   content: { paddingHorizontal: 40, paddingTop: 8, paddingBottom: 8 },
 
   /* Bloc client + métadonnées (comme facture) */
@@ -582,7 +570,7 @@ const Header = ({
   refNum: string
   phone?: string
 }) => (
-  <View fixed style={s.headerFixed}>
+  <View fixed>
     <PdfBanner
       title={title}
       numero={refNum}
@@ -593,7 +581,7 @@ const Header = ({
 )
 
 const Footer = ({ phone }: { phone?: string }) => (
-  <View style={[s.footer, s.footerFixed]} fixed>
+  <View style={s.footer} fixed>
     <View style={s.footerBottomRow}>
       <View>
         <Text style={s.footerL}>

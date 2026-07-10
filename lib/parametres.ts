@@ -1,4 +1,5 @@
 import { getSupabaseOrNull } from "@/lib/supabase"
+import { EMAIL_RE } from "@/lib/email-utils"
 
 /**
  * Numéro de téléphone principal LTDB — source unique de vérité côté code.
@@ -44,11 +45,18 @@ export function getComptaAlertEmail(): Promise<string> {
 }
 
 /**
- * Boîte mail du gérant qui reçoit les confirmations d'envoi (rapports & factures).
- * Configurable via la table `parametres` (clé `OWNER_NOTIFY_EMAIL`) ou la variable
- * d'environnement `OWNER_NOTIFY_EMAIL`, sinon repli sur l'adresse Gmail LTDB.
+ * Boîte(s) mail du gérant pour les confirmations d'envoi.
+ * Combine paramètre Supabase + variable d'environnement (dédupliquées).
  */
+export async function getOwnerNotifyEmails(): Promise<string[]> {
+  const fallback = (process.env.OWNER_NOTIFY_EMAIL || 'LesTechniciensDuDebouchage@gmail.com').trim()
+  const fromDb = (await getParametre('OWNER_NOTIFY_EMAIL', '')).trim()
+  const candidates = [fromDb, fallback].filter(Boolean)
+  const valid = candidates.filter(e => EMAIL_RE.test(e))
+  return Array.from(new Set(valid))
+}
+
+/** @deprecated Préférer getOwnerNotifyEmails */
 export function getOwnerNotifyEmail(): Promise<string> {
-  const fallback = process.env.OWNER_NOTIFY_EMAIL || 'LesTechniciensDuDebouchage@gmail.com'
-  return getParametre('OWNER_NOTIFY_EMAIL', fallback)
+  return getOwnerNotifyEmails().then(list => list[0] || process.env.OWNER_NOTIFY_EMAIL || 'LesTechniciensDuDebouchage@gmail.com')
 }

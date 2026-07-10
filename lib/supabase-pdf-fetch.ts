@@ -13,6 +13,18 @@ async function bufferToBase64(buf: ArrayBuffer): Promise<string> {
   return Buffer.from(buf).toString("base64")
 }
 
+/** Vérifie qu'une chaîne base64 est un PDF non vide. */
+export function isValidPdfBase64(b64: string | null | undefined, minBytes = 2500): boolean {
+  if (!b64 || b64.length < 80) return false
+  try {
+    const buf = Buffer.from(b64, "base64")
+    if (buf.length < minBytes) return false
+    return buf.subarray(0, 5).toString("utf8") === "%PDF-"
+  } catch {
+    return false
+  }
+}
+
 /** Télécharge un PDF Supabase Storage (service role) puis fallback HTTP public. */
 export async function fetchPdfAsBase64Robust(
   sb: SupabaseClient | null,

@@ -1718,6 +1718,7 @@ function TerrainDiffusionPanel({ interv, client, onRefresh, onError, techOnlyMai
     recipient?: string
     alreadySent?: boolean
     ownerConfirmation?: boolean
+    ownerRecipients?: string[]
     attachments?: { rapport?: boolean; facture?: boolean; accord?: boolean }
     warnings: string[]
   } | null>(null)
@@ -1789,6 +1790,7 @@ function TerrainDiffusionPanel({ interv, client, onRefresh, onError, techOnlyMai
         warning?: string
         attachments?: { rapport?: boolean; facture?: boolean; accord?: boolean }
         immediate_id?: string
+        owner_confirmation_to?: string[]
       }>(
         `/api/interventions/${interv.id}/send-terrain-mail`,
         {
@@ -1823,6 +1825,7 @@ function TerrainDiffusionPanel({ interv, client, onRefresh, onError, techOnlyMai
         recipient: result.recipient || result.client_email || email.trim(),
         alreadySent,
         ownerConfirmation: result.owner_confirmation,
+        ownerRecipients: result.owner_confirmation_to,
         attachments: result.attachments,
         warnings,
       })
@@ -2158,6 +2161,9 @@ function TerrainDiffusionPanel({ interv, client, onRefresh, onError, techOnlyMai
             </p>
           )}
           <p>Accusé gérant : {mailResult.ownerConfirmation ? '✓ envoyé' : '✗ non reçu'}</p>
+          {mailResult.ownerRecipients && mailResult.ownerRecipients.length > 0 && (
+            <p className="text-xs">→ {mailResult.ownerRecipients.join(', ')}</p>
+          )}
           {mailResult.warnings.map((w, i) => (
             <p key={i} className="text-xs font-semibold">{w}</p>
           ))}

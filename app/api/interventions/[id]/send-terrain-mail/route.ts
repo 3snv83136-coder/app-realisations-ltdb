@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { requireInterventionAccess } from "@/lib/intervention-access"
 import { getSupabaseOrNull, patchClient, upsertClient } from "@/lib/supabase"
-import { generateTerrainPdfsOnServer, terrainPdfsReady } from "@/lib/terrain-pdf-server"
+import { generateTerrainPdfsOnServer } from "@/lib/terrain-pdf-server"
 import { resendErrorHint } from "@/lib/email-utils"
 
 export const dynamic = "force-dynamic"
@@ -86,21 +86,18 @@ export async function POST(req: NextRequest, { params }: Params) {
     }
   }
 
-  const ready = await terrainPdfsReady(sb, interventionId)
-  if (!ready.ready) {
-    try {
-      await generateTerrainPdfsOnServer({
-        interventionId,
-        baseUrl: getBaseUrl(req),
-        clientNom: nom,
-        sb,
-      })
-    } catch (e) {
-      return NextResponse.json(
-        { error: `Génération PDF : ${e instanceof Error ? e.message : String(e)}` },
-        { status: 500 },
-      )
-    }
+  try {
+    await generateTerrainPdfsOnServer({
+      interventionId,
+      baseUrl: getBaseUrl(req),
+      clientNom: nom,
+      sb,
+    })
+  } catch (e) {
+    return NextResponse.json(
+      { error: `Génération PDF : ${e instanceof Error ? e.message : String(e)}` },
+      { status: 500 },
+    )
   }
 
   const notifyUrl = new URL("/api/notify-rapport-facture", req.nextUrl.origin)
@@ -118,6 +115,7 @@ export async function POST(req: NextRequest, { params }: Params) {
       clientEmail,
       ccEmail: (body.ccEmail || "").trim() || undefined,
       forceResend: !!body.forceResend,
+      regeneratePdfs: false,
     }),
   })
 

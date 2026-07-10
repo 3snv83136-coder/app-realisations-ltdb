@@ -12,7 +12,8 @@ import { buildRapportFactureHtml } from "@/lib/rapport-facture-message"
 import { getSupabaseOrNull } from "@/lib/supabase"
 import { getTelPrincipal } from "@/lib/parametres"
 import { sendOwnerConfirmation } from "@/lib/owner-confirmation"
-import { fetchPdfAsBase64Robust } from "@/lib/supabase-pdf-fetch"
+import { fetchPdfAsBase64Robust, isValidPdfBase64 } from "@/lib/supabase-pdf-fetch"
+import { generateTerrainPdfsOnServer } from "@/lib/terrain-pdf-server"
 
 export const maxDuration = 120
 
@@ -41,6 +42,8 @@ export async function POST(req: NextRequest) {
     pdfFactureBase64?: string
     /** Ignore l'idempotence 30 min (renvoi explicite). */
     forceResend?: boolean
+    /** Régénère les PDF serveur avant envoi (défaut : true). */
+    regeneratePdfs?: boolean
   }
   try {
     body = await req.json()
@@ -146,28 +149,88 @@ export async function POST(req: NextRequest) {
   if ('error' in ctx) return NextResponse.json({ error: ctx.error }, { status: ctx.status })
   const { resend, fromEmail, recipient } = ctx
 
+  // Régénération systématique des PDF (sauf si base64 fourni par le client).
+  const shouldRegenerate =
+    body.regeneratePdfs !== false &&
+    !body.pdfRapportBase64 &&
+    !body.pdfFactureBase64
+
+  if (shouldRegenerate) {
+    try {
+      await generateTerrainPdfsOnServer({
+        interventionId,
+        baseUrl: getBaseUrl(req),
+        clientNom: clientNom || 'Client',
+        sb,
+      })
+      const [{ data: intervFresh }, { data: facturesFresh }] = await Promise.all([
+        sb.from('interventions').select('pdf_rapport_url').eq('id', interventionId).single(),
+        sb.from('documents')
+          .select('pdf_url')
+          .eq('intervention_id', interventionId)
+          .eq('type', 'facture')
+          .order('created_at', { ascending: false })
+          .range(0, 0),
+      ])
+      if (intervFresh?.pdf_rapport_url) interv.pdf_rapport_url = intervFresh.pdf_rapport_url
+      if (facturesFresh?.[0]?.pdf_url) facture.pdf_url = facturesFresh[0].pdf_url as string
+    } catch (e) {
+      console.error('[notify-rapport-facture] regenerate pdfs', e)
+      return NextResponse.json({
+        error: `Regénération PDF : ${e instanceof Error ? e.message : String(e)}`,
+      }, { status: 500 })
+    }
+  }
+
   // Priorité aux PDF fournis en base64 (wizard Mode Terrain).
   // Fallback : fetch depuis les URLs Storage (flux historique /nouveau).
-  const [rapportB64, factureB64, accordB64] = await Promise.all([
-    body.pdfRapportBase64 || (interv.pdf_rapport_url ? fetchPdfAsBase64(interv.pdf_rapport_url, sb) : null),
-    body.pdfFactureBase64 || (facture.pdf_url ? fetchPdfAsBase64(facture.pdf_url, sb) : null),
-    (async () => {
-      const { data: accord } = await sb
-        .from('accords_intervention')
-        .select('pdf_url, reference, statut')
-        .eq('intervention_id', interventionId)
-        .eq('statut', 'VALIDE')
-        .maybeSingle()
-      if (!accord?.pdf_url) return null
-      return fetchPdfAsBase64(accord.pdf_url, sb)
-    })(),
-  ])
+  let rapportB64 = body.pdfRapportBase64 || (interv.pdf_rapport_url ? await fetchPdfAsBase64(interv.pdf_rapport_url, sb) : null)
+  let factureB64 = body.pdfFactureBase64 || (facture.pdf_url ? await fetchPdfAsBase64(facture.pdf_url, sb) : null)
+  const accordB64 = await (async () => {
+    const { data: accord } = await sb
+      .from('accords_intervention')
+      .select('pdf_url, reference, statut')
+      .eq('intervention_id', interventionId)
+      .eq('statut', 'VALIDE')
+      .maybeSingle()
+    if (!accord?.pdf_url) return null
+    return fetchPdfAsBase64(accord.pdf_url, sb)
+  })()
+
+  // Si le rapport stocké est vide/corrompu, regénère une fois.
+  if (!isValidPdfBase64(rapportB64) && !body.pdfRapportBase64) {
+    try {
+      await generateTerrainPdfsOnServer({
+        interventionId,
+        baseUrl: getBaseUrl(req),
+        clientNom: clientNom || 'Client',
+        sb,
+      })
+      const { data: intervFresh } = await sb
+        .from('interventions')
+        .select('pdf_rapport_url')
+        .eq('id', interventionId)
+        .single()
+      if (intervFresh?.pdf_rapport_url) {
+        interv.pdf_rapport_url = intervFresh.pdf_rapport_url
+        rapportB64 = await fetchPdfAsBase64(intervFresh.pdf_rapport_url, sb)
+      }
+    } catch (e) {
+      console.error('[notify-rapport-facture] rapport pdf retry', e)
+    }
+  }
+
   if (!rapportB64) {
     return NextResponse.json({
       error: 'PDF rapport indisponible — regénère les documents (étape Diffusion) puis réessaie.',
     }, { status: 502 })
   }
-  if (!factureB64) {
+  if (!isValidPdfBase64(rapportB64)) {
+    return NextResponse.json({
+      error: 'PDF rapport vide ou corrompu — regénération échouée. Réessaie depuis l\'étape Diffusion.',
+    }, { status: 502 })
+  }
+  if (!factureB64 || !isValidPdfBase64(factureB64, 1500)) {
     return NextResponse.json({
       error: 'PDF facture indisponible — regénère les documents (étape Diffusion) puis réessaie.',
     }, { status: 502 })
@@ -269,6 +332,7 @@ export async function POST(req: NextRequest) {
     totalTTC,
     ccEmail: ccEmail || undefined,
     messageId: immediate.data?.id,
+    accordJoint: !!accordB64,
   })
 
   // Relances paiement J+10, J+15, J+20 (si facture non réglée)
@@ -344,6 +408,7 @@ export async function POST(req: NextRequest) {
     avis_sms_planifies: smsPlanned,
     ...(avisRelanceErrors.length ? { avis_relance_warnings: avisRelanceErrors } : {}),
     owner_confirmation: ownerConfirmation.sent,
+    ...(ownerConfirmation.recipients?.length ? { owner_confirmation_to: ownerConfirmation.recipients } : {}),
     ...(ownerConfirmation.error ? { owner_confirmation_warning: ownerConfirmation.error } : {}),
     ...(!accordB64 ? {
       accord_warning: 'Accord signé introuvable ou PDF non archivé — mail envoyé sans pièce accord.',

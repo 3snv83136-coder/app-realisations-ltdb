@@ -1,13 +1,12 @@
 import type { Resend } from "resend"
-import { EMAIL_RE, escapeHtml } from "@/lib/email-utils"
-import { getOwnerNotifyEmail, getTelPrincipal } from "@/lib/parametres"
+import { escapeHtml, htmlToText } from "@/lib/email-utils"
+import { getOwnerNotifyEmails, getTelPrincipal } from "@/lib/parametres"
 
 /**
- * Envoie une confirmation à la boîte du gérant indiquant qu'un mail client
+ * Envoie une confirmation à la/les boîte(s) du gérant indiquant qu'un mail client
  * (rapport et/ou facture) a bien été envoyé.
  *
  * Best-effort : ne lève jamais d'exception et ne bloque jamais le flux principal.
- * Renvoie un petit objet de statut à inclure dans la réponse API (optionnel).
  */
 export async function sendOwnerConfirmation(opts: {
   resend: Resend
@@ -15,7 +14,6 @@ export async function sendOwnerConfirmation(opts: {
   type: 'rapport_facture' | 'facture' | 'rapport'
   clientNom?: string
   clientEmail: string
-  /** Adresse réellement utilisée pour l'envoi (peut différer en mode test). */
   destinataireReel?: string
   ville?: string
   reference?: string
@@ -23,10 +21,11 @@ export async function sendOwnerConfirmation(opts: {
   totalTTC?: number | null
   ccEmail?: string
   messageId?: string
-}): Promise<{ sent: boolean; id?: string; error?: string }> {
+  accordJoint?: boolean
+}): Promise<{ sent: boolean; id?: string; error?: string; recipients?: string[] }> {
   try {
-    const ownerEmail = (await getOwnerNotifyEmail()).trim()
-    if (!ownerEmail || !EMAIL_RE.test(ownerEmail)) {
+    const ownerEmails = await getOwnerNotifyEmails()
+    if (ownerEmails.length === 0) {
       return { sent: false, error: 'OWNER_NOTIFY_EMAIL absent ou invalide' }
     }
 
@@ -42,19 +41,29 @@ export async function sendOwnerConfirmation(opts: {
     const sujet = `✅ Envoyé : ${quoiLabel}${opts.factureNumero ? ` ${opts.factureNumero}` : ''}`
       + `${opts.clientNom ? ` — ${opts.clientNom}` : ''}`
 
+    const html = buildHtml({ ...opts, ttc, tel, quoiLabel })
+    const text = htmlToText(html)
+
+    // Petit délai pour éviter le rejet Resend sur envois consécutifs rapides.
+    await new Promise(r => setTimeout(r, 400))
+
     const result = await opts.resend.emails.send({
-      from: `Confirmation LTDB <${opts.fromEmail}>`,
-      to: ownerEmail,
+      from: `Les Techniciens du Débouchage <${opts.fromEmail}>`,
+      to: ownerEmails,
       subject: sujet,
-      html: buildHtml({ ...opts, ttc, tel, quoiLabel }),
+      html,
+      text,
     })
 
     if (result.error) {
+      console.error('[owner-confirmation] Resend error:', result.error)
       return { sent: false, error: result.error.message || 'Resend a rejeté la confirmation' }
     }
-    return { sent: true, id: result.data?.id }
+    return { sent: true, id: result.data?.id, recipients: ownerEmails }
   } catch (e) {
-    return { sent: false, error: e instanceof Error ? e.message : String(e) }
+    const msg = e instanceof Error ? e.message : String(e)
+    console.error('[owner-confirmation] exception:', msg)
+    return { sent: false, error: msg }
   }
 }
 
@@ -78,6 +87,7 @@ function buildHtml(opts: {
   ttc: string
   tel: string
   messageId?: string
+  accordJoint?: boolean
 }): string {
   const now = new Date().toLocaleString('fr-FR', { dateStyle: 'long', timeStyle: 'short' })
   const destinataire = opts.destinataireReel && opts.destinataireReel !== opts.clientEmail
@@ -102,6 +112,7 @@ function buildHtml(opts: {
           ${row('Référence', opts.reference || '')}
           ${row('N° facture', opts.factureNumero || '')}
           ${row('Montant TTC', opts.ttc)}
+          ${row('Accord joint', opts.accordJoint ? 'Oui' : 'Non')}
           ${row('Copie (CC)', opts.ccEmail || '')}
           ${row('ID message', opts.messageId || '')}
         </table>
