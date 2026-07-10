@@ -13,6 +13,7 @@ import { getSupabaseOrNull } from "@/lib/supabase"
 import { getTelPrincipal } from "@/lib/parametres"
 import { sendOwnerConfirmation } from "@/lib/owner-confirmation"
 import { fetchPdfAsBase64Robust, isValidPdfBase64 } from "@/lib/supabase-pdf-fetch"
+import { pdfBufferHasText } from "@/lib/pdf-text-check"
 import { generateTerrainPdfsOnServer } from "@/lib/terrain-pdf-server"
 
 export const maxDuration = 120
@@ -228,6 +229,18 @@ export async function POST(req: NextRequest) {
   if (!isValidPdfBase64(rapportB64)) {
     return NextResponse.json({
       error: 'PDF rapport vide ou corrompu — regénération échouée. Réessaie depuis l\'étape Diffusion.',
+    }, { status: 502 })
+  }
+  try {
+    const rapportBuf = Buffer.from(rapportB64!, 'base64')
+    if (!pdfBufferHasText(rapportBuf)) {
+      return NextResponse.json({
+        error: 'PDF rapport sans contenu texte — regénère depuis Diffusion ou Historique (Tout renvoyer → Forcer).',
+      }, { status: 502 })
+    }
+  } catch {
+    return NextResponse.json({
+      error: 'PDF rapport illisible — regénération requise.',
     }, { status: 502 })
   }
   if (!factureB64 || !isValidPdfBase64(factureB64, 1500)) {

@@ -1,7 +1,8 @@
 import crypto from "crypto"
 import { createElement, type ReactElement } from "react"
 import { ltdbFactureEmetteur } from "@/lib/emetteur"
-import { proxyImageUrlAbsolute } from "@/lib/proxyImageUrl"
+import { embedImageForPdf, getLtdbSignatureDataUri } from "@/lib/pdf-image-embed"
+import { pdfBufferHasText } from "@/lib/pdf-text-check"
 import { getLtdbSignatureUrl } from "@/lib/rapport-signatures"
 import { getSignatureClientFromRapport } from "@/lib/sync-signature-rapport"
 import type { SupabaseClient } from "@supabase/supabase-js"
@@ -81,7 +82,9 @@ export async function generateTerrainPdfsOnServer(input: GenerateTerrainPdfsInpu
   if (interv.technicien_id) {
     const { data: t } = await sb.from("techniciens").select("nom, photo_url").eq("id", interv.technicien_id).maybeSingle()
     if (t?.nom) technicienNom = t.nom as string
-    if (t?.photo_url) technicienPhotoUrl = proxyImageUrlAbsolute(t.photo_url as string, baseUrl)
+    if (t?.photo_url) {
+      technicienPhotoUrl = await embedImageForPdf(t.photo_url as string, baseUrl)
+    }
   }
 
   let clientRow: { adresse?: string; code_postal?: string; ville?: string } | null = null
@@ -108,10 +111,17 @@ export async function generateTerrainPdfsOnServer(input: GenerateTerrainPdfsInpu
     .eq("statut", "VALIDE")
     .maybeSingle()
 
-  const photos = ((interv.photos_urls as string[]) || []).map((url, i) => ({
-    url: proxyImageUrlAbsolute(url, baseUrl),
-    legende: ((interv.photos_legendes as string[]) || [])[i] || `Photo ${i + 1}`,
-  }))
+  const photoRows = await Promise.all(
+    (((interv.photos_urls as string[]) || []).map(async (url, i) => {
+      const embedded = await embedImageForPdf(url, baseUrl)
+      if (!embedded) return null
+      return {
+        url: embedded,
+        legende: ((interv.photos_legendes as string[]) || [])[i] || `Photo ${i + 1}`,
+      }
+    })),
+  )
+  const photos = photoRows.filter((p): p is { url: string; legende: string } => p !== null)
 
   const [{ renderToBuffer }, { RealisationDocument }, { FactureDocument }] = await Promise.all([
     import("@react-pdf/renderer"),
@@ -120,6 +130,12 @@ export async function generateTerrainPdfsOnServer(input: GenerateTerrainPdfsInpu
   ])
 
   const sigFromRapport = getSignatureClientFromRapport(interv.rapport_json)
+  const signatureLtdbUrl = getLtdbSignatureDataUri() || getLtdbSignatureUrl(baseUrl)
+  const rawClientSig =
+    (accord?.signature_image as string) || sigFromRapport?.image_url || null
+  const signatureClientUrl = rawClientSig
+    ? await embedImageForPdf(rawClientSig, baseUrl)
+    : null
 
   const rapportBuf = await renderToBuffer(
     createElement(RealisationDocument, {
@@ -134,11 +150,16 @@ export async function generateTerrainPdfsOnServer(input: GenerateTerrainPdfsInpu
       rapport: interv.rapport_json,
       reference: (interv.reference as string) || undefined,
       photos,
-      signatureLtdbUrl: getLtdbSignatureUrl(baseUrl),
-      signatureClientUrl: (accord?.signature_image as string) || sigFromRapport?.image_url || null,
+      signatureLtdbUrl,
+      signatureClientUrl,
       signatureClientDate: (accord?.valide_at as string) || sigFromRapport?.valide_at || null,
     }) as ReactElement,
   )
+
+  const rapportBuffer = Buffer.from(rapportBuf)
+  if (!pdfBufferHasText(rapportBuffer)) {
+    throw new Error("PDF rapport vide (aucun texte détecté après génération)")
+  }
 
   const adresseLine1 = clientRow?.adresse || (interv.adresse_chantier as string) || ""
   const adresseCP = clientRow?.code_postal || (interv.code_postal as string) || ""
@@ -160,7 +181,7 @@ export async function generateTerrainPdfsOnServer(input: GenerateTerrainPdfsInpu
     }) as ReactElement,
   )
 
-  const rapport_url = await uploadPdf(sb, interventionId, "rapport", Buffer.from(rapportBuf))
+  const rapport_url = await uploadPdf(sb, interventionId, "rapport", rapportBuffer)
   const facture_url = await uploadPdf(sb, interventionId, "facture", Buffer.from(factureBuf), facture.id as string)
 
   return {

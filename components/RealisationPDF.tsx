@@ -31,15 +31,15 @@ const C = {
 }
 
 /** Réserve verticale bandeau fixe (sans sous-titre) + vague rouge */
-const PAGE_HEADER_RESERVE = 108
+const PAGE_HEADER_RESERVE = 118
 /** Réserve pied de page fixe */
 const PAGE_FOOTER_RESERVE = 48
 
 /* ============ STYLES ============ */
 const s = StyleSheet.create({
+  /* Même logique que FacturePDF : pas de paddingTop page (compat. Aperçu/Mail iOS) */
   page: {
     paddingHorizontal: 0,
-    paddingTop: PAGE_HEADER_RESERVE,
     paddingBottom: PAGE_FOOTER_RESERVE,
     fontFamily: 'Helvetica',
     fontSize: 9.5,
@@ -47,7 +47,7 @@ const s = StyleSheet.create({
     backgroundColor: C.white,
     lineHeight: 1.45,
   },
-  content: { paddingHorizontal: 40, paddingTop: 8, paddingBottom: 8 },
+  content: { paddingHorizontal: 40, paddingTop: PAGE_HEADER_RESERVE, paddingBottom: 8 },
 
   /* Bloc client + métadonnées (comme facture) */
   infoRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 14 },
@@ -79,17 +79,6 @@ const s = StyleSheet.create({
   sectionBlock: { marginBottom: 12 },
   card: {
     borderWidth: 1, borderColor: C.border, borderRadius: 8,
-    padding: 12,
-  },
-  cardHeader: {
-    borderWidth: 1, borderColor: C.border,
-    borderTopLeftRadius: 8, borderTopRightRadius: 8,
-    borderBottomWidth: 0,
-    paddingVertical: 8, paddingHorizontal: 12,
-  },
-  cardBody: {
-    borderWidth: 1, borderColor: C.border, borderTopWidth: 0,
-    borderBottomLeftRadius: 8, borderBottomRightRadius: 8,
     padding: 12,
   },
   cardAccentBlue: { borderLeftWidth: 4, borderLeftColor: C.navy },
@@ -614,13 +603,9 @@ const SectionCard = ({
     accent === 'green' ? s.cardAccentGreen :
     s.cardAccentBlue
   return (
-    <View style={s.sectionBlock} wrap>
-      <View style={[s.cardHeader, accentStyle]} wrap={false} minPresenceAhead={24}>
-        <Text style={s.cardTitle}>{num} — {title}</Text>
-      </View>
-      <View style={[s.cardBody, accentStyle]} wrap minPresenceAhead={40}>
-        {children}
-      </View>
+    <View style={[s.sectionBlock, s.card, accentStyle]} wrap minPresenceAhead={48}>
+      <Text style={[s.cardTitle, { marginBottom: 8 }]}>{num} — {title}</Text>
+      {children}
     </View>
   )
 }
@@ -790,8 +775,8 @@ export function RealisationDocument({
                         <Text style={[s.anomalyBadge, { backgroundColor: st.bg }]}>{st.text}</Text>
                       </View>
                       <Text style={s.anomalyDesc}>
-                        {row.localisation ? <Text>{row.localisation} — </Text> : null}
-                        {row.description}
+                        {row.localisation ? `${row.localisation} — ` : ''}
+                        {row.description || '—'}
                       </Text>
                     </View>
                   </View>
@@ -841,8 +826,8 @@ export function RealisationDocument({
                         <View key={j} style={s.precoItem}>
                           <View style={[s.precoSquare, sqStyle]} />
                           <Text style={s.precoTxt}>
-                            {it?.k ? <Text style={{ fontFamily: 'Helvetica-Bold' }}>{it.k} : </Text> : null}
-                            {it?.v}
+                            {it?.k ? `${it.k} : ` : ''}
+                            {it?.v || ''}
                           </Text>
                         </View>
                       ))}
