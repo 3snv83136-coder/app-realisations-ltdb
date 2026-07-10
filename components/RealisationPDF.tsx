@@ -30,17 +30,24 @@ const C = {
   yellowBorder: '#e8d384',
 }
 
+/** Réserve verticale bandeau fixe (sans sous-titre) + vague rouge */
+const PAGE_HEADER_RESERVE = 118
+/** Réserve pied de page fixe */
+const PAGE_FOOTER_RESERVE = 48
+
 /* ============ STYLES ============ */
 const s = StyleSheet.create({
   page: {
     paddingHorizontal: 0,
+    paddingTop: PAGE_HEADER_RESERVE,
+    paddingBottom: PAGE_FOOTER_RESERVE,
     fontFamily: 'Helvetica',
     fontSize: 9.5,
     color: C.text,
     backgroundColor: C.white,
     lineHeight: 1.45,
   },
-  content: { paddingHorizontal: 40, paddingTop: 16, paddingBottom: 72, flexGrow: 1 },
+  content: { paddingHorizontal: 40, paddingTop: 8, paddingBottom: 8 },
 
   /* Bloc client + métadonnées (comme facture) */
   infoRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 14 },
@@ -67,9 +74,21 @@ const s = StyleSheet.create({
   objetLabel: { fontFamily: 'Helvetica-Bold', color: C.navy },
 
   /* Sections contenu */
+  sectionBlock: { marginBottom: 12 },
   card: {
     borderWidth: 1, borderColor: C.border, borderRadius: 8,
-    padding: 12, marginBottom: 10,
+    padding: 12,
+  },
+  cardHeader: {
+    borderWidth: 1, borderColor: C.border,
+    borderTopLeftRadius: 8, borderTopRightRadius: 8,
+    borderBottomWidth: 0,
+    paddingVertical: 8, paddingHorizontal: 12,
+  },
+  cardBody: {
+    borderWidth: 1, borderColor: C.border, borderTopWidth: 0,
+    borderBottomLeftRadius: 8, borderBottomRightRadius: 8,
+    padding: 12,
   },
   cardAccentBlue: { borderLeftWidth: 4, borderLeftColor: C.navy },
   cardAccentOrange: { borderLeftWidth: 4, borderLeftColor: C.orange },
@@ -78,7 +97,7 @@ const s = StyleSheet.create({
   cardAccentGreen: { borderLeftWidth: 4, borderLeftColor: C.teal },
   cardTitle: {
     color: C.navy, fontFamily: 'Helvetica-Bold', fontSize: 9.5,
-    textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 6,
+    textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 0,
   },
   cardText: { color: C.text, fontSize: 9.5, lineHeight: 1.5 },
 
@@ -542,19 +561,16 @@ const statutLabel = (statut: Statut): { text: string; bg: string; barColor: stri
 const Header = ({
   title = 'RAPPORT',
   refNum,
-  subtitle,
   phone,
 }: {
   title?: string
   refNum: string
-  subtitle: string
   phone?: string
 }) => (
   <View fixed>
     <PdfBanner
       title={title}
       numero={refNum}
-      subtitle={subtitle}
       phone={phone || TEL_PRINCIPAL_FALLBACK}
       email={LTDB_EMETTEUR.email}
     />
@@ -595,9 +611,13 @@ const SectionCard = ({
     accent === 'green' ? s.cardAccentGreen :
     s.cardAccentBlue
   return (
-    <View style={[s.card, accentStyle]} wrap>
-      <Text style={s.cardTitle}>{num} — {title}</Text>
-      {children}
+    <View style={s.sectionBlock} wrap>
+      <View style={[s.cardHeader, accentStyle]} wrap={false} minPresenceAhead={24}>
+        <Text style={s.cardTitle}>{num} — {title}</Text>
+      </View>
+      <View style={[s.cardBody, accentStyle]} wrap minPresenceAhead={40}>
+        {children}
+      </View>
     </View>
   )
 }
@@ -613,7 +633,6 @@ export function RealisationDocument({
   const ref = reference || rapport.reference || `LTDB-${dateIntervention.replace(/-/g, '')}`
   const hasPhotos = (photos?.length ?? 0) > 0
   const ltdbSigUrl = signatureLtdbUrl || LTDB_SIGNATURE_PATH
-  const bannerSubtitle = rapport.objet || `${typeIntervention} — ${ville}`
   const chantierLine = [adresse, [codePostal, ville].filter(Boolean).join(' ')].filter(Boolean).join(' — ')
 
   /* Section numbering (stable: skip empty sections) */
@@ -668,7 +687,7 @@ export function RealisationDocument({
     <Document>
       {/* ============ RAPPORT (flow sur plusieurs pages) ============ */}
       <Page size="A4" style={s.page}>
-        <Header refNum={ref} subtitle={bannerSubtitle} phone={phone} />
+        <Header refNum={ref} phone={phone} />
 
         <View style={s.content}>
           {/* Client + métadonnées (style facture) */}
@@ -739,7 +758,7 @@ export function RealisationDocument({
           {hasMethodo && (
             <SectionCard num={numOf('methodo')} title="Méthodologie d'investigation">
               {methoSteps.map((step, i) => (
-                <View key={i} style={s.methStep}>
+                <View key={i} style={s.methStep} wrap={false}>
                   <Text style={s.methNum}>{i + 1}</Text>
                   <Text style={s.methText}>{step}</Text>
                 </View>
@@ -753,7 +772,7 @@ export function RealisationDocument({
               {rapport.analyse_table!.map((row, i) => {
                 const st = statutLabel(row.statut)
                 return (
-                  <View key={i} style={s.anomaly}>
+                  <View key={i} style={s.anomaly} wrap={false}>
                     <View style={[s.anomalyBar, { backgroundColor: st.barColor }]} />
                     <View style={s.anomalyBody}>
                       <View style={s.anomalyHead}>
@@ -803,7 +822,7 @@ export function RealisationDocument({
                   const bandStyle = kind === 'red' ? s.subBandRed : kind === 'blue' ? s.subBandBlue : s.subBandTeal
                   const sqStyle = kind === 'red' ? s.sqRed : kind === 'blue' ? s.sqBlue : s.sqTeal
                   return (
-                    <View key={idx} style={{ marginBottom: 8 }}>
+                    <View key={idx} style={{ marginBottom: 8 }} wrap={false}>
                       <View style={[s.subBand, bandStyle]} wrap={false}>
                         <Text style={s.subBandTxt}>
                           {`${numOf('precos')}.${idx + 1}`}  {p.titre || p.tag}
@@ -841,6 +860,7 @@ export function RealisationDocument({
                     ? { borderColor: C.greenBorder, backgroundColor: C.tealSoft }
                     : { borderColor: C.red, backgroundColor: C.redSoft },
                 ]}
+                wrap={false}
               >
                 <Text
                   style={[
@@ -881,7 +901,7 @@ export function RealisationDocument({
             </SectionCard>
           )}
 
-          <View wrap={false}>
+          <View wrap={false} style={{ marginTop: 14, marginBottom: 6 }}>
             <RapportSignatures
               technicienNom={technicienNom}
               clientNom={clientNom}
@@ -902,7 +922,6 @@ export function RealisationDocument({
           <Header
             title="DEVIS"
             refNum={rapport.devis.numero || `DV-${ref}`}
-            subtitle={`Travaux complémentaires — ${fmtDateFR(dateIntervention)}`}
             phone={phone}
           />
 
@@ -942,7 +961,7 @@ export function RealisationDocument({
                   <Text style={s.devisSectionTxt}>{sec}</Text>
                 </View>
                 {items.map((l, li) => (
-                  <View key={li} style={s.itemsRow}>
+                  <View key={li} style={s.itemsRow} wrap={false}>
                     <View style={s.cDesig}>
                       <Text style={s.cDesigName}>{l.designation}</Text>
                       {l.description ? <Text style={s.cDesigDesc}>{l.description}</Text> : null}
@@ -979,7 +998,7 @@ export function RealisationDocument({
               </View>
             )}
 
-            <View wrap={false}>
+            <View wrap={false} style={{ marginTop: 14, marginBottom: 6 }}>
               <RapportSignatures
                 technicienNom={technicienNom}
                 clientNom={clientNom}
