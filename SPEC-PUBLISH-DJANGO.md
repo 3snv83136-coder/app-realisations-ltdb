@@ -27,7 +27,9 @@ Champs `multipart/form-data` reçus par `/api/gallery/publish/` :
 
 | Champ | Type | Contenu |
 |---|---|---|
-| `title` | texte (≤ 95) | Titre H1 de la réalisation |
+| `meta_title` | texte (≤ 70) | **Balise `<title>` Google** — distinct du H1, orienté requête locale |
+| `title` | texte (≤ 95) | Titre H1 affiché sur la page (identique à `titre_h1`) |
+| `titre_h1` | texte (≤ 95) | Doublon explicite du H1 pour le template Django |
 | `slug` | texte | Slug d'URL proposé |
 | `service_type` | texte | **Type de prestation** (ex. « Débouchage WC ») |
 | `location` | texte | **Ville d'intervention** |
@@ -57,6 +59,7 @@ Champs `multipart/form-data` reçus par `/api/gallery/publish/` :
 
 ```jsonc
 {
+  "meta_title": "Débouchage canalisation Plan-de-la-Tour – Racines collecteur",
   "titre_h1": "…",
   "meta_description": "…",
   "slug": "…",
@@ -74,6 +77,13 @@ Champs `multipart/form-data` reçus par `/api/gallery/publish/` :
 ### 3.1 — JSON-LD enrichi
 
 Sur **chaque page réalisation**, émettre un `<script type="application/ld+json">`.
+Le back-office envoie désormais un `@graph` complet dans `jsonld` (Article, WebPage,
+Service, FAQPage, BreadcrumbList, ImageObject par photo).
+
+**Balise `<title>` (critique SEO)** : utiliser `meta_title` (champ dédié), **pas**
+un titre générique de section (« Galerie des réalisations »). Format recommandé :
+`{{ meta_title }} | Les Techniciens du Débouchage`.
+
 Construire un `@graph` à partir du payload :
 
 - **La réalisation** : `Article` (ou `CreativeWork`) — `headline` = `title`,

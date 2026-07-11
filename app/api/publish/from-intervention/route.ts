@@ -6,9 +6,10 @@ import {
   buildPublishContentHtml,
   sortPhotosForPublish,
 } from "@/lib/publish-content"
+import { prepareSeoForPublish, truncatePublishField } from "@/lib/publish-seo-prepare"
+import { buildCityPageUrl } from "@/lib/seo-normalize"
 import { getSupabaseOrNull } from "@/lib/supabase"
 import { proxyImageUrlAbsolute } from "@/lib/proxyImageUrl"
-import { REALISATION_PAGE_STYLE } from "@/lib/realisationPageCss"
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
@@ -184,14 +185,42 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Aucune photo téléchargeable depuis Storage.' }, { status: 502 })
   }
 
-  // Contenu HTML : SEO + fallback rapport si contenu_principal vide (fréquent en terrain).
-  void REALISATION_PAGE_STYLE
-  const { content: contentWithContainers, seo: seoForPublish } = buildPublishContentHtml({
+  const dateIntervention = interv.date_realisee || interv.date_prevue || new Date().toISOString().slice(0, 10)
+
+  // Slug : republier = slug existant ; sinon SEO ou base service-ville + suffixe ID
+  const idSuffix = interventionId.replace(/-/g, "").slice(0, 8)
+  let publishSlug = (interv.publie_slug || (typeof seo.slug === "string" ? seo.slug : "") || nomBase || "realisation").trim()
+  if (!publishSlug) publishSlug = `realisation-${idSuffix}`
+  if (!interv.publie_slug && !publishSlug.endsWith(idSuffix)) {
+    publishSlug = `${publishSlug}-${idSuffix}`
+  }
+  publishSlug = publishSlug.slice(0, 95)
+
+  const seoPrepared = prepareSeoForPublish({
     seo: seo as Record<string, unknown>,
+    typeIntervention: (interv.type_intervention as string) || "Intervention",
+    ville,
+    codePostal,
+    transcription: (interv.transcription as string) || "",
+    interventionDate: dateIntervention,
+    publishSlug,
+    technicienNom: technicienNom || null,
+    technicienTitre: technicienTitre,
+    photos: validPhotos.map((p) => ({
+      url: p.url,
+      legende: p.legende,
+      alt: `${interv.type_intervention || "Intervention"} à ${ville} — ${p.legende}`,
+    })),
+  })
+
+  const { content: contentWithContainers, seo: seoForPublish } = buildPublishContentHtml({
+    seo: seoPrepared,
     rapport: interv.rapport_json as Record<string, unknown> | null,
     typeIntervention: interv.type_intervention,
     ville,
     codePostal,
+    cityPageUrl: buildCityPageUrl(ville, codePostal),
+    interventionDate: dateIntervention,
     photos: validPhotos.map((p) => ({ legende: p.legende, categorie: p.categorie, url: p.url })),
     technicien: technicienNom
       ? {
@@ -205,18 +234,12 @@ export async function POST(req: NextRequest) {
       : null,
   })
 
-  const dateIntervention = interv.date_realisee || interv.date_prevue || new Date().toISOString().slice(0, 10)
-
-  // Tronque les champs courts pour respecter les CharField Django.
-  // title = CharField(max_length=100) côté Django → DeepSeek génère parfois
-  // 108+ chars et le serveur renvoyait HTTP 500 silencieusement. On garde
-  // 95 chars + une marge de sécurité. meta_description = max ~200, on garde 195.
-  const truncate = (s: string, max: number) => {
-    if (s.length <= max) return s
-    return s.slice(0, max - 3).trimEnd() + '...'
-  }
-  const rawTitle = (typeof seoForPublish.titre_h1 === 'string' && seoForPublish.titre_h1)
-    || `${interv.type_intervention || 'Intervention'} à ${ville}`
+  const rawTitle =
+    (typeof seoForPublish.titre_h1 === "string" && seoForPublish.titre_h1)
+    || `${interv.type_intervention || "Intervention"} à ${ville}`
+  const rawMetaTitle =
+    (typeof seoForPublish.meta_title === "string" && seoForPublish.meta_title)
+    || rawTitle
   const rawDesc = buildPublishDescription({
     seo: seoForPublish,
     rapport: interv.rapport_json as Record<string, unknown> | null,
@@ -224,26 +247,18 @@ export async function POST(req: NextRequest) {
     ville,
   })
 
-  // Slug : republier = slug existant ; sinon SEO ou base service-ville + suffixe ID
-  // (évite HTTP 400 Django quand slug vide ou déjà pris).
-  const idSuffix = interventionId.replace(/-/g, '').slice(0, 8)
-  let publishSlug = (interv.publie_slug || (typeof seoForPublish.slug === 'string' ? seoForPublish.slug : '') || nomBase || 'realisation').trim()
-  if (!publishSlug) publishSlug = `realisation-${idSuffix}`
-  if (!interv.publie_slug && !publishSlug.endsWith(idSuffix)) {
-    publishSlug = `${publishSlug}-${idSuffix}`
-  }
-  publishSlug = publishSlug.slice(0, 95)
-
   // Construit le FormData attendu par /api/gallery/publish/ Django.
   const fd = new FormData()
-  fd.append('title', truncate(rawTitle, 95))
+  fd.append("title", truncatePublishField(rawTitle, 95))
+  fd.append("meta_title", truncatePublishField(rawMetaTitle, 70))
+  fd.append("titre_h1", truncatePublishField(rawTitle, 95))
   fd.append('slug', publishSlug)
   fd.append('service_type', interv.type_intervention || '')
   fd.append('location', ville)
   fd.append('intervention_city', ville)
   fd.append('postal_code', codePostal)
   fd.append('intervention_date', dateIntervention)
-  fd.append('description', truncate(rawDesc, 195))
+  fd.append('description', truncatePublishField(rawDesc, 195))
   fd.append('meta_keywords', Array.isArray(seoForPublish.meta_keywords) ? seoForPublish.meta_keywords.join(', ') : '')
   fd.append('content', contentWithContainers)
   fd.append('faq_json', JSON.stringify({

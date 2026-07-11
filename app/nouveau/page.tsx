@@ -13,6 +13,8 @@ import { useUnsavedChangesWarning } from "@/lib/useUnsavedChangesWarning"
 import { REALISATION_PAGE_STYLE } from "@/lib/realisationPageCss"
 import { buildPublishDescription } from "@/lib/publish-description"
 import { buildPublishContentHtml } from "@/lib/publish-content"
+import { prepareSeoForPublish, truncatePublishField } from "@/lib/publish-seo-prepare"
+import { buildCityPageUrl } from "@/lib/seo-normalize"
 
 const PDFDownloadButton = dynamic(() => import("@/components/RealisationPDFDownloadButton"), { ssr: false })
 const PDFPreviewModal = dynamic(() => import("@/components/PDFPreviewModal"), { ssr: false })
@@ -518,28 +520,47 @@ export default function NouveauPage() {
     }
     const formData = new FormData()
     void REALISATION_PAGE_STYLE
-    const { content: contentWithContainers, seo: seoForPublish } = buildPublishContentHtml({
+    const publishSlug = (typeof seo.slug === 'string' ? seo.slug : '') || ''
+    const seoPrepared = prepareSeoForPublish({
       seo: seo as Record<string, unknown>,
+      typeIntervention,
+      ville,
+      codePostal,
+      transcription,
+      interventionDate: dateIntervention,
+      publishSlug: publishSlug || `realisation-${Date.now()}`,
+      technicienNom: technicienNom || null,
+      photos: photos.map((p) => ({
+        url: p.dataUrl || '',
+        legende: p.legende || 'Photo',
+      })).filter((p) => p.url),
+    })
+    const { content: contentWithContainers, seo: seoForPublish } = buildPublishContentHtml({
+      seo: seoPrepared,
       rapport: rapport as Record<string, unknown> | null,
       typeIntervention,
       ville,
+      codePostal,
+      cityPageUrl: buildCityPageUrl(ville, codePostal),
+      interventionDate: dateIntervention,
       photos: photos.map((p) => ({
         legende: p.legende || `Photo`,
         url: p.dataUrl || undefined,
       })),
+      technicien: technicienNom ? { nom: technicienNom } : null,
     })
-    // Tronque title/description pour respecter les CharField Django
-    // (title max_length=100 côté backend ; description max ~200). DeepSeek
-    // dépasse parfois → 500 silencieux.
-    const truncate = (s: string, max: number) => s.length <= max ? s : s.slice(0, max - 1).trimEnd() + '…'
-    formData.append('title', truncate((typeof seoForPublish.titre_h1 === 'string' ? seoForPublish.titre_h1 : '') || '', 95))
+    const rawTitle = (typeof seoForPublish.titre_h1 === 'string' ? seoForPublish.titre_h1 : '') || ''
+    const rawMetaTitle = (typeof seoForPublish.meta_title === 'string' ? seoForPublish.meta_title : '') || rawTitle
+    formData.append('title', truncatePublishField(rawTitle, 95))
+    formData.append('meta_title', truncatePublishField(rawMetaTitle, 70))
+    formData.append('titre_h1', truncatePublishField(rawTitle, 95))
     formData.append('slug', (typeof seoForPublish.slug === 'string' ? seoForPublish.slug : '') || '')
     formData.append('service_type', typeIntervention)
     formData.append('location', ville)
     formData.append('intervention_city', ville)
     formData.append('postal_code', codePostal)
     formData.append('intervention_date', dateIntervention)
-    formData.append('description', truncate(buildPublishDescription({
+    formData.append('description', truncatePublishField(buildPublishDescription({
       seo: seoForPublish,
       rapport: rapport as Record<string, unknown> | null,
       typeIntervention,

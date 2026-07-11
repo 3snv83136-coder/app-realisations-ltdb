@@ -172,10 +172,18 @@ function buildResumeIaHtml(resume: ResumeIntervention): string {
 </section>`
 }
 
+function formatInterventionDate(isoDate?: string | null): string {
+  if (!isoDate?.trim()) return ""
+  const d = new Date(isoDate.includes("T") ? isoDate : `${isoDate}T12:00:00`)
+  if (Number.isNaN(d.getTime())) return ""
+  return d.toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" })
+}
+
 function buildTechnicienBlockHtml(
   technicien: TechnicienPublishInfo,
   rapport: Record<string, unknown> | null | undefined,
   ville: string,
+  interventionDate?: string | null,
 ): string {
   const nom = technicien.nom.trim()
   if (!nom) return ""
@@ -193,6 +201,11 @@ function buildTechnicienBlockHtml(
     ? `<p class="technicien-materiel"><strong>Matériel utilisé :</strong> ${escapeHtml(materiel.join(" + "))}.</p>`
     : ""
 
+  const dateLabel = formatInterventionDate(interventionDate)
+  const dateHtml = dateLabel
+    ? `<p class="technicien-date"><time datetime="${escapeHtml(interventionDate!.slice(0, 10))}">Intervention réalisée le ${escapeHtml(dateLabel)}</time></p>`
+    : ""
+
   const photoHtml = technicien.photoUrl?.trim()
     ? `<img src="${escapeHtml(technicien.photoUrl.trim())}" alt="${escapeHtml(`${nom}, ${titre}`)}" class="technicien-photo" loading="lazy" width="120" height="120">`
     : `<div class="technicien-photo technicien-photo-placeholder" aria-hidden="true">${escapeHtml(nom.charAt(0).toUpperCase())}</div>`
@@ -202,10 +215,23 @@ function buildTechnicienBlockHtml(
     ${photoHtml}
     <div class="technicien-info">
       <h2 itemprop="name">Intervention réalisée par ${escapeHtml(nom)}</h2>
+      ${dateHtml}
       <p class="technicien-role" itemprop="jobTitle">${escapeHtml(expPhrase)}.</p>
       ${materielHtml}
     </div>
   </div>
+</section>`
+}
+
+function buildCityPageLinkHtml(ville: string, cityPageUrl?: string | null): string {
+  if (!cityPageUrl?.trim() || !ville.trim()) return ""
+  const url = cityPageUrl.trim()
+  return `<section class="content-block city-link-block">
+  <h2>Débouchage à ${escapeHtml(ville)}</h2>
+  <p><strong>Besoin d'un déboucheur à ${escapeHtml(ville)} ?</strong>
+  Consultez notre page dédiée :
+  <a href="${escapeHtml(url)}"><strong>Débouchage canalisation à ${escapeHtml(ville)}</strong></a>
+  — devis gratuit, intervention rapide sur ${escapeHtml(ville)} et le Var.</p>
 </section>`
 }
 
@@ -266,10 +292,12 @@ export function buildPublishContentHtml(opts: {
   typeIntervention?: string | null
   ville: string
   codePostal?: string | null
+  cityPageUrl?: string | null
+  interventionDate?: string | null
   photos?: Omit<PhotoMeta, "photoIndex">[]
   technicien?: TechnicienPublishInfo | null
 }): { content: string; seo: Record<string, unknown> } {
-  const { rapport, typeIntervention, ville, codePostal, technicien } = opts
+  const { rapport, typeIntervention, ville, codePostal, technicien, cityPageUrl, interventionDate } = opts
   const seo = { ...opts.seo }
 
   let contenuPrincipal =
@@ -304,8 +332,13 @@ export function buildPublishContentHtml(opts: {
 
   const technicienHtml =
     technicien?.nom?.trim()
-      ? buildTechnicienBlockHtml(technicien, rapport, ville)
+      ? buildTechnicienBlockHtml(technicien, rapport, ville, interventionDate)
       : ""
+
+  const cityLinkHtml = buildCityPageLinkHtml(
+    ville,
+    cityPageUrl || (typeof seo.city_page_url === "string" ? seo.city_page_url : null),
+  )
 
   const expertiseLocale =
     typeof seo.expertise_locale === "string" ? seo.expertise_locale.trim() : ""
@@ -328,7 +361,7 @@ export function buildPublishContentHtml(opts: {
           .join("")}</section>`
       : ""
 
-  const body = `${resumeIaHtml}${technicienHtml}${contenuPrincipal}${galleryHtml}${expertiseHtml}${faqHtml}`
+  const body = `${resumeIaHtml}${technicienHtml}${contenuPrincipal}${galleryHtml}${expertiseHtml}${cityLinkHtml}${faqHtml}`
   const content = `${REALISATION_PAGE_STYLE}${body}`
   return { content, seo }
 }

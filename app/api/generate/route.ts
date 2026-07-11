@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getAiModel, llmChat, llmConfigError, llmIsConfigured } from "@/lib/llm"
 import { parseAiJson } from "@/lib/parseAiJson"
+import { normalizeSeoOutput } from "@/lib/seo-normalize"
 
 export const maxDuration = 300
 
@@ -186,7 +187,14 @@ URL FINALE : ${SITE}/nos-realisations/${realisationSlug}
 RÈGLES SEO + GEO (rigoureuses, mais invisibles au lecteur)
 
 🎯 PRIORITÉ ABSOLUE — CITABILITÉ LLM
-Les 3 champs "titre_h1", "meta_description" et "resume_rich_snippet" doivent pouvoir être COPIÉS-COLLÉS TELS QUELS comme réponse par un moteur IA (Perplexity, ChatGPT search, Google AI Overviews) à une question d'internaute. Imagine qu'un LLM cite ton texte ENTRE GUILLEMETS : ça doit tenir debout seul, sans contexte, sans promo, comme une phrase factuelle d'article de presse local.
+Les 4 champs "meta_title", "titre_h1", "meta_description" et "resume_rich_snippet" doivent pouvoir être COPIÉS-COLLÉS TELS QUELS comme réponse par un moteur IA (Perplexity, ChatGPT search, Google AI Overviews) à une question d'internaute. Imagine qu'un LLM cite ton texte ENTRE GUILLEMETS : ça doit tenir debout seul, sans contexte, sans promo, comme une phrase factuelle d'article de presse local.
+
+- Meta title (champ "meta_title") : 50-65 caractères. Balise <title> Google — DISTINCT du H1.
+  Orienté requête locale commerciale, pas narratif. Ville + angle technique distinctif.
+  ✅ "Débouchage canalisation Plan-de-la-Tour – Racines dans un collecteur"
+  ✅ "Débouchage WC Toulon – Colonne EU bouchée au 3ᵉ étage"
+  ❌ Reprendre mot pour mot le titre_h1 (trop long ou trop descriptif pour la SERP)
+  ❌ "Galerie des réalisations" ou tout titre générique de section
 
 - Titre H1 (champ "titre_h1") : 55-75 caractères. PHRASE DÉCLARATIVE COMPLÈTE, lisible isolément.
   Construction obligatoire : action concrète + élément distinctif tiré de la dictée + ${ville}.
@@ -225,9 +233,17 @@ Les 3 champs "titre_h1", "meta_description" et "resume_rich_snippet" doivent pou
 - 8-12 mots-clés longue traîne, vrais termes de recherche humains.
 - GEO / citabilité IA : phrases courtes, vérifiables, ancrage local précis, style factuel.
 
+⛔ COHÉRENCE CAMÉRA — OBLIGATOIRE
+Si la dictée indique que le passage caméra est PRÉVU, PROGRAMMÉ ou À VENIR (pas encore fait sur le chantier) :
+- N'écris JAMAIS "racines confirmées" dans resume_intervention, resume_rich_snippet ou meta_description.
+- Utilise "suspicion de racines", "forte suspicion", "odeur typique de racines".
+- L'étape caméra s'intitule "Préparation de l'inspection caméra", pas "Confirmation par caméra".
+- resultat dans resume_intervention = "Écoulement rétabli, inspection caméra prévue" (pas "racines confirmées").
+Inversement : si la dictée dit que la caméra A ÉTÉ passée et a montré les racines → tu peux écrire "racines confirmées par caméra".
+
 🧑 E-E-A-T — TECHNICIEN ET EXPERTISE LOCALE
 ${techNom ? `- Mets en avant ${techNom} comme auteur de l'intervention (prénom/nom, pas seulement l'entreprise).` : '- Si le technicien n\'est pas nommé, utilise "notre technicien" sans inventer de prénom.'}
-- "expertise_locale" : 1-2 phrases au style "Notre retour terrain : sur le secteur de ${ville}, …" avec une cause fréquente ou un constat local vérifiable (racines PVC, graisse cuisine, calcaire…). Ancré sur la dictée ou le type d'intervention, sans inventer de faits précis non dictés.
+- "expertise_locale" : 1-2 phrases au style "Lors de nos interventions à ${ville}, nous rencontrons régulièrement…" avec une cause fréquente observée sur le terrain (racines, graisse, calcaire…). INTERDIT les statistiques locales non vérifiables ("beaucoup de propriétés sont bordées de pins", "80 % des maisons…"). Préfère une observation professionnelle concrète.
 - "resume_intervention" : résumé structuré digeste pour moteurs IA (lieu, problème, cause, solution, durée, résultat). Chaque champ = 1 phrase courte max.
 - Le "contenu_principal" doit contenir des détails UNIQUES à CE chantier (symptômes, accès, particularités). Évite de répéter mot pour mot les blocs génériques services/assurances/villes — garde le maillage interne mais avec des formulations différentes à chaque page.
 
@@ -236,6 +252,7 @@ IMPORTANT : respecte EXACTEMENT cet ordre de clés. "contenu_principal" est
 volumineux et vient en DERNIER — les champs courts (faq, related_services)
 sont placés avant pour ne jamais être perdus si la réponse est longue.
 {
+  "meta_title": "titre SERP court, distinct du H1 — ville + angle technique",
   "titre_h1": "titre unique et spécifique — ne pas copier d'autres pages",
   "meta_description": "description unique avec angle distinctif",
   "resume_rich_snippet": "résumé court 2-3 phrases, factuel, citable, sans promo excessive",
@@ -247,7 +264,7 @@ sont placés avant pour ne jamais être perdus si la réponse est longue.
     "duree": "durée si connue, sinon vide",
     "resultat": "résultat observable en 1 phrase"
   },
-  "expertise_locale": "Notre retour terrain : sur le secteur de ${ville}, …",
+  "expertise_locale": "Lors de nos interventions à ${ville}, nous rencontrons régulièrement…",
   "meta_keywords": ["ville+service","longue traîne 1","longue traîne 2","..."],
   "faq": [
     {"question":"...","reponse":"..."},
@@ -342,6 +359,7 @@ sont placés avant pour ne jamais être perdus si la réponse est longue.
 
   seo = seo && typeof seo === 'object' ? seo : {}
   seo.titre_h1 = typeof seo.titre_h1 === 'string' ? seo.titre_h1 : ''
+  seo.meta_title = typeof seo.meta_title === 'string' ? seo.meta_title : ''
   seo.meta_description = typeof seo.meta_description === 'string' ? seo.meta_description : ''
   seo.contenu_principal = typeof seo.contenu_principal === 'string' ? seo.contenu_principal : ''
   seo.meta_keywords = Array.isArray(seo.meta_keywords) ? seo.meta_keywords : []
@@ -366,6 +384,13 @@ sont placés avant pour ne jamais être perdus si la réponse est longue.
   } else {
     seo.resume_intervention = null
   }
+
+  seo = normalizeSeoOutput(seo, {
+    typeIntervention: type_intervention,
+    ville,
+    codePostal: cp,
+    transcription,
+  })
 
   // Slug + référence déterministes côté serveur
   seo.slug = realisationSlug
@@ -433,10 +458,16 @@ sont placés avant pour ne jamais être perdus si la réponse est longue.
         "@type": "Article",
         "@id": `${pageUrl}#article`,
         "headline": seo.titre_h1,
+        "alternativeHeadline": seo.meta_title || seo.titre_h1,
         "description": seo.meta_description,
         "abstract": seo.resume_rich_snippet,
         "datePublished": datePublished,
         "dateModified": datePublished,
+        "about": {
+          "@type": "Service",
+          "name": `${type_intervention} à ${ville}`,
+          "areaServed": { "@type": "City", "name": ville },
+        },
         "author": techNom
           ? { "@type": "Person", "name": techNom, "jobTitle": techTitre || "Technicien déboucheur" }
           : { "@type": "Organization", "name": "Les Techniciens du Débouchage" },
