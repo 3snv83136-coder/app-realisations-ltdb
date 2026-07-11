@@ -3,7 +3,7 @@ import { Document, Page, Text, View, Image, StyleSheet } from "@react-pdf/render
 import { TEL_PRINCIPAL_FALLBACK } from "@/lib/parametres"
 import { LTDB_EMETTEUR } from "@/lib/emetteur"
 import { getClientSignatureForPdf, LTDB_SIGNATURE_PATH } from "@/lib/rapport-signatures"
-import { PdfBanner, PDF_C } from "./PdfBranding"
+import { PdfBanner, PDF_C, PDF_BANNER_HEIGHT } from "./PdfBranding"
 
 /* ============ CHARTE (alignée facture / devis) ============ */
 const C = {
@@ -30,9 +30,9 @@ const C = {
   yellowBorder: '#e8d384',
 }
 
-/** Réserve verticale bandeau fixe (sans sous-titre) + vague rouge */
-const PAGE_HEADER_RESERVE = 118
-/** Réserve pied de page fixe */
+/** Espace entre la bande rouge et le bloc client (toutes pages) */
+const CONTENT_TOP_GAP = 8
+/** Réserve pied de page fixe (toutes pages) */
 const PAGE_FOOTER_RESERVE = 48
 
 /* ============ STYLES ============ */
@@ -40,6 +40,7 @@ const s = StyleSheet.create({
   /* Même logique que FacturePDF : pas de paddingTop page (compat. Aperçu/Mail iOS) */
   page: {
     paddingHorizontal: 0,
+    paddingTop: PDF_BANNER_HEIGHT + CONTENT_TOP_GAP,
     paddingBottom: PAGE_FOOTER_RESERVE,
     fontFamily: 'Helvetica',
     fontSize: 9.5,
@@ -47,7 +48,7 @@ const s = StyleSheet.create({
     backgroundColor: C.white,
     lineHeight: 1.45,
   },
-  content: { paddingHorizontal: 40, paddingTop: PAGE_HEADER_RESERVE, paddingBottom: 8 },
+  content: { paddingHorizontal: 40, paddingTop: 0, paddingBottom: 8 },
 
   /* Bloc client + métadonnées (comme facture) */
   infoRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 14 },
@@ -589,11 +590,15 @@ const Footer = ({ phone }: { phone?: string }) => (
 )
 
 const SectionCard = ({
-  num, title, accent, children,
+  num, title, accent, keepTogether, minPresenceAhead = 48, children,
 }: {
   num: string
   title: string
   accent?: 'blue' | 'orange' | 'teal' | 'red' | 'green'
+  /** Interdit de couper la section (réservé aux blocs courts) */
+  keepTogether?: boolean
+  /** Espace minimum restant sur la page avant de commencer la section */
+  minPresenceAhead?: number
   children: React.ReactNode
 }) => {
   const accentStyle =
@@ -603,7 +608,11 @@ const SectionCard = ({
     accent === 'green' ? s.cardAccentGreen :
     s.cardAccentBlue
   return (
-    <View style={[s.sectionBlock, s.card, accentStyle]} wrap minPresenceAhead={48}>
+    <View
+      style={[s.sectionBlock, s.card, accentStyle]}
+      wrap={keepTogether ? false : undefined}
+      minPresenceAhead={keepTogether ? 96 : minPresenceAhead}
+    >
       <Text style={[s.cardTitle, { marginBottom: 8 }]}>{num} — {title}</Text>
       {children}
     </View>
@@ -879,7 +888,7 @@ export function RealisationDocument({
 
           {/* Section — CONCLUSION */}
           {hasConclusion && (
-            <SectionCard num={numOf('conclusion')} title="Conclusion">
+            <SectionCard num={numOf('conclusion')} title="Conclusion" minPresenceAhead={140}>
               {rapport.avis_technique?.diagnostic_final && (
                 <Text style={s.cardText}>{rapport.avis_technique.diagnostic_final}</Text>
               )}
