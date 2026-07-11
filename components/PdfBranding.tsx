@@ -21,8 +21,8 @@ export const PDF_C = {
 
 const PAGE_W = 595.28 // A4 en points
 
-/** Hauteur totale bandeau bleu + vague rouge (points PDF). */
-export const PDF_BANNER_HEIGHT = 135
+/** Hauteur totale bandeau bleu + vague rouge (points PDF, mesurée au rendu). */
+export const PDF_BANNER_HEIGHT = 149
 
 const b = StyleSheet.create({
   band: { backgroundColor: PDF_C.navy },

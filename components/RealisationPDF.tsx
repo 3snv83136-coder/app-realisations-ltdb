@@ -30,17 +30,17 @@ const C = {
   yellowBorder: '#e8d384',
 }
 
-/** Espace entre la bande rouge et le bloc client (toutes pages) */
-const CONTENT_TOP_GAP = 8
+/** ~2,5 mm sous la vague rouge (1 mm ≈ 2,835 pt PDF) */
+const GAP_BELOW_RED_WAVE_PT = 7
 /** Réserve pied de page fixe (toutes pages) */
-const PAGE_FOOTER_RESERVE = 48
+const PAGE_FOOTER_RESERVE = 44
 
 /* ============ STYLES ============ */
 const s = StyleSheet.create({
-  /* Même logique que FacturePDF : pas de paddingTop page (compat. Aperçu/Mail iOS) */
+  /* Bandeau en position absolute (hors flux) + paddingTop = réserve sur chaque page */
   page: {
     paddingHorizontal: 0,
-    paddingTop: PDF_BANNER_HEIGHT + CONTENT_TOP_GAP,
+    paddingTop: PDF_BANNER_HEIGHT + GAP_BELOW_RED_WAVE_PT,
     paddingBottom: PAGE_FOOTER_RESERVE,
     fontFamily: 'Helvetica',
     fontSize: 9.5,
@@ -48,7 +48,7 @@ const s = StyleSheet.create({
     backgroundColor: C.white,
     lineHeight: 1.45,
   },
-  content: { paddingHorizontal: 40, paddingTop: 0, paddingBottom: 8 },
+  content: { paddingHorizontal: 40, paddingTop: 0, paddingBottom: 6 },
 
   /* Bloc client + métadonnées (comme facture) */
   infoRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 14 },
@@ -560,7 +560,15 @@ const Header = ({
   refNum: string
   phone?: string
 }) => (
-  <View fixed>
+  <View
+    fixed
+    style={{
+      position: 'absolute',
+      top: 0,
+      left: 0,
+      right: 0,
+    }}
+  >
     <PdfBanner
       title={title}
       numero={refNum}
@@ -590,13 +598,13 @@ const Footer = ({ phone }: { phone?: string }) => (
 )
 
 const SectionCard = ({
-  num, title, accent, keepTogether, minPresenceAhead = 48, children,
+  num, title, accent, splitable, minPresenceAhead = 72, children,
 }: {
   num: string
   title: string
   accent?: 'blue' | 'orange' | 'teal' | 'red' | 'green'
-  /** Interdit de couper la section (réservé aux blocs courts) */
-  keepTogether?: boolean
+  /** Texte long : le contenu peut s'étendre sur plusieurs pages */
+  splitable?: boolean
   /** Espace minimum restant sur la page avant de commencer la section */
   minPresenceAhead?: number
   children: React.ReactNode
@@ -610,10 +618,12 @@ const SectionCard = ({
   return (
     <View
       style={[s.sectionBlock, s.card, accentStyle]}
-      wrap={keepTogether ? false : undefined}
-      minPresenceAhead={keepTogether ? 96 : minPresenceAhead}
+      wrap={splitable ? undefined : false}
+      minPresenceAhead={splitable ? minPresenceAhead : Math.max(minPresenceAhead, 88)}
     >
-      <Text style={[s.cardTitle, { marginBottom: 8 }]}>{num} — {title}</Text>
+      <View wrap={false} minPresenceAhead={36}>
+        <Text style={[s.cardTitle, { marginBottom: 8 }]}>{num} — {title}</Text>
+      </View>
       {children}
     </View>
   )
@@ -734,7 +744,7 @@ export function RealisationDocument({
 
           {/* Section — CONTEXTE */}
           {hasContexte && (
-            <SectionCard num={numOf('contexte')} title="Contexte de l'intervention">
+            <SectionCard num={numOf('contexte')} title="Contexte de l'intervention" splitable minPresenceAhead={88}>
               <Text style={s.cardText}>{rapport.contexte}</Text>
 
               {showCritical && (
@@ -759,7 +769,7 @@ export function RealisationDocument({
 
           {/* Section — MÉTHODOLOGIE */}
           {hasMethodo && (
-            <SectionCard num={numOf('methodo')} title="Méthodologie d'investigation">
+            <SectionCard num={numOf('methodo')} title="Méthodologie d'investigation" splitable minPresenceAhead={80}>
               {methoSteps.map((step, i) => (
                 <View key={i} style={s.methStep} wrap={false}>
                   <Text style={s.methNum}>{i + 1}</Text>
@@ -771,7 +781,7 @@ export function RealisationDocument({
 
           {/* Section — ANOMALIES */}
           {hasAnomalies && (
-            <SectionCard num={numOf('anomalies')} title="Anomalies constatées" accent="orange">
+            <SectionCard num={numOf('anomalies')} title="Anomalies constatées" accent="orange" splitable minPresenceAhead={80}>
               {rapport.analyse_table!.map((row, i) => {
                 const st = statutLabel(row.statut)
                 return (
@@ -796,7 +806,7 @@ export function RealisationDocument({
 
           {/* Section — PHOTOS */}
           {hasPhotos && (
-            <SectionCard num={numOf('photos')} title="Documents photographiques">
+            <SectionCard num={numOf('photos')} title="Documents photographiques" splitable minPresenceAhead={120}>
               <Text style={s.photosIntro}>
                 Clichés pris lors de l&apos;intervention, annexés au présent rapport à titre de constat :
               </Text>
@@ -818,7 +828,7 @@ export function RealisationDocument({
 
           {/* Section — PRESCRIPTIONS */}
           {hasPrecos && (
-            <SectionCard num={numOf('precos')} title="Prescriptions & travaux à engager" accent="teal">
+            <SectionCard num={numOf('precos')} title="Prescriptions & travaux à engager" accent="teal" splitable minPresenceAhead={80}>
               {(rapport.preconisations?.length ?? 0) > 0 ? (
                 rapport.preconisations!.map((p, idx) => {
                   const kind = idx % 3 === 0 ? 'red' : idx % 3 === 1 ? 'blue' : 'teal'
@@ -888,7 +898,7 @@ export function RealisationDocument({
 
           {/* Section — CONCLUSION */}
           {hasConclusion && (
-            <SectionCard num={numOf('conclusion')} title="Conclusion" minPresenceAhead={140}>
+            <SectionCard num={numOf('conclusion')} title="Conclusion" splitable minPresenceAhead={120}>
               {rapport.avis_technique?.diagnostic_final && (
                 <Text style={s.cardText}>{rapport.avis_technique.diagnostic_final}</Text>
               )}
@@ -904,7 +914,7 @@ export function RealisationDocument({
             </SectionCard>
           )}
 
-          <View wrap={false} style={{ marginTop: 14, marginBottom: 6 }}>
+          <View wrap={false} minPresenceAhead={150} style={{ marginTop: 14, marginBottom: 6 }}>
             <RapportSignatures
               technicienNom={technicienNom}
               clientNom={clientNom}
@@ -1001,7 +1011,7 @@ export function RealisationDocument({
               </View>
             )}
 
-            <View wrap={false} style={{ marginTop: 14, marginBottom: 6 }}>
+            <View wrap={false} minPresenceAhead={150} style={{ marginTop: 14, marginBottom: 6 }}>
               <RapportSignatures
                 technicienNom={technicienNom}
                 clientNom={clientNom}
