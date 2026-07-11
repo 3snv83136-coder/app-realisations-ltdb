@@ -17,6 +17,7 @@ export function buildPublishJsonLd(opts: {
   interventionDate: string
   technicienNom?: string | null
   technicienTitre?: string | null
+  technicienPhotoUrl?: string | null
   faq: { question: string; reponse: string }[]
   photos?: PhotoForJsonLd[]
 }): Record<string, unknown> {
@@ -116,6 +117,9 @@ export function buildPublishJsonLd(opts: {
               "@type": "Person",
               name: opts.technicienNom,
               jobTitle: opts.technicienTitre || "Technicien déboucheur",
+              ...(opts.technicienPhotoUrl
+                ? { image: opts.technicienPhotoUrl }
+                : {}),
             }
           : { "@type": "Organization", name: "Les Techniciens du Débouchage" },
         publisher: { "@id": `${SITE}/#business` },

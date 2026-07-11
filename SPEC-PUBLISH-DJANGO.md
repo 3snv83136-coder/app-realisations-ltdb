@@ -46,7 +46,9 @@ Champs `multipart/form-data` reçus par `/api/gallery/publish/` :
 | `rapport_json` | JSON | Rapport d'intervention structuré |
 | `transcription` | texte | Dictée brute du technicien |
 | `client_nom` / `client_email` / `client_adresse` | texte | Client |
-| `technicien_name` | texte | Technicien |
+| `technicien_name` | texte | Nom du technicien (obligatoire en base) |
+| `technicien_photo_url` | texte (URL) | **Portrait public** — URL Supabase directe (pas de proxy app LTDB) |
+| `technicien_photo` | fichier | **Portrait JPEG/PNG** — Django doit enregistrer sous `/media/techniciens/` et exposer l'URL finale |
 | `intervention_id` | texte | ID Supabase (back-office) |
 | `is_published` | `'true'` | — |
 | `before_image` | fichier | Photo 1 (JPEG, 1280px) |
@@ -69,8 +71,31 @@ Champs `multipart/form-data` reçus par `/api/gallery/publish/` :
   "faq": [{ "question": "…", "reponse": "…" }],
   "jsonld": { /* objet JSON-LD de base */ },
   "related_services": [ /* services liés */ ]
+  ,
+  "technicien": {
+    "nom": "Mondor",
+    "titre_metier": "technicien déboucheur",
+    "photo_url": "https://….supabase.co/storage/…/portrait.jpg"
+  }
 }
 ```
+
+### 3.5 — Portrait technicien (E-E-A-T)
+
+Le back-office envoie le portrait de trois façons complémentaires :
+
+1. **HTML** — bloc `.technicien-block` dans `content` avec `<img class="technicien-photo">`
+2. **`technicien_photo_url`** — URL publique Supabase (domaine autorisé par le sanitizer frontend)
+3. **`technicien_photo`** — fichier portrait (multipart) pour hébergement sur `lestechniciensdudebouchage.fr/media/techniciens/`
+
+**Côté Django / frontend Next.js** :
+
+- Persister `technicien_photo_url` sur le modèle réalisation (champ manquant aujourd'hui → toujours `null` en API).
+- Si `technicien_photo` (fichier) est reçu : convertir en WebP, enregistrer en media local, mettre à jour `technicien_photo_url` avec l'URL same-origin.
+- Sur la page `/nos-realisations/<slug>` : afficher l'image dans le bloc technicien (ne pas supprimer les `<img>` dont le `src` est Supabase ou le domaine LTDB).
+- Le sanitizer **bloque** les URLs `app-realisations-ltdb.vercel.app/api/proxy-image` — ne jamais les utiliser dans le HTML publié.
+
+Le bundle `seo_json.technicien` reprend aussi `nom`, `titre_metier`, `photo_url` pour le JSON-LD (`Article.author.image`).
 
 ## 3. Les 4 optimisations
 

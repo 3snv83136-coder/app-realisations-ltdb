@@ -15,6 +15,7 @@ export function prepareSeoForPublish(opts: {
   publishSlug: string
   technicienNom?: string | null
   technicienTitre?: string | null
+  technicienPhotoUrl?: string | null
   photos?: { url: string; legende?: string; alt?: string }[]
 }): Record<string, unknown> {
   let seo = normalizeSeoOutput({ ...opts.seo }, {
@@ -70,6 +71,13 @@ export function prepareSeoForPublish(opts: {
   seo.slug = opts.publishSlug
   seo.page_url = pageUrl
   seo.city_page_url = buildCityPageUrl(opts.ville, opts.codePostal)
+  if (opts.technicienNom?.trim()) {
+    seo.technicien = {
+      nom: opts.technicienNom.trim(),
+      titre_metier: opts.technicienTitre || null,
+      photo_url: opts.technicienPhotoUrl || null,
+    }
+  }
   seo.jsonld = buildPublishJsonLd({
     metaTitle,
     titreH1,
@@ -83,6 +91,7 @@ export function prepareSeoForPublish(opts: {
     interventionDate: opts.interventionDate,
     technicienNom: opts.technicienNom,
     technicienTitre: opts.technicienTitre,
+    technicienPhotoUrl: opts.technicienPhotoUrl,
     faq,
     photos: opts.photos,
   })

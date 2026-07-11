@@ -207,7 +207,7 @@ function buildTechnicienBlockHtml(
     : ""
 
   const photoHtml = technicien.photoUrl?.trim()
-    ? `<img src="${escapeHtml(technicien.photoUrl.trim())}" alt="${escapeHtml(`${nom}, ${titre}`)}" class="technicien-photo" loading="lazy" width="120" height="120">`
+    ? `<img src="${escapeHtml(technicien.photoUrl.trim())}" alt="${escapeHtml(`${nom}, ${titre}`)}" class="technicien-photo" itemprop="image" loading="lazy" width="120" height="120" style="width:120px;height:120px;border-radius:50%;object-fit:cover;flex-shrink:0;border:3px solid #e67e22">`
     : `<div class="technicien-photo technicien-photo-placeholder" aria-hidden="true">${escapeHtml(nom.charAt(0).toUpperCase())}</div>`
 
   return `<section class="content-block technicien-block" itemscope itemtype="https://schema.org/Person">

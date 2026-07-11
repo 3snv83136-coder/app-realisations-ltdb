@@ -8,19 +8,12 @@ import {
 } from "@/lib/publish-content"
 import { prepareSeoForPublish, truncatePublishField } from "@/lib/publish-seo-prepare"
 import { buildCityPageUrl } from "@/lib/seo-normalize"
+import { publishImageUrlForSite } from "@/lib/publish-image-url"
 import { getSupabaseOrNull } from "@/lib/supabase"
-import { proxyImageUrlAbsolute } from "@/lib/proxyImageUrl"
+import { appendTechnicienPhotoToFormData } from "@/lib/technicien-publish"
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
-
-function getBaseUrl(req: NextRequest): string {
-  const configured = process.env.APP_BASE_URL
-    || process.env.NEXTAUTH_URL
-    || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "")
-  if (configured) return configured.replace(/\/+$/, "")
-  return req.nextUrl.origin.replace(/\/+$/, "")
-}
 
 /**
  * Publication directe d'une intervention déjà saisie (avec rapport_json,
@@ -206,6 +199,7 @@ export async function POST(req: NextRequest) {
     publishSlug,
     technicienNom: technicienNom || null,
     technicienTitre: technicienTitre,
+    technicienPhotoUrl: publishImageUrlForSite(technicienPhotoUrl),
     photos: validPhotos.map((p) => ({
       url: p.url,
       legende: p.legende,
@@ -225,9 +219,7 @@ export async function POST(req: NextRequest) {
     technicien: technicienNom
       ? {
           nom: technicienNom,
-          photoUrl: technicienPhotoUrl
-            ? proxyImageUrlAbsolute(technicienPhotoUrl, getBaseUrl(req))
-            : null,
+          photoUrl: publishImageUrlForSite(technicienPhotoUrl),
           anneesExperience: technicienAnnees,
           titreMetier: technicienTitre,
         }
@@ -280,12 +272,7 @@ export async function POST(req: NextRequest) {
   fd.append('client_adresse', `${adresse} ${codePostal} ${ville}`.trim())
   fd.append('intervention_id', interventionId)
   fd.append('technicien_name', technicienNom)
-  if (technicienPhotoUrl) {
-    fd.append(
-      'technicien_photo_url',
-      proxyImageUrlAbsolute(technicienPhotoUrl, getBaseUrl(req)),
-    )
-  }
+  await appendTechnicienPhotoToFormData(fd, technicienPhotoUrl, publishSlug)
   // Wrap les Blob en File explicite : certains parseurs multipart (Django
   // notamment) discriminent en fonction de l'objet, et un Blob "nu" peut
   // tomber dans un code path différent qui finit en 500 silencieux.

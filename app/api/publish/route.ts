@@ -1,5 +1,10 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getSupabaseOrNull, upsertClient } from "@/lib/supabase"
+import {
+  appendTechnicienPhotoToFormData,
+  loadTechnicienById,
+  loadTechnicienByNom,
+} from "@/lib/technicien-publish"
 import type { SupabaseClient } from "@supabase/supabase-js"
 
 const PHOTOS_BUCKET = process.env.SUPABASE_PHOTOS_BUCKET || 'interventions-photos'
@@ -13,6 +18,8 @@ export async function POST(req: NextRequest) {
   if (!ltdbUrl || !token) {
     return NextResponse.json({ error: 'Config LTDB manquante' }, { status: 500 })
   }
+
+  await enrichTechnicienFormData(formData)
 
   try {
     const response = await fetch(`${ltdbUrl}/api/gallery/publish/`, {
@@ -46,6 +53,41 @@ export async function POST(req: NextRequest) {
   } catch (e: any) {
     return NextResponse.json({ error: `Publish fetch failed : ${e.message || e.toString()}` }, { status: 500 })
   }
+}
+
+async function enrichTechnicienFormData(formData: FormData): Promise<void> {
+  if (formData.get('technicien_photo') instanceof File) return
+
+  const sb = getSupabaseOrNull()
+  if (!sb) return
+
+  const technicienNom = typeof formData.get('technicien_name') === 'string'
+    ? formData.get('technicien_name') as string
+    : ''
+  const interventionId = typeof formData.get('intervention_id') === 'string'
+    ? formData.get('intervention_id') as string
+    : ''
+  const slug = typeof formData.get('slug') === 'string' ? formData.get('slug') as string : 'realisation'
+
+  let photoUrl: string | null = null
+  if (interventionId) {
+    const { data: interv } = await sb
+      .from('interventions')
+      .select('technicien_id')
+      .eq('id', interventionId)
+      .maybeSingle()
+    if (interv?.technicien_id) {
+      const row = await loadTechnicienById(sb, interv.technicien_id)
+      photoUrl = row?.photo_url || null
+    }
+  }
+  if (!photoUrl && technicienNom.trim()) {
+    const row = await loadTechnicienByNom(sb, technicienNom)
+    photoUrl = row?.photo_url || null
+  }
+  if (!photoUrl) return
+
+  await appendTechnicienPhotoToFormData(formData, photoUrl, slug)
 }
 
 async function persistIntervention(formData: FormData, ltdbResponse: any) {

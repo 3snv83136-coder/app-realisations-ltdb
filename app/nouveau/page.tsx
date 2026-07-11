@@ -15,6 +15,7 @@ import { buildPublishDescription } from "@/lib/publish-description"
 import { buildPublishContentHtml } from "@/lib/publish-content"
 import { prepareSeoForPublish, truncatePublishField } from "@/lib/publish-seo-prepare"
 import { buildCityPageUrl } from "@/lib/seo-normalize"
+import { publishImageUrlForSite } from "@/lib/publish-image-url"
 
 const PDFDownloadButton = dynamic(() => import("@/components/RealisationPDFDownloadButton"), { ssr: false })
 const PDFPreviewModal = dynamic(() => import("@/components/PDFPreviewModal"), { ssr: false })
@@ -33,6 +34,50 @@ async function ensureNotificationPermission() {
   if (typeof window === 'undefined' || !('Notification' in window)) return
   if (Notification.permission === 'default') {
     try { await Notification.requestPermission() } catch {}
+  }
+}
+
+type TechnicienProfile = {
+  nom: string
+  photo_url: string | null
+  annees_experience: number | null
+  titre_metier: string | null
+}
+
+async function resolveTechnicienProfile(nom: string): Promise<TechnicienProfile | null> {
+  const q = nom.trim()
+  if (!q) return null
+  try {
+    const res = await fetch('/api/techniciens?all=1', { cache: 'no-store' })
+    const data = await res.json()
+    const list: TechnicienProfile[] = data.techniciens || []
+    return list.find((t) => t.nom.trim().toLowerCase() === q.toLowerCase()) || null
+  } catch {
+    return null
+  }
+}
+
+async function appendTechnicienPhotoClient(
+  formData: FormData,
+  photoUrl: string,
+  slugHint: string,
+): Promise<void> {
+  const publicUrl = publishImageUrlForSite(photoUrl)
+  if (!publicUrl) return
+  formData.append('technicien_photo_url', publicUrl)
+  try {
+    const res = await fetch(publicUrl)
+    if (!res.ok) return
+    const blob = await res.blob()
+    if (blob.size === 0) return
+    const safe = (slugHint || 'technicien').replace(/[^a-zA-Z0-9_-]/g, '-').slice(0, 40)
+    const ext = blob.type === 'image/png' ? '.png' : '.jpg'
+    formData.append(
+      'technicien_photo',
+      new File([blob], `${safe}-portrait${ext}`, { type: blob.type || 'image/jpeg' }),
+    )
+  } catch {
+    /* best-effort — l'URL publique suffit pour le HTML */
   }
 }
 
@@ -521,6 +566,8 @@ export default function NouveauPage() {
     const formData = new FormData()
     void REALISATION_PAGE_STYLE
     const publishSlug = (typeof seo.slug === 'string' ? seo.slug : '') || ''
+    const technicienProfile = await resolveTechnicienProfile(technicienNom)
+    const technicienPhotoUrl = publishImageUrlForSite(technicienProfile?.photo_url)
     const seoPrepared = prepareSeoForPublish({
       seo: seo as Record<string, unknown>,
       typeIntervention,
@@ -530,6 +577,8 @@ export default function NouveauPage() {
       interventionDate: dateIntervention,
       publishSlug: publishSlug || `realisation-${Date.now()}`,
       technicienNom: technicienNom || null,
+      technicienTitre: technicienProfile?.titre_metier || null,
+      technicienPhotoUrl,
       photos: photos.map((p) => ({
         url: p.dataUrl || '',
         legende: p.legende || 'Photo',
@@ -547,7 +596,14 @@ export default function NouveauPage() {
         legende: p.legende || `Photo`,
         url: p.dataUrl || undefined,
       })),
-      technicien: technicienNom ? { nom: technicienNom } : null,
+      technicien: technicienNom
+        ? {
+            nom: technicienNom,
+            photoUrl: technicienPhotoUrl,
+            anneesExperience: technicienProfile?.annees_experience ?? null,
+            titreMetier: technicienProfile?.titre_metier || null,
+          }
+        : null,
     })
     const rawTitle = (typeof seoForPublish.titre_h1 === 'string' ? seoForPublish.titre_h1 : '') || ''
     const rawMetaTitle = (typeof seoForPublish.meta_title === 'string' ? seoForPublish.meta_title : '') || rawTitle
@@ -581,6 +637,13 @@ export default function NouveauPage() {
     if (interventionId) formData.append('intervention_id', interventionId)
     // Django LTDB exige technicien_name NOT NULL (sinon IntegrityError 500).
     formData.append('technicien_name', technicienNom || '')
+    if (technicienPhotoUrl) {
+      await appendTechnicienPhotoClient(
+        formData,
+        technicienPhotoUrl,
+        (typeof seoForPublish.slug === 'string' ? seoForPublish.slug : '') || publishSlug,
+      )
+    }
     formData.append('before_image', photos[0].file)
     formData.append('after_image', (photos[1] || photos[0]).file)
     photos.slice(2).forEach((p, i) => formData.append(`extra_image_${i}`, p.file))
