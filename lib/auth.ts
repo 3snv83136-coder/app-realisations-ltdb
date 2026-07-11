@@ -2,6 +2,7 @@ import NextAuth from "next-auth"
 import Credentials from "next-auth/providers/credentials"
 import { verifyCredentials } from "@/lib/auth-users"
 import { getSupabaseOrNull } from "@/lib/supabase"
+import { extractRequestGeo, logConnexion } from "@/lib/connexions-log"
 
 async function lookupTechnicienIdByLogin(login: string): Promise<string | null> {
   const sb = getSupabaseOrNull()
@@ -32,7 +33,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         username: { label: "Identifiant", type: "text" },
         password: { label: "Mot de passe", type: "password" },
       },
-      async authorize(credentials) {
+      async authorize(credentials, request) {
         const username = credentials?.username as string | undefined
         const password = credentials?.password as string | undefined
         const account = await verifyCredentials(
@@ -41,6 +42,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           lookupTechnicienIdByLogin,
         )
         if (!account) return null
+        await logConnexion(account, extractRequestGeo(request))
         return {
           id: account.id,
           name: account.login,

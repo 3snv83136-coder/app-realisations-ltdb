@@ -61,6 +61,8 @@ export default auth(async (req) => {
 
   const demoMgmtBlocked =
     pathname.startsWith("/acces-demo")
+    || pathname.startsWith("/connexions")
+    || pathname.startsWith("/api/connexions")
     || (pathname.startsWith("/api/demo-access") && !pathname.startsWith("/api/demo-access/check"))
 
   if (isDemo && demoMgmtBlocked) {

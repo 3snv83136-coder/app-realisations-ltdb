@@ -87,6 +87,7 @@ const SMALL_TOOLS: Tool[] = [
   { href: '/acces-demo',       emoji: '🔑', label: 'Accès démo',    desc: 'Essai client',        bg: 'bg-gradient-to-br from-yellow-500 to-amber-700',  text: 'white', ownerOnly: true },
   { href: '/mail',             emoji: '📧', label: 'Mail',          desc: 'Emails envoyés',      bg: 'bg-gradient-to-br from-cyan-500 to-cyan-700',     text: 'white' },
   { href: '/post-gmb',         emoji: '📍', label: 'Post GMB',      desc: 'Google Business',     bg: 'bg-gradient-to-br from-indigo-500 to-indigo-700', text: 'white' },
+  { href: '/connexions',       emoji: '🔐', label: 'Connexions',    desc: 'Historique & pays',   bg: 'bg-gradient-to-br from-zinc-600 to-zinc-800',     text: 'white', ownerOnly: true },
 ]
 
 function LtdbWatermark() {
