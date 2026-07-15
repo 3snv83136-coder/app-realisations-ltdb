@@ -49,6 +49,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           role: account.role,
           technicienId: account.technicienId,
           isDemo: account.isDemo ?? false,
+          isDbTech: account.isDbTech ?? false,
         }
       },
     }),
@@ -61,6 +62,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         token.role = user.role
         token.technicienId = user.technicienId ?? null
         token.isDemo = user.isDemo ?? false
+        token.isDbTech = user.isDbTech ?? false
       }
       return token
     },
@@ -69,6 +71,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         session.user.role = token.role
         session.user.technicienId = token.technicienId ?? null
         session.user.isDemo = token.isDemo ?? false
+        session.user.isDbTech = token.isDbTech ?? false
       }
       return session
     },

@@ -12,6 +12,8 @@ export type AuthAccount = {
   technicienId: string | null
   /** Compte démo temporaire (admin complet mais non gérant) */
   isDemo?: boolean
+  /** Compte technicien stocké en base (table comptes_techniciens) — révocable à chaud */
+  isDbTech?: boolean
 }
 
 function normalizeBcryptHash(raw: string): string {
@@ -112,6 +114,11 @@ export async function verifyCredentials(
 
   const techDef = loadTechFromEnv().find(t => t.login.toLowerCase() === login.toLowerCase())
   if (!techDef) {
+    // Comptes techniciens en base (créés depuis /admin/comptes)
+    const { verifyCompteTechCredentials } = await import('@/lib/comptes-tech')
+    const dbTech = await verifyCompteTechCredentials(login, password)
+    if (dbTech) return dbTech
+
     const { verifyDemoCredentials } = await import('@/lib/demo-access')
     const demo = await verifyDemoCredentials(login, password)
     if (demo) return demo

@@ -1,15 +1,26 @@
 import { auth } from "@/lib/auth"
 import { homePathForRole, isTechApiAllowed, isTechPageAllowed } from "@/lib/auth-routes"
 import { isDemoAccessActive } from "@/lib/demo-access"
+import { isCompteTechActive } from "@/lib/comptes-tech"
 import { NextResponse } from "next/server"
 
 const INTERVENTION_FICHE = /^\/intervention\/([^/]+)$/
+
+/** Comparaison en temps constant (Edge runtime — pas de node:crypto ici). */
+function constantTimeEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) return false
+  let diff = 0
+  for (let i = 0; i < a.length; i++) {
+    diff |= a.charCodeAt(i) ^ b.charCodeAt(i)
+  }
+  return diff === 0
+}
 
 const PUBLIC_PREFIXES = [
   "/login",
   "/api/auth",
   "/api/health",
-  "/api/calendar",
+  "/api/calendar.ics",
   "/api/oauth",
   "/api/proxy-image",
   "/api/notify-client/stop-review",
@@ -32,7 +43,8 @@ export default auth(async (req) => {
   }
 
   const internal = req.headers.get("x-internal-auth")
-  if (process.env.NEXTAUTH_SECRET && internal === process.env.NEXTAUTH_SECRET) {
+  const internalSecret = process.env.INTERNAL_API_SECRET || process.env.NEXTAUTH_SECRET
+  if (internal && internalSecret && constantTimeEqual(internal, internalSecret)) {
     return NextResponse.next()
   }
 
@@ -59,10 +71,26 @@ export default auth(async (req) => {
     }
   }
 
+  // Compte technicien en base désactivé → déconnexion forcée
+  if (req.auth.user?.isDbTech === true) {
+    const login = req.auth.user?.name || ""
+    const stillActive = login ? await isCompteTechActive(login) : false
+    if (!stillActive) {
+      if (pathname.startsWith("/api/")) {
+        return NextResponse.json({ error: "Compte désactivé", revoked: true }, { status: 401 })
+      }
+      const signOutUrl = new URL("/api/auth/signout", req.nextUrl.origin)
+      signOutUrl.searchParams.set("callbackUrl", "/login?revoked=1")
+      return NextResponse.redirect(signOutUrl)
+    }
+  }
+
   const demoMgmtBlocked =
     pathname.startsWith("/acces-demo")
     || pathname.startsWith("/connexions")
     || pathname.startsWith("/api/connexions")
+    || pathname.startsWith("/admin")
+    || pathname.startsWith("/api/admin")
     || (pathname.startsWith("/api/demo-access") && !pathname.startsWith("/api/demo-access/check"))
 
   if (isDemo && demoMgmtBlocked) {
@@ -95,5 +123,11 @@ export default auth(async (req) => {
 })
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|.*\\.).*)"],
+  // "/api/:path*" force TOUTES les routes API à passer par l'auth, y compris
+  // celles dont un segment dynamique contient un point (ex. /api/x/1.2) qui
+  // échappaient à l'ancien matcher "tout sauf les chemins avec un point".
+  matcher: [
+    "/api/:path*",
+    "/((?!api|_next/static|_next/image|favicon.ico|.*\\.).*)",
+  ],
 }

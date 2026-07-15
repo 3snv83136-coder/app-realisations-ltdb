@@ -7,6 +7,7 @@ declare module "next-auth" {
     role?: AuthRole
     technicienId?: string | null
     isDemo?: boolean
+    isDbTech?: boolean
   }
   interface Session {
     user: {
@@ -17,6 +18,7 @@ declare module "next-auth" {
       role?: AuthRole
       technicienId?: string | null
       isDemo?: boolean
+      isDbTech?: boolean
     }
   }
 }
@@ -26,5 +28,6 @@ declare module "next-auth/jwt" {
     role?: AuthRole
     technicienId?: string | null
     isDemo?: boolean
+    isDbTech?: boolean
   }
 }
