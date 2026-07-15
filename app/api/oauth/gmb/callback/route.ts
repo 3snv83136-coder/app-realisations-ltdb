@@ -9,7 +9,7 @@ export async function GET(req: NextRequest) {
   const error = req.nextUrl.searchParams.get("error")
   if (error) {
     return NextResponse.redirect(
-      new URL(`/?gmb_oauth=error&reason=${encodeURIComponent(error)}`, req.url),
+      new URL(`/post-gmb?gmb_oauth=error&reason=${encodeURIComponent(error)}`, req.url),
     )
   }
   if (!code) {
@@ -17,7 +17,7 @@ export async function GET(req: NextRequest) {
   }
   try {
     const { email } = await exchangeCodeAndStore(code)
-    const target = new URL("/", req.url)
+    const target = new URL("/post-gmb", req.url)
     target.searchParams.set("gmb_oauth", "ok")
     if (email) target.searchParams.set("email", email)
     return NextResponse.redirect(target)

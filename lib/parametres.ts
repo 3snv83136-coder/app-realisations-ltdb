@@ -28,6 +28,25 @@ export async function getParametre(cle: string, fallback = ''): Promise<string> 
   }
 }
 
+/** Enregistre ou met à jour un paramètre (upsert sur `cle`). */
+export async function setParametre(
+  cle: string,
+  valeur: string,
+  description?: string,
+): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const sb = getSupabaseOrNull()
+    if (!sb) return { ok: false, error: 'Supabase non configuré' }
+    const row: { cle: string; valeur: string; description?: string } = { cle, valeur }
+    if (description) row.description = description
+    const { error } = await sb.from('parametres').upsert(row, { onConflict: 'cle' })
+    if (error) return { ok: false, error: error.message }
+    return { ok: true }
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : String(e) }
+  }
+}
+
 /** Renvoie le téléphone principal LTDB (table `parametres`, repli sur la constante). */
 export function getTelPrincipal(): Promise<string> {
   return getParametre('TEL_PRINCIPAL', TEL_PRINCIPAL_FALLBACK)

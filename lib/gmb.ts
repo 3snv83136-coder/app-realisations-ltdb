@@ -96,6 +96,34 @@ export async function getAuthenticatedClient(): Promise<OAuth2Client> {
   return oauth
 }
 
+/** État connexion OAuth GMB (sans appeler les API Google). */
+export async function getGmbConnectionStatus(): Promise<{
+  connected: boolean
+  accountEmail: string | null
+  configured: boolean
+}> {
+  let configured = false
+  try {
+    await buildOAuthClient()
+    configured = true
+  } catch {
+    configured = false
+  }
+
+  const sb = getSupabase()
+  const { data } = await sb
+    .from('social_tokens')
+    .select('account_email, refresh_token')
+    .eq('platform', PLATFORM)
+    .maybeSingle()
+
+  return {
+    configured,
+    connected: !!data?.refresh_token,
+    accountEmail: data?.account_email || null,
+  }
+}
+
 /** Access token valide pour appeler les API Business Profile. */
 async function getAccessToken(): Promise<string> {
   const { token } = await (await getAuthenticatedClient()).getAccessToken()
@@ -107,6 +135,8 @@ export type GmbLocation = {
   account: string // "accounts/123…"
   accountName: string
   location: string // "locations/456…"
+  /** Chemin complet pour l'API v4 : accounts/…/locations/… */
+  locationPath: string
   title: string
   address: string | null
 }
@@ -150,10 +180,15 @@ export async function listGmbLocations(): Promise<GmbLocation[]> {
     }
     for (const loc of locJson.locations || []) {
       const a = loc.storefrontAddress
+      const locName = loc.name || ''
+      const locationPath = locName.startsWith('accounts/')
+        ? locName
+        : `${acc.name}/${locName.replace(/^\//, '')}`
       out.push({
         account: acc.name,
         accountName: acc.accountName || acc.name,
-        location: loc.name,
+        location: locName,
+        locationPath,
         title: loc.title || "(sans nom)",
         address: a
           ? [...(a.addressLines || []), a.locality].filter(Boolean).join(", ") || null

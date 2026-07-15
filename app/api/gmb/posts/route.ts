@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { listGmbLocations } from "@/lib/gmb"
+import { listGmbPosts } from "@/lib/gmb"
 import { requireAdminApi } from "@/lib/rh/require-admin"
 
 export const dynamic = "force-dynamic"
@@ -12,11 +12,11 @@ export async function GET() {
   }
 
   try {
-    const locations = await listGmbLocations()
-    return NextResponse.json({ ok: true, count: locations.length, locations })
+    const posts = await listGmbPosts()
+    return NextResponse.json({ ok: true, posts })
   } catch (e) {
     return NextResponse.json(
-      { error: e instanceof Error ? e.message : "Erreur GMB" },
+      { error: e instanceof Error ? e.message : "Erreur liste posts GMB", posts: [] },
       { status: 500 },
     )
   }

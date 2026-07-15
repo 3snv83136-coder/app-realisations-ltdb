@@ -8,6 +8,7 @@ import {
 import { getSupabaseOrNull } from "@/lib/supabase"
 import { isCanalAcquisition } from "@/lib/canaux"
 import { cascadeDeleteIntervention } from "@/lib/cascadeDelete"
+import { permissionsForSession } from "@/lib/tech-permissions"
 
 export const dynamic = 'force-dynamic'
 
@@ -85,8 +86,13 @@ export async function GET(_req: NextRequest, { params }: Params) {
     .limit(1)
     .maybeSingle()
 
+  const perms = await permissionsForSession(user)
+  const safeIntervention = perms.voir_prix
+    ? intervention
+    : { ...intervention, prix_prevu: null }
+
   return NextResponse.json({
-    intervention,
+    intervention: safeIntervention,
     client,
     technicien,
     has_devis: !!devisDoc?.id,
