@@ -642,6 +642,28 @@ function NouvelleInterventionModal({
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`)
+
+      const notif = data.notification as {
+        ok?: boolean
+        mail_sent?: boolean
+        sms_sent?: boolean
+        skipped?: string
+        error?: string
+        sms_error?: string
+      } | null | undefined
+
+      if (technicienId && notif && !notif.ok) {
+        const detail = notif.skipped || notif.error || notif.sms_error || 'raison inconnue'
+        window.alert(`Intervention créée, mais le technicien n'a pas été notifié :\n${detail}`)
+      } else if (technicienId && notif?.ok) {
+        const parts: string[] = []
+        if (notif.mail_sent) parts.push('mail')
+        if (notif.sms_sent) parts.push('SMS')
+        if (parts.length) {
+          window.alert(`Intervention créée — ${parts.join(' + ')} envoyé(s) au technicien.`)
+        }
+      }
+
       onCreated()
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e)
