@@ -17,6 +17,7 @@ import type {
   FactureData,
 } from "@/components/FacturePDF"
 import type { ClientData } from "@/components/DevisPDF"
+import { errorMessage } from "@/lib/error-message"
 
 const FactureDownloadButton = dynamic(() => import("@/components/FacturePDFDownloadButton"), { ssr: false })
 const SaveDocumentButton = dynamic(() => import("@/components/SaveDocumentButton"), { ssr: false })
@@ -190,8 +191,8 @@ export default function FacturePage() {
           )
         }
       }
-    } catch (e: any) {
-      setEmailError(`Erreur envoi : ${e.message || e}`)
+    } catch (e) {
+      setEmailError(`Erreur envoi : ${errorMessage(e) || e}`)
     } finally {
       setEmailSending(false)
     }
@@ -245,8 +246,8 @@ export default function FacturePage() {
       if (!clientAdresse && data.facture?.client_adresse_detectee) setClientAdresse(data.facture.client_adresse_detectee)
 
       await enterPreviewWithNumero(data.facture)
-    } catch (e: any) {
-      setError(`Erreur IA : ${e.message}`)
+    } catch (e) {
+      setError(`Erreur IA : ${errorMessage(e)}`)
       setStep('capture')
     }
   }
@@ -437,7 +438,7 @@ export default function FacturePage() {
               <label className="block text-sm">
                 <span className="text-xs uppercase tracking-wide text-slate-500">Échéance</span>
                 <select
-                  value={ECHEANCES_PRESETS.includes(facture.echeance as any) ? facture.echeance : '__custom__'}
+                  value={(ECHEANCES_PRESETS as readonly string[]).includes(facture.echeance) ? facture.echeance : '__custom__'}
                   onChange={e => {
                     if (e.target.value === '__custom__') return
                     setFacture({ ...facture, echeance: e.target.value })

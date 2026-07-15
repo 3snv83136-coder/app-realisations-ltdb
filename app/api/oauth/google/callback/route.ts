@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { exchangeCodeAndStore } from "@/lib/youtube"
+import { errorMessage } from "@/lib/error-message"
 
 export const dynamic = "force-dynamic"
 
@@ -18,7 +19,7 @@ export async function GET(req: NextRequest) {
     target.searchParams.set("youtube_oauth", "ok")
     if (email) target.searchParams.set("email", email)
     return NextResponse.redirect(target)
-  } catch (e: any) {
-    return NextResponse.json({ error: e?.message || "OAuth callback failed" }, { status: 500 })
+  } catch (e) {
+    return NextResponse.json({ error: errorMessage(e) || "OAuth callback failed" }, { status: 500 })
   }
 }

@@ -6,6 +6,11 @@ import {
   loadTechnicienByNom,
 } from "@/lib/technicien-publish"
 import type { SupabaseClient } from "@supabase/supabase-js"
+import { errorMessage } from "@/lib/error-message"
+import type { RapportData, SeoData } from "@/lib/types-documents"
+
+/** Réponse JSON de l'API gallery Django (forme libre selon succès / erreur). */
+type LtdbPublishResponse = { slug?: string; error?: string; detail?: string } & Record<string, unknown>
 
 const PHOTOS_BUCKET = process.env.SUPABASE_PHOTOS_BUCKET || 'interventions-photos'
 
@@ -29,7 +34,7 @@ export async function POST(req: NextRequest) {
     })
 
     const txt = await response.text()
-    let data: any = null
+    let data: LtdbPublishResponse | string | null = null
     try { data = JSON.parse(txt) } catch { /* réponse non-JSON (HTML d'erreur Django, etc.) */ }
 
     if (!response.ok) {
@@ -50,8 +55,8 @@ export async function POST(req: NextRequest) {
     persistIntervention(formData, data).catch(e => console.error('[publish] supabase persist', e))
 
     return NextResponse.json(data ?? { ok: true }, { status: 201 })
-  } catch (e: any) {
-    return NextResponse.json({ error: `Publish fetch failed : ${e.message || e.toString()}` }, { status: 500 })
+  } catch (e) {
+    return NextResponse.json({ error: `Publish fetch failed : ${errorMessage(e)}` }, { status: 500 })
   }
 }
 
@@ -90,7 +95,7 @@ async function enrichTechnicienFormData(formData: FormData): Promise<void> {
   await appendTechnicienPhotoToFormData(formData, photoUrl, slug)
 }
 
-async function persistIntervention(formData: FormData, ltdbResponse: any) {
+async function persistIntervention(formData: FormData, ltdbResponse: LtdbPublishResponse | string | null) {
   const sb = getSupabaseOrNull()
   if (!sb) return
 
@@ -104,12 +109,12 @@ async function persistIntervention(formData: FormData, ltdbResponse: any) {
   const clientAdresse = get('client_adresse') || ''
   const ville = get('intervention_city') || get('location') || ''
   const codePostal = get('postal_code') || ''
-  const slug = ltdbResponse?.slug || get('slug') || ''
+  const slug = (typeof ltdbResponse === 'object' && ltdbResponse?.slug) || get('slug') || ''
   const typeIntervention = get('service_type') || ''
   const dateRealisee = get('intervention_date') || null
   const transcription = get('transcription') || ''
-  const rapportJson = safeParseJson(get('rapport_json'))
-  const seoJson = safeParseJson(get('seo_json'))
+  const rapportJson = safeParseJson<Partial<RapportData>>(get('rapport_json'))
+  const seoJson = safeParseJson<SeoData>(get('seo_json'))
   const reference = rapportJson?.reference || null
   const interventionId = get('intervention_id')
 
@@ -178,9 +183,9 @@ async function persistIntervention(formData: FormData, ltdbResponse: any) {
   console.error('[persistIntervention] exhausted retries on duplicate reference')
 }
 
-function safeParseJson(s: string | null): any {
+function safeParseJson<T = unknown>(s: string | null): T | null {
   if (!s) return null
-  try { return JSON.parse(s) } catch { return null }
+  try { return JSON.parse(s) as T } catch { return null }
 }
 
 async function uploadInterventionPhotos(

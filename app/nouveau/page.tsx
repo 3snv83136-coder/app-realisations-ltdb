@@ -25,6 +25,7 @@ import SitePreviewModal from "@/components/SitePreviewModal"
 import CatLoader from "@/components/CatLoader"
 import LtdbLogoLink from "@/components/LtdbLogoLink"
 import { errorMessage } from "@/lib/error-message"
+import type { RapportData, SeoData } from "@/lib/types-documents"
 
 function notifyDone(title: string, body: string) {
   if (typeof window === 'undefined' || !('Notification' in window)) return
@@ -204,8 +205,8 @@ export default function NouveauPage() {
   }, [])
 
   // Résultats IA
-  const [rapport, setRapport] = useState<any>(null)
-  const [seo, setSeo] = useState<any>(null)
+  const [rapport, setRapport] = useState<RapportData | null>(null)
+  const [seo, setSeo] = useState<SeoData | null>(null)
   const [publishedSlug, setPublishedSlug] = useState('')
   const [emailSent, setEmailSent] = useState(false)
   const [emailSending, setEmailSending] = useState(false)
@@ -567,11 +568,11 @@ export default function NouveauPage() {
     }
     const formData = new FormData()
     void REALISATION_PAGE_STYLE
-    const publishSlug = (typeof seo.slug === 'string' ? seo.slug : '') || ''
+    const publishSlug = (typeof seo?.slug === 'string' ? seo.slug : '') || ''
     const technicienProfile = await resolveTechnicienProfile(technicienNom)
     const technicienPhotoUrl = publishImageUrlForSite(technicienProfile?.photo_url)
     const seoPrepared = prepareSeoForPublish({
-      seo: seo as Record<string, unknown>,
+      seo: seo || {},
       typeIntervention,
       ville,
       codePostal,
@@ -588,7 +589,7 @@ export default function NouveauPage() {
     })
     const { content: contentWithContainers, seo: seoForPublish } = buildPublishContentHtml({
       seo: seoPrepared,
-      rapport: rapport as Record<string, unknown> | null,
+      rapport,
       typeIntervention,
       ville,
       codePostal,
@@ -620,13 +621,13 @@ export default function NouveauPage() {
     formData.append('intervention_date', dateIntervention)
     formData.append('description', truncatePublishField(buildPublishDescription({
       seo: seoForPublish,
-      rapport: rapport as Record<string, unknown> | null,
+      rapport,
       typeIntervention,
       ville,
     }), 195))
     formData.append('meta_keywords', Array.isArray(seoForPublish.meta_keywords) ? seoForPublish.meta_keywords.join(', ') : '')
     formData.append('content', contentWithContainers)
-    formData.append('faq_json', JSON.stringify({ "@context": "https://schema.org", "@type": "FAQPage", "mainEntity": (Array.isArray(seoForPublish.faq) ? seoForPublish.faq : []).map((f: any) => ({ "@type": "Question", "name": f?.question || '', "acceptedAnswer": { "@type": "Answer", "text": f?.reponse || '' } })) }))
+    formData.append('faq_json', JSON.stringify({ "@context": "https://schema.org", "@type": "FAQPage", "mainEntity": (Array.isArray(seoForPublish.faq) ? seoForPublish.faq : []).map(f => ({ "@type": "Question", "name": f?.question || '', "acceptedAnswer": { "@type": "Answer", "text": f?.reponse || '' } })) }))
     formData.append('jsonld', JSON.stringify(seoForPublish.jsonld || {}))
     formData.append('related_services_json', JSON.stringify(seoForPublish.related_services || []))
     formData.append('is_published', 'true')
@@ -652,10 +653,13 @@ export default function NouveauPage() {
     try {
       const res = await fetch('/api/publish', { method: 'POST', body: formData })
       const txt = await res.text()
-      let data: any = null
-      try { data = JSON.parse(txt) } catch {}
+      let data: { error?: string; slug?: string } | null = null
+      try {
+        const parsed: unknown = JSON.parse(txt)
+        if (parsed && typeof parsed === 'object') data = parsed as { error?: string; slug?: string }
+      } catch {}
       if (!res.ok) {
-        const msg = data ? (typeof data === 'string' ? data : (data.error || JSON.stringify(data))) : txt.slice(0, 300)
+        const msg = data ? (data.error || JSON.stringify(data)) : txt.slice(0, 300)
         throw new Error(msg)
       }
       const slug = data?.slug || seo?.slug || ''
@@ -684,7 +688,7 @@ export default function NouveauPage() {
       const res = await fetch('/api/historique?limit=500', { cache: 'no-store' })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`)
-      const withRapport = (data.interventions || []).filter((i: any) => i.has_rapport) as HistoryRapport[]
+      const withRapport = (data.interventions || []).filter((i: { has_rapport?: boolean }) => i.has_rapport) as HistoryRapport[]
       setHistoryItems(withRapport)
       setHistoryLoaded(true)
     } catch (e) {

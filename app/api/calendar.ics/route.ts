@@ -85,18 +85,20 @@ export async function GET(req: NextRequest) {
   }
 
   // Charge les clients & techniciens référencés en deux requêtes
+  type ClientLite = { id: string; nom: string | null; telephone: string | null; email: string | null }
+  type TechLite = { id: string; nom: string | null; telephone: string | null }
   const clientIds = Array.from(new Set((interventions || []).map(i => i.client_id).filter(Boolean) as string[]))
   const techIds = Array.from(new Set((interventions || []).map(i => i.technicien_id).filter(Boolean) as string[]))
   const [{ data: clients }, { data: techniciens }] = await Promise.all([
     clientIds.length
       ? sb.from('clients').select('id, nom, telephone, email').in('id', clientIds)
-      : Promise.resolve({ data: [] as any[] }),
+      : Promise.resolve({ data: [] as ClientLite[] }),
     techIds.length
       ? sb.from('techniciens').select('id, nom, telephone').in('id', techIds)
-      : Promise.resolve({ data: [] as any[] }),
+      : Promise.resolve({ data: [] as TechLite[] }),
   ])
-  const clientMap = new Map((clients || []).map((c: any) => [c.id, c]))
-  const techMap = new Map((techniciens || []).map((t: any) => [t.id, t]))
+  const clientMap = new Map((clients || []).map((c: ClientLite) => [c.id, c]))
+  const techMap = new Map((techniciens || []).map((t: TechLite) => [t.id, t]))
 
   const origin = url.origin
   const now = fmtUTCStamp(new Date())

@@ -5,6 +5,7 @@ import AppTabs from "@/components/AppTabs"
 import { fmtDateFR, fmtEUR } from "@/lib/format"
 import { errorMessage } from "@/lib/error-message"
 import LtdbLogoLink from "@/components/LtdbLogoLink"
+import type { DocumentPayload, RapportData } from "@/lib/types-documents"
 
 const DocumentDownloadButton = dynamic(() => import("@/components/DocumentDownloadButton"), { ssr: false })
 const ResendEmailButton = dynamic(() => import("@/components/ResendEmailButton"), { ssr: false })
@@ -35,7 +36,7 @@ type Intervention = {
   client_ville: string | null
   technicien_nom: string | null
   technicien_photo_url?: string | null
-  rapport_json: any
+  rapport_json: RapportData | null
   photos_urls: string[] | null
   has_rapport: boolean
   has_facture?: boolean
@@ -58,7 +59,7 @@ type Document = {
   client_adresse: string | null
   client_code_postal: string | null
   client_ville: string | null
-  payload?: any
+  payload?: DocumentPayload | null
   pdf_url: string | null
   created_at: string
 }

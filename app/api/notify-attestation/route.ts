@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server"
 import { escapeHtml, initResend } from "@/lib/email-utils"
-import { persistAttestation } from "@/lib/persist"
+import { persistAttestation, type PersistAttestationInput } from "@/lib/persist"
 import { getTelPrincipal } from "@/lib/parametres"
+import { errorMessage } from "@/lib/error-message"
 
 export const maxDuration = 30
 
@@ -11,8 +12,14 @@ const VARIANT_LABELS: Record<string, string> = {
   'non-conforme': 'Non-conforme',
 }
 
+interface NotifyAttestationBody extends Partial<PersistAttestationInput> {
+  technicienNom?: string
+  pdfBase64?: string
+  pdfFilename?: string
+}
+
 export async function POST(req: NextRequest) {
-  let body: any
+  let body: NotifyAttestationBody
   try {
     body = await req.json()
   } catch {
@@ -32,7 +39,7 @@ export async function POST(req: NextRequest) {
     ? [{ filename: pdfFilename, content: pdfBase64 }]
     : undefined
 
-  const variantLabel = VARIANT_LABELS[variante] || variante || 'Inspection'
+  const variantLabel = (variante && VARIANT_LABELS[variante]) || variante || 'Inspection'
 
   const subject = numero
     ? `Votre attestation ${numero} — ${variantLabel}`
@@ -62,13 +69,13 @@ export async function POST(req: NextRequest) {
   if (attestation || numero || variante) {
     try {
       docId = await persistAttestation({
-        attestation, clientNom, clientEmail, clientAdresse, clientCP, ville,
+        attestation: attestation || {}, clientNom, clientEmail, clientAdresse, clientCP, ville,
         agence, numero, variante, dateAttestation,
         emailSent: true,
       })
       if (!docId) persistError = "Sauvegarde DB impossible (vérifie les logs serveur)"
-    } catch (e: any) {
-      persistError = e?.message || 'Erreur de sauvegarde DB'
+    } catch (e) {
+      persistError = errorMessage(e) || 'Erreur de sauvegarde DB'
       console.error('[notify-attestation] persist', e)
     }
   }
@@ -82,7 +89,7 @@ export async function POST(req: NextRequest) {
 }
 
 function emailAttestation({ clientNom, technicienNom, ville, dateAttestation, variantLabel, numero, tel }: {
-  clientNom?: string; technicienNom: string; ville?: string; dateAttestation?: string; variantLabel: string; numero?: string; tel: string;
+  clientNom?: string | null; technicienNom: string; ville?: string | null; dateAttestation?: string | null; variantLabel: string; numero?: string | null; tel: string;
 }) {
   const cn = escapeHtml(clientNom || 'Madame, Monsieur')
   const tn = escapeHtml(technicienNom)

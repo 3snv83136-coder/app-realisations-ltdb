@@ -11,8 +11,25 @@ export const maxDuration = 30
  * Le client régénère le PDF depuis le payload Supabase et le fournit en base64.
  * À l'envoi réussi : met à jour `envoye_at` du document (mais conserve son statut).
  */
+interface RelanceFactureBody {
+  documentId?: string
+  clientEmail?: string
+  clientNom?: string
+  technicienNom?: string
+  ville?: string
+  dateFacture?: string
+  numero?: string
+  totalTTC?: number
+  echeance?: string
+  agence?: string
+  pdfBase64?: string
+  pdfFilename?: string
+  daysOverdue?: number
+  dueDate?: string
+}
+
 export async function POST(req: NextRequest) {
-  let body: any
+  let body: RelanceFactureBody
   try {
     body = await req.json()
   } catch {

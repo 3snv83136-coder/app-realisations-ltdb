@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server"
-import { persistAttestation } from "@/lib/persist"
+import { persistAttestation, type PersistAttestationInput } from "@/lib/persist"
+import { errorMessage } from "@/lib/error-message"
 
 export const dynamic = 'force-dynamic'
 
 export async function POST(req: NextRequest) {
-  let body: any
+  let body: Partial<PersistAttestationInput>
   try {
     body = await req.json()
   } catch {
@@ -16,14 +17,14 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const id = await persistAttestation({ ...body, emailSent: false })
+    const id = await persistAttestation({ ...body, attestation: body.attestation, emailSent: false })
     if (!id) {
       return NextResponse.json({
         error: "Sauvegarde impossible (Supabase non configuré ou erreur d'insertion)",
       }, { status: 500 })
     }
     return NextResponse.json({ ok: true, id })
-  } catch (e: any) {
-    return NextResponse.json({ error: e?.message || 'Erreur de sauvegarde' }, { status: 500 })
+  } catch (e) {
+    return NextResponse.json({ error: errorMessage(e) || 'Erreur de sauvegarde' }, { status: 500 })
   }
 }

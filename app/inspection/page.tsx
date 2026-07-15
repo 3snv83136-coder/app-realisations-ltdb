@@ -9,6 +9,7 @@ import {
   PRECONISATIONS, GRAVITE_LABELS,
 } from "@/lib/camera-defauts"
 import type { InspectionData, ObservationItem, Troncon } from "@/components/InspectionCameraPDF"
+import { errorMessage } from "@/lib/error-message"
 
 const InspectionDownloadButton = dynamic(() => import("@/components/InspectionCameraPDF"), { ssr: false })
 const InspectionPDFViewer = dynamic(() => import("@/components/InspectionCameraPreviewModal"), { ssr: false })
@@ -135,9 +136,9 @@ export default function InspectionPage() {
       const dataUrl = await fileToDataUrl(compressed)
       const preview = URL.createObjectURL(compressed)
       updateObs(i, { _photoFile: compressed, _photoPreview: preview, photoUrl: dataUrl })
-    } catch (e: any) {
+    } catch (e) {
       console.error(e)
-      setPhotoError(`Photo n°${i + 1} : ${e?.message || 'compression impossible'}. Réessaie ou choisis une autre image.`)
+      setPhotoError(`Photo n°${i + 1} : ${errorMessage(e) || 'compression impossible'}. Réessaie ou choisis une autre image.`)
     }
   }
   function clearObsPhoto(i: number) {

@@ -4,9 +4,10 @@ import {
   buildMetaTitleFallback,
   normalizeSeoOutput,
 } from "@/lib/seo-normalize"
+import type { SeoData } from "@/lib/types-documents"
 
 export function prepareSeoForPublish(opts: {
-  seo: Record<string, unknown>
+  seo: SeoData
   typeIntervention: string
   ville: string
   codePostal?: string | null
@@ -17,7 +18,7 @@ export function prepareSeoForPublish(opts: {
   technicienTitre?: string | null
   technicienPhotoUrl?: string | null
   photos?: { url: string; legende?: string; alt?: string }[]
-}): Record<string, unknown> {
+}): SeoData {
   let seo = normalizeSeoOutput({ ...opts.seo }, {
     typeIntervention: opts.typeIntervention,
     ville: opts.ville,
@@ -27,7 +28,7 @@ export function prepareSeoForPublish(opts: {
 
   const resume =
     seo.resume_intervention && typeof seo.resume_intervention === "object"
-      ? (seo.resume_intervention as Record<string, string>)
+      ? seo.resume_intervention
       : null
 
   const metaTitle =

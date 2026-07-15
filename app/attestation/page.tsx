@@ -8,6 +8,7 @@ import VilleCombobox from "@/components/VilleCombobox"
 import ClientAutocomplete from "@/components/ClientAutocomplete"
 import { useUnsavedChangesWarning } from "@/lib/useUnsavedChangesWarning"
 import type { AttestationData, AttestationObservation, Variante } from "@/components/AttestationPDF"
+import { errorMessage } from "@/lib/error-message"
 
 const AttestationDownloadButton = dynamic(() => import("@/components/AttestationPDF"), { ssr: false })
 const SaveDocumentButton = dynamic(() => import("@/components/SaveDocumentButton"), { ssr: false })
@@ -150,12 +151,12 @@ export default function AttestationPage() {
           clientCP: data.codePostal,
         }),
       })
-      const json = await res.json().catch(() => ({} as Record<string, any>))
+      const json = await res.json().catch(() => ({})) as { error?: string; warning?: string }
       if (!res.ok) throw new Error(json.error || `HTTP ${res.status}`)
       if (json.warning) setEmailError(json.warning)
       else setEmailSent(true)
-    } catch (e: any) {
-      setEmailError(`Erreur envoi : ${e.message || e}`)
+    } catch (e) {
+      setEmailError(`Erreur envoi : ${errorMessage(e) || e}`)
     } finally {
       setEmailSending(false)
     }
@@ -176,8 +177,8 @@ export default function AttestationPage() {
       const dataUrl = await fileToDataUrl(compressed)
       const preview = URL.createObjectURL(compressed)
       setPhotos(prev => [...prev, { file: compressed, dataUrl, preview, legende: `Photo ${prev.length + 1}` }])
-    } catch (e: any) {
-      setError(`Photo : ${e.message || 'erreur'}`)
+    } catch (e) {
+      setError(`Photo : ${errorMessage(e) || 'erreur'}`)
     }
   }
   function removePhoto(i: number) { setPhotos(prev => prev.filter((_, idx) => idx !== i)) }
@@ -207,8 +208,8 @@ export default function AttestationPage() {
       if (!res.ok) throw new Error(result.error || 'Génération échouée')
       setData(result as AttestationData)
       setStep('preview')
-    } catch (e: any) {
-      setError(`Erreur IA : ${e.message}`)
+    } catch (e) {
+      setError(`Erreur IA : ${errorMessage(e)}`)
       setStep('capture')
     }
   }
@@ -285,8 +286,8 @@ export default function AttestationPage() {
 
           {/* Envoi au client */}
           <section className="bg-white rounded-2xl border border-slate-200 p-5 space-y-3">
-            <h2 className="font-bold text-[#0f2e5c]">Envoyer l'attestation au client</h2>
-            <p className="text-xs text-slate-500">Le PDF sera envoyé par email avec un mot d'accompagnement.</p>
+            <h2 className="font-bold text-[#0f2e5c]">Envoyer l&apos;attestation au client</h2>
+            <p className="text-xs text-slate-500">Le PDF sera envoyé par email avec un mot d&apos;accompagnement.</p>
             <div className="flex flex-col sm:flex-row gap-2">
               <input
                 type="email"
@@ -380,7 +381,7 @@ export default function AttestationPage() {
                         <input value={o.valeur} onChange={e => updateObservation(i, { valeur: e.target.value })} className="w-full border border-slate-200 rounded px-2 py-1" />
                       </td>
                       <td className="py-1 pr-2">
-                        <select value={o.statut} onChange={e => updateObservation(i, { statut: e.target.value as any })} className="w-full border border-slate-200 rounded px-2 py-1">
+                        <select value={o.statut} onChange={e => updateObservation(i, { statut: e.target.value as AttestationObservation['statut'] })} className="w-full border border-slate-200 rounded px-2 py-1">
                           <option value="ok">✓ OK</option>
                           <option value="ko">✗ KO</option>
                           <option value="info">• Info</option>

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getAiModel, llmChat, llmConfigError, llmIsConfigured } from "@/lib/llm"
 import { VILLES_VAR, findVilleByName, searchVilles } from "@/lib/villes-var"
+import { errorMessage, errorStatus } from "@/lib/error-message"
 
 const TYPES = [
   'Débouchage canalisation',
@@ -63,7 +64,7 @@ Réponds UNIQUEMENT avec ce JSON (sans markdown, sans backticks) :
       jsonMode: true,
       retries: 5,
     })
-  } catch (e: any) {
+  } catch (e) {
     return NextResponse.json({
       type_intervention: 'Débouchage canalisation',
       ville: '',
@@ -71,11 +72,18 @@ Réponds UNIQUEMENT avec ce JSON (sans markdown, sans backticks) :
       adresse: '',
       client_nom: '',
       client_email: '',
-      warning: `Extraction IA indisponible (${e?.status || ''} ${String(e?.message || '').slice(0, 120)}) — remplis les champs à la main.`,
+      warning: `Extraction IA indisponible (${errorStatus(e) || ''} ${errorMessage(e).slice(0, 120)}) — remplis les champs à la main.`,
     })
   }
 
-  let data: any
+  let data: {
+    type_intervention?: string
+    ville?: string
+    code_postal?: string
+    adresse?: string
+    client_nom?: string
+    client_email?: string
+  }
   try {
     data = parseJson(raw)
   } catch {
@@ -99,7 +107,9 @@ Réponds UNIQUEMENT avec ce JSON (sans markdown, sans backticks) :
   }
 
   // Validation type
-  const type = TYPES.includes(data.type_intervention) ? data.type_intervention : TYPES[0]
+  const type = data.type_intervention && TYPES.includes(data.type_intervention)
+    ? data.type_intervention
+    : TYPES[0]
 
   return NextResponse.json({
     type_intervention: type,

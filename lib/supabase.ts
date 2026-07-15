@@ -1,4 +1,5 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
+import type { DocumentPayload, RapportData, SeoData } from '@/lib/types-documents'
 
 let cached: SupabaseClient | null = null
 
@@ -92,8 +93,8 @@ export interface Intervention {
   prix_prevu: number | null
   notes_internes: string | null
   transcription: string | null
-  rapport_json: any
-  seo_json: any
+  rapport_json: RapportData | null
+  seo_json: SeoData | null
   photos_urls: string[] | null
   video_uploads: string[] | null
   pdf_rapport_url: string | null
@@ -116,7 +117,7 @@ export interface Document {
   montant_ht: number | null
   montant_ttc: number | null
   tva_taux: number | null
-  payload: any
+  payload: DocumentPayload
   pdf_url: string | null
   envoye_email: string | null
   envoye_at: string | null
@@ -249,7 +250,7 @@ export async function saveDocument(input: {
   montant_ht?: number | null
   montant_ttc?: number | null
   tva_taux?: number | null
-  payload: any
+  payload: DocumentPayload
   intervention_id?: string | null
   client_id?: string | null
   pdf_url?: string | null

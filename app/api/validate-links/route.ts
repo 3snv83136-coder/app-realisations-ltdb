@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
+import { errorMessage } from "@/lib/error-message"
 
 const SITE = "https://lestechniciensdudebouchage.fr"
 
@@ -27,8 +28,8 @@ async function checkUrl(url: string): Promise<{ ok: boolean; status?: number; er
     if (head.ok) return { ok: true, status: head.status }
     const get = await fetch(url, { method: "GET", redirect: "follow", signal: AbortSignal.timeout(7000) })
     return { ok: get.ok, status: get.status }
-  } catch (e: any) {
-    return { ok: false, error: e?.message || "network_error" }
+  } catch (e) {
+    return { ok: false, error: errorMessage(e) || "network_error" }
   }
 }
 
@@ -36,7 +37,7 @@ export async function POST(req: NextRequest) {
   const { content_html, related_services } = await req.json()
   const hrefsFromContent = extractHrefs(String(content_html || ""))
   const hrefsFromRelated = Array.isArray(related_services)
-    ? related_services.map((s: any) => String(s?.url || "")).filter(Boolean)
+    ? related_services.map((s: { url?: string } | null | undefined) => String(s?.url || "")).filter(Boolean)
     : []
 
   const all = [...hrefsFromContent, ...hrefsFromRelated]

@@ -1,0 +1,16 @@
+{
+  "extends": "next/core-web-vitals",
+  "overrides": [
+    {
+      "files": [
+        "components/*PDF.tsx",
+        "components/accord/AccordPDF.tsx",
+        "components/terrain/TravauxSupplementairesPDF.tsx",
+        "components/PdfBranding.tsx"
+      ],
+      "rules": {
+        "jsx-a11y/alt-text": "off"
+      }
+    }
+  ]
+}

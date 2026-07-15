@@ -114,7 +114,7 @@ export async function GET(req: NextRequest) {
   })
 
   // Filtrage côté serveur (recherche)
-  const filterByQ = <T extends Record<string, any>>(rows: T[]) => {
+  const filterByQ = <T extends Record<string, unknown>>(rows: T[]) => {
     if (!search) return rows
     return rows.filter(r => {
       const blob = [

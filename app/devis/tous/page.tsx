@@ -197,7 +197,7 @@ export default function TousLesDevisPage() {
         </div>
 
         {/* Stats */}
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-3">
           <StatCard label="Devis trouvés" value={filtered.length} />
           <StatCard label="Total HT" value={`${totalHT.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €`} />
           <StatCard label="Total TTC" value={`${totalTTC.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €`} />

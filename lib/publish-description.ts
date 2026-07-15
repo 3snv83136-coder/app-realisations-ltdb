@@ -1,11 +1,13 @@
+import type { RapportData, SeoData } from "@/lib/types-documents"
+
 function stripHtml(s: string): string {
   return s.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim()
 }
 
 /** Meta description Django — jamais vide (requis côté LTDB). */
 export function buildPublishDescription(opts: {
-  seo: Record<string, unknown>
-  rapport?: Record<string, unknown> | null
+  seo: SeoData
+  rapport?: Partial<RapportData> | null
   typeIntervention?: string | null
   ville: string
 }): string {

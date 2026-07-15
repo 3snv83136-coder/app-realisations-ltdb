@@ -16,6 +16,7 @@ import { LTDB_EMETTEUR } from "@/lib/emetteur"
 import { fmtDateISOtoFR } from "@/lib/format"
 import { detectTypeIntervention } from "@/lib/types-intervention"
 import DevisEnvoiPanel from "@/components/DevisEnvoiPanel"
+import { errorMessage } from "@/lib/error-message"
 
 const DevisDownloadButton = dynamic(() => import("@/components/DevisPDF"), { ssr: false })
 const SaveDocumentButton = dynamic(() => import("@/components/SaveDocumentButton"), { ssr: false })
@@ -180,8 +181,8 @@ function DevisPageContent() {
       if (!clientAdresse && data.devis?.client_adresse_detectee) setClientAdresse(data.devis.client_adresse_detectee)
 
       await enterPreviewWithDevisNumero(data.devis)
-    } catch (e: any) {
-      setError(`Erreur IA : ${e.message}`)
+    } catch (e) {
+      setError(`Erreur IA : ${errorMessage(e)}`)
       setStep('capture')
     }
   }

@@ -16,13 +16,23 @@ export const runtime = 'nodejs'
 const ALLOWED_HOSTS = [
   'lestechniciensdudebouchage.fr',
   'www.lestechniciensdudebouchage.fr',
-  // Supabase Storage public URLs
-  '.supabase.co',
-  '.supabase.in',
 ]
 
+/** Hostname du projet Supabase de l'app — pas n'importe quel *.supabase.co. */
+function supabaseHostname(): string | null {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL
+  if (!url) return null
+  try {
+    return new URL(url).hostname
+  } catch {
+    return null
+  }
+}
+
 function isAllowed(url: URL): boolean {
-  return ALLOWED_HOSTS.some(h => h.startsWith('.') ? url.hostname.endsWith(h) : url.hostname === h)
+  if (ALLOWED_HOSTS.includes(url.hostname)) return true
+  const sb = supabaseHostname()
+  return sb !== null && url.hostname === sb
 }
 
 export async function GET(req: NextRequest) {

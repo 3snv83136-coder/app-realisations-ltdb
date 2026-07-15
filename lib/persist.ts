@@ -1,5 +1,13 @@
 import { getSupabaseOrNull, saveDocument, upsertClient } from "@/lib/supabase"
 import { mergeFacturePayloadMeta } from "@/lib/facture-relance"
+import type {
+  AttestationData,
+  AttestationVariante,
+  DevisData,
+  FactureData,
+  RapportData,
+  SeoData,
+} from "@/lib/types-documents"
 
 /**
  * Helpers de persistance partagés par /api/notify-* (envoi email + persist) et
@@ -16,7 +24,7 @@ type Common = {
 }
 
 export interface PersistFactureInput extends Common {
-  facture: any
+  facture: Partial<FactureData>
   agence?: string | null
   numero?: string | null
   totalHT?: number | null
@@ -65,7 +73,7 @@ export async function persistFacture(p: PersistFactureInput): Promise<string | n
 }
 
 export interface PersistDevisInput extends Common {
-  devis: any
+  devis: Partial<DevisData>
   agence?: string | null
   numero?: string | null
   totalHT?: number | null
@@ -104,7 +112,7 @@ export async function persistDevis(p: PersistDevisInput): Promise<string | null>
 }
 
 export interface PersistAttestationInput extends Common {
-  attestation: any
+  attestation: Partial<AttestationData>
   agence?: string | null
   numero?: string | null
   variante?: string | null
@@ -127,7 +135,10 @@ export async function persistAttestation(p: PersistAttestationInput): Promise<st
     agence: p.agence || null,
     date_emission: p.attestation?.date || p.dateAttestation || null,
     statut: p.emailSent ? 'envoye' : 'brouillon',
-    payload: { ...(p.attestation || {}), variante: p.variante || p.attestation?.variante || null },
+    payload: {
+      ...(p.attestation || {}),
+      variante: (p.variante || p.attestation?.variante || undefined) as AttestationVariante | undefined,
+    },
     client_id: clientId,
     envoye_email: p.emailSent ? (p.clientEmail || null) : null,
     envoye_at: p.emailSent ? (p.envoyeAt || new Date().toISOString()) : null,
@@ -135,8 +146,8 @@ export async function persistAttestation(p: PersistAttestationInput): Promise<st
 }
 
 export interface PersistRapportInput extends Common {
-  rapport: any
-  seo?: any | null
+  rapport: RapportData
+  seo?: SeoData | null
   transcription?: string | null
   typeIntervention?: string | null
   codePostal?: string | null
@@ -231,7 +242,7 @@ export async function persistRapport(p: PersistRapportInput): Promise<PersistRap
     publie_slug: p.publishedSlug || null,
   }
 
-  const baseRef: string | null = (p.rapport as any)?.reference || null
+  const baseRef: string | null = p.rapport?.reference || null
   let currentRef: string | null = baseRef
   for (let attempt = 0; attempt < 5; attempt++) {
     const { data, error } = await sb.from('interventions')

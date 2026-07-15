@@ -4,6 +4,7 @@ import { pdfElementToBlob } from "@/lib/pdfToBase64"
 import { safeFilename } from "@/lib/filename"
 import { getLtdbSignatureUrl, fetchAccordSignatureForRapport } from "@/lib/rapport-signatures"
 import { RealisationDocument, type RapportData } from "./RealisationPDF"
+import { errorMessage } from "@/lib/error-message"
 
 export interface HistoriqueIntervention {
   id: string
@@ -14,7 +15,7 @@ export interface HistoriqueIntervention {
   code_postal: string | null
   date_realisee: string | null
   date_prevue: string | null
-  rapport_json: any
+  rapport_json: RapportData | null
   photos_urls: string[] | null
   client_nom: string | null
   client_adresse: string | null
@@ -90,8 +91,8 @@ export default function InterventionRapportDownloadButton({
         window.open(url, '_blank', 'noopener,noreferrer')
         setTimeout(() => URL.revokeObjectURL(url), 60_000)
       }
-    } catch (err: any) {
-      setError(err?.message || 'Erreur génération PDF')
+    } catch (err) {
+      setError(errorMessage(err) || 'Erreur génération PDF')
     } finally {
       setLoading(false)
     }

@@ -13,6 +13,8 @@ import {
   TrashIcon, ArrowRefreshIcon, CalendarIcon, ReceiptIcon, ClockIcon,
   ExclamationIcon,
 } from "@/components/Icons"
+import { errorMessage } from "@/lib/error-message"
+import type { FacturePayload } from "@/lib/types-documents"
 
 const DocumentDownloadButton = dynamic(() => import("@/components/DocumentDownloadButton"), { ssr: false })
 const ResendEmailButton = dynamic(() => import("@/components/ResendEmailButton"), { ssr: false })
@@ -32,7 +34,7 @@ type FactureRow = {
   envoye_email: string | null
   envoye_at: string | null
   pdf_url: string | null
-  payload?: any
+  payload?: Partial<FacturePayload> | null
   intervention_id: string | null
   client_id: string | null
   client_nom: string | null
@@ -96,10 +98,10 @@ export default function FactureConsolePage() {
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`)
       const onlyFactures: FactureRow[] = (data.documents || [])
-        .filter((d: any) => d.type === 'facture')
+        .filter((d: { type?: string }) => d.type === 'facture')
       setFactures(onlyFactures)
-    } catch (e: any) {
-      setError(e.message || 'Erreur de chargement')
+    } catch (e) {
+      setError(errorMessage(e) || 'Erreur de chargement')
     } finally {
       setLoading(false)
     }
@@ -161,8 +163,8 @@ export default function FactureConsolePage() {
       if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`)
       setFactures(prev => prev.map(x => x.id === f.id ? { ...x, statut: 'paye' } : x))
       setInfo(`Facture ${f.numero || ''} marquée comme payée.`)
-    } catch (e: any) {
-      setError(`Erreur : ${e.message}`)
+    } catch (e) {
+      setError(`Erreur : ${errorMessage(e)}`)
     } finally {
       setPendingId(null)
     }
@@ -181,8 +183,8 @@ export default function FactureConsolePage() {
       if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`)
       setInfo(`Facture ${f.numero || ''} annulée.`)
       await load()
-    } catch (e: any) {
-      setError(`Erreur : ${e.message}`)
+    } catch (e) {
+      setError(`Erreur : ${errorMessage(e)}`)
     } finally {
       setPendingId(null)
     }
@@ -200,8 +202,8 @@ export default function FactureConsolePage() {
       if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`)
       setInfo(`Facture ${f.numero || ''} supprimée.`)
       await load()
-    } catch (e: any) {
-      setError(`Erreur suppression : ${e.message}`)
+    } catch (e) {
+      setError(`Erreur suppression : ${errorMessage(e)}`)
     } finally {
       setPendingId(null)
     }
@@ -275,8 +277,8 @@ export default function FactureConsolePage() {
       if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`)
       setFactures(prev => prev.map(x => x.id === f.id ? { ...x, envoye_at: new Date().toISOString(), envoye_email: email } : x))
       setInfo(`Relance envoyée à ${email}.`)
-    } catch (e: any) {
-      setError(`Erreur relance : ${e.message}`)
+    } catch (e) {
+      setError(`Erreur relance : ${errorMessage(e)}`)
     } finally {
       setPendingId(null)
     }
@@ -566,9 +568,9 @@ export default function FactureConsolePage() {
                                 <span>PDF</span>
                               </a>
                             ) : (
-                              <DocumentDownloadButton doc={f as any} />
+                              <DocumentDownloadButton doc={f} />
                             )}
-                            <ResendEmailButton doc={f as any} />
+                            <ResendEmailButton doc={f} />
                             <RequestReviewButton
                               clientEmail={f.client_email}
                               clientNom={f.client_nom}

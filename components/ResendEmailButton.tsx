@@ -8,13 +8,15 @@ import { FactureDocument, type FactureData } from "./FacturePDF"
 import { DevisDocument, type DevisData, type ClientData } from "./DevisPDF"
 import { AttestationDocument, type AttestationData } from "./AttestationPDF"
 import type { HistoriqueDocument } from "./DocumentDownloadButton"
+import { errorMessage } from "@/lib/error-message"
+import type { DocumentPayload } from "@/lib/types-documents"
 
 type DocWithEmail = HistoriqueDocument & {
   envoye_email?: string | null
   client_email?: string | null
 }
 
-async function fetchPayload(id: string) {
+async function fetchPayload(id: string): Promise<DocumentPayload | null> {
   const res = await fetch(`/api/historique/${id}`, { cache: 'no-store' })
   const data = await res.json()
   if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`)
@@ -38,9 +40,9 @@ function getTechnicien(): string {
 
 async function buildSendBody(
   doc: HistoriqueDocument,
-  payload: any,
+  payload: DocumentPayload,
   clientEmail: string,
-): Promise<{ endpoint: string; body: any } | null> {
+): Promise<{ endpoint: string; body: Record<string, unknown> } | null> {
   const technicienNom = getTechnicien()
 
   if (doc.type === 'facture') {
@@ -180,8 +182,8 @@ export default function ResendEmailButton({ doc }: { doc: DocWithEmail }) {
       if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`)
       setSent(true)
       setTimeout(() => { setOpen(false); setSent(false) }, 1500)
-    } catch (e: any) {
-      setError(e?.message || 'Erreur envoi')
+    } catch (e) {
+      setError(errorMessage(e) || 'Erreur envoi')
     } finally {
       setSending(false)
     }

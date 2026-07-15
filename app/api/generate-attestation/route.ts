@@ -1,17 +1,22 @@
 import { NextRequest, NextResponse } from "next/server"
 import Anthropic from "@anthropic-ai/sdk"
+import { errorMessage, errorStatus } from "@/lib/error-message"
+import type { AttestationData } from "@/lib/types-documents"
+
+/** Sortie LLM avant normalisation — forme espérée mais non garantie. */
+type AiAttestation = Partial<AttestationData> & Record<string, unknown>
 
 const MODEL = process.env.ANTHROPIC_MODEL || "claude-sonnet-4-5"
 
 async function callWithRetry<T>(fn: () => Promise<T>, maxAttempts = 5): Promise<T> {
-  let lastErr: any
+  let lastErr: unknown
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
       return await fn()
-    } catch (e: any) {
+    } catch (e) {
       lastErr = e
-      const status = e?.status || e?.response?.status
-      const msg = String(e?.message || '')
+      const status = errorStatus(e)
+      const msg = errorMessage(e)
       const retryable =
         status === 529 || status === 503 || status === 500 || status === 429 ||
         /529|overloaded|503|500|429|rate.?limit/i.test(msg)
@@ -134,11 +139,11 @@ Réponds UNIQUEMENT avec ce JSON (sans markdown, sans backticks) :
       max_tokens: 3500,
       messages: [{ role: "user", content: prompt }],
     }))
-  } catch (e: any) {
-    return NextResponse.json({ error: `Anthropic API : ${e?.message || e?.toString()}` }, { status: 500 })
+  } catch (e) {
+    return NextResponse.json({ error: `Anthropic API : ${errorMessage(e) || e?.toString()}` }, { status: 500 })
   }
 
-  let data: any
+  let data: AiAttestation
   try {
     data = parseJson(
       (msg.content as { type: string; text?: string }[])
@@ -146,24 +151,24 @@ Réponds UNIQUEMENT avec ce JSON (sans markdown, sans backticks) :
         .map(block => block.text || "")
         .join("")
     )
-  } catch (e: any) {
+  } catch (e) {
     const rawText = (msg.content as { type: string; text?: string }[])
       .filter(block => block.type === "text")
       .map(block => block.text || "")
       .join("")
     return NextResponse.json({
-      error: `Réponse IA illisible : ${e.message}`,
+      error: `Réponse IA illisible : ${errorMessage(e)}`,
       raw: rawText.slice(0, 500),
     }, { status: 500 })
   }
 
   // Normalisation
   if (!Array.isArray(data.observations)) data.observations = []
-  data.observations = data.observations.map((o: any) => ({
+  data.observations = data.observations.map((o) => ({
     label: typeof o?.label === 'string' ? o.label : '',
     valeur: typeof o?.valeur === 'string' ? o.valeur : '',
-    statut: ['ok', 'ko', 'info'].includes(o?.statut) ? o.statut : 'info',
-  })).filter((o: any) => o.label)
+    statut: o?.statut && ['ok', 'ko', 'info'].includes(o.statut) ? o.statut : 'info',
+  })).filter((o) => o.label)
 
   if (variante === 'non-conforme') {
     if (!Array.isArray(data.anomalies)) data.anomalies = []

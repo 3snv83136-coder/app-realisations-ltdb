@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { persistRapport } from "@/lib/persist"
+import { persistRapport, type PersistRapportInput } from "@/lib/persist"
 
 export const dynamic = 'force-dynamic'
 
@@ -9,7 +9,7 @@ export const dynamic = 'force-dynamic'
  * télécharger / le facturer plus tard.
  */
 export async function POST(req: NextRequest) {
-  let body: any
+  let body: Partial<PersistRapportInput>
   try {
     body = await req.json()
   } catch {

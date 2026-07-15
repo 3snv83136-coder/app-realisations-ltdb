@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { Resend } from "resend"
 import crypto from "crypto"
 import { EMAIL_RE, escapeHtml, getResendFromEmail, getResendRecipient } from "@/lib/email-utils"
+import { errorMessage } from "@/lib/error-message"
 
 function getBaseUrl(req: NextRequest): string {
   const configured = process.env.APP_BASE_URL
@@ -25,7 +26,7 @@ function quoteRef() {
   return `QC-${y}${m}${day}-${hh}${mm}`
 }
 
-async function saveExternalQuote(payload: any) {
+async function saveExternalQuote(payload: Record<string, unknown>) {
   const externalUrl = process.env.EXTERNAL_DB_API_URL
   const externalToken = process.env.EXTERNAL_DB_API_TOKEN || ""
   if (!externalUrl) throw new Error("EXTERNAL_DB_API_URL manquante")
@@ -91,11 +92,11 @@ export async function POST(req: NextRequest) {
     source: "app-realisations-ltdb",
   }
 
-  let externalResp: any = null
+  let externalResp: unknown = null
   try {
     externalResp = await saveExternalQuote(quotePayload)
-  } catch (e: any) {
-    return NextResponse.json({ error: `Erreur stockage externe: ${e.message || e.toString()}` }, { status: 500 })
+  } catch (e) {
+    return NextResponse.json({ error: `Erreur stockage externe: ${errorMessage(e)}` }, { status: 500 })
   }
 
   const resend = new Resend(resendKey)

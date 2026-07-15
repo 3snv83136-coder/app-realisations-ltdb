@@ -2,6 +2,16 @@ import { NextRequest, NextResponse } from "next/server"
 import { getAiModel, llmChat, llmConfigError, llmIsConfigured } from "@/lib/llm"
 import { parseAiJson } from "@/lib/parseAiJson"
 import { normalizeSeoOutput } from "@/lib/seo-normalize"
+import { errorMessage } from "@/lib/error-message"
+import type { RapportData, SeoData } from "@/lib/types-documents"
+
+/**
+ * Sorties LLM avant normalisation : la forme est celle attendue, mais rien
+ * n'est garanti (clé manquante, mauvais type) — d'où les gardes runtime
+ * ci-dessous et l'intersection avec Record pour tolérer les clés parasites.
+ */
+type AiRapport = Partial<RapportData> & Record<string, unknown>
+type AiSeo = SeoData & Record<string, unknown>
 
 export const maxDuration = 300
 
@@ -290,32 +300,32 @@ sont placés avant pour ne jamais être perdus si la réponse est longue.
       llmChat(rapportPrompt, { model, maxTokens: 16000, jsonMode: true }),
       llmChat(seoPrompt, { model, maxTokens: 16000, jsonMode: true }),
     ])
-  } catch (e: any) {
-    return NextResponse.json({ error: `AI API : ${e.message || e.toString()}`, model }, { status: 500 })
+  } catch (e) {
+    return NextResponse.json({ error: `AI API : ${errorMessage(e)}`, model }, { status: 500 })
   }
 
-  let rapport: any
+  let rapport: AiRapport
   try {
-    rapport = parseAiJson(rapportRaw)
-  } catch (e: any) {
+    rapport = parseAiJson<AiRapport>(rapportRaw)
+  } catch (e) {
     console.error('[generate] Parsing rapport IA échoué', {
-      error: e.message,
+      error: errorMessage(e),
       rawLength: rapportRaw.length,
       raw: rapportRaw,
     })
-    return NextResponse.json({ error: `Parsing rapport IA : ${e.message}`, raw: rapportRaw.slice(0, 500) }, { status: 500 })
+    return NextResponse.json({ error: `Parsing rapport IA : ${errorMessage(e)}`, raw: rapportRaw.slice(0, 500) }, { status: 500 })
   }
 
   // Le SEO sert uniquement à la publication site (page /nouveau).
   // Si le parsing échoue, on dégrade gracieusement avec seo={} + warning
   // pour ne pas bloquer le wizard Mode Terrain qui n'en a pas besoin.
-  let seo: any = {}
+  let seo: AiSeo = {}
   let seoWarning: string | null = null
   try {
-    seo = parseAiJson(seoRaw)
-  } catch (e: any) {
-    seoWarning = `Parsing SEO IA : ${e.message}. Le SEO sera vide — la publication site nécessitera un édit manuel.`
-    console.error('[generate] SEO parse failed', { error: e.message, raw: seoRaw.slice(0, 500) })
+    seo = parseAiJson<AiSeo>(seoRaw)
+  } catch (e) {
+    seoWarning = `Parsing SEO IA : ${errorMessage(e)}. Le SEO sera vide — la publication site nécessitera un édit manuel.`
+    console.error('[generate] SEO parse failed', { error: errorMessage(e), raw: seoRaw.slice(0, 500) })
   }
 
   // Normalisation : garantit que la sortie a toujours la forme attendue
@@ -326,7 +336,7 @@ sont placés avant pour ne jamais être perdus si la réponse est longue.
   rapport.recommandations = typeof rapport.recommandations === 'string' ? rapport.recommandations : ''
   rapport.commentaire_technicien = typeof rapport.commentaire_technicien === 'string' ? rapport.commentaire_technicien : ''
   rapport.phases = Array.isArray(rapport.phases)
-    ? rapport.phases.filter((p: any) => p && typeof p === 'object').map((p: any) => ({
+    ? rapport.phases.filter((p) => p && typeof p === 'object').map((p) => ({
         titre: typeof p.titre === 'string' ? p.titre : '',
         statut: p.statut || 'neutral',
         contexte: typeof p.contexte === 'string' ? p.contexte : '',
@@ -335,7 +345,7 @@ sont placés avant pour ne jamais être perdus si la réponse est longue.
       }))
     : []
   rapport.analyse_table = Array.isArray(rapport.analyse_table)
-    ? rapport.analyse_table.filter((r: any) => r && typeof r === 'object').map((r: any) => ({
+    ? rapport.analyse_table.filter((r) => r && typeof r === 'object').map((r) => ({
         probleme: typeof r.probleme === 'string' ? r.probleme : '',
         localisation: typeof r.localisation === 'string' ? r.localisation : '',
         description: typeof r.description === 'string' ? r.description : '',
@@ -344,11 +354,11 @@ sont placés avant pour ne jamais être perdus si la réponse est longue.
       }))
     : []
   rapport.preconisations = Array.isArray(rapport.preconisations)
-    ? rapport.preconisations.filter((p: any) => p && typeof p === 'object').map((p: any) => ({
+    ? rapport.preconisations.filter((p) => p && typeof p === 'object').map((p) => ({
         tag: typeof p.tag === 'string' ? p.tag : '',
         titre: typeof p.titre === 'string' ? p.titre : '',
         items: Array.isArray(p.items)
-          ? p.items.filter((it: any) => it && typeof it === 'object').map((it: any) => ({
+          ? p.items.filter((it) => it && typeof it === 'object').map((it) => ({
               k: typeof it.k === 'string' ? it.k : '',
               v: typeof it.v === 'string' ? it.v : '',
             }))
@@ -365,7 +375,7 @@ sont placés avant pour ne jamais être perdus si la réponse est longue.
   seo.meta_keywords = Array.isArray(seo.meta_keywords) ? seo.meta_keywords : []
   seo.related_services = Array.isArray(seo.related_services) ? seo.related_services : []
   seo.faq = Array.isArray(seo.faq)
-    ? seo.faq.filter((f: any) => f && typeof f === 'object').map((f: any) => ({
+    ? seo.faq.filter((f) => f && typeof f === 'object').map((f) => ({
         question: typeof f.question === 'string' ? f.question : '',
         reponse: typeof f.reponse === 'string' ? f.reponse : '',
       }))
@@ -390,7 +400,7 @@ sont placés avant pour ne jamais être perdus si la réponse est longue.
     ville,
     codePostal: cp,
     transcription,
-  })
+  }) as AiSeo
 
   // Slug + référence déterministes côté serveur
   seo.slug = realisationSlug

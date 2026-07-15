@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import OpenAI from "openai"
+import { errorMessage } from "@/lib/error-message"
 
 export async function POST(req: NextRequest) {
   if (!process.env.OPENAI_API_KEY) {
@@ -18,7 +19,7 @@ export async function POST(req: NextRequest) {
       prompt: "débouchage, hydrocurage, canalisation, évier, WC, siphon, bouchon, curage, chemisage, inspection caméra, Toulon, Hyères, Var",
     })
     return NextResponse.json({ text: transcription.text })
-  } catch (e: any) {
-    return NextResponse.json({ error: `OpenAI : ${e.message || e.toString()}` }, { status: 500 })
+  } catch (e) {
+    return NextResponse.json({ error: `OpenAI : ${errorMessage(e)}` }, { status: 500 })
   }
 }

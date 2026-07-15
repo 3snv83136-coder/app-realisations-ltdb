@@ -14,6 +14,7 @@ import TerrainOceanLoader from "@/components/terrain/TerrainOceanLoader"
 import TerrainClientHero from "@/components/terrain/TerrainClientHero"
 import DevisEnvoiPanel from "@/components/DevisEnvoiPanel"
 import type { DevisData, DevisLineData } from "@/components/DevisPDF"
+import type { RapportData, SeoData, FactureData } from "@/lib/types-documents"
 import { joinNomPrenom } from "@/lib/rapportToDevis"
 import { fetchJsonWithRetry, fetchWithRetry } from "@/lib/fetchWithRetry"
 import { useWakeLock } from "@/lib/useWakeLock"
@@ -52,7 +53,7 @@ type Intervention = {
   heure_fin_reelle: string | null
   mail_envoye_at: string | null
   sms_envoye_at: string | null
-  rapport_json: any
+  rapport_json: RapportData | null
   photos_urls: string[] | null
   photos_legendes: string[] | null
   photos_categories?: string[] | null
@@ -596,8 +597,8 @@ function StepRapport({ interv, technicien, onSaved, onError }: {
   const [transcription, setTranscription] = useState('')
   const [generating, setGenerating] = useState(false)
   const [genDone, setGenDone] = useState(false)
-  const [rapportPreview, setRapportPreview] = useState<any | null>(null)
-  const [seoPreview, setSeoPreview] = useState<any | null>(null)
+  const [rapportPreview, setRapportPreview] = useState<RapportData | null>(null)
+  const [seoPreview, setSeoPreview] = useState<SeoData | null>(null)
   const [saving, setSaving] = useState(false)
   const [isOnline, setIsOnline] = useState(true)
   const [queuedOk, setQueuedOk] = useState(false)
@@ -811,7 +812,7 @@ function StepRapport({ interv, technicien, onSaved, onError }: {
             <div className="border-t border-slate-200 pt-4">
               <div className="text-[11px] uppercase tracking-wider text-slate-500 font-bold mb-2">Devis détecté</div>
               <ul className="space-y-1 text-sm">
-                {rapportPreview.devis.lignes.map((l: any, i: number) => (
+                {rapportPreview.devis.lignes.map((l, i) => (
                   <li key={i} className="flex justify-between gap-2">
                     <span className="text-slate-700">{l.designation}</span>
                     <span className="text-slate-500 tabular-nums">
@@ -976,9 +977,9 @@ function StepFacture({ interv, client, onCreated, onError }: {
         if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`)
         if (cancelled) return
 
-        const facture = data.prefill?.facture
+        const facture = data.prefill?.facture as Partial<FactureData> | undefined
         if (facture) {
-          setLignes((facture.lignes || []).map((l: any) => ({
+          setLignes((facture.lignes || []).map(l => ({
             designation: l.designation || '',
             description: l.description || '',
             qte: Number(l.qte) || 1,

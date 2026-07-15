@@ -1,11 +1,12 @@
 'use client'
 import { useMemo } from "react"
 import { TEL_PRINCIPAL_FALLBACK } from "@/lib/parametres"
+import type { SeoData } from "@/lib/types-documents"
 
 type Props = {
   open: boolean
   onClose: () => void
-  seo: any
+  seo: SeoData | null
   ville: string
   photos: { dataUrl: string; legende: string }[]
 }
@@ -29,7 +30,7 @@ export default function SitePreviewModal({ open, onClose, seo, ville, photos }: 
       : ''
     // FAQ rendue comme à la publication : intégrée au contenu, classes faq-block/faq-item.
     const faq = Array.isArray(seo.faq) && seo.faq.length > 0
-      ? `<section class="content-block faq-block"><h2>Questions fréquentes</h2>${seo.faq.map((f: any) => `<details class="faq-item"><summary>${escape(f.question)}</summary><div class="faq-answer"><p>${escape(f.reponse)}</p></div></details>`).join('')}</section>`
+      ? `<section class="content-block faq-block"><h2>Questions fréquentes</h2>${seo.faq.map(f => `<details class="faq-item"><summary>${escape(f.question)}</summary><div class="faq-answer"><p>${escape(f.reponse)}</p></div></details>`).join('')}</section>`
       : ''
     return `<!doctype html>
 <html lang="fr"><head><meta charset="utf-8"><title>${escape(seo.titre_h1 || '')}</title>

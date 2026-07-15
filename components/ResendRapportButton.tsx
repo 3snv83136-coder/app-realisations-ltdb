@@ -5,6 +5,7 @@ import { safeFilename } from "@/lib/filename"
 import { proxyImageUrl } from "@/lib/proxyImageUrl"
 import { getLtdbSignatureUrl, fetchAccordSignatureForRapport } from "@/lib/rapport-signatures"
 import { RealisationDocument, type RapportData } from "./RealisationPDF"
+import { errorMessage } from "@/lib/error-message"
 
 export interface ResendRapportIntervention {
   id: string
@@ -15,7 +16,7 @@ export interface ResendRapportIntervention {
   code_postal: string | null
   date_realisee: string | null
   date_prevue: string | null
-  rapport_json: any
+  rapport_json: RapportData | null
   photos_urls: string[] | null
   client_nom: string | null
   client_email: string | null
@@ -97,8 +98,8 @@ export default function ResendRapportButton({ intervention }: { intervention: Re
       if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`)
       setSent(true)
       setTimeout(() => { setOpen(false); setSent(false) }, 1500)
-    } catch (e: any) {
-      setError(e?.message || 'Erreur envoi')
+    } catch (e) {
+      setError(errorMessage(e) || 'Erreur envoi')
     } finally {
       setSending(false)
     }

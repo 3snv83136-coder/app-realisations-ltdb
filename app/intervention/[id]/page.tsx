@@ -10,6 +10,8 @@ import { CANAUX_ACQUISITION, canalIcon, canalLabel } from "@/lib/canaux"
 import { TYPES_INTERVENTION, isDevisIntervention } from "@/lib/types-intervention"
 import { countAvisRelancesPendantes } from "@/lib/avis-relance-utils"
 import { formatNotifyTechnicienFeedback } from "@/lib/notify-technicien"
+import { errorMessage } from "@/lib/error-message"
+import type { RapportData } from "@/lib/types-documents"
 
 const InterventionMap = dynamic(() => import('@/components/InterventionMap'), { ssr: false })
 const InterventionRapportDownloadButton = dynamic(
@@ -60,7 +62,7 @@ type InterventionDetail = {
   prix_prevu: number | null
   notes_internes: string | null
   publie_slug: string | null
-  rapport_json: any
+  rapport_json: RapportData | null
   photos_urls: string[] | null
   canal_acquisition: string | null
   video_urls: Partial<Record<'vertical' | 'horizontal' | 'square', string>> | null
@@ -176,8 +178,8 @@ export default function InterventionDetailPage({ params }: { params: { id: strin
           return r.json()
         })
         .then(d => setTechniciens(d.techniciens || []))
-        .catch((e: any) => {
-          setTechniciensError(`Impossible de charger la liste des techniciens (${e?.message || 'erreur réseau'}).`)
+        .catch((e: unknown) => {
+          setTechniciensError(`Impossible de charger la liste des techniciens (${errorMessage(e) || 'erreur réseau'}).`)
         })
     }
   }
@@ -190,7 +192,7 @@ export default function InterventionDetailPage({ params }: { params: { id: strin
     try {
       // Diff intervention
       const payload: Record<string, unknown> = {}
-      const original: any = intervention
+      const original = intervention as unknown as Record<string, unknown>
       for (const [k, v] of Object.entries(form)) {
         const orig = k === 'heure_prevue' ? (original[k] ? String(original[k]).slice(0, 5) : null) : original[k]
         if (v !== orig) payload[k] = v === '' ? null : v
@@ -200,7 +202,7 @@ export default function InterventionDetailPage({ params }: { params: { id: strin
       // le tel/mail manque souvent à la prise de RDV).
       const clientPatch: Record<string, unknown> = {}
       if (client) {
-        const origClient: any = client
+        const origClient = client as unknown as Record<string, unknown>
         for (const [k, v] of Object.entries(clientForm)) {
           const norm = typeof v === 'string' && v.trim() !== '' ? v.trim() : null
           const orig = origClient[k] ?? null
@@ -662,10 +664,11 @@ export default function InterventionDetailPage({ params }: { params: { id: strin
           clientNom={client?.nom || null}
           publieSlug={intervention.publie_slug}
           onCreateFacture={() => {
-            if (!intervention.rapport_json) return
+            const rapport = intervention.rapport_json
+            if (!rapport) return
             import('@/lib/rapportToFacture').then(({ buildFactureFromRapport }) => {
               const payload = buildFactureFromRapport({
-                rapport: intervention.rapport_json,
+                rapport,
                 client_nom: client?.nom || null,
                 client_email: client?.email || null,
                 client_adresse: client?.adresse || null,

@@ -16,8 +16,18 @@ function signStopPayload(payload: string, exp: number, secret: string): string {
   return crypto.createHmac("sha256", secret).update(`${payload}.${exp}`).digest("hex")
 }
 
+interface NotifyClientBody {
+  clientEmail?: string
+  clientNom?: string
+  technicienNom?: string
+  ville?: string
+  dateIntervention?: string
+  pdfBase64?: string
+  pdfFilename?: string
+}
+
 export async function POST(req: NextRequest) {
-  let body: any
+  let body: NotifyClientBody
   try {
     body = await req.json()
   } catch {
@@ -111,7 +121,7 @@ function relanceSubject(jour: number, prenom: string) {
   return `Dernière chance — partagez votre expérience`
 }
 
-function emailRapport({ clientNom, technicienNom, ville, dateIntervention, reviewUrl, stopUrl, tel }: { clientNom: string; technicienNom: string; ville: string; dateIntervention: string; reviewUrl: string; stopUrl: string; tel: string }) {
+function emailRapport({ clientNom, technicienNom, ville, dateIntervention, reviewUrl, stopUrl, tel }: { clientNom?: string; technicienNom: string; ville?: string; dateIntervention?: string; reviewUrl: string; stopUrl: string; tel: string }) {
   const cn = escapeHtml(clientNom || 'Madame, Monsieur')
   const tn = escapeHtml(technicienNom)
   const v = escapeHtml(ville)
@@ -148,7 +158,7 @@ function emailRapport({ clientNom, technicienNom, ville, dateIntervention, revie
 </body></html>`
 }
 
-function emailRelance({ clientNom, technicienNom, ville, reviewUrl, jour, tel }: { clientNom: string; technicienNom: string; ville: string; reviewUrl: string; jour: number; tel: string }) {
+function emailRelance({ clientNom, technicienNom, ville, reviewUrl, jour, tel }: { clientNom?: string; technicienNom: string; ville?: string; reviewUrl: string; jour: number; tel: string }) {
   const cn = escapeHtml(clientNom || 'Madame, Monsieur')
   const tn = escapeHtml(technicienNom)
   const v = escapeHtml(ville)

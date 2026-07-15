@@ -79,8 +79,8 @@ export default function ApercuAccord({ accord, lignes, emetteur, telephone, tech
           <p className="text-xs text-slate-500 mb-2">
             Lieu d&apos;exécution : {adresseClient || '—'}
           </p>
-          <div className="border border-slate-200 rounded-lg overflow-hidden">
-            <table className="w-full text-xs">
+          <div className="border border-slate-200 rounded-lg overflow-hidden overflow-x-auto">
+            <table className="w-full min-w-[480px] text-xs">
               <thead>
                 <tr className="bg-slate-100 text-slate-600 text-left">
                   <th className="px-2 py-1.5 font-bold">Prestation</th>

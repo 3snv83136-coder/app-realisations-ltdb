@@ -122,7 +122,7 @@ export function repairJson(s: string): string {
  * Parse le JSON d'une réponse LLM en enchaînant les stratégies de réparation.
  * Lève `Error('JSON invalide et irréparable')` si aucune ne fonctionne.
  */
-export function parseAiJson(raw: string): any {
+export function parseAiJson<T = unknown>(raw: string): T {
   // 1. Retire fences markdown + normalise les guillemets typographiques
   let cleaned = raw.trim()
     .replace(/^```(?:json)?\s*/i, '')

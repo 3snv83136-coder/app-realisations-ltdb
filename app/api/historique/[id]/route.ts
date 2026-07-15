@@ -117,14 +117,14 @@ export async function PATCH(
     return NextResponse.json({ error: 'id manquant' }, { status: 400 })
   }
 
-  let body: any
+  let body: { statut?: string; envoye_at?: string | null; envoye_email?: string | null }
   try {
     body = await req.json()
   } catch {
     return NextResponse.json({ error: 'JSON invalide' }, { status: 400 })
   }
 
-  const update: Record<string, any> = {}
+  const update: Record<string, unknown> = {}
   if (typeof body.statut === 'string') {
     if (!ALLOWED_STATUTS.includes(body.statut as DocumentStatut)) {
       return NextResponse.json({ error: `Statut invalide. Attendus : ${ALLOWED_STATUTS.join(', ')}` }, { status: 400 })

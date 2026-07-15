@@ -277,7 +277,8 @@ async function refreshTikTokToken(): Promise<string> {
 export async function buildSocialMetadata(opts: {
   typeIntervention?: string | null
   ville?: string | null
-  rapport?: any
+  /** Résumé court éventuel du rapport (clés legacy resume_court / resume). */
+  rapport?: { resume_court?: string; resume?: string } | null
 }): Promise<{ title: string; description: string }> {
   const type = opts.typeIntervention || "Intervention plomberie"
   const ville = opts.ville || "Var"

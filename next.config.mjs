@@ -40,6 +40,20 @@ const nextConfig = {
     })
     return config
   },
+  async headers() {
+    return [
+      {
+        source: "/(.*)",
+        headers: [
+          { key: "X-Content-Type-Options", value: "nosniff" },
+          { key: "X-Frame-Options", value: "SAMEORIGIN" },
+          { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+          // Micro (dictée vocale) et caméra/géoloc restreints à l'app elle-même.
+          { key: "Permissions-Policy", value: "camera=(self), microphone=(self), geolocation=(self)" },
+        ],
+      },
+    ]
+  },
 }
 
 export default nextConfig

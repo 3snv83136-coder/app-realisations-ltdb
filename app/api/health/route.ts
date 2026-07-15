@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getAiProvider, llmHealthPing, llmIsConfigured } from '@/lib/llm'
+import { errorMessage } from "@/lib/error-message"
 
 export const maxDuration = 30
 export const dynamic = 'force-dynamic'
@@ -14,8 +15,8 @@ async function checkBackend(): Promise<Check> {
     const res = await fetch(url, { method: 'HEAD', redirect: 'follow', signal: AbortSignal.timeout(8000) })
     if (res.status >= 500) return { ok: false, latencyMs: Date.now() - start, detail: `HTTP ${res.status}` }
     return { ok: true, latencyMs: Date.now() - start, detail: `HTTP ${res.status}` }
-  } catch (e: any) {
-    return { ok: false, latencyMs: Date.now() - start, detail: String(e?.message || e).slice(0, 240) }
+  } catch (e) {
+    return { ok: false, latencyMs: Date.now() - start, detail: errorMessage(e).slice(0, 240) }
   }
 }
 
@@ -50,8 +51,8 @@ async function checkResend(): Promise<Check> {
       return { ok: false, latencyMs: Date.now() - start, detail: `domain "${fromDomain}" not verified on Resend (status: ${status})` }
     }
     return { ok: true, latencyMs: Date.now() - start, detail: `domain "${fromDomain}" verified` }
-  } catch (e: any) {
-    return { ok: false, latencyMs: Date.now() - start, detail: String(e?.message || e).slice(0, 240) }
+  } catch (e) {
+    return { ok: false, latencyMs: Date.now() - start, detail: errorMessage(e).slice(0, 240) }
   }
 }
 

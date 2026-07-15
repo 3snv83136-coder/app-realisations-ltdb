@@ -15,8 +15,19 @@ export const maxDuration = 60
  *   pdfRapportBase64, pdfFilename?, interventionId?
  * }
  */
+interface NotifyRapportBody {
+  clientEmail?: string
+  clientNom?: string
+  ville?: string
+  reference?: string
+  technicienNom?: string
+  pdfRapportBase64?: string
+  pdfFilename?: string
+  interventionId?: string
+}
+
 export async function POST(req: NextRequest) {
-  let body: any
+  let body: NotifyRapportBody
   try {
     body = await req.json()
   } catch {

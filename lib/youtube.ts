@@ -165,7 +165,8 @@ export async function buildVideoMetadata(opts: {
   typeIntervention?: string | null
   ville?: string | null
   reference?: string | null
-  rapport?: any
+  /** Résumé court éventuel du rapport (clés legacy resume_court / resume). */
+  rapport?: { resume_court?: string; resume?: string } | null
 }): Promise<{ title: string; description: string; tags: string[] }> {
   const type = opts.typeIntervention || "Intervention plomberie"
   const ville = opts.ville || "Var"

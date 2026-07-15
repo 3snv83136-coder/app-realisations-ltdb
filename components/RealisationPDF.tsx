@@ -4,6 +4,7 @@ import { TEL_PRINCIPAL_FALLBACK } from "@/lib/parametres"
 import { LTDB_EMETTEUR } from "@/lib/emetteur"
 import { getClientSignatureForPdf, LTDB_SIGNATURE_PATH } from "@/lib/rapport-signatures"
 import { PdfBanner, PDF_C, PDF_BANNER_HEIGHT } from "./PdfBranding"
+import type { RapportData, RapportDevisLine, StatutTechnique } from "@/lib/types-documents"
 
 /* ============ CHARTE (alignée facture / devis) ============ */
 const C = {
@@ -409,47 +410,10 @@ const s = StyleSheet.create({
 })
 
 /* ============ TYPES ============ */
-type Statut = 'critical' | 'warn' | 'info' | 'ok' | 'neutral'
-
-interface Phase { titre: string; statut?: Statut; contexte: string; action: string; resultat: string }
-interface AnalyseRow { probleme: string; localisation: string; description: string; statut: Statut; label: string }
-interface PrecoItem { k: string; v: string }
-interface Preco { tag: string; titre: string; items: PrecoItem[] }
-interface DevisLine { section?: string; designation: string; description?: string; qte: number; pu_ht: number }
-interface Devis {
-  numero?: string
-  validite_jours?: number
-  lignes: DevisLine[]
-  tva_taux?: number
-  conditions?: string[]
-}
-
-export interface RapportData {
-  diagnostic: string
-  travaux_realises: string
-  recommandations: string
-  commentaire_technicien: string
-  objet?: string
-  contexte?: string
-  localisation?: { zone: string; configuration: string }
-  materiel_utilise?: string[]
-  duree_intervention?: string
-  conditions_intervention?: string
-  phases?: Phase[]
-  avis_technique?: {
-    titre: string; niveau?: Statut; intro: string;
-    points_majeurs: string[]; diagnostic_final: string; recommandation_urgente: string
-  } | null
-  analyse_table?: AnalyseRow[]
-  preconisations?: Preco[]
-  devis?: Devis | null
-  reference?: string
-  garantie_intervention?: {
-    est_garanti: boolean
-    commentaire?: string
-    saisi_at?: string
-  } | null
-}
+/* Source unique de vérité : lib/types-documents.ts (ré-export pour compat). */
+type Statut = StatutTechnique
+type DevisLine = RapportDevisLine
+export type { RapportData }
 
 export interface PDFProps {
   clientNom: string

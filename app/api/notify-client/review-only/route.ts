@@ -10,8 +10,15 @@ import { getGoogleReviewUrl } from "@/lib/review-url"
  * pour relancer manuellement un client à la demande de l'admin, sans risquer de
  * spammer un client qui a déjà reçu la séquence complète au moment de l'envoi du rapport.
  */
+interface ReviewOnlyBody {
+  clientEmail?: string
+  clientNom?: string
+  ville?: string
+  technicienNom?: string
+}
+
 export async function POST(req: NextRequest) {
-  let body: any
+  let body: ReviewOnlyBody
   try { body = await req.json() } catch {
     return NextResponse.json({ error: 'JSON invalide' }, { status: 400 })
   }

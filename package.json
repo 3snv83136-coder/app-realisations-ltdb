@@ -50,6 +50,8 @@
     "@types/react": "^18",
     "@types/react-dom": "^18",
     "@types/react-pdf": "^6.2.0",
+    "eslint": "^8.57.1",
+    "eslint-config-next": "^14.2.35",
     "node-loader": "^2.1.0",
     "playwright": "^1.59.1",
     "postcss": "^8",

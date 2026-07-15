@@ -3,6 +3,7 @@ import fs from "node:fs/promises"
 import { getSupabase } from "@/lib/supabase"
 import type { VideoFormat } from "@/lib/video-render-prod"
 import { uploadVideoToStorage } from "@/lib/video-storage"
+import { errorMessage } from "@/lib/error-message"
 
 export const dynamic = "force-dynamic"
 export const maxDuration = 300 // 5 min — Vercel Pro plan needed beyond 60s
@@ -90,8 +91,8 @@ export async function POST(req: NextRequest) {
       .eq("id", interventionId)
 
     return NextResponse.json({ ok: true, video_urls: result }, { status: 200 })
-  } catch (e: any) {
-    const message = e?.message || String(e)
+  } catch (e) {
+    const message = errorMessage(e) || String(e)
     await sb
       .from("interventions")
       .update({ video_status: "failed", video_error: message })

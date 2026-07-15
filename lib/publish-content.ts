@@ -6,6 +6,7 @@ import {
   resolvePhotoCategory,
 } from "@/lib/photo-categories"
 import { REALISATION_PAGE_STYLE } from "@/lib/realisationPageCss"
+import type { RapportData, ResumeIntervention, SeoData } from "@/lib/types-documents"
 
 function escapeHtml(s: string): string {
   return s
@@ -27,14 +28,7 @@ function section(title: string, body: string, extraClass = ""): string {
   return `<section class="${cls}"><h2>${escapeHtml(title)}</h2>${body}</section>`
 }
 
-export type ResumeIntervention = {
-  lieu?: string
-  probleme?: string
-  cause?: string
-  solution?: string
-  duree?: string
-  resultat?: string
-}
+export type { ResumeIntervention }
 
 export type TechnicienPublishInfo = {
   nom: string
@@ -52,7 +46,7 @@ type PhotoMeta = {
 }
 
 /** Reconstruit le HTML article quand seo.contenu_principal est vide (mode terrain). */
-export function buildContenuPrincipalFromRapport(rapport: Record<string, unknown>): string {
+export function buildContenuPrincipalFromRapport(rapport: Partial<RapportData>): string {
   const parts: string[] = []
 
   const objet =
@@ -77,9 +71,8 @@ export function buildContenuPrincipalFromRapport(rapport: Record<string, unknown
 
   let travaux = paragraph(rapport.travaux_realises)
   const phases = Array.isArray(rapport.phases) ? rapport.phases : []
-  for (const ph of phases) {
-    if (!ph || typeof ph !== "object") continue
-    const p = ph as Record<string, unknown>
+  for (const p of phases) {
+    if (!p || typeof p !== "object") continue
     const titre = typeof p.titre === "string" ? p.titre.trim() : ""
     const ctx = paragraph(p.contexte)
     const action = paragraph(p.action)
@@ -114,7 +107,7 @@ function normalizeResumeIntervention(raw: unknown): ResumeIntervention | null {
 
 /** Fallback structuré depuis le rapport si l'IA n'a pas généré resume_intervention. */
 export function buildResumeFromRapport(
-  rapport: Record<string, unknown> | null | undefined,
+  rapport: Partial<RapportData> | null | undefined,
   ville: string,
   codePostal?: string | null,
 ): ResumeIntervention | null {
@@ -181,7 +174,7 @@ function formatInterventionDate(isoDate?: string | null): string {
 
 function buildTechnicienBlockHtml(
   technicien: TechnicienPublishInfo,
-  rapport: Record<string, unknown> | null | undefined,
+  rapport: Partial<RapportData> | null | undefined,
   ville: string,
   interventionDate?: string | null,
 ): string {
@@ -287,8 +280,8 @@ function buildGalleryByCategory(
 }
 
 export function buildPublishContentHtml(opts: {
-  seo: Record<string, unknown>
-  rapport?: Record<string, unknown> | null
+  seo: SeoData
+  rapport?: Partial<RapportData> | null
   typeIntervention?: string | null
   ville: string
   codePostal?: string | null
@@ -296,7 +289,7 @@ export function buildPublishContentHtml(opts: {
   interventionDate?: string | null
   photos?: Omit<PhotoMeta, "photoIndex">[]
   technicien?: TechnicienPublishInfo | null
-}): { content: string; seo: Record<string, unknown> } {
+}): { content: string; seo: SeoData } {
   const { rapport, typeIntervention, ville, codePostal, technicien, cityPageUrl, interventionDate } = opts
   const seo = { ...opts.seo }
 

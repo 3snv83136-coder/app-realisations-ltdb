@@ -8,6 +8,7 @@ import {
 } from "@/lib/notify-technicien"
 import { getSupabaseOrNull, upsertClient, patchClient } from "@/lib/supabase"
 import { isCanalAcquisition } from "@/lib/canaux"
+import type { PostgrestError } from "@supabase/supabase-js"
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 30
@@ -233,8 +234,8 @@ export async function POST(req: NextRequest) {
     canal_acquisition: canalClean,
   }
 
-  let inserted: any = null
-  let insertErr: any = null
+  let inserted: ({ id: string; technicien_id: string | null } & Record<string, unknown>) | null = null
+  let insertErr: PostgrestError | null = null
   let currentRef = baseReference
   for (let attempt = 0; attempt < 5; attempt++) {
     const res = await sb

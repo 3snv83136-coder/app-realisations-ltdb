@@ -6,14 +6,22 @@ import {
   JOURS_RELANCE_FACTURE,
   planifierFactureRelances,
 } from "@/lib/facture-relance"
-import { persistFacture } from "@/lib/persist"
+import { persistFacture, type PersistFactureInput } from "@/lib/persist"
 import { getTelPrincipal } from "@/lib/parametres"
 import { sendOwnerConfirmation } from "@/lib/owner-confirmation"
+import { errorMessage } from "@/lib/error-message"
 
 export const maxDuration = 30
 
+interface NotifyFactureBody extends Partial<PersistFactureInput> {
+  technicienNom?: string
+  dateFacture?: string
+  pdfBase64?: string
+  pdfFilename?: string
+}
+
 export async function POST(req: NextRequest) {
-  let body: any
+  let body: NotifyFactureBody
   try {
     body = await req.json()
   } catch {
@@ -101,8 +109,8 @@ export async function POST(req: NextRequest) {
       })
       relanceIds = rel.reminderIds
       relanceErrors = rel.reminderErrors
-    } catch (e: any) {
-      relanceErrors.push(e?.message || "Planification relances échouée")
+    } catch (e) {
+      relanceErrors.push(errorMessage(e) || "Planification relances échouée")
       console.error("[notify-facture] relances", e)
     }
   }
@@ -116,8 +124,8 @@ export async function POST(req: NextRequest) {
         relanceIds: reglee ? [] : relanceIds,
       })
       if (!docId) persistError = "Sauvegarde DB impossible (vérifie les logs serveur)"
-    } catch (e: any) {
-      persistError = e?.message || 'Erreur de sauvegarde DB'
+    } catch (e) {
+      persistError = errorMessage(e) || 'Erreur de sauvegarde DB'
       console.error('[notify-facture] persist', e)
     }
   }
@@ -141,8 +149,8 @@ export async function POST(req: NextRequest) {
 }
 
 function emailFacture({ clientNom, technicienNom, ville, dateFacture, numero, totalTTC, echeance, agence, tel }: {
-  clientNom?: string; technicienNom: string; ville?: string; dateFacture?: string;
-  numero?: string; totalTTC?: number; echeance?: string; agence?: string; tel: string;
+  clientNom?: string | null; technicienNom: string; ville?: string | null; dateFacture?: string | null;
+  numero?: string | null; totalTTC?: number | null; echeance?: string | null; agence?: string | null; tel: string;
 }) {
   const cn = escapeHtml(clientNom || 'Madame, Monsieur')
   const tn = escapeHtml(technicienNom)

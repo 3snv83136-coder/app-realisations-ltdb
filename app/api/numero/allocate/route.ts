@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getSupabaseOrNull } from "@/lib/supabase"
 import { allocateNumero, type DocSequenceType } from "@/lib/numero"
+import { errorMessage } from "@/lib/error-message"
 
 export const dynamic = "force-dynamic"
 
@@ -30,7 +31,7 @@ export async function POST(req: NextRequest) {
   try {
     const numero = await allocateNumero(sb, type as DocSequenceType)
     return NextResponse.json({ numero })
-  } catch (e: any) {
-    return NextResponse.json({ error: e?.message || "Allocation impossible" }, { status: 500 })
+  } catch (e) {
+    return NextResponse.json({ error: errorMessage(e) || "Allocation impossible" }, { status: 500 })
   }
 }

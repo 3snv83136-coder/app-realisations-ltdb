@@ -4,6 +4,7 @@ import { escapeHtml, getResendFromEmail, getResendRecipient } from "@/lib/email-
 import { fmtEUR } from "@/lib/format"
 import { getTelPrincipal } from "@/lib/parametres"
 import { getSupabaseOrNull } from "@/lib/supabase"
+import type { FacturePayload, FacturePayloadMeta } from "@/lib/types-documents"
 
 /** Relances paiement planifiées à l'envoi de la facture (si non réglée). */
 export const JOURS_RELANCE_FACTURE = [10, 15, 20] as const
@@ -30,14 +31,14 @@ export function isFacturePayeeOuReglee(statut?: string | null, echeance?: string
 }
 
 export function mergeFacturePayloadMeta(
-  facture: Record<string, unknown>,
-  meta: { relance_ids?: string[]; relance_planifiees?: number },
-): Record<string, unknown> {
-  const { _ltdb_meta, ...rest } = facture
+  facture: Partial<FacturePayload> | Record<string, unknown>,
+  meta: FacturePayloadMeta,
+): Partial<FacturePayload> {
+  const { _ltdb_meta, ...rest } = facture as Record<string, unknown>
   return {
     ...rest,
     _ltdb_meta: { ...(typeof _ltdb_meta === "object" && _ltdb_meta ? _ltdb_meta : {}), ...meta },
-  }
+  } as Partial<FacturePayload>
 }
 
 export function relanceIdsFromPayload(payload: unknown): string[] {
@@ -150,13 +151,13 @@ function buildStopUrl(baseUrl: string, reminderIds: string[], secret: string): s
 }
 
 function emailRelanceFacture(input: {
-  clientNom?: string
+  clientNom?: string | null
   technicienNom: string
-  ville?: string
-  numero?: string
-  totalTTC?: number
-  echeance?: string
-  dateFacture?: string
+  ville?: string | null
+  numero?: string | null
+  totalTTC?: number | null
+  echeance?: string | null
+  dateFacture?: string | null
   numeroRelance: number
   joursApresEnvoi: number
   tone: RelanceFactureTone
@@ -229,13 +230,13 @@ Les Techniciens du Débouchage · ${escapeHtml(input.tel)}
 export type PlanifierFactureRelancesInput = {
   baseUrl: string
   clientEmail: string
-  clientNom?: string
-  technicienNom?: string
-  ville?: string
-  dateFacture?: string
-  numero?: string
-  totalTTC?: number
-  echeance?: string
+  clientNom?: string | null
+  technicienNom?: string | null
+  ville?: string | null
+  dateFacture?: string | null
+  numero?: string | null
+  totalTTC?: number | null
+  echeance?: string | null
   /** ISO — ancrage des relances (défaut : maintenant) */
   anchorAt?: string
 }

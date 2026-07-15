@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react"
 import { pdf } from "@react-pdf/renderer"
 import { RealisationDocument, type PDFProps } from "./RealisationPDF"
+import { errorMessage } from "@/lib/error-message"
 
 // Minimal typings for Google Identity Services token client
 declare global {
@@ -111,16 +112,16 @@ export default function DriveSaveButton({ pdfProps, filename }: Props) {
             const result = await uploadToDrive(resp.access_token, filename, blob)
             setStatus('done')
             setLink(result.webViewLink || `https://drive.google.com/file/d/${result.id}/view`)
-          } catch (e: any) {
+          } catch (e) {
             setStatus('error')
-            setMessage(e.message || 'Upload échoué')
+            setMessage(errorMessage(e) || 'Upload échoué')
           }
         },
       })
       tokenClient.requestAccessToken({ prompt: '' })
-    } catch (e: any) {
+    } catch (e) {
       setStatus('error')
-      setMessage(e.message || 'Erreur inconnue')
+      setMessage(errorMessage(e) || 'Erreur inconnue')
     }
   }
 

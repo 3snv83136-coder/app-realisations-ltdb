@@ -5,20 +5,36 @@ import Link from "next/link"
 import React from "react"
 import { proxyImageUrl } from "@/lib/proxyImageUrl"
 import { getLtdbSignatureUrl, fetchAccordSignatureForRapport } from "@/lib/rapport-signatures"
+import type { RapportData, FacturePayload } from "@/lib/types-documents"
 
 const TerrainPdfViewer = dynamic(
   () => import('@/components/terrain/TerrainPdfViewer'),
   { ssr: false, loading: () => <div className="p-10 text-center text-slate-500">Chargement du viewer PDF…</div> },
 )
 
-type Intervention = any
-type FactureDoc = any
+type Intervention = {
+  reference: string | null
+  agence: string | null
+  type_intervention: string | null
+  adresse_chantier: string | null
+  ville: string | null
+  code_postal: string | null
+  date_realisee: string | null
+  date_prevue: string | null
+  rapport_json: RapportData | null
+  photos_urls: string[] | null
+  photos_legendes: string[] | null
+}
+
+type FactureDoc = { payload: FacturePayload | null }
+
+type PersonneRef = { nom?: string | null }
 
 export default function PreviewPdfPage({ params }: { params: { id: string } }) {
   const [type, setType] = useState<'rapport' | 'facture'>('rapport')
   const [interv, setInterv] = useState<Intervention | null>(null)
-  const [client, setClient] = useState<any>(null)
-  const [technicien, setTechnicien] = useState<any>(null)
+  const [client, setClient] = useState<PersonneRef | null>(null)
+  const [technicien, setTechnicien] = useState<PersonneRef | null>(null)
   const [facture, setFacture] = useState<FactureDoc | null>(null)
   const [doc, setDoc] = useState<React.ReactElement | null>(null)
   const [loading, setLoading] = useState(true)

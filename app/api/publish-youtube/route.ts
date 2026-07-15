@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getSupabase } from "@/lib/supabase"
 import { buildVideoMetadata, uploadVideoToYouTube } from "@/lib/youtube"
+import { errorMessage } from "@/lib/error-message"
 
 export const dynamic = "force-dynamic"
 export const maxDuration = 300
@@ -66,8 +67,8 @@ export async function POST(req: NextRequest) {
       .eq("id", interventionId)
 
     return NextResponse.json({ ok: true, videoId, url }, { status: 200 })
-  } catch (e: any) {
-    const message = e?.message || String(e)
+  } catch (e) {
+    const message = errorMessage(e) || String(e)
     await sb
       .from("interventions")
       .update({ video_status: "ready", video_error: message })

@@ -1,5 +1,6 @@
 'use client'
 import { useState } from "react"
+import { errorMessage } from "@/lib/error-message"
 
 export default function RequestReviewButton({
   clientEmail, clientNom, ville,
@@ -34,8 +35,8 @@ export default function RequestReviewButton({
       if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`)
       setSent(true)
       setTimeout(() => { setOpen(false); setSent(false) }, 1500)
-    } catch (e: any) {
-      setError(e?.message || 'Erreur envoi')
+    } catch (e) {
+      setError(errorMessage(e) || 'Erreur envoi')
     } finally {
       setSending(false)
     }

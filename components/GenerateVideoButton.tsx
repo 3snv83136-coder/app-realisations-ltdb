@@ -1,5 +1,6 @@
 'use client'
 import { useState } from 'react'
+import { errorMessage } from "@/lib/error-message"
 
 type VideoUrls = Partial<Record<'vertical' | 'horizontal' | 'square', string>>
 type VideoStatus = 'idle' | 'rendering' | 'ready' | 'failed' | 'uploading' | 'published'
@@ -94,8 +95,8 @@ export default function GenerateVideoButton({
       setVideoUrls(data.video_urls || {})
       setStatus('ready')
       setPublishState({})
-    } catch (e: any) {
-      setError(e?.message || 'Erreur inconnue')
+    } catch (e) {
+      setError(errorMessage(e) || 'Erreur inconnue')
       setStatus('failed')
     }
   }
@@ -119,10 +120,10 @@ export default function GenerateVideoButton({
         [platform]: { platform, status: 'ok', url: data.url || data.videoUrl },
       }))
       if (platform === 'youtube') setStatus('published')
-    } catch (e: any) {
+    } catch (e) {
       setPublishState(prev => ({
         ...prev,
-        [platform]: { platform, status: 'error', error: e?.message || 'Échec' },
+        [platform]: { platform, status: 'error', error: errorMessage(e) || 'Échec' },
       }))
     }
   }

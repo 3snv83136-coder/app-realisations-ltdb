@@ -1,4 +1,5 @@
 import type { ResumeIntervention } from "@/lib/publish-content"
+import type { SeoData } from "@/lib/types-documents"
 
 const SITE = "https://lestechniciensdudebouchage.fr"
 
@@ -60,9 +61,9 @@ function softenExpertiseLocale(text: string, ville: string): string {
 }
 
 function alignResumeWithCameraStatus(
-  resume: Record<string, string>,
+  resume: ResumeIntervention,
   pending: boolean,
-): Record<string, string> {
+): ResumeIntervention {
   if (!pending) return resume
 
   const next = { ...resume }
@@ -90,17 +91,17 @@ function alignHtmlCameraHeadings(html: string, pending: boolean): string {
 }
 
 export function normalizeSeoOutput(
-  seo: Record<string, unknown>,
+  seo: SeoData,
   opts: {
     typeIntervention: string
     ville: string
     codePostal?: string | null
     transcription?: string
   },
-): Record<string, unknown> {
+): SeoData {
   const resume =
     seo.resume_intervention && typeof seo.resume_intervention === "object"
-      ? (seo.resume_intervention as Record<string, string>)
+      ? seo.resume_intervention
       : null
 
   const metaTitleRaw =

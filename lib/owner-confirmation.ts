@@ -12,12 +12,12 @@ export async function sendOwnerConfirmation(opts: {
   resend: Resend
   fromEmail: string
   type: 'rapport_facture' | 'facture' | 'rapport'
-  clientNom?: string
-  clientEmail: string
+  clientNom?: string | null
+  clientEmail?: string | null
   destinataireReel?: string
-  ville?: string
-  reference?: string
-  factureNumero?: string
+  ville?: string | null
+  reference?: string | null
+  factureNumero?: string | null
   totalTTC?: number | null
   ccEmail?: string
   messageId?: string
@@ -77,12 +77,12 @@ function row(label: string, value: string): string {
 
 function buildHtml(opts: {
   quoiLabel: string
-  clientNom?: string
-  clientEmail: string
+  clientNom?: string | null
+  clientEmail?: string | null
   destinataireReel?: string
-  ville?: string
-  reference?: string
-  factureNumero?: string
+  ville?: string | null
+  reference?: string | null
+  factureNumero?: string | null
   ccEmail?: string
   ttc: string
   tel: string
@@ -107,7 +107,7 @@ function buildHtml(opts: {
         <p style="margin:0 0 16px;font-size:14px">Le mail a bien été remis au serveur d'envoi le <strong>${escapeHtml(now)}</strong>.</p>
         <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #eef2f7;border-radius:8px;overflow:hidden">
           ${row('Client', opts.clientNom || '—')}
-          ${row('Destinataire', destinataire)}
+          ${row('Destinataire', destinataire || '—')}
           ${row('Ville', opts.ville || '')}
           ${row('Référence', opts.reference || '')}
           ${row('N° facture', opts.factureNumero || '')}

@@ -1,45 +1,46 @@
 'use client'
+import type { RapportData, SeoData } from "@/lib/types-documents"
 
-interface Rapport {
-  diagnostic?: string
-  travaux_realises?: string
-  recommandations?: string
-  commentaire_technicien?: string
-  [k: string]: any
-}
-
-interface SEO {
-  titre_h1?: string
-  meta_description?: string
-  contenu_principal?: string
-  faq?: { question: string; reponse: string }[]
-  [k: string]: any
-}
+type RapportTextField = 'diagnostic' | 'travaux_realises' | 'recommandations' | 'commentaire_technicien'
+type SeoTextField = 'titre_h1' | 'meta_description' | 'contenu_principal'
 
 interface Props {
-  rapport: Rapport
-  seo: SEO
-  onRapportChange: (r: Rapport) => void
-  onSeoChange: (s: SEO) => void
+  rapport: RapportData | null
+  seo: SeoData | null
+  onRapportChange: (r: RapportData) => void
+  onSeoChange: (s: SeoData) => void
 }
 
 export default function GenerationPreview({ rapport, seo, onRapportChange, onSeoChange }: Props) {
   const titreH1 = seo?.titre_h1 ?? ''
   const metaDesc = seo?.meta_description ?? ''
   const contenu = seo?.contenu_principal ?? ''
-  const faq = Array.isArray(seo?.faq) ? seo!.faq! : []
+  const faqRaw = seo?.faq
+  const faq = Array.isArray(faqRaw) ? faqRaw : []
 
-  function updateRapport(field: keyof Rapport, value: string) {
-    onRapportChange({ ...rapport, [field]: value })
+  function updateRapport(field: RapportTextField, value: string) {
+    const next: RapportData = {
+      diagnostic: '',
+      travaux_realises: '',
+      recommandations: '',
+      commentaire_technicien: '',
+      ...rapport,
+    }
+    next[field] = value
+    onRapportChange(next)
   }
 
-  function updateSeo(field: keyof SEO, value: string) {
-    onSeoChange({ ...seo, [field]: value })
+  function updateSeo(field: SeoTextField, value: string) {
+    const next: SeoData = { ...seo }
+    next[field] = value
+    onSeoChange(next)
   }
 
   function updateFaq(index: number, field: 'question' | 'reponse', value: string) {
     const newFaq = [...faq]
-    newFaq[index] = { ...newFaq[index], [field]: value }
+    const item = { ...(newFaq[index] ?? { question: '', reponse: '' }) }
+    item[field] = value
+    newFaq[index] = item
     onSeoChange({ ...seo, faq: newFaq })
   }
 

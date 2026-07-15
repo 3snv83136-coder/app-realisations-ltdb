@@ -4,6 +4,7 @@ import AppTabs from "@/components/AppTabs"
 import VilleCombobox from "@/components/VilleCombobox"
 import { CANAUX_ACQUISITION } from "@/lib/canaux"
 import { fmtEUR } from "@/lib/format"
+import { errorMessage } from "@/lib/error-message"
 
 type CanalRow = {
   canal: string
@@ -59,8 +60,8 @@ export default function StatistiquesPage() {
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`)
       setStats(data)
-    } catch (e: any) {
-      setError(e?.message || 'Erreur de chargement')
+    } catch (e) {
+      setError(errorMessage(e) || 'Erreur de chargement')
     } finally {
       setLoading(false)
     }

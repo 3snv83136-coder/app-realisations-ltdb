@@ -102,7 +102,7 @@ export type ResendCtx = {
  *   const ctx = initResend(clientEmail)
  *   if ('error' in ctx) return NextResponse.json(ctx, { status: ctx.status })
  */
-export function initResend(clientEmail: string): ResendCtx | { error: string; status: number } {
+export function initResend(clientEmail: string | null | undefined): ResendCtx | { error: string; status: number } {
   if (!clientEmail || typeof clientEmail !== 'string' || !EMAIL_RE.test(clientEmail)) {
     return { error: 'Email client invalide', status: 400 }
   }

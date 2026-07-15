@@ -1,5 +1,10 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getAiModel, llmChat, llmConfigError, llmIsConfigured } from "@/lib/llm"
+import { errorMessage } from "@/lib/error-message"
+import type { DevisConstatItem, DevisData } from "@/lib/types-documents"
+
+/** Sortie LLM avant normalisation — forme espérée mais non garantie. */
+type AiDevis = Partial<DevisData> & Record<string, unknown>
 
 function parseJson(raw: string) {
   const cleaned = raw.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '')
@@ -147,30 +152,30 @@ Réponds UNIQUEMENT avec ce JSON (sans markdown, sans backticks) :
       jsonMode: true,
       retries: 5,
     })
-  } catch (e: any) {
-    return NextResponse.json({ error: `IA : ${e?.message || e?.toString()}` }, { status: 500 })
+  } catch (e) {
+    return NextResponse.json({ error: `IA : ${errorMessage(e) || e?.toString()}` }, { status: 500 })
   }
 
-  let data: any
+  let data: AiDevis
   try {
     data = parseJson(raw)
-  } catch (e: any) {
+  } catch (e) {
     return NextResponse.json({
-      error: `Réponse IA illisible : ${e.message}`,
+      error: `Réponse IA illisible : ${errorMessage(e)}`,
       raw: raw.slice(0, 500),
     }, { status: 500 })
   }
 
   // Normalisation défensive
   if (!Array.isArray(data.lignes)) data.lignes = []
-  data.lignes = data.lignes.map((l: any) => ({
+  data.lignes = data.lignes.map((l) => ({
     section: typeof l?.section === 'string' ? l.section : 'Prestations',
     designation: typeof l?.designation === 'string' ? l.designation : '',
     description: typeof l?.description === 'string' ? l.description : '',
     qte: Number.isFinite(Number(l?.qte)) ? Number(l.qte) : 1,
     unite: typeof l?.unite === 'string' ? l.unite : 'forfait',
     pu_ht: Number.isFinite(Number(l?.pu_ht)) ? Number(l.pu_ht) : 0,
-  })).filter((l: any) => l.designation)
+  })).filter((l) => l.designation)
 
   data.numero = data.numero || numeroFallback
   data.date_devis = data.date_devis || datePourIA
@@ -186,7 +191,7 @@ Réponds UNIQUEMENT avec ce JSON (sans markdown, sans backticks) :
     data.modalites.modes_paiement = ['Chèque', 'Virement bancaire', 'Carte bancaire', 'Espèces (dans la limite légale)']
   }
 
-  const normConstat = (row: any) => ({
+  const normConstat = (row: Partial<DevisConstatItem> | null | undefined) => ({
     intitule: typeof row?.intitule === 'string' ? row.intitule.trim() : '',
     localisation: typeof row?.localisation === 'string' ? row.localisation.trim() : '',
     description: typeof row?.description === 'string' ? row.description.trim() : '',

@@ -1,9 +1,10 @@
 'use client'
 import React, { useState } from "react"
+import { errorMessage } from "@/lib/error-message"
 
 type SaveButtonProps = {
   endpoint: string
-  body: () => any
+  body: () => unknown
   className?: string
   label?: string
   disabled?: boolean
@@ -31,8 +32,8 @@ export default function SaveDocumentButton({
       setSavedId(data.id || '')
       setState('saved')
       onSaved?.(data.id || '')
-    } catch (e: any) {
-      setError(e?.message || 'Erreur de sauvegarde')
+    } catch (e) {
+      setError(errorMessage(e) || 'Erreur de sauvegarde')
       setState('error')
     }
   }

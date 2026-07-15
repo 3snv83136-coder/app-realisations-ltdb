@@ -6,6 +6,8 @@ import { safeFilename } from "@/lib/filename"
 import { FactureDocument, type FactureData } from "./FacturePDF"
 import { DevisDocument, type DevisData, type ClientData } from "./DevisPDF"
 import { AttestationDocument, type AttestationData } from "./AttestationPDF"
+import { errorMessage } from "@/lib/error-message"
+import type { DocumentPayload } from "@/lib/types-documents"
 
 export type DocType = 'facture' | 'devis' | 'attestation' | 'rapport'
 
@@ -14,14 +16,14 @@ export interface HistoriqueDocument {
   type: DocType
   numero: string | null
   agence: string | null
-  payload?: any
+  payload?: DocumentPayload | null
   client_nom: string | null
   client_adresse: string | null
   client_code_postal: string | null
   client_ville: string | null
 }
 
-async function fetchPayload(id: string): Promise<any> {
+async function fetchPayload(id: string): Promise<DocumentPayload | null> {
   const res = await fetch(`/api/historique/${id}`, { cache: 'no-store' })
   const data = await res.json().catch(() => ({}))
   if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`)
@@ -126,8 +128,8 @@ export default function DocumentDownloadButton({
       a.click()
       document.body.removeChild(a)
       setTimeout(() => URL.revokeObjectURL(url), 1500)
-    } catch (err: any) {
-      setError(err?.message || 'Erreur génération PDF')
+    } catch (err) {
+      setError(errorMessage(err) || 'Erreur génération PDF')
     } finally {
       setLoading(false)
     }
@@ -146,8 +148,8 @@ export default function DocumentDownloadButton({
       const url = URL.createObjectURL(built.blob)
       window.open(url, '_blank', 'noopener,noreferrer')
       setTimeout(() => URL.revokeObjectURL(url), 60_000)
-    } catch (err: any) {
-      setError(err?.message || 'Erreur génération PDF')
+    } catch (err) {
+      setError(errorMessage(err) || 'Erreur génération PDF')
     } finally {
       setLoading(false)
     }

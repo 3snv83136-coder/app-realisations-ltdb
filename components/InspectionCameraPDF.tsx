@@ -1,6 +1,7 @@
 'use client'
 import React from "react"
 import { Document, Page, Text, View, Image, StyleSheet, PDFDownloadLink } from "@react-pdf/renderer"
+import type { Style } from "@react-pdf/types"
 import { GRAVITE_LABELS, GLOSSAIRE, findDefaut } from "@/lib/camera-defauts"
 import { TEL_PRINCIPAL_FALLBACK } from "@/lib/parametres"
 
@@ -280,7 +281,7 @@ const Footer = ({ numero }: { numero: string }) => (
 function TroncRow({ label, value, alt }: { label: string; value: string; alt?: boolean }) {
   if (!value) return null
   return (
-    <View style={[s.troncRow, alt ? s.troncRowAlt : null] as any}>
+    <View style={alt ? [s.troncRow, s.troncRowAlt] : s.troncRow}>
       <Text style={s.troncLabel}>{label}</Text>
       <Text style={s.troncValue}>{value}</Text>
     </View>
@@ -293,7 +294,7 @@ export function InspectionDocument({ data }: InspectionPDFProps) {
   const t = data.troncon || {}
 
   // Bouton couleur code défaut
-  const codeStyle = (gravite: number) => {
+  const codeStyle = (gravite: number): Style => {
     const g = GRAVITE_LABELS[gravite] || GRAVITE_LABELS[1]
     return {
       backgroundColor: g.color, color: '#fff',
@@ -390,7 +391,7 @@ export function InspectionDocument({ data }: InspectionPDFProps) {
                         <Text style={s.obsPos}>{o.position || `Point ${i + 1}`}</Text>
                       </View>
                       {def ? (
-                        <Text style={[s.obsCode, codeStyle(grav)] as any}>
+                        <Text style={[s.obsCode, codeStyle(grav)]}>
                           {def.code} · {def.libelle}
                         </Text>
                       ) : null}
@@ -404,13 +405,13 @@ export function InspectionDocument({ data }: InspectionPDFProps) {
                           </View>
                           <View style={s.obsCodeLine}>
                             <Text style={s.obsCodeKey}>Gravité</Text>
-                            <Text style={[s.obsCodeVal, { color: GRAVITE_LABELS[grav].color }] as any}>
+                            <Text style={[s.obsCodeVal, { color: GRAVITE_LABELS[grav].color }]}>
                               {GRAVITE_LABELS[grav].label}
                             </Text>
                           </View>
                           <View style={s.obsCodeLine}>
                             <Text style={s.obsCodeKey}>Définition</Text>
-                            <Text style={[s.obsCodeVal, { fontFamily: 'Helvetica' }] as any}>{def.description}</Text>
+                            <Text style={[s.obsCodeVal, { fontFamily: 'Helvetica' }]}>{def.description}</Text>
                           </View>
                         </View>
                       ) : null}

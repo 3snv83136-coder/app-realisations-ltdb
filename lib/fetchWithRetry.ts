@@ -94,7 +94,7 @@ export async function fetchWithRetry(input: RequestInfo | URL, options: FetchWit
 /** Variante "JSON" qui parse la réponse et lève si !ok ou si payload contient `error`. */
 export async function fetchJsonWithRetry<T = unknown>(input: RequestInfo | URL, options: FetchWithRetryOptions = {}): Promise<T> {
   const res = await fetchWithRetry(input, options)
-  let data: any = null
+  let data: unknown = null
   try {
     data = await res.json()
   } catch {

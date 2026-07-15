@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getAiModel, llmChat, llmConfigError, llmIsConfigured } from "@/lib/llm"
+import { errorMessage } from "@/lib/error-message"
+import type { FactureData } from "@/lib/types-documents"
 
 function parseJson(raw: string) {
   const cleaned = raw.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '')
@@ -14,8 +16,22 @@ function parseJson(raw: string) {
   throw new Error('JSON invalide')
 }
 
+interface GenerateFactureBody {
+  transcription?: string
+  client_nom?: string
+  client_adresse?: string
+  client_ville?: string
+  client_code_postal?: string
+  date_facture?: string
+  reference_dossier?: string
+  agence?: string
+}
+
+/** Sortie LLM avant normalisation — forme espérée mais non garantie. */
+type AiFacture = Partial<FactureData> & Record<string, unknown>
+
 export async function POST(req: NextRequest) {
-  let body: any
+  let body: GenerateFactureBody
   try {
     body = await req.json()
   } catch {
@@ -117,30 +133,30 @@ Réponds UNIQUEMENT avec ce JSON (sans markdown, sans backticks) :
       jsonMode: true,
       retries: 5,
     })
-  } catch (e: any) {
-    return NextResponse.json({ error: `IA : ${e?.message || e?.toString()}` }, { status: 500 })
+  } catch (e) {
+    return NextResponse.json({ error: `IA : ${errorMessage(e) || e?.toString()}` }, { status: 500 })
   }
 
-  let data: any
+  let data: AiFacture
   try {
     data = parseJson(raw)
-  } catch (e: any) {
+  } catch (e) {
     return NextResponse.json({
-      error: `Réponse IA illisible : ${e.message}`,
+      error: `Réponse IA illisible : ${errorMessage(e)}`,
       raw: raw.slice(0, 500),
     }, { status: 500 })
   }
 
   // Normalisation défensive
   if (!Array.isArray(data.lignes)) data.lignes = []
-  data.lignes = data.lignes.map((l: any) => ({
+  data.lignes = data.lignes.map((l) => ({
     designation: typeof l?.designation === 'string' ? l.designation : '',
     description: typeof l?.description === 'string' ? l.description : '',
     qte: Number.isFinite(Number(l?.qte)) ? Number(l.qte) : 1,
     unite: typeof l?.unite === 'string' ? l.unite : 'forfait',
     pu_ht: Number.isFinite(Number(l?.pu_ht)) ? Number(l.pu_ht) : 0,
     inclus: l?.inclus === true,
-  })).filter((l: any) => l.designation)
+  })).filter((l) => l.designation)
 
   data.numero = data.numero || numeroFallback
   data.date_facture = data.date_facture || datePourIA

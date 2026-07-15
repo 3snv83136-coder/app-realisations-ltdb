@@ -1,6 +1,7 @@
 'use client'
 import React from "react"
 import { Document, Page, Text, View, Image, StyleSheet, PDFDownloadLink } from "@react-pdf/renderer"
+import type { Style } from "@react-pdf/types"
 import { LTDB_EMETTEUR } from "@/lib/emetteur"
 
 /* ============ CHARTE OFFICIELLE ============ */
@@ -360,7 +361,7 @@ function attestationLabel(v: Variante): string {
   return 'Non-conformité du réseau d\'évacuation'
 }
 
-function attestationClause(data: AttestationData): { badge: string; wrapStyle: any; badgeStyle: any; content: React.ReactNode } {
+function attestationClause(data: AttestationData): { badge: string; wrapStyle: Style; badgeStyle: Style; content: React.ReactNode } {
   const plein = `${data.prenom} ${data.nom}`.trim() || '—'
   const adresseComplete = [data.adresse, `${data.codePostal} ${data.ville}`].filter(Boolean).join(', ')
   const tech = data.technicienNom || '—'
