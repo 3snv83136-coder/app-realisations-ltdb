@@ -2,6 +2,8 @@
 import { signIn } from "next-auth/react"
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
+import Link from "next/link"
+import LtdbLogoLink from "@/components/LtdbLogoLink"
 
 /**
  * Bulles d'eau de l'arrière-plan animé. Valeurs FIXES (jamais Math.random) :
@@ -135,14 +137,16 @@ export default function LoginPage() {
         style={{ animation: 'ltdbCardIn .7s cubic-bezier(.2,.8,.2,1) both', boxShadow: '0 24px 60px rgba(0,0,0,.45)' }}
       >
         <div className="mb-7 flex flex-col items-center text-center">
-          <div className="text-5xl" style={{ animation: 'ltdbDrop 3s ease-in-out infinite' }}>
-            💧
-          </div>
-          <h1 className="mt-3 text-xl font-black leading-tight text-[#0e2a52]">
-            Les Techniciens
-            <br />
-            du Débouchage
-          </h1>
+          <Link href="/" className="group" title="Retour à l'accueil">
+            <div className="text-5xl" style={{ animation: 'ltdbDrop 3s ease-in-out infinite' }}>
+              💧
+            </div>
+            <h1 className="mt-3 text-xl font-black leading-tight text-[#0e2a52] group-hover:opacity-80 transition-opacity">
+              Les Techniciens
+              <br />
+              du Débouchage
+            </h1>
+          </Link>
           <p className="mt-1.5 text-[11px] font-semibold uppercase tracking-[0.25em] text-slate-400">
             Espace pro
           </p>

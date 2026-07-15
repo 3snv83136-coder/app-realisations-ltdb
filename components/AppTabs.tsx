@@ -3,6 +3,7 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { signOut, useSession } from "next-auth/react"
 import { type ComponentType, useEffect, useState } from "react"
+import LtdbLogoLink from "@/components/LtdbLogoLink"
 import {
   HomeIcon, CalendarIcon, DocumentIcon, CameraIcon, ClipboardIcon, ReceiptIcon,
   CheckBadgeIcon, ArchiveIcon, ChartBarIcon, BriefcaseIcon, EnvelopeIcon, UsersIcon, BellIcon,
@@ -85,6 +86,7 @@ export default function AppTabs() {
       {/* Mobile : raccourcis + menu plein écran */}
       <div className="md:hidden space-y-2">
         <div className="flex items-center gap-2 px-1">
+          <LtdbLogoLink variant="tab" />
           <button
             type="button"
             onClick={() => setMenuOpen(true)}
@@ -139,7 +141,7 @@ export default function AppTabs() {
             >
               <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-slate-100 shrink-0">
                 <div>
-                  <div className="font-black text-[#0e2a52]">Navigation</div>
+                  <LtdbLogoLink variant="tab" className="text-base" />
                   <div className="text-xs text-slate-500">Toutes les sections de l&apos;app</div>
                 </div>
                 <button
@@ -193,8 +195,9 @@ export default function AppTabs() {
       </div>
 
       {/* Desktop : barre horizontale classique */}
-      <div className="hidden md:block">
-        <div className="flex flex-wrap gap-1 p-1 bg-slate-100 rounded-2xl">
+      <div className="hidden md:flex md:items-center md:gap-3">
+        <LtdbLogoLink variant="tab" className="text-base" />
+        <div className="flex flex-wrap gap-1 p-1 bg-slate-100 rounded-2xl flex-1 min-w-0">
           {tabs.map(t => {
             const active = isTabActive(pathname, t.href)
             const Icon = t.Icon

@@ -23,6 +23,8 @@ const DriveSaveButton = dynamic(() => import("@/components/DriveSaveButton"), { 
 const SaveDocumentButton = dynamic(() => import("@/components/SaveDocumentButton"), { ssr: false })
 import SitePreviewModal from "@/components/SitePreviewModal"
 import CatLoader from "@/components/CatLoader"
+import LtdbLogoLink from "@/components/LtdbLogoLink"
+import { errorMessage } from "@/lib/error-message"
 
 function notifyDone(title: string, body: string) {
   if (typeof window === 'undefined' || !('Notification' in window)) return
@@ -393,8 +395,8 @@ export default function NouveauPage() {
       const dataUrl = await fileToDataUrl(compressed)
       const preview = URL.createObjectURL(compressed)
       setPhotos(prev => [...prev, { file: compressed, dataUrl, preview, legende: defaultLegende(prev.length) }])
-    } catch (e: any) {
-      setError(`Erreur photo : ${e.message || 'compression impossible'}`)
+    } catch (e) {
+      setError(`Erreur photo : ${errorMessage(e) || 'compression impossible'}`)
     }
   }
 
@@ -437,8 +439,8 @@ export default function NouveauPage() {
       if (data.client_email) setClientEmail(data.client_email)
       if (data.warning) setError(`⚠ ${data.warning}`)
       setStep('validate')
-    } catch (e: any) {
-      setError(`Erreur extraction : ${e.message}`)
+    } catch (e) {
+      setError(`Erreur extraction : ${errorMessage(e)}`)
       setStep('capture')
     }
   }
@@ -462,11 +464,11 @@ export default function NouveauPage() {
       setRapport(data.rapport); setSeo(data.seo)
       setStep('preview')
       notifyDone('Rapport prêt', `${typeIntervention} — ${ville}`)
-    } catch (e: any) {
-      const isTimeout = e?.name === 'TimeoutError' || /aborted|timeout/i.test(String(e?.message || ''))
+    } catch (e) {
+      const isTimeout = (e instanceof Error && e.name === 'TimeoutError') || /aborted|timeout/i.test(errorMessage(e))
       setError(isTimeout
         ? 'La génération a dépassé 3 minutes. Réessaie ou raccourcis la dictée.'
-        : `Erreur IA : ${e.message}`)
+        : `Erreur IA : ${errorMessage(e)}`)
       setStep('validate')
     }
   }
@@ -505,8 +507,8 @@ export default function NouveauPage() {
         throw new Error(data.error || `HTTP ${res.status}`)
       }
       setEmailSent(true)
-    } catch (e: any) {
-      setError(`Erreur envoi : ${e.message}`)
+    } catch (e) {
+      setError(`Erreur envoi : ${errorMessage(e)}`)
     } finally {
       setEmailSending(false)
     }
@@ -667,8 +669,8 @@ export default function NouveauPage() {
       if (typeof window !== 'undefined') localStorage.removeItem(DRAFT_KEY)
       setDraftRestoredAt(null)
       setStep('done')
-    } catch (e: any) {
-      setError(`Erreur publication : ${e.message}`)
+    } catch (e) {
+      setError(`Erreur publication : ${errorMessage(e)}`)
       setStep('preview')
     }
   }
@@ -685,8 +687,8 @@ export default function NouveauPage() {
       const withRapport = (data.interventions || []).filter((i: any) => i.has_rapport) as HistoryRapport[]
       setHistoryItems(withRapport)
       setHistoryLoaded(true)
-    } catch (e: any) {
-      setHistoryError(e.message || 'Erreur de chargement')
+    } catch (e) {
+      setHistoryError(errorMessage(e) || 'Erreur de chargement')
     } finally {
       setHistoryLoading(false)
     }
@@ -719,8 +721,8 @@ export default function NouveauPage() {
       // Si rapport existant → preview directe ; sinon repart en validation
       setStep(i.rapport_json && Object.keys(i.rapport_json || {}).length > 0 ? 'preview' : 'validate')
       setShowHistoryModal(false)
-    } catch (e: any) {
-      setHistoryError(`Chargement impossible : ${e.message}`)
+    } catch (e) {
+      setHistoryError(`Chargement impossible : ${errorMessage(e)}`)
     } finally {
       setLoadingEditId(null)
     }
@@ -745,11 +747,11 @@ export default function NouveauPage() {
       if (!res.ok) throw new Error(data.error || 'Régénération échouée')
       setRapport(data.rapport); setSeo(data.seo)
       setStep('preview')
-    } catch (e: any) {
-      const isTimeout = e?.name === 'TimeoutError' || /aborted|timeout/i.test(String(e?.message || ''))
+    } catch (e) {
+      const isTimeout = (e instanceof Error && e.name === 'TimeoutError') || /aborted|timeout/i.test(errorMessage(e))
       setError(isTimeout
         ? 'La régénération a dépassé 3 minutes. Réessaie ou raccourcis la dictée.'
-        : `Erreur IA : ${e.message}`)
+        : `Erreur IA : ${errorMessage(e)}`)
       setStep('preview')
     } finally {
       setRegenerating(false)
@@ -781,8 +783,8 @@ export default function NouveauPage() {
       // Remet à jour la liste historique en arrière-plan
       setHistoryLoaded(false)
       setTimeout(() => setSavedFlash(false), 2500)
-    } catch (e: any) {
-      setError(`Erreur enregistrement : ${e.message}`)
+    } catch (e) {
+      setError(`Erreur enregistrement : ${errorMessage(e)}`)
     } finally {
       setSavingInPlace(false)
     }
@@ -814,7 +816,7 @@ export default function NouveauPage() {
       <nav className="bg-[#0e2a52] text-white px-4 py-3 sm:px-6 sm:py-4 shadow-lg sticky top-0 z-30">
         <div className="max-w-3xl mx-auto flex justify-between items-center gap-3">
           <div>
-            <div className="font-black text-base sm:text-lg leading-tight">LTDB</div>
+            <LtdbLogoLink variant="nav" />
             <div className="text-[11px] opacity-70">Nouvelle réalisation</div>
           </div>
           <div className="text-right flex items-center gap-2">
@@ -1063,7 +1065,7 @@ export default function NouveauPage() {
                 <p className="text-sm font-bold text-blue-900">{GEN_STEPS[genStepIdx]}</p>
                 <CatLoader />
                 <p className="text-[11px] text-slate-500">
-                  Compte 30 à 90 secondes — tu peux laisser la page ouverte, on te notifie quand c'est prêt.
+                  Compte 30 à 90 secondes — tu peux laisser la page ouverte, on te notifie quand c&apos;est prêt.
                 </p>
               </div>
             )}

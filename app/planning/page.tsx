@@ -10,6 +10,8 @@ import { AGENCES } from "@/lib/agences"
 import { CANAUX_ACQUISITION } from "@/lib/canaux"
 import { fmtDateFR, fmtEUR } from "@/lib/format"
 import { TYPES_INTERVENTION as TYPES } from "@/lib/types-intervention"
+import { errorMessage } from "@/lib/error-message"
+import LtdbLogoLink from "@/components/LtdbLogoLink"
 
 type Statut = 'planifiee' | 'en_cours' | 'terminee' | 'annulee'
 
@@ -70,18 +72,18 @@ const STATUT_LABEL: Record<Statut, string> = {
 }
 
 const STATUT_BADGE: Record<Statut, string> = {
-  planifiee: 'bg-red-100 text-red-700',
-  en_cours: 'bg-blue-100 text-blue-700',
-  terminee: 'bg-emerald-100 text-emerald-700',
+  planifiee: 'bg-amber-200/80 text-amber-900 border border-amber-400/50',
+  en_cours: 'bg-blue-200/80 text-blue-900 border border-blue-400/50',
+  terminee: 'bg-emerald-200/80 text-emerald-900 border border-emerald-400/50',
   annulee: 'bg-slate-200 text-slate-600',
 }
 
-/** Bordure gauche des cartes kanban : rouge à venir · bleu en cours · vert terminée */
-const CARD_STATUT_ACCENT: Record<Statut, string> = {
-  planifiee: 'border-l-4 border-l-red-500',
-  en_cours: 'border-l-4 border-l-blue-500',
-  terminee: 'border-l-4 border-l-emerald-500',
-  annulee: 'border-l-4 border-l-slate-400',
+/** Fond des cartes kanban : jaune programmée · bleu en cours · vert terminée */
+const CARD_STATUT_STYLE: Record<Statut, string> = {
+  planifiee: 'bg-amber-100 border-amber-300 text-amber-950 hover:bg-amber-50 hover:border-amber-400 shadow-sm',
+  en_cours: 'bg-blue-100 border-blue-300 text-blue-950 hover:bg-blue-50 hover:border-blue-400 shadow-sm',
+  terminee: 'bg-emerald-100 border-emerald-300 text-emerald-950 hover:bg-emerald-50 hover:border-emerald-400 shadow-sm',
+  annulee: 'bg-slate-100 border-slate-300 text-slate-700 hover:border-slate-400',
 }
 
 function fmtHeure(t: string | null): string {
@@ -186,7 +188,7 @@ export default function PlanningPage() {
       <nav className="bg-[#0e2a52] text-white px-4 py-3 sm:px-6 sm:py-4 shadow-lg">
         <div className="max-w-7xl mx-auto flex items-center justify-between gap-3">
           <div>
-            <div className="font-black text-base sm:text-lg leading-tight">LTDB</div>
+            <LtdbLogoLink variant="nav" />
             <div className="text-[11px] opacity-70">
               {isTech ? `Mon planning — ${session?.user?.name || 'Technicien'}` : 'Planning & dispatch'}
             </div>
@@ -305,9 +307,9 @@ export default function PlanningPage() {
 type ColumnDef = { key: Statut; label: string; emoji: string; accent: string; subAccent: string }
 
 const KANBAN_COLUMNS: ColumnDef[] = [
-  { key: 'planifiee', label: 'À venir',    emoji: '📅', accent: 'border-red-200',     subAccent: 'bg-red-50 text-red-700' },
-  { key: 'en_cours',  label: 'En cours',   emoji: '⚙',  accent: 'border-blue-200',    subAccent: 'bg-blue-50 text-blue-700' },
-  { key: 'terminee',  label: 'Terminées',  emoji: '✅', accent: 'border-emerald-200', subAccent: 'bg-emerald-50 text-emerald-700' },
+  { key: 'planifiee', label: 'À venir',    emoji: '📅', accent: 'border-amber-300',     subAccent: 'bg-amber-200 text-amber-950' },
+  { key: 'en_cours',  label: 'En cours',   emoji: '⚙',  accent: 'border-blue-300',    subAccent: 'bg-blue-200 text-blue-950' },
+  { key: 'terminee',  label: 'Terminées',  emoji: '✅', accent: 'border-emerald-300', subAccent: 'bg-emerald-200 text-emerald-950' },
 ]
 
 function KanbanBoard({
@@ -383,7 +385,7 @@ function KanbanColumn({ col, items, techMode = false }: { col: ColumnDef; items:
           {items.length}
         </span>
       </header>
-      <div className="flex-1 p-3 space-y-2 max-h-[calc(100vh-380px)] overflow-y-auto bg-slate-50/30">
+      <div className="flex-1 p-3 space-y-2.5 max-h-[calc(100vh-380px)] overflow-y-auto bg-white/40">
         {items.length === 0 ? (
           <p className="text-center text-slate-400 text-xs py-8 italic">Aucune intervention</p>
         ) : (
@@ -402,61 +404,72 @@ function InterventionCard({
   techMode?: boolean
 }) {
   const href = techMode ? `/intervention/${i.id}/terrain` : `/intervention/${i.id}`
+  const villeLabel = [i.code_postal, i.ville].filter(Boolean).join(' ') || i.ville || 'Ville —'
+  const metaMuted =
+    i.statut === 'planifiee' ? 'text-amber-900/75' :
+    i.statut === 'en_cours' ? 'text-blue-900/75' :
+    i.statut === 'terminee' ? 'text-emerald-900/75' :
+    'text-slate-600'
+
   return (
     <Link
       href={href}
-      className={`block bg-white rounded-xl border border-slate-200 hover:border-[#0e2a52] hover:shadow-md transition p-3 group ${CARD_STATUT_ACCENT[i.statut]}`}
+      className={`block rounded-xl border-2 hover:shadow-md transition p-3.5 group ${CARD_STATUT_STYLE[i.statut]}`}
     >
-      <div className="flex items-start justify-between gap-2 mb-1.5">
+      <div className="flex items-start justify-between gap-2 mb-2">
         <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-1.5 flex-wrap">
-            {i.urgence && (
-              <span className="inline-block text-[10px] font-bold text-red-700 bg-red-50 border border-red-200 rounded-full px-2 py-0.5">URG</span>
-            )}
-            <span className="font-semibold text-sm text-[#0e2a52] truncate">
-              {i.client_nom || 'Client —'}
-            </span>
+          <div className={`text-xl sm:text-2xl font-black leading-tight truncate tracking-tight ${i.statut === 'annulee' ? 'text-slate-700' : ''}`}>
+            {villeLabel}
           </div>
-          {i.client_telephone && (
-            <a
-              href={`tel:${i.client_telephone}`}
-              onClick={e => e.stopPropagation()}
-              className="text-xs text-slate-500 hover:text-blue-600 inline-block"
-            >
-              📞 {i.client_telephone}
-            </a>
+          <div className="text-sm font-bold truncate mt-0.5 opacity-95">
+            {i.client_nom || 'Client —'}
+          </div>
+        </div>
+        <div className="flex flex-col items-end gap-1 shrink-0">
+          {i.urgence && (
+            <span className="inline-block text-[10px] font-bold text-red-800 bg-red-100 border border-red-300 rounded-full px-2 py-0.5">URG</span>
+          )}
+          {!compact && (
+            <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold whitespace-nowrap ${STATUT_BADGE[i.statut]}`}>
+              {STATUT_LABEL[i.statut]}
+            </span>
           )}
         </div>
-        {!compact && (
-          <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold whitespace-nowrap ${STATUT_BADGE[i.statut]}`}>
-            {STATUT_LABEL[i.statut]}
-          </span>
-        )}
       </div>
 
-      <div className="text-xs text-slate-600 mb-1.5">
-        <span className="font-semibold">{i.type_intervention || '—'}</span>
+      <div className={`text-xs font-semibold mb-2 ${metaMuted}`}>
+        {i.type_intervention || '—'}
       </div>
 
-      <div className="flex items-center gap-2 text-xs text-slate-500 mb-1.5">
-        <span>📅 {fmtDateFR(i.date_prevue)}</span>
+      <div className={`flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs mb-2 ${metaMuted}`}>
+        <span className="font-medium">📅 {fmtDateFR(i.date_prevue || i.date_realisee)}</span>
         {i.heure_prevue && <span>⏰ {fmtHeure(i.heure_prevue)}</span>}
-        {i.duree_estimee_min && <span>· {i.duree_estimee_min} min</span>}
+        {i.duree_estimee_min ? <span>· {i.duree_estimee_min} min</span> : null}
       </div>
 
-      {(i.adresse_chantier || i.ville) && (
-        <div className="text-xs text-slate-500 mb-1.5 truncate">
-          📍 {[i.adresse_chantier, [i.code_postal, i.ville].filter(Boolean).join(' ')].filter(Boolean).join(' · ')}
+      {i.adresse_chantier && (
+        <div className={`text-xs truncate mb-2 ${metaMuted}`}>
+          📍 {i.adresse_chantier}
         </div>
       )}
 
+      {i.client_telephone && (
+        <a
+          href={`tel:${i.client_telephone}`}
+          onClick={e => e.stopPropagation()}
+          className={`text-xs font-medium hover:underline inline-block mb-2 ${metaMuted}`}
+        >
+          📞 {i.client_telephone}
+        </a>
+      )}
+
       {!techMode && (
-        <div className="flex items-center justify-between text-xs pt-1.5 border-t border-slate-100">
-          <span className="text-slate-600 truncate flex-1">
-            👷 {i.technicien_nom || <span className="text-slate-400 italic">non assignée</span>}
+        <div className={`flex items-center justify-between text-xs pt-2 border-t ${i.statut === 'planifiee' ? 'border-amber-300/60' : i.statut === 'en_cours' ? 'border-blue-300/60' : i.statut === 'terminee' ? 'border-emerald-300/60' : 'border-slate-200'} ${metaMuted}`}>
+          <span className="truncate flex-1 font-medium">
+            👷 {i.technicien_nom || <span className="italic opacity-70">non assignée</span>}
           </span>
           {typeof i.prix_prevu === 'number' && i.prix_prevu > 0 && (
-            <span className="text-[#0e2a52] font-bold tabular-nums whitespace-nowrap ml-2">
+            <span className="font-black tabular-nums whitespace-nowrap ml-2">
               {fmtEUR(i.prix_prevu)}
             </span>
           )}
@@ -464,13 +477,13 @@ function InterventionCard({
       )}
 
       {techMode && (
-        <div className="mt-2 pt-2 border-t border-slate-100 text-center text-xs font-black text-blue-700">
+        <div className={`mt-2 pt-2 border-t text-center text-xs font-black ${i.statut === 'en_cours' ? 'border-blue-300/60 text-blue-900' : i.statut === 'terminee' ? 'border-emerald-300/60 text-emerald-900' : 'border-amber-300/60 text-amber-900'}`}>
           🚀 Mode terrain →
         </div>
       )}
 
       {!techMode && i.agence && (
-        <div className="text-[10px] text-slate-400 mt-1.5 text-right">{i.agence}</div>
+        <div className={`text-[10px] mt-1.5 text-right font-medium ${metaMuted}`}>{i.agence}</div>
       )}
     </Link>
   )
@@ -859,8 +872,8 @@ function SiretLookup({ onFound }: {
         code_postal: data.code_postal,
         ville: data.ville,
       })
-    } catch (e: any) {
-      setError(e?.message || 'Erreur lookup SIRET')
+    } catch (e) {
+      setError(errorMessage(e) || 'Erreur lookup SIRET')
     } finally {
       setLoading(false)
     }

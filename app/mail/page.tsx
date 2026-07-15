@@ -3,6 +3,8 @@ import { useEffect, useMemo, useState } from "react"
 import dynamic from "next/dynamic"
 import AppTabs from "@/components/AppTabs"
 import { fmtDateFR } from "@/lib/format"
+import { errorMessage } from "@/lib/error-message"
+import LtdbLogoLink from "@/components/LtdbLogoLink"
 
 const ResendEmailButton = dynamic(() => import("@/components/ResendEmailButton"), { ssr: false })
 
@@ -55,8 +57,8 @@ export default function MailPage() {
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`)
       setDocuments(data.documents || [])
-    } catch (e: any) {
-      setError(e.message || 'Erreur de chargement')
+    } catch (e) {
+      setError(errorMessage(e) || 'Erreur de chargement')
     } finally {
       setLoading(false)
     }
@@ -90,7 +92,7 @@ export default function MailPage() {
     <div className="min-h-screen bg-slate-50 pb-20">
       <nav className="bg-[#0e2a52] text-white px-4 py-3 sm:px-6 sm:py-4 shadow-lg">
         <div className="max-w-6xl mx-auto">
-          <div className="font-black text-base sm:text-lg leading-tight">LTDB</div>
+          <LtdbLogoLink variant="nav" />
           <div className="text-[11px] opacity-70">Emails envoyés</div>
         </div>
       </nav>
@@ -123,7 +125,7 @@ export default function MailPage() {
         </div>
 
         {/* Stats */}
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-3">
           <StatCard label="Total docs" value={stats.total} color="bg-slate-600" />
           <StatCard label="Envoyés" value={stats.envoyes} color="bg-emerald-600" />
           <StatCard label="Non envoyés" value={stats.nonEnvoyes} color="bg-amber-500" />

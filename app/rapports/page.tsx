@@ -1,6 +1,7 @@
 'use client'
 import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
+import LtdbLogoLink from "@/components/LtdbLogoLink"
 import { useRouter } from "next/navigation"
 import RapportTabs from "@/components/RapportTabs"
 
@@ -151,7 +152,7 @@ export default function RapportsPage() {
       <header className="bg-[#0e2a52] text-white">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 py-5 flex items-center justify-between gap-4">
           <div className="flex items-baseline gap-3">
-            <Link href="/" className="text-xl font-black tracking-tight hover:opacity-80">LTDB</Link>
+            <LtdbLogoLink variant="banner" className="text-white" />
             <span className="text-[10px] uppercase tracking-[0.25em] text-white/60 font-semibold">Rapports</span>
           </div>
           <Link href="/" className="text-xs text-white/70 hover:text-white">← Accueil</Link>

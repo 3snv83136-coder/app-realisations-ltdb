@@ -4,6 +4,7 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { signOut } from "next-auth/react"
 import { isAccordFinDeMois } from "@/lib/fin-de-mois"
+import LtdbLogoLink from "@/components/LtdbLogoLink"
 
 export default function TechNav() {
   const pathname = usePathname() || ''
@@ -24,6 +25,7 @@ export default function TechNav() {
     <nav className="bg-[#0e2a52] text-white border-b border-white/10">
       <div className="max-w-7xl mx-auto px-3 sm:px-4 py-2 flex items-center justify-between gap-2">
         <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide">
+          <LtdbLogoLink variant="nav" className="text-white mr-1" />
           <Link href="/planning" className={linkClass('/planning')}>
             📅 Planning
           </Link>

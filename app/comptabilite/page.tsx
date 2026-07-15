@@ -10,6 +10,7 @@ import {
 } from "@/components/compta/ComptaPilotagePanels"
 import { AGENCES } from "@/lib/agences"
 import { fmtDateFR, fmtEUR } from "@/lib/format"
+import LtdbLogoLink from "@/components/LtdbLogoLink"
 
 // =====================================================================
 // Types
@@ -261,7 +262,7 @@ export default function ComptabilitePage() {
 
       <nav className="bg-[#0e2a52] text-white px-4 py-3 sm:px-6 sm:py-4 shadow-lg">
         <div className="max-w-6xl mx-auto">
-          <div className="font-black text-base sm:text-lg leading-tight">LTDB</div>
+          <LtdbLogoLink variant="nav" />
           <div className="text-[11px] opacity-70">Comptabilité</div>
         </div>
       </nav>

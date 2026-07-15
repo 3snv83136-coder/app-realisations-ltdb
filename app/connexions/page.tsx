@@ -1,8 +1,8 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import LtdbLogoLink from '@/components/LtdbLogoLink'
 import { useSession } from 'next-auth/react'
 import type { ConnexionLogRow } from '@/lib/connexions-log'
 
@@ -78,7 +78,7 @@ export default function ConnexionsPage() {
       <main className="min-h-dvh bg-[#0a1f3d] text-slate-100 flex items-center justify-center p-6">
         <div className="text-center space-y-3">
           <p className="text-white/70">Accès réservé au gérant.</p>
-          <Link href="/" className="inline-block text-xs text-white/70 hover:text-white">← Accueil</Link>
+          <LtdbLogoLink variant="nav" className="inline-block text-white/70 text-xs" />
         </div>
       </main>
     )
@@ -89,7 +89,7 @@ export default function ConnexionsPage() {
       <header className="sticky top-0 z-20 bg-[#0e2a52]/95 backdrop-blur-md text-white border-b border-white/10 pt-[env(safe-area-inset-top)]">
         <div className="max-w-6xl mx-auto px-3 sm:px-5 py-3 sm:py-4 flex items-center justify-between gap-3">
           <div className="flex items-center gap-3 min-w-0">
-            <Link href="/" className="text-xs text-white/70 hover:text-white shrink-0">← Accueil</Link>
+            <LtdbLogoLink variant="nav" className="text-white shrink-0" />
             <h1 className="text-xl sm:text-2xl font-black tracking-tight truncate">Connexions</h1>
           </div>
           <button

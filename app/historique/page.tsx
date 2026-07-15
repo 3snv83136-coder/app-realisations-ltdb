@@ -3,6 +3,8 @@ import { useEffect, useMemo, useState } from "react"
 import dynamic from "next/dynamic"
 import AppTabs from "@/components/AppTabs"
 import { fmtDateFR, fmtEUR } from "@/lib/format"
+import { errorMessage } from "@/lib/error-message"
+import LtdbLogoLink from "@/components/LtdbLogoLink"
 
 const DocumentDownloadButton = dynamic(() => import("@/components/DocumentDownloadButton"), { ssr: false })
 const ResendEmailButton = dynamic(() => import("@/components/ResendEmailButton"), { ssr: false })
@@ -109,8 +111,8 @@ export default function HistoriquePage() {
       if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`)
       setInterventions(data.interventions || [])
       setDocuments(data.documents || [])
-    } catch (e: any) {
-      setError(e.message || 'Erreur de chargement')
+    } catch (e) {
+      setError(errorMessage(e) || 'Erreur de chargement')
     } finally {
       setLoading(false)
     }
@@ -134,8 +136,8 @@ export default function HistoriquePage() {
       // autres documents disparaissent aussi — un simple filtre client laisserait
       // des fantômes affichés jusqu'au prochain reload.
       await load()
-    } catch (e: any) {
-      setError(`Erreur suppression : ${e.message}`)
+    } catch (e) {
+      setError(`Erreur suppression : ${errorMessage(e)}`)
     } finally {
       setDeletingId(null)
     }
@@ -154,8 +156,8 @@ export default function HistoriquePage() {
       const data = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(data.error || (data.warnings ? data.warnings.join('; ') : `HTTP ${res.status}`))
       await load()
-    } catch (e: any) {
-      setError(`Erreur suppression intervention : ${e.message}`)
+    } catch (e) {
+      setError(`Erreur suppression intervention : ${errorMessage(e)}`)
     } finally {
       setDeletingId(null)
     }
@@ -209,7 +211,7 @@ export default function HistoriquePage() {
 
       <nav className="bg-[#0e2a52] text-white px-4 py-3 sm:px-6 sm:py-4 shadow-lg">
         <div className="max-w-6xl mx-auto">
-          <div className="font-black text-base sm:text-lg leading-tight">LTDB</div>
+          <LtdbLogoLink variant="nav" />
           <div className="text-[11px] opacity-70">Historique CRM</div>
         </div>
       </nav>

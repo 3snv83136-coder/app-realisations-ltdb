@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react"
 import Link from "next/link"
 import { useSession } from "next-auth/react"
+import LtdbLogoLink from "@/components/LtdbLogoLink"
 
 type Tool = {
   href: string
@@ -207,7 +208,7 @@ export default function Home() {
       <header className="sticky top-0 z-20 bg-[#0e2a52]/95 backdrop-blur-md text-white border-b border-white/10 pt-[env(safe-area-inset-top)]">
         <div className="max-w-6xl mx-auto px-3 sm:px-5 py-3 sm:py-4 flex items-center justify-between gap-3">
           <div className={`flex items-baseline gap-2 sm:gap-3 ${introClass}`}>
-            <h1 className="text-xl sm:text-3xl font-black tracking-tight leading-none">LTDB</h1>
+            <LtdbLogoLink variant="header" />
             <div className="text-[9px] sm:text-[10px] uppercase tracking-[0.2em] text-white/60 font-semibold hidden sm:block">
               CRM
             </div>
