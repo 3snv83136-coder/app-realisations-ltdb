@@ -77,6 +77,14 @@ type ClientDossier = {
   lastDate: string | null
 }
 
+type ClientSummary = {
+  key: string
+  client: Client
+  derniereIntervention: string | null
+  derniereInterventionDate: string | null
+  lastDate: string | null
+}
+
 const TYPE_LABEL: Record<string, string> = {
   facture: 'Facture',
   devis: 'Devis',
@@ -134,7 +142,10 @@ function hasFilters(f: { nom: string; telephone: string; email: string; ville: s
 export default function ClientsPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [dossiers, setDossiers] = useState<ClientDossier[]>([])
+  const [summaries, setSummaries] = useState<ClientSummary[]>([])
+  const [dossiersByKey, setDossiersByKey] = useState<Record<string, ClientDossier>>({})
+  const [loadingDetail, setLoadingDetail] = useState<Record<string, boolean>>({})
+  const [detailError, setDetailError] = useState<Record<string, string>>({})
   const [searched, setSearched] = useState(false)
 
   const [filterNom, setFilterNom] = useState('')
@@ -207,10 +218,19 @@ export default function ClientsPage() {
       if (!res.ok) throw new Error(body?.error || `HTTP ${res.status}`)
       const updated = body?.client as Client | undefined
       if (updated) {
-        setDossiers(prev => prev.map(d => (
-          d.client.id === updated.id
-            ? { ...d, client: { ...d.client, ...updated } }
-            : d
+        setDossiersByKey(prev => {
+          const next = { ...prev }
+          for (const [k, d] of Object.entries(next)) {
+            if (d.client.id === updated.id) {
+              next[k] = { ...d, client: { ...d.client, ...updated } }
+            }
+          }
+          return next
+        })
+        setSummaries(prev => prev.map(s => (
+          s.client.id === updated.id
+            ? { ...s, client: { ...s.client, ...updated } }
+            : s
         )))
       }
       setEditModal(s => ({ ...s, open: false, saving: false }))
@@ -240,7 +260,12 @@ export default function ClientsPage() {
       const res = await fetch(`/api/clients/${id}`, { method: 'DELETE' })
       const body = await res.json().catch(() => null)
       if (!res.ok) throw new Error(body?.error || `HTTP ${res.status}`)
-      setDossiers(prev => prev.filter(d => d.client.id !== id))
+      setSummaries(prev => prev.filter(s => s.client.id !== id))
+      setDossiersByKey(prev => {
+        const next = { ...prev }
+        delete next[d.key]
+        return next
+      })
       setExpanded(s => { const next = { ...s }; delete next[d.key]; return next })
     } catch (e) {
       setDeleteError(e instanceof Error ? e.message : 'Suppression échouée')
@@ -249,34 +274,70 @@ export default function ClientsPage() {
     }
   }
 
+  async function loadDossierDetail(summary: ClientSummary): Promise<ClientDossier | null> {
+    if (dossiersByKey[summary.key]) return dossiersByKey[summary.key]
+    setLoadingDetail(s => ({ ...s, [summary.key]: true }))
+    setDetailError(s => ({ ...s, [summary.key]: '' }))
+    try {
+      const params = new URLSearchParams()
+      if (summary.client.id) params.set('client_id', summary.client.id)
+      else {
+        params.set('nom', summary.client.nom)
+        if (summary.client.email) params.set('email', summary.client.email)
+      }
+      const res = await fetch(`/api/clients/dossier?${params}`, { cache: 'no-store' })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`)
+      const dossier = data.dossier as ClientDossier
+      setDossiersByKey(s => ({ ...s, [summary.key]: dossier }))
+      return dossier
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Erreur de chargement'
+      setDetailError(s => ({ ...s, [summary.key]: msg }))
+      return null
+    } finally {
+      setLoadingDetail(s => ({ ...s, [summary.key]: false }))
+    }
+  }
+
+  async function toggleClient(summary: ClientSummary) {
+    const key = summary.key
+    const willOpen = !expanded[key]
+    setExpanded(s => ({ ...s, [key]: willOpen }))
+    if (willOpen && !dossiersByKey[key] && !loadingDetail[key]) {
+      await loadDossierDetail(summary)
+    }
+  }
+
   async function runSearch(e?: React.FormEvent) {
     e?.preventDefault()
     if (!hasFilters({ nom: filterNom, telephone: filterTelephone, email: filterEmail, ville: filterVille })) {
       setError('Indique au moins un critère : nom, téléphone, email ou ville.')
       setSearched(false)
-      setDossiers([])
+      setSummaries([])
+      setDossiersByKey({})
+      setExpanded({})
       return
     }
     setLoading(true)
     setError(null)
     setSearched(true)
+    setDossiersByKey({})
+    setExpanded({})
+    setDetailError({})
     try {
       const params = new URLSearchParams()
       if (filterNom.trim()) params.set('nom', filterNom.trim())
       if (filterTelephone.trim()) params.set('telephone', filterTelephone.trim())
       if (filterEmail.trim()) params.set('email', filterEmail.trim())
       if (filterVille.trim()) params.set('ville', filterVille.trim())
-      const res = await fetch(`/api/clients/dossier?${params}`, { cache: 'no-store' })
+      const res = await fetch(`/api/clients/search?${params}`, { cache: 'no-store' })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`)
-      const rows = (data.dossiers || []) as ClientDossier[]
-      setDossiers(rows)
-      const openAll: Record<string, boolean> = {}
-      for (const d of rows) openAll[d.key] = true
-      setExpanded(openAll)
+      setSummaries((data.results || []) as ClientSummary[])
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erreur de recherche')
-      setDossiers([])
+      setSummaries([])
     } finally {
       setLoading(false)
     }
@@ -287,18 +348,19 @@ export default function ClientsPage() {
     setFilterTelephone('')
     setFilterEmail('')
     setFilterVille('')
-    setDossiers([])
+    setSummaries([])
+    setDossiersByKey({})
     setExpanded({})
+    setDetailError({})
     setSearched(false)
     setError(null)
   }
 
-  const filtered = dossiers
-
-  const totalCa = filtered.reduce((s, d) => s + d.caTotal, 0)
-  const totalInterv = filtered.reduce((s, d) => s + d.interventions.length, 0)
-  const totalDocs = filtered.reduce((s, d) => s + d.documents.length, 0)
-  const totalAccords = filtered.reduce((s, d) => s + d.accords.length, 0)
+  const loadedDossiers = Object.values(dossiersByKey)
+  const totalCa = loadedDossiers.reduce((s, d) => s + d.caTotal, 0)
+  const totalInterv = loadedDossiers.reduce((s, d) => s + d.interventions.length, 0)
+  const totalDocs = loadedDossiers.reduce((s, d) => s + d.documents.length, 0)
+  const totalAccords = loadedDossiers.reduce((s, d) => s + d.accords.length, 0)
 
   function exportClientCsv(d: ClientDossier) {
     const safeName = (d.client.nom || 'client').replace(/[^\w\-]+/g, '_').toLowerCase()
@@ -347,19 +409,21 @@ export default function ClientsPage() {
 
   function exportAllCsv() {
     const rows: (string | number | null | undefined)[][] = []
-    rows.push(['Client', 'Email', 'Téléphone', 'Ville', 'Nb interventions', 'Nb documents', 'Nb accords', 'CA total TTC', 'CA payé TTC', 'Dernière activité'])
-    for (const d of filtered) {
+    rows.push(['Client', 'Email', 'Téléphone', 'Ville', 'Dernière intervention', 'Nb interventions', 'Nb documents', 'Nb accords', 'CA total TTC', 'CA payé TTC', 'Dernière activité'])
+    for (const s of summaries) {
+      const d = dossiersByKey[s.key]
       rows.push([
-        d.client.nom,
-        d.client.email || '',
-        d.client.telephone || '',
-        d.client.ville || '',
-        d.interventions.length,
-        d.documents.length,
-        d.accords.length,
-        d.caTotal.toFixed(2).replace('.', ','),
-        d.caPaye.toFixed(2).replace('.', ','),
-        fmtDate(d.lastDate),
+        s.client.nom,
+        s.client.email || '',
+        s.client.telephone || '',
+        s.client.ville || '',
+        s.derniereIntervention || '',
+        d?.interventions.length ?? '',
+        d?.documents.length ?? '',
+        d?.accords.length ?? '',
+        d ? d.caTotal.toFixed(2).replace('.', ',') : '',
+        d ? d.caPaye.toFixed(2).replace('.', ',') : '',
+        fmtDate(d?.lastDate || s.lastDate),
       ])
     }
     downloadCsv('ltdb-clients.csv', rows)
@@ -439,18 +503,18 @@ export default function ClientsPage() {
         {/* Stats résumé */}
         {searched && (
           <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-            <Stat label="Clients" value={String(filtered.length)} />
-            <Stat label="Interventions" value={String(totalInterv)} />
-            <Stat label="Documents" value={String(totalDocs)} />
-            <Stat label="Accords" value={String(totalAccords)} />
-            <Stat label="CA total" value={fmtMontant(totalCa)} />
+            <Stat label="Clients" value={String(summaries.length)} />
+            <Stat label="Interventions" value={loadedDossiers.length > 0 ? String(totalInterv) : '—'} hint="dossiers ouverts" />
+            <Stat label="Documents" value={loadedDossiers.length > 0 ? String(totalDocs) : '—'} hint="dossiers ouverts" />
+            <Stat label="Accords" value={loadedDossiers.length > 0 ? String(totalAccords) : '—'} hint="dossiers ouverts" />
+            <Stat label="CA total" value={loadedDossiers.length > 0 ? fmtMontant(totalCa) : '—'} hint="dossiers ouverts" />
           </div>
         )}
 
         {/* Filtres */}
         <form onSubmit={runSearch} className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 space-y-3 shadow-sm">
           <p className="text-sm text-slate-600">
-            Recherche un client par <strong>nom</strong>, <strong>téléphone</strong>, <strong>email</strong> ou <strong>ville</strong> — le dossier complet s&apos;affiche ensuite (rapports, factures, devis, accords).
+            Recherche un client par <strong>nom</strong>, <strong>téléphone</strong>, <strong>email</strong> ou <strong>ville</strong> — clique sur une ligne pour charger le dossier complet (rapports, factures, devis, accords).
           </p>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
             <input
@@ -485,7 +549,7 @@ export default function ClientsPage() {
           <div className="flex items-center justify-between flex-wrap gap-2">
             <div className="text-xs text-slate-500">
               {searched
-                ? `${filtered.length} client${filtered.length > 1 ? 's' : ''} trouvé${filtered.length > 1 ? 's' : ''}`
+                ? `${summaries.length} client${summaries.length > 1 ? 's' : ''} trouvé${summaries.length > 1 ? 's' : ''}`
                 : 'Aucune recherche lancée'}
             </div>
             <div className="flex gap-2">
@@ -504,7 +568,7 @@ export default function ClientsPage() {
               <button
                 type="button"
                 onClick={exportAllCsv}
-                disabled={filtered.length === 0}
+                disabled={summaries.length === 0}
                 className="px-3 py-1.5 text-xs rounded-lg border border-slate-200 hover:bg-slate-50 disabled:opacity-40"
               >📥 Exporter CSV</button>
             </div>
@@ -520,183 +584,200 @@ export default function ClientsPage() {
             <button onClick={() => setDeleteError(null)} className="text-amber-600 hover:text-amber-900 font-bold shrink-0">✕</button>
           </div>
         )}
-        {!loading && !error && searched && filtered.length === 0 && (
+        {!loading && !error && searched && summaries.length === 0 && (
           <div className="text-center py-12 text-slate-500 text-sm">Aucun client ne correspond à ces critères.</div>
         )}
         {!searched && !loading && (
           <div className="text-center py-16 text-slate-400 text-sm">
-            Saisis au moins un critère puis clique sur <strong>Rechercher</strong> pour afficher le dossier client.
+            Saisis au moins un critère puis clique sur <strong>Rechercher</strong> pour afficher la liste des clients.
           </div>
         )}
 
-        <div className="space-y-3">
-          {filtered.map(d => {
-            const isOpen = !!expanded[d.key]
-            return (
-              <div key={d.key} className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
-                <div className="flex items-stretch">
-                  <button
-                    onClick={() => setExpanded(s => ({ ...s, [d.key]: !s[d.key] }))}
-                    className="flex-1 min-w-0 px-4 sm:px-5 py-4 flex items-center gap-4 hover:bg-slate-50 text-left"
-                  >
-                    <div className="w-10 h-10 rounded-full bg-teal-100 text-teal-700 flex items-center justify-center font-bold text-sm shrink-0">
-                      {(d.client.nom || '?').slice(0, 2).toUpperCase()}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="font-semibold text-sm sm:text-base truncate">{d.client.nom}</div>
-                      <div className="text-xs text-slate-500 truncate">
-                        {[d.client.email, d.client.telephone, d.client.ville].filter(Boolean).join(' · ') || 'Aucun contact'}
+        {summaries.length > 0 && (
+          <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
+            <div className="hidden sm:grid sm:grid-cols-12 gap-3 px-4 py-2.5 bg-slate-50 border-b border-slate-200 text-[10px] uppercase tracking-wider font-semibold text-slate-500">
+              <div className="col-span-3">Nom</div>
+              <div className="col-span-2">Téléphone</div>
+              <div className="col-span-3">Email</div>
+              <div className="col-span-3">Dernière intervention</div>
+              <div className="col-span-1" />
+            </div>
+            <div className="divide-y divide-slate-100">
+              {summaries.map(s => {
+                const isOpen = !!expanded[s.key]
+                const d = dossiersByKey[s.key]
+                const isLoadingDetail = !!loadingDetail[s.key]
+                const errDetail = detailError[s.key]
+                return (
+                  <div key={s.key}>
+                    <button
+                      type="button"
+                      onClick={() => void toggleClient(s)}
+                      className="w-full px-4 py-3 sm:py-3.5 flex flex-col sm:grid sm:grid-cols-12 gap-1 sm:gap-3 sm:items-center hover:bg-slate-50 text-left transition-colors"
+                    >
+                      <div className="sm:col-span-3 font-semibold text-sm truncate">{s.client.nom}</div>
+                      <div className="sm:col-span-2 text-sm text-slate-600 truncate">
+                        <span className="sm:hidden text-slate-400 text-xs mr-1">Tél.</span>
+                        {s.client.telephone || '—'}
                       </div>
-                    </div>
-                    <div className="hidden sm:flex gap-3 text-xs text-slate-600">
-                      <Pill>{d.interventions.length} interv.</Pill>
-                      <Pill>{d.documents.length} doc.</Pill>
-                      {d.caTotal > 0 && <Pill className="bg-emerald-50 text-emerald-700 border-emerald-100">{fmtMontant(d.caTotal)}</Pill>}
-                    </div>
-                    <span className={`text-slate-400 transition-transform ${isOpen ? 'rotate-180' : ''}`}>▾</span>
-                  </button>
-                  <button
-                    onClick={() => handleDeleteClient(d)}
-                    disabled={deletingKey === d.key}
-                    title={d.interventions.length > 0 || d.documents.length > 0 || d.accords.length > 0
-                      ? 'Ce client a des interventions/documents/accords — supprime-les d\'abord'
-                      : 'Supprimer ce client'}
-                    className="px-3 sm:px-4 flex items-center justify-center text-slate-300 hover:text-red-600 hover:bg-red-50 border-l border-slate-100 transition-colors disabled:opacity-40"
-                  >
-                    {deletingKey === d.key ? '⏳' : '🗑'}
-                  </button>
-                </div>
+                      <div className="sm:col-span-3 text-sm text-slate-600 truncate">
+                        <span className="sm:hidden text-slate-400 text-xs mr-1">Email</span>
+                        {s.client.email || '—'}
+                      </div>
+                      <div className="sm:col-span-3 text-sm text-slate-600 truncate">
+                        <span className="sm:hidden text-slate-400 text-xs mr-1">Intervention</span>
+                        {s.derniereIntervention || '—'}
+                        {s.derniereInterventionDate && (
+                          <span className="text-slate-400 text-xs ml-1">({fmtDate(s.derniereInterventionDate)})</span>
+                        )}
+                      </div>
+                      <div className="hidden sm:flex sm:col-span-1 justify-end">
+                        <span className={`text-slate-400 transition-transform ${isOpen ? 'rotate-180' : ''}`}>▾</span>
+                      </div>
+                    </button>
 
-                {isOpen && (
-                  <div className="border-t border-slate-100 bg-slate-50/50 p-4 sm:p-5 space-y-4">
-                    <div className="flex flex-wrap gap-2">
-                      <button
-                        onClick={() => openEditModal(d)}
-                        disabled={!d.client.id}
-                        title={d.client.id ? 'Modifier les coordonnées' : 'Pas de fiche enregistrée'}
-                        className="px-3 py-1.5 text-xs rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-40"
-                      >✏️ Modifier</button>
-                      <button
-                        onClick={() => exportClientCsv(d)}
-                        className="px-3 py-1.5 text-xs rounded-lg bg-white border border-slate-200 hover:bg-slate-100"
-                      >📥 Exporter ce client (CSV)</button>
-                      <button
-                        onClick={() => openSendModal(d)}
-                        disabled={!d.client.email && !d.documents.length && !d.interventions.length && !d.accords.length}
-                        className="px-3 py-1.5 text-xs rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-40"
-                      >✉ Envoyer le récap</button>
-                      <button
-                        onClick={() => handleDeleteClient(d)}
-                        disabled={deletingKey === d.key}
-                        className="px-3 py-1.5 text-xs rounded-lg bg-white border border-red-200 text-red-700 hover:bg-red-50 disabled:opacity-40"
-                      >{deletingKey === d.key ? '⏳ Suppression…' : '🗑 Supprimer ce client'}</button>
-                    </div>
-                    {(d.interventions.length > 0 || d.documents.length > 0 || d.accords.length > 0) && (
-                      <p className="text-[11px] text-slate-500">
-                        ⚠ Ce client a {d.interventions.length} intervention(s), {d.documents.length} document(s) et {d.accords.length} accord(s) liés.
-                        Sa suppression est bloquée tant qu&apos;ils existent.
-                      </p>
-                    )}
+                    {isOpen && (
+                      <div className="border-t border-slate-100 bg-slate-50/50 p-4 sm:p-5 space-y-4">
+                        {isLoadingDetail && (
+                          <p className="text-sm text-slate-500">Chargement du dossier…</p>
+                        )}
+                        {errDetail && !isLoadingDetail && (
+                          <p className="text-sm text-red-600">{errDetail}</p>
+                        )}
+                        {d && !isLoadingDetail && (
+                          <>
+                            <div className="flex flex-wrap gap-2">
+                              <button
+                                onClick={() => openEditModal(d)}
+                                disabled={!d.client.id}
+                                title={d.client.id ? 'Modifier les coordonnées' : 'Pas de fiche enregistrée'}
+                                className="px-3 py-1.5 text-xs rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-40"
+                              >✏️ Modifier</button>
+                              <button
+                                onClick={() => exportClientCsv(d)}
+                                className="px-3 py-1.5 text-xs rounded-lg bg-white border border-slate-200 hover:bg-slate-100"
+                              >📥 Exporter ce client (CSV)</button>
+                              <button
+                                onClick={() => openSendModal(d)}
+                                disabled={!d.client.email && !d.documents.length && !d.interventions.length && !d.accords.length}
+                                className="px-3 py-1.5 text-xs rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-40"
+                              >✉ Envoyer le récap</button>
+                              <button
+                                onClick={() => handleDeleteClient(d)}
+                                disabled={deletingKey === d.key}
+                                className="px-3 py-1.5 text-xs rounded-lg bg-white border border-red-200 text-red-700 hover:bg-red-50 disabled:opacity-40"
+                              >{deletingKey === d.key ? '⏳ Suppression…' : '🗑 Supprimer ce client'}</button>
+                            </div>
+                            {(d.interventions.length > 0 || d.documents.length > 0 || d.accords.length > 0) && (
+                              <p className="text-[11px] text-slate-500">
+                                ⚠ Ce client a {d.interventions.length} intervention(s), {d.documents.length} document(s) et {d.accords.length} accord(s) liés.
+                                Sa suppression est bloquée tant qu&apos;ils existent.
+                              </p>
+                            )}
 
-                    {(() => {
-                      const rapports = d.interventions.filter(i => i.has_rapport)
-                      const interventionsSansRapport = d.interventions.filter(i => !i.has_rapport)
-                      const factures = d.documents.filter(doc => doc.type === 'facture')
-                      const devis = d.documents.filter(doc => doc.type === 'devis')
-                      const attestations = d.documents.filter(doc => doc.type === 'attestation')
-                      const accords = d.accords
-                      return (
-                        <>
-                          <div className="flex flex-wrap gap-2 text-[11px] text-slate-600">
-                            <Pill className="bg-indigo-50 text-indigo-700 border-indigo-100">📝 {rapports.length} rapport{rapports.length > 1 ? 's' : ''}</Pill>
-                            <Pill className="bg-emerald-50 text-emerald-700 border-emerald-100">🧾 {factures.length} facture{factures.length > 1 ? 's' : ''}</Pill>
-                            <Pill className="bg-amber-50 text-amber-700 border-amber-100">📋 {devis.length} devis</Pill>
-                            <Pill className="bg-violet-50 text-violet-700 border-violet-100">🤝 {accords.length} accord{accords.length > 1 ? 's' : ''}</Pill>
-                            <Pill className="bg-stone-50 text-stone-700 border-stone-100">✅ {attestations.length} attestation{attestations.length > 1 ? 's' : ''}</Pill>
-                          </div>
-
-                          <DocSection title="📝 Rapports d'intervention" count={rapports.length} accent="indigo">
-                            {rapports.map(i => (
-                              <div
-                                key={i.id}
-                                className="flex items-center justify-between gap-3 bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm"
-                              >
-                                <div className="flex-1 min-w-0">
-                                  <span className="font-medium">{i.reference || i.id.slice(0, 8)}</span>
-                                  {i.type_intervention && <span className="text-slate-500"> · {i.type_intervention}</span>}
-                                  {i.ville && <span className="text-slate-500"> · {i.ville}</span>}
-                                </div>
-                                <div className="text-xs text-slate-600 shrink-0 flex items-center gap-3">
-                                  <span className="text-slate-500">{fmtDate(i.date_realisee || i.date_prevue || i.created_at)}</span>
-                                  {i.pdf_rapport_url && (
-                                    <a href={i.pdf_rapport_url} target="_blank" rel="noreferrer" className="px-2 py-1 rounded bg-indigo-600 text-white hover:bg-indigo-700 text-[11px]">📄 PDF</a>
-                                  )}
-                                  <Link href={`/intervention/${i.id}`} className="text-[#0e2a52] hover:underline">Voir →</Link>
-                                </div>
-                              </div>
-                            ))}
-                          </DocSection>
-
-                          <DocSection title="🧾 Factures" count={factures.length} accent="emerald">
-                            {factures.map(doc => (
-                              <DocRowView key={doc.id} doc={doc} />
-                            ))}
-                          </DocSection>
-
-                          <DocSection title="📋 Devis" count={devis.length} accent="amber">
-                            {devis.map(doc => (
-                              <DocRowView key={doc.id} doc={doc} />
-                            ))}
-                          </DocSection>
-
-                          <DocSection title="🤝 Accords d'intervention" count={accords.length} accent="violet">
-                            {accords.map(a => (
-                              <AccordRowView key={a.id} accord={a} />
-                            ))}
-                          </DocSection>
-
-                          <DocSection title="✅ Attestations" count={attestations.length} accent="stone">
-                            {attestations.map(doc => (
-                              <DocRowView key={doc.id} doc={doc} />
-                            ))}
-                          </DocSection>
-
-                          {interventionsSansRapport.length > 0 && (
-                            <DocSection title="📅 Interventions sans rapport" count={interventionsSansRapport.length} accent="slate">
-                              {interventionsSansRapport.map(i => (
-                                <Link
-                                  key={i.id}
-                                  href={`/intervention/${i.id}`}
-                                  className="block bg-white border border-slate-200 rounded-lg px-3 py-2 hover:border-[#0e2a52] hover:bg-slate-50"
-                                >
-                                  <div className="flex items-center justify-between gap-3 text-sm">
-                                    <div className="flex-1 min-w-0">
-                                      <span className="font-medium">{i.reference || i.id.slice(0, 8)}</span>
-                                      {i.type_intervention && <span className="text-slate-500"> · {i.type_intervention}</span>}
-                                      {i.ville && <span className="text-slate-500"> · {i.ville}</span>}
-                                    </div>
-                                    <div className="text-xs text-slate-500 shrink-0">
-                                      {fmtDate(i.date_realisee || i.date_prevue || i.created_at)}
-                                      {i.statut && <span className={`ml-2 px-1.5 py-0.5 rounded text-[10px] uppercase ${statutClass(i.statut)}`}>{i.statut}</span>}
-                                    </div>
+                            {(() => {
+                              const rapports = d.interventions.filter(i => i.has_rapport)
+                              const interventionsSansRapport = d.interventions.filter(i => !i.has_rapport)
+                              const factures = d.documents.filter(doc => doc.type === 'facture')
+                              const devis = d.documents.filter(doc => doc.type === 'devis')
+                              const attestations = d.documents.filter(doc => doc.type === 'attestation')
+                              const accords = d.accords
+                              return (
+                                <>
+                                  <div className="flex flex-wrap gap-2 text-[11px] text-slate-600">
+                                    <Pill className="bg-indigo-50 text-indigo-700 border-indigo-100">📝 {rapports.length} rapport{rapports.length > 1 ? 's' : ''}</Pill>
+                                    <Pill className="bg-emerald-50 text-emerald-700 border-emerald-100">🧾 {factures.length} facture{factures.length > 1 ? 's' : ''}</Pill>
+                                    <Pill className="bg-amber-50 text-amber-700 border-amber-100">📋 {devis.length} devis</Pill>
+                                    <Pill className="bg-violet-50 text-violet-700 border-violet-100">🤝 {accords.length} accord{accords.length > 1 ? 's' : ''}</Pill>
+                                    <Pill className="bg-stone-50 text-stone-700 border-stone-100">✅ {attestations.length} attestation{attestations.length > 1 ? 's' : ''}</Pill>
                                   </div>
-                                </Link>
-                              ))}
-                            </DocSection>
-                          )}
 
-                          {d.interventions.length === 0 && d.documents.length === 0 && d.accords.length === 0 && (
-                            <div className="text-xs text-slate-500 italic">Aucune intervention, document ni accord pour ce client.</div>
-                          )}
-                        </>
-                      )
-                    })()}
+                                  <DocSection title="📝 Rapports d'intervention" count={rapports.length} accent="indigo">
+                                    {rapports.map(i => (
+                                      <div
+                                        key={i.id}
+                                        className="flex items-center justify-between gap-3 bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm"
+                                      >
+                                        <div className="flex-1 min-w-0">
+                                          <span className="font-medium">{i.reference || i.id.slice(0, 8)}</span>
+                                          {i.type_intervention && <span className="text-slate-500"> · {i.type_intervention}</span>}
+                                          {i.ville && <span className="text-slate-500"> · {i.ville}</span>}
+                                        </div>
+                                        <div className="text-xs text-slate-600 shrink-0 flex items-center gap-3">
+                                          <span className="text-slate-500">{fmtDate(i.date_realisee || i.date_prevue || i.created_at)}</span>
+                                          {i.pdf_rapport_url && (
+                                            <a href={i.pdf_rapport_url} target="_blank" rel="noreferrer" className="px-2 py-1 rounded bg-indigo-600 text-white hover:bg-indigo-700 text-[11px]">📄 PDF</a>
+                                          )}
+                                          <Link href={`/intervention/${i.id}`} className="text-[#0e2a52] hover:underline">Voir →</Link>
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </DocSection>
+
+                                  <DocSection title="🧾 Factures" count={factures.length} accent="emerald">
+                                    {factures.map(doc => (
+                                      <DocRowView key={doc.id} doc={doc} />
+                                    ))}
+                                  </DocSection>
+
+                                  <DocSection title="📋 Devis" count={devis.length} accent="amber">
+                                    {devis.map(doc => (
+                                      <DocRowView key={doc.id} doc={doc} />
+                                    ))}
+                                  </DocSection>
+
+                                  <DocSection title="🤝 Accords d'intervention" count={accords.length} accent="violet">
+                                    {accords.map(a => (
+                                      <AccordRowView key={a.id} accord={a} />
+                                    ))}
+                                  </DocSection>
+
+                                  <DocSection title="✅ Attestations" count={attestations.length} accent="stone">
+                                    {attestations.map(doc => (
+                                      <DocRowView key={doc.id} doc={doc} />
+                                    ))}
+                                  </DocSection>
+
+                                  {interventionsSansRapport.length > 0 && (
+                                    <DocSection title="📅 Interventions sans rapport" count={interventionsSansRapport.length} accent="slate">
+                                      {interventionsSansRapport.map(i => (
+                                        <Link
+                                          key={i.id}
+                                          href={`/intervention/${i.id}`}
+                                          className="block bg-white border border-slate-200 rounded-lg px-3 py-2 hover:border-[#0e2a52] hover:bg-slate-50"
+                                        >
+                                          <div className="flex items-center justify-between gap-3 text-sm">
+                                            <div className="flex-1 min-w-0">
+                                              <span className="font-medium">{i.reference || i.id.slice(0, 8)}</span>
+                                              {i.type_intervention && <span className="text-slate-500"> · {i.type_intervention}</span>}
+                                              {i.ville && <span className="text-slate-500"> · {i.ville}</span>}
+                                            </div>
+                                            <div className="text-xs text-slate-500 shrink-0">
+                                              {fmtDate(i.date_realisee || i.date_prevue || i.created_at)}
+                                              {i.statut && <span className={`ml-2 px-1.5 py-0.5 rounded text-[10px] uppercase ${statutClass(i.statut)}`}>{i.statut}</span>}
+                                            </div>
+                                          </div>
+                                        </Link>
+                                      ))}
+                                    </DocSection>
+                                  )}
+
+                                  {d.interventions.length === 0 && d.documents.length === 0 && d.accords.length === 0 && (
+                                    <div className="text-xs text-slate-500 italic">Aucune intervention, document ni accord pour ce client.</div>
+                                  )}
+                                </>
+                              )
+                            })()}
+                          </>
+                        )}
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
-            )
-          })}
-        </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Modale envoi récap */}
@@ -838,11 +919,12 @@ export default function ClientsPage() {
   )
 }
 
-function Stat({ label, value }: { label: string; value: string }) {
+function Stat({ label, value, hint }: { label: string; value: string; hint?: string }) {
   return (
     <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm">
       <div className="text-[11px] uppercase tracking-wider text-slate-500 font-semibold">{label}</div>
       <div className="text-xl sm:text-2xl font-bold mt-1">{value}</div>
+      {hint && <div className="text-[9px] text-slate-400 mt-0.5">{hint}</div>}
     </div>
   )
 }
