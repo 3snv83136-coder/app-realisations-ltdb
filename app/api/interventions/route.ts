@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
 import { technicienFilterForSession } from "@/lib/intervention-access"
-import { notifyTechnicienIntervention } from "@/lib/notify-technicien"
+import {
+  notifyTechnicienForIntervention,
+  resolveNotifyBaseUrl,
+  type NotifyTechnicienResult,
+} from "@/lib/notify-technicien"
 import { getSupabaseOrNull, upsertClient, patchClient } from "@/lib/supabase"
 import { isCanalAcquisition } from "@/lib/canaux"
 
@@ -257,10 +261,14 @@ export async function POST(req: NextRequest) {
   }
 
   // 4. Notification technicien (await — Vercel coupe le process si fire-and-forget)
-  let notification: Awaited<ReturnType<typeof notifyTechnicienIntervention>> | null = null
+  let notification: NotifyTechnicienResult | null = null
   if (inserted.technicien_id) {
     try {
-      notification = await notifyTechBestEffort(req, inserted.id, inserted.technicien_id)
+      notification = await notifyTechnicienForIntervention(
+        inserted.id,
+        inserted.technicien_id,
+        resolveNotifyBaseUrl(new URL(req.url).origin),
+      )
     } catch (e) {
       console.error('[interventions.POST notify]', e)
       notification = {
@@ -273,74 +281,4 @@ export async function POST(req: NextRequest) {
   }
 
   return NextResponse.json({ intervention: inserted, notification }, { status: 201 })
-}
-
-async function notifyTechBestEffort(req: NextRequest, interventionId: string, technicienId: string) {
-  const sb = getSupabaseOrNull()
-  if (!sb) {
-    return { ok: false, mail_sent: false, sms_sent: false, skipped: 'Supabase non configuré' }
-  }
-
-  const { data: tech } = await sb
-    .from('techniciens')
-    .select('id, nom, email, telephone')
-    .eq('id', technicienId)
-    .maybeSingle()
-
-  if (!tech?.email && !tech?.telephone) {
-    return {
-      ok: false,
-      mail_sent: false,
-      sms_sent: false,
-      skipped: `Technicien « ${tech?.nom || technicienId} » sans email ni téléphone`,
-    }
-  }
-
-  const { data: i } = await sb
-    .from('interventions')
-    .select('*')
-    .eq('id', interventionId)
-    .maybeSingle()
-
-  if (!i) {
-    return { ok: false, mail_sent: false, sms_sent: false, skipped: 'Intervention introuvable' }
-  }
-
-  let clientNom: string | null = null
-  let clientTel: string | null = null
-  let clientEmail: string | null = null
-  if (i.client_id) {
-    const { data: c } = await sb
-      .from('clients')
-      .select('nom, email, telephone')
-      .eq('id', i.client_id)
-      .maybeSingle()
-    clientNom = c?.nom ?? null
-    clientTel = c?.telephone ?? null
-    clientEmail = c?.email ?? null
-  }
-
-  const baseUrl = new URL(req.url).origin
-    || process.env.NEXT_PUBLIC_APP_URL
-    || process.env.NEXTAUTH_URL
-    || 'https://app-realisations.vercel.app'
-
-  return notifyTechnicienIntervention({
-    intervention_id: interventionId,
-    technicien_email: tech.email,
-    technicien_nom: tech.nom,
-    technicien_telephone: tech.telephone,
-    client_nom: clientNom,
-    client_telephone: clientTel,
-    client_email: clientEmail,
-    adresse_chantier: i.adresse_chantier,
-    ville: i.ville,
-    code_postal: i.code_postal,
-    date_prevue: i.date_prevue,
-    heure_prevue: i.heure_prevue,
-    type_intervention: i.type_intervention,
-    urgence: i.urgence,
-    prix_prevu: i.prix_prevu,
-    notes_internes: i.notes_internes,
-  }, baseUrl)
 }

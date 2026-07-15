@@ -3,6 +3,7 @@ import { EMAIL_RE, escapeHtml, getResendFromEmail, getResendRecipient } from "@/
 import { buildTechnicienInterventionSmsText } from "@/lib/notify-technicien-message"
 import { getTelPrincipal } from "@/lib/parametres"
 import { isSmsConfigured, sendSms } from "@/lib/sms-provider"
+import { getSupabaseOrNull } from "@/lib/supabase"
 
 function fmtDateFREmpty(iso?: string | null): string {
   if (!iso) return ''
@@ -240,4 +241,93 @@ export async function notifyTechnicienIntervention(
     ...(smsError ? { sms_error: smsError } : {}),
     ...(!ok ? { error: error || smsError || 'Notification non envoyée' } : {}),
   }
+}
+
+export function resolveNotifyBaseUrl(origin?: string | null): string {
+  return origin
+    || process.env.NEXT_PUBLIC_APP_URL
+    || process.env.NEXTAUTH_URL
+    || 'https://app-realisations.vercel.app'
+}
+
+/** Charge intervention + client + technicien puis envoie mail/SMS. */
+export async function notifyTechnicienForIntervention(
+  interventionId: string,
+  technicienId: string,
+  baseUrl: string,
+): Promise<NotifyTechnicienResult> {
+  const sb = getSupabaseOrNull()
+  if (!sb) {
+    return { ok: false, mail_sent: false, sms_sent: false, skipped: 'Supabase non configuré' }
+  }
+
+  const { data: tech } = await sb
+    .from('techniciens')
+    .select('id, nom, email, telephone')
+    .eq('id', technicienId)
+    .maybeSingle()
+
+  if (!tech?.email && !tech?.telephone) {
+    return {
+      ok: false,
+      mail_sent: false,
+      sms_sent: false,
+      skipped: `Technicien « ${tech?.nom || technicienId} » sans email ni téléphone`,
+    }
+  }
+
+  const { data: i } = await sb
+    .from('interventions')
+    .select('*')
+    .eq('id', interventionId)
+    .maybeSingle()
+
+  if (!i) {
+    return { ok: false, mail_sent: false, sms_sent: false, skipped: 'Intervention introuvable' }
+  }
+
+  let clientNom: string | null = null
+  let clientTel: string | null = null
+  let clientEmail: string | null = null
+  if (i.client_id) {
+    const { data: c } = await sb
+      .from('clients')
+      .select('nom, email, telephone')
+      .eq('id', i.client_id)
+      .maybeSingle()
+    clientNom = c?.nom ?? null
+    clientTel = c?.telephone ?? null
+    clientEmail = c?.email ?? null
+  }
+
+  return notifyTechnicienIntervention({
+    intervention_id: interventionId,
+    technicien_email: tech.email,
+    technicien_nom: tech.nom,
+    technicien_telephone: tech.telephone,
+    client_nom: clientNom,
+    client_telephone: clientTel,
+    client_email: clientEmail,
+    adresse_chantier: i.adresse_chantier,
+    ville: i.ville,
+    code_postal: i.code_postal,
+    date_prevue: i.date_prevue,
+    heure_prevue: i.heure_prevue,
+    type_intervention: i.type_intervention,
+    urgence: i.urgence,
+    prix_prevu: i.prix_prevu,
+    notes_internes: i.notes_internes,
+  }, baseUrl)
+}
+
+export function formatNotifyTechnicienFeedback(result: NotifyTechnicienResult | null | undefined): string {
+  if (!result) return ''
+  if (result.ok) {
+    const parts: string[] = []
+    if (result.mail_sent) parts.push('mail')
+    if (result.sms_sent) parts.push('SMS')
+    if (parts.length) return `${parts.join(' + ')} envoyé(s) au technicien`
+    return 'Notification envoyée au technicien'
+  }
+  return result.skipped || result.error || result.sms_error || 'Notification non envoyée'
 }

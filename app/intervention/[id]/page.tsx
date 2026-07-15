@@ -9,6 +9,7 @@ import { fmtDateFR, fmtEUR } from "@/lib/format"
 import { CANAUX_ACQUISITION, canalIcon, canalLabel } from "@/lib/canaux"
 import { TYPES_INTERVENTION, isDevisIntervention } from "@/lib/types-intervention"
 import { countAvisRelancesPendantes } from "@/lib/avis-relance-utils"
+import { formatNotifyTechnicienFeedback } from "@/lib/notify-technicien"
 
 const InterventionMap = dynamic(() => import('@/components/InterventionMap'), { ssr: false })
 const InterventionRapportDownloadButton = dynamic(
@@ -124,6 +125,7 @@ export default function InterventionDetailPage({ params }: { params: { id: strin
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [actionInProgress, setActionInProgress] = useState(false)
+  const [notifyingTech, setNotifyingTech] = useState(false)
   const [actionMsg, setActionMsg] = useState('')
 
   // Mode édition
@@ -212,6 +214,7 @@ export default function InterventionDetailPage({ params }: { params: { id: strin
         setEditing(false); setSaving(false); return
       }
 
+      let notifMsg = ''
       if (nbIntervention > 0) {
         const res = await fetch(`/api/interventions/${intervention.id}`, {
           method: 'PUT',
@@ -221,6 +224,7 @@ export default function InterventionDetailPage({ params }: { params: { id: strin
         const data = await res.json()
         if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`)
         setIntervention(data.intervention)
+        notifMsg = formatNotifyTechnicienFeedback(data.notification)
       }
 
       if (nbClient > 0 && client) {
@@ -234,7 +238,7 @@ export default function InterventionDetailPage({ params }: { params: { id: strin
         setClient(data.client)
       }
 
-      setActionMsg('Modifications enregistrées')
+      setActionMsg(notifMsg ? `Modifications enregistrées — ${notifMsg}` : 'Modifications enregistrées')
       setEditing(false)
       // recharge le client/technicien si technicien changé
       if ('technicien_id' in payload) await load()
@@ -343,11 +347,36 @@ export default function InterventionDetailPage({ params }: { params: { id: strin
       const nom = technicienId
         ? techniciens.find(t => t.id === technicienId)?.nom || 'le technicien sélectionné'
         : 'aucun technicien'
-      setActionMsg(`Technicien mis à jour : ${nom}`)
+      const notifMsg = formatNotifyTechnicienFeedback(data.notification)
+      setActionMsg(
+        notifMsg
+          ? `Technicien mis à jour : ${nom} — ${notifMsg}`
+          : `Technicien mis à jour : ${nom}`,
+      )
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
     } finally {
       setActionInProgress(false)
+    }
+  }
+
+  async function resendNotifyTechnicien() {
+    if (!intervention?.technicien_id) return
+    if (!confirm(`Renvoyer le mail et le SMS à ${technicien?.nom || 'ce technicien'} ?`)) return
+    setNotifyingTech(true)
+    setError('')
+    setActionMsg('')
+    try {
+      const res = await fetch(`/api/interventions/${intervention.id}/notify-technicien`, {
+        method: 'POST',
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || data.message || `HTTP ${res.status}`)
+      setActionMsg(data.message || formatNotifyTechnicienFeedback(data.notification) || 'Notification renvoyée')
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setNotifyingTech(false)
     }
   }
 
@@ -918,8 +947,19 @@ export default function InterventionDetailPage({ params }: { params: { id: strin
                     <p className="text-xs text-slate-400">Chargement des techniciens…</p>
                   )}
                   <p className="text-[11px] text-slate-400">
-                    Le technicien choisi verra cette intervention dans son planning.
+                    Le technicien choisi verra cette intervention dans son planning
+                    {intervention.technicien_id ? ' et recevra un mail + SMS.' : '.'}
                   </p>
+                  {intervention.technicien_id && (
+                    <button
+                      type="button"
+                      onClick={resendNotifyTechnicien}
+                      disabled={notifyingTech || actionInProgress}
+                      className="w-full mt-2 bg-[#0e2a52] hover:bg-[#1a3d6e] disabled:opacity-50 text-white rounded-xl py-2.5 text-sm font-bold transition"
+                    >
+                      {notifyingTech ? 'Envoi…' : '📧 Renvoyer mail + SMS au technicien'}
+                    </button>
+                  )}
                 </div>
               )}
             </>

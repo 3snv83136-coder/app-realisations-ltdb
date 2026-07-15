@@ -1,5 +1,10 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getSessionUser, assertInterventionAccess, requireInterventionAccess } from "@/lib/intervention-access"
+import {
+  notifyTechnicienForIntervention,
+  resolveNotifyBaseUrl,
+  type NotifyTechnicienResult,
+} from "@/lib/notify-technicien"
 import { getSupabaseOrNull } from "@/lib/supabase"
 import { isCanalAcquisition } from "@/lib/canaux"
 import { cascadeDeleteIntervention } from "@/lib/cascadeDelete"
@@ -156,6 +161,17 @@ export async function PUT(req: NextRequest, { params }: Params) {
     return NextResponse.json({ error: 'Aucun champ à mettre à jour' }, { status: 400 })
   }
 
+  const reassignedTech = 'technicien_id' in update
+  let previousTechId: string | null = null
+  if (reassignedTech) {
+    const { data: before } = await sb
+      .from('interventions')
+      .select('technicien_id')
+      .eq('id', params.id)
+      .maybeSingle()
+    previousTechId = before?.technicien_id ?? null
+  }
+
   const { data, error } = await sb
     .from('interventions')
     .update(update)
@@ -164,7 +180,30 @@ export async function PUT(req: NextRequest, { params }: Params) {
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json({ intervention: data })
+
+  let notification: NotifyTechnicienResult | null = null
+  if (reassignedTech && user?.role !== 'tech') {
+    const newTechId = typeof update.technicien_id === 'string' ? update.technicien_id : null
+    if (newTechId && newTechId !== previousTechId) {
+      try {
+        notification = await notifyTechnicienForIntervention(
+          params.id,
+          newTechId,
+          resolveNotifyBaseUrl(req.nextUrl.origin),
+        )
+      } catch (e) {
+        console.error('[interventions.PUT notify]', e)
+        notification = {
+          ok: false,
+          mail_sent: false,
+          sms_sent: false,
+          error: e instanceof Error ? e.message : String(e),
+        }
+      }
+    }
+  }
+
+  return NextResponse.json({ intervention: data, notification })
 }
 
 export async function DELETE(req: NextRequest, { params }: Params) {
