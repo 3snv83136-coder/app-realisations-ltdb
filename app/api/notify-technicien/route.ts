@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server"
 import { Resend } from "resend"
 import { EMAIL_RE, escapeHtml, getResendFromEmail, getResendRecipient } from "@/lib/email-utils"
+import { buildTechnicienInterventionSmsText } from "@/lib/notify-technicien-message"
 import { getTelPrincipal } from "@/lib/parametres"
+import { isSmsConfigured, sendSms } from "@/lib/sms-provider"
 
 export const maxDuration = 30
 
@@ -22,6 +24,7 @@ type NotifyBody = {
   intervention_id?: string
   technicien_email?: string
   technicien_nom?: string
+  technicien_telephone?: string | null
   client_nom?: string | null
   client_telephone?: string | null
   client_email?: string | null
@@ -45,7 +48,7 @@ export async function POST(req: NextRequest) {
   }
 
   const {
-    intervention_id, technicien_email, technicien_nom,
+    intervention_id, technicien_email, technicien_nom, technicien_telephone,
     client_nom, client_telephone, client_email,
     adresse_chantier, ville, code_postal,
     date_prevue, heure_prevue, type_intervention,
@@ -111,7 +114,37 @@ export async function POST(req: NextRequest) {
     }, { status: 500 })
   }
 
-  return NextResponse.json({ ok: true, id: result.data?.id })
+  let smsSent = false
+  let smsError: string | undefined
+  const techPhone = (technicien_telephone || '').trim()
+  if (techPhone && isSmsConfigured()) {
+    const smsBody = buildTechnicienInterventionSmsText({
+      technicienNom: technicien_nom,
+      clientNom: client_nom,
+      clientTelephone: client_telephone,
+      adresseChantier: adresse_chantier,
+      ville,
+      codePostal: code_postal,
+      datePrevue: date_prevue,
+      heurePrevue: heure_prevue,
+      typeIntervention: type_intervention,
+      urgence: !!urgence,
+      lien,
+    })
+    const smsResult = await sendSms({ to: techPhone, content: smsBody })
+    smsSent = smsResult.ok
+    if (!smsResult.ok) {
+      smsError = smsResult.error
+      console.error('[notify-technicien] SMS', smsResult.error)
+    }
+  }
+
+  return NextResponse.json({
+    ok: true,
+    id: result.data?.id,
+    sms_sent: smsSent,
+    ...(smsError ? { sms_error: smsError } : {}),
+  })
 }
 
 function emailTechHtml(p: {

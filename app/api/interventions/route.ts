@@ -271,7 +271,7 @@ async function notifyTechBestEffort(req: NextRequest, interventionId: string, te
 
   const { data: tech } = await sb
     .from('techniciens')
-    .select('id, nom, email')
+    .select('id, nom, email, telephone')
     .eq('id', technicienId)
     .maybeSingle()
 
@@ -312,6 +312,7 @@ async function notifyTechBestEffort(req: NextRequest, interventionId: string, te
       intervention_id: interventionId,
       technicien_email: tech.email,
       technicien_nom: tech.nom,
+      technicien_telephone: tech.telephone,
       client_nom: clientNom,
       client_telephone: clientTel,
       client_email: clientEmail,
