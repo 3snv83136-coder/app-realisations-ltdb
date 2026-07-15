@@ -85,6 +85,7 @@ const SMALL_TOOLS: Tool[] = [
   { href: '/comptabilite',     emoji: '💼', label: 'Comptabilité',  desc: 'Bilan & FEC',         bg: 'bg-gradient-to-br from-violet-500 to-violet-700', text: 'white' },
   { href: '/rh',               emoji: '👔', label: 'RH',            desc: 'Salariés',              bg: 'bg-gradient-to-br from-fuchsia-600 to-purple-800', text: 'white' },
   { href: '/techniciens',      emoji: '🦺', label: 'Techniciens',   desc: 'Profils site',        bg: 'bg-gradient-to-br from-orange-500 to-amber-700',  text: 'white' },
+  { href: '/admin/comptes',    emoji: '👷', label: 'Comptes techs', desc: 'Login & accès',       bg: 'bg-gradient-to-br from-emerald-500 to-emerald-700', text: 'white', ownerOnly: true },
   { href: '/acces-demo',       emoji: '🔑', label: 'Accès démo',    desc: 'Essai client',        bg: 'bg-gradient-to-br from-yellow-500 to-amber-700',  text: 'white', ownerOnly: true },
   { href: '/mail',             emoji: '📧', label: 'Mail',          desc: 'Emails envoyés',      bg: 'bg-gradient-to-br from-cyan-500 to-cyan-700',     text: 'white' },
   { href: '/post-gmb',         emoji: '📍', label: 'Post GMB',      desc: 'Google Business',     bg: 'bg-gradient-to-br from-indigo-500 to-indigo-700', text: 'white' },
