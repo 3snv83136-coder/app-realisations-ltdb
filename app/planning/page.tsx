@@ -403,7 +403,7 @@ function InterventionCard({
   compact?: boolean
   techMode?: boolean
 }) {
-  const href = techMode ? `/intervention/${i.id}/terrain` : `/intervention/${i.id}`
+  const href = `/intervention/${i.id}/terrain`
   const villeLabel = [i.code_postal, i.ville].filter(Boolean).join(' ') || i.ville || 'Ville —'
   const metaMuted =
     i.statut === 'planifiee' ? 'text-amber-900/75' :

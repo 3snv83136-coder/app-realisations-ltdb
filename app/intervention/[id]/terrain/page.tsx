@@ -11,6 +11,7 @@ import StepTravauxSupplementaires from "@/components/terrain/StepTravauxSuppleme
 import StepGaranti from "@/components/terrain/StepGaranti"
 import StepSignatureAccord from "@/components/terrain/StepSignatureAccord"
 import TerrainOceanLoader from "@/components/terrain/TerrainOceanLoader"
+import TerrainClientHero from "@/components/terrain/TerrainClientHero"
 import DevisEnvoiPanel from "@/components/DevisEnvoiPanel"
 import type { DevisData, DevisLineData } from "@/components/DevisPDF"
 import { joinNomPrenom } from "@/lib/rapportToDevis"
@@ -206,39 +207,49 @@ function TerrainPageBody({
 
   return (
     <div className="min-h-screen bg-slate-50 pb-24">
-      {/* Header sticky */}
-      <nav className="bg-[#0e2a52] text-white px-4 py-3 sticky top-0 z-30 shadow-lg">
-        <div className="max-w-4xl mx-auto flex items-center justify-between gap-3">
-          <div className="min-w-0">
-            <div className="font-black text-base truncate">{interv.type_intervention || 'Intervention'}</div>
-            <div className="text-[11px] opacity-70 truncate">
-              {client?.nom || 'Client inconnu'} · {interv.ville || '—'}
-            </div>
-          </div>
+      <nav className="bg-white border-b border-slate-200 px-4 py-2.5 sticky top-0 z-30 shadow-sm">
+        <div className="max-w-2xl mx-auto flex items-center justify-between gap-3">
+          <Link
+            href={isTech ? '/planning' : `/intervention/${interv.id}`}
+            className="text-sm font-bold text-[#0e2a52] hover:underline"
+          >
+            ← {isTech ? 'Planning' : 'Fiche'}
+          </Link>
           <div className="flex items-center gap-2 shrink-0">
             {showAccordTab && (
               <Link
                 href={`/accord/nouveau?intervention=${interv.id}`}
-                className="text-xs font-semibold bg-white/10 hover:bg-white/20 px-3 py-2 rounded-lg transition"
+                className="text-xs font-semibold bg-[#0e2a52] text-white px-3 py-2 rounded-lg transition"
               >
                 🤝 Accord
               </Link>
             )}
             <Link
-              href={isTech ? "/planning" : `/intervention/${interv.id}`}
-              className="text-xs font-semibold bg-white/10 hover:bg-white/20 px-3 py-2 rounded-lg transition"
+              href={isTech ? '/planning' : '/historique'}
+              className="text-xs font-semibold text-slate-500 hover:text-slate-800 px-2 py-2"
             >
-              ✕ Quitter
+              ✕
             </Link>
           </div>
         </div>
       </nav>
 
-      <TerrainStepper current={step} onStepClick={setStep} hiddenSteps={isTech ? [9] : []} />
+      <main className="max-w-2xl mx-auto px-4 py-4 space-y-4">
+        <TerrainClientHero
+          statut={interv.statut}
+          clientNom={client?.nom}
+          clientTelephone={client?.telephone}
+          adresseChantier={interv.adresse_chantier}
+          clientAdresse={client?.adresse}
+          ville={interv.ville || client?.ville}
+          codePostal={interv.code_postal || client?.code_postal}
+          typeIntervention={interv.type_intervention}
+        />
 
-      <main className="max-w-2xl mx-auto px-4 py-6">
+        <TerrainStepper current={step} onStepClick={setStep} hiddenSteps={isTech ? [9] : []} />
+
         {error && (
-          <div className="bg-red-50 border-2 border-red-200 text-red-700 p-3 rounded-xl text-sm font-semibold mb-4">
+          <div className="bg-red-50 border-2 border-red-200 text-red-700 p-3 rounded-xl text-sm font-semibold">
             ⚠ {error}
           </div>
         )}
