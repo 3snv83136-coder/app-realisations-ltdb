@@ -235,8 +235,8 @@ const s = StyleSheet.create({
     marginTop: 6, borderWidth: 1, borderColor: C.border,
     padding: 4, alignItems: 'center',
   },
-  // ~16:9 — assez haut pour ne pas écraser la vue caméra
-  obsPhotoImg: { width: 470, height: 195 },
+  // Images source 1280×720 (16:9) — hauteur calée pour ne pas écraser
+  obsPhotoImg: { width: 470, height: 264 },
   obsPhotoCap: { color: C.muted, fontSize: 7.5, textAlign: 'center', marginTop: 3 },
 
   precoBox: {
