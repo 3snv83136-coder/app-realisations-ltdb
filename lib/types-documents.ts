@@ -156,10 +156,17 @@ export type {
   AttestationObservation,
   Variante as AttestationVariante,
 } from "@/components/AttestationPDF"
+export type {
+  InspectionData,
+  ObservationItem as InspectionObservation,
+  TronconBloc as InspectionTronconBloc,
+  ConclusionEtat as InspectionConclusionEtat,
+} from "@/components/InspectionCameraPDF"
 
 import type { FactureData } from "@/components/FacturePDF"
 import type { DevisData } from "@/components/DevisPDF"
 import type { AttestationData } from "@/components/AttestationPDF"
+import type { InspectionData } from "@/components/InspectionCameraPDF"
 
 /** Métadonnées LTDB fusionnées dans le payload facture (relances Resend). */
 export interface FacturePayloadMeta {
@@ -172,10 +179,11 @@ export type FacturePayload = FactureData & { _ltdb_meta?: FacturePayloadMeta }
 
 /**
  * Payload d'une ligne `documents` — la forme dépend de `documents.type`
- * ('facture' | 'devis' | 'attestation'). `Partial` car les brouillons et
+ * ('facture' | 'devis' | 'attestation' | 'inspection'). `Partial` car les brouillons et
  * anciens enregistrements peuvent être incomplets.
  */
 export type DocumentPayload =
   | Partial<FacturePayload>
   | Partial<DevisData>
   | Partial<AttestationData>
+  | Partial<InspectionData>

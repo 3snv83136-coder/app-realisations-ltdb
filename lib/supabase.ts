@@ -45,7 +45,7 @@ export function getSupabaseOrNull(): SupabaseClient | null {
 export type Statut =
   | 'planifiee' | 'en_cours' | 'terminee' | 'annulee'
 
-export type DocumentType = 'facture' | 'devis' | 'attestation' | 'rapport'
+export type DocumentType = 'facture' | 'devis' | 'attestation' | 'rapport' | 'inspection'
 
 export type DocumentStatut =
   | 'brouillon' | 'envoye' | 'paye' | 'annule'

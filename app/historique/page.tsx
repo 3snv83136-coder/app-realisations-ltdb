@@ -44,7 +44,7 @@ type Intervention = {
 
 type Document = {
   id: string
-  type: 'facture' | 'devis' | 'attestation' | 'rapport'
+  type: 'facture' | 'devis' | 'attestation' | 'rapport' | 'inspection'
   numero: string | null
   agence: string | null
   date_emission: string
@@ -70,6 +70,7 @@ const TABS = [
   { key: 'facture', label: 'Factures' },
   { key: 'devis', label: 'Devis' },
   { key: 'attestation', label: 'Attestations' },
+  { key: 'inspection', label: 'Caméra ITV' },
 ] as const
 
 const STATUT_BADGE: Record<string, string> = {
@@ -91,6 +92,7 @@ const TYPE_ICON: Record<string, string> = {
   facture: '🧾',
   devis: '📝',
   attestation: '✅',
+  inspection: '📹',
 }
 
 export default function HistoriquePage() {
@@ -198,6 +200,7 @@ export default function HistoriquePage() {
       factures: documents.filter(d => d.type === 'facture').length,
       devis: documents.filter(d => d.type === 'devis').length,
       attestations: documents.filter(d => d.type === 'attestation').length,
+      inspections: documents.filter(d => d.type === 'inspection').length,
       ca: totalCA,
     }
   }, [interventions, documents])
@@ -219,11 +222,12 @@ export default function HistoriquePage() {
 
       <main className="max-w-6xl mx-auto px-4 py-5 space-y-4">
         {/* Stats */}
-        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
           <StatCard label="Interventions" value={stats.interventions} icon="🔧" />
           <StatCard label="Factures" value={stats.factures} icon="🧾" />
           <StatCard label="Devis" value={stats.devis} icon="📝" />
           <StatCard label="Attestations" value={stats.attestations} icon="✅" />
+          <StatCard label="Caméra ITV" value={stats.inspections} icon="📹" />
           <StatCard label="CA total TTC" value={fmtEUR(stats.ca)} icon="💶" />
         </div>
 
@@ -271,7 +275,7 @@ export default function HistoriquePage() {
           <div className="bg-white rounded-2xl border border-slate-200 p-10 text-center space-y-2">
             <div className="text-4xl">📭</div>
             <p className="text-slate-700 font-semibold">Aucune donnée pour le moment.</p>
-            <p className="text-slate-500 text-sm">Génère un rapport, une facture, un devis ou une attestation — il apparaîtra ici.</p>
+            <p className="text-slate-500 text-sm">Génère un rapport, une facture, un devis, une attestation ou une inspection caméra — il apparaîtra ici.</p>
           </div>
         )}
 

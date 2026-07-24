@@ -5,6 +5,7 @@ import type {
   AttestationVariante,
   DevisData,
   FactureData,
+  InspectionData,
   RapportData,
   SeoData,
 } from "@/lib/types-documents"
@@ -141,6 +142,39 @@ export async function persistAttestation(p: PersistAttestationInput): Promise<st
     },
     client_id: clientId,
     envoye_email: p.emailSent ? (p.clientEmail || null) : null,
+    envoye_at: p.emailSent ? (p.envoyeAt || new Date().toISOString()) : null,
+  })
+}
+
+export interface PersistInspectionInput extends Common {
+  inspection: InspectionData
+  agence?: string | null
+  numero?: string | null
+  emailSent?: boolean
+  envoyeAt?: string | null
+  interventionId?: string | null
+  clientTelephone?: string | null
+}
+
+export async function persistInspection(p: PersistInspectionInput): Promise<string | null> {
+  const clientId = await upsertClient({
+    nom: p.clientNom ?? p.inspection?.client?.nom ?? undefined,
+    email: p.clientEmail ?? p.inspection?.client?.email ?? undefined,
+    telephone: p.clientTelephone ?? p.inspection?.client?.telephone ?? undefined,
+    adresse: p.clientAdresse ?? p.inspection?.client?.adresse ?? undefined,
+    code_postal: p.clientCP ?? p.inspection?.client?.codePostal ?? undefined,
+    ville: p.ville ?? p.inspection?.client?.ville ?? undefined,
+  })
+  return saveDocument({
+    type: 'inspection',
+    numero: p.numero || p.inspection?.numero || null,
+    agence: p.agence || p.inspection?.agence || null,
+    date_emission: p.inspection?.dateInspection || null,
+    statut: p.emailSent ? 'envoye' : 'brouillon',
+    payload: p.inspection,
+    client_id: clientId,
+    intervention_id: p.interventionId || null,
+    envoye_email: p.emailSent ? (p.clientEmail || p.inspection?.client?.email || null) : null,
     envoye_at: p.emailSent ? (p.envoyeAt || new Date().toISOString()) : null,
   })
 }

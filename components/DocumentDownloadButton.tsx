@@ -6,10 +6,11 @@ import { safeFilename } from "@/lib/filename"
 import { FactureDocument, type FactureData } from "./FacturePDF"
 import { DevisDocument, type DevisData, type ClientData } from "./DevisPDF"
 import { AttestationDocument, type AttestationData } from "./AttestationPDF"
+import { InspectionDocument, type InspectionData } from "./InspectionCameraPDF"
 import { errorMessage } from "@/lib/error-message"
 import type { DocumentPayload } from "@/lib/types-documents"
 
-export type DocType = 'facture' | 'devis' | 'attestation' | 'rapport'
+export type DocType = 'facture' | 'devis' | 'attestation' | 'rapport' | 'inspection'
 
 export interface HistoriqueDocument {
   id: string
@@ -92,6 +93,28 @@ async function buildPdfBlob(doc: HistoriqueDocument): Promise<{ blob: Blob; file
     const element = React.createElement(AttestationDocument, { data: safe, photos: [] })
     const blob = await pdfElementToBlob(element)
     return { blob, filename: safeFilename('attestation', safe.numero || doc.id) }
+  }
+
+  if (doc.type === 'inspection') {
+    const data = payload as InspectionData
+    if (!data.numero && !doc.numero) return null
+    const safe: InspectionData = {
+      ...data,
+      numero: data.numero || doc.numero || '',
+      dateInspection: data.dateInspection || '',
+      technicienNom: data.technicienNom || '',
+      client: data.client || {
+        nom: doc.client_nom || '—',
+        adresse: doc.client_adresse || '',
+        codePostal: doc.client_code_postal || '',
+        ville: doc.client_ville || '',
+      },
+      troncons: Array.isArray(data.troncons) ? data.troncons : [],
+      conclusionEtat: data.conclusionEtat || 'bon',
+    }
+    const element = React.createElement(InspectionDocument, { data: safe })
+    const blob = await pdfElementToBlob(element)
+    return { blob, filename: safeFilename('inspection-camera', safe.numero || doc.id) }
   }
 
   return null

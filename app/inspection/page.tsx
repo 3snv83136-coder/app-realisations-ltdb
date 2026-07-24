@@ -21,6 +21,7 @@ import { errorMessage } from "@/lib/error-message"
 
 const InspectionDownloadButton = dynamic(() => import("@/components/InspectionCameraPDF"), { ssr: false })
 const InspectionPDFViewer = dynamic(() => import("@/components/InspectionCameraPreviewModal"), { ssr: false })
+const SaveDocumentButton = dynamic(() => import("@/components/SaveDocumentButton"), { ssr: false })
 
 type ObsForm = ObservationItem & { _photoFile?: File; _photoPreview?: string }
 
@@ -152,6 +153,69 @@ function genNumero() {
   return `ITV-${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}-${seq}`
 }
 
+const DRAFT_KEY = 'ltdb_inspection_draft'
+const DRAFT_VERSION = 1
+
+type InspectionDraft = {
+  v: number
+  savedAt: string
+  numero: string
+  dateInspection: string
+  technicienNom: string
+  linkedInterventionId: string | null
+  linkedInterventionLabel: string
+  clientNom: string
+  clientAdresse: string
+  clientCP: string
+  clientVille: string
+  clientEmail: string
+  clientTel: string
+  troncons: TronconForm[]
+}
+
+function stripTronconsForDraft(troncons: TronconForm[]): TronconForm[] {
+  return troncons.map(t => ({
+    ...t,
+    observations: t.observations.map(o => ({
+      position: o.position,
+      code: o.code,
+      description: o.description,
+      photoUrl: o.photoUrl,
+      photoLegende: o.photoLegende,
+      // garde un aperçu basé sur dataUrl pour restauration
+      _photoPreview: o.photoUrl || undefined,
+      _photoFile: undefined,
+    })),
+  }))
+}
+
+function loadDraft(): InspectionDraft | null {
+  if (typeof window === 'undefined') return null
+  try {
+    const raw = localStorage.getItem(DRAFT_KEY)
+    if (!raw) return null
+    const parsed = JSON.parse(raw) as InspectionDraft
+    if (!parsed || parsed.v !== DRAFT_VERSION || !Array.isArray(parsed.troncons)) return null
+    return parsed
+  } catch {
+    return null
+  }
+}
+
+function saveDraft(draft: InspectionDraft) {
+  if (typeof window === 'undefined') return
+  try {
+    localStorage.setItem(DRAFT_KEY, JSON.stringify(draft))
+  } catch (e) {
+    console.warn('[inspection] brouillon localStorage trop volumineux ou indisponible', e)
+  }
+}
+
+function clearDraft() {
+  if (typeof window === 'undefined') return
+  localStorage.removeItem(DRAFT_KEY)
+}
+
 export default function InspectionPage() {
   return (
     <Suspense fallback={
@@ -170,8 +234,6 @@ function InspectionPageInner() {
   const interventionFromUrl = searchParams.get('intervention')
 
   const [numero, setNumero] = useState('')
-  useEffect(() => { setNumero(genNumero()) }, [])
-
   const [dateInspection, setDateInspection] = useState(new Date().toISOString().split('T')[0])
   const [technicienNom, setTechnicienNom] = useState('')
   const [agence] = useState('LTDB Toulon')
@@ -199,15 +261,72 @@ function InspectionPageInner() {
   const [troncons, setTroncons] = useState<TronconForm[]>(() => [emptyTroncon()])
   const [photoError, setPhotoError] = useState('')
   const [showPreview, setShowPreview] = useState(false)
+  const [draftHydrated, setDraftHydrated] = useState(false)
+  const [draftSavedAt, setDraftSavedAt] = useState<string | null>(null)
+  const [draftRestored, setDraftRestored] = useState(false)
+
+  // Hydrate brouillon local (photos dataUrl incluses) — avant tout préremplissage URL
+  useEffect(() => {
+    const draft = loadDraft()
+    if (draft) {
+      setNumero(draft.numero || genNumero())
+      if (draft.dateInspection) setDateInspection(draft.dateInspection)
+      if (draft.technicienNom) setTechnicienNom(draft.technicienNom)
+      setLinkedInterventionId(draft.linkedInterventionId)
+      setLinkedInterventionLabel(draft.linkedInterventionLabel || '')
+      setClientNom(draft.clientNom || '')
+      setClientAdresse(draft.clientAdresse || '')
+      setClientCP(draft.clientCP || '')
+      setClientVille(draft.clientVille || '')
+      setClientEmail(draft.clientEmail || '')
+      setClientTel(draft.clientTel || '')
+      if (draft.troncons?.length) setTroncons(stripTronconsForDraft(draft.troncons))
+      setDraftSavedAt(draft.savedAt)
+      setDraftRestored(true)
+      setPrefillLoading(false)
+    } else {
+      setNumero(genNumero())
+      const savedTech = localStorage.getItem('ltdb_technicien')
+      if (savedTech) setTechnicienNom(savedTech)
+    }
+    setDraftHydrated(true)
+  }, [])
 
   // Persist tech
   useEffect(() => {
-    const saved = typeof window !== 'undefined' ? localStorage.getItem('ltdb_technicien') : null
-    if (saved) setTechnicienNom(saved)
-  }, [])
-  useEffect(() => {
     if (technicienNom && typeof window !== 'undefined') localStorage.setItem('ltdb_technicien', technicienNom)
   }, [technicienNom])
+
+  // Autosave brouillon (debounce) — ne pas écraser avant hydratation
+  useEffect(() => {
+    if (!draftHydrated || !numero) return
+    const t = window.setTimeout(() => {
+      const savedAt = new Date().toISOString()
+      saveDraft({
+        v: DRAFT_VERSION,
+        savedAt,
+        numero,
+        dateInspection,
+        technicienNom,
+        linkedInterventionId,
+        linkedInterventionLabel,
+        clientNom,
+        clientAdresse,
+        clientCP,
+        clientVille,
+        clientEmail,
+        clientTel,
+        troncons: stripTronconsForDraft(troncons),
+      })
+      setDraftSavedAt(savedAt)
+    }, 600)
+    return () => window.clearTimeout(t)
+  }, [
+    draftHydrated, numero, dateInspection, technicienNom,
+    linkedInterventionId, linkedInterventionLabel,
+    clientNom, clientAdresse, clientCP, clientVille, clientEmail, clientTel,
+    troncons,
+  ])
 
   function fillFromClient(c: ClientRecord) {
     setClientNom(c.nom || '')
@@ -262,12 +381,93 @@ function InspectionPageInner() {
   }, [])
 
   useEffect(() => {
+    if (!draftHydrated) return
+    if (draftRestored) {
+      setPrefillLoading(false)
+      return
+    }
     if (!interventionFromUrl) {
       setPrefillLoading(false)
       return
     }
     void applyIntervention(interventionFromUrl)
-  }, [interventionFromUrl, applyIntervention])
+  }, [draftHydrated, draftRestored, interventionFromUrl, applyIntervention])
+
+  function exportDraftJson() {
+    const payload = {
+      v: DRAFT_VERSION,
+      savedAt: new Date().toISOString(),
+      numero,
+      dateInspection,
+      technicienNom,
+      linkedInterventionId,
+      linkedInterventionLabel,
+      clientNom,
+      clientAdresse,
+      clientCP,
+      clientVille,
+      clientEmail,
+      clientTel,
+      troncons: stripTronconsForDraft(troncons),
+    }
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `brouillon-${numero || 'inspection'}.json`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    setTimeout(() => URL.revokeObjectURL(url), 1500)
+  }
+
+  function importDraftJson(file: File) {
+    const reader = new FileReader()
+    reader.onload = () => {
+      try {
+        const parsed = JSON.parse(String(reader.result)) as InspectionDraft
+        if (!parsed?.troncons || !Array.isArray(parsed.troncons)) {
+          setPhotoError('Fichier brouillon invalide')
+          return
+        }
+        setNumero(parsed.numero || genNumero())
+        if (parsed.dateInspection) setDateInspection(parsed.dateInspection)
+        if (parsed.technicienNom) setTechnicienNom(parsed.technicienNom)
+        setLinkedInterventionId(parsed.linkedInterventionId ?? null)
+        setLinkedInterventionLabel(parsed.linkedInterventionLabel || '')
+        setClientNom(parsed.clientNom || '')
+        setClientAdresse(parsed.clientAdresse || '')
+        setClientCP(parsed.clientCP || '')
+        setClientVille(parsed.clientVille || '')
+        setClientEmail(parsed.clientEmail || '')
+        setClientTel(parsed.clientTel || '')
+        setTroncons(stripTronconsForDraft(parsed.troncons))
+        setDraftRestored(true)
+        setPhotoError('')
+      } catch {
+        setPhotoError('Impossible de lire le fichier brouillon')
+      }
+    }
+    reader.readAsText(file)
+  }
+
+  function resetDraftAndForm() {
+    if (!confirm('Effacer le brouillon local et recommencer un rapport vide ?')) return
+    clearDraft()
+    setDraftRestored(false)
+    setDraftSavedAt(null)
+    setNumero(genNumero())
+    setDateInspection(new Date().toISOString().split('T')[0])
+    setLinkedInterventionId(null)
+    setLinkedInterventionLabel('')
+    setClientNom('')
+    setClientAdresse('')
+    setClientCP('')
+    setClientVille('')
+    setClientEmail('')
+    setClientTel('')
+    setTroncons([emptyTroncon()])
+  }
 
   async function openInterventionPicker() {
     setShowItvPicker(true)
@@ -518,12 +718,72 @@ function InspectionPageInner() {
             >
               👁 Aperçu PDF
             </button>
+            <SaveDocumentButton
+              endpoint="/api/save-inspection"
+              disabled={!canPreview}
+              className="bg-amber-500 hover:bg-amber-600 px-4 py-2.5 rounded-xl font-bold text-sm text-white disabled:opacity-50"
+              label="💾 Enregistrer"
+              body={() => ({
+                inspection: data,
+                clientNom,
+                clientEmail: clientEmail || undefined,
+                clientAdresse: clientAdresse || undefined,
+                clientCP: clientCP || undefined,
+                ville: clientVille || undefined,
+                clientTelephone: clientTel || undefined,
+                numero,
+                agence: agence || undefined,
+                interventionId: linkedInterventionId || undefined,
+              })}
+            />
             <InspectionDownloadButton
               data={data}
               filename={`inspection-camera-${(clientNom || 'client').toLowerCase().replace(/\s+/g, '-')}-${numero}.pdf`}
               className="bg-orange-500 hover:bg-orange-600 px-4 py-2.5 rounded-xl font-bold text-sm text-white disabled:opacity-50"
               label="📄 Télécharger PDF"
             />
+            <button
+              type="button"
+              onClick={exportDraftJson}
+              className="bg-white/10 hover:bg-white/20 border border-white/20 px-4 py-2.5 rounded-xl font-bold text-sm"
+              title="Fichier de secours à réimporter si besoin"
+            >
+              ⬇ Brouillon JSON
+            </button>
+          </div>
+        </div>
+
+        <div className="rounded-xl px-4 py-3 text-sm border border-emerald-200 bg-emerald-50 text-emerald-900 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+          <div>
+            <span className="font-bold">Brouillon auto sur cet appareil.</span>
+            {' '}
+            {draftSavedAt
+              ? `Dernière sauvegarde locale : ${new Date(draftSavedAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}.`
+              : 'Les champs sont mémorisés au fur et à mesure.'}
+            {draftRestored ? ' Brouillon restauré au chargement.' : ''}
+            {' '}Tu peux aussi télécharger le PDF ou le JSON pour ne rien perdre.
+          </div>
+          <div className="flex flex-wrap gap-2 shrink-0">
+            <label className="cursor-pointer bg-white border border-emerald-300 text-emerald-800 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-emerald-100">
+              Importer JSON
+              <input
+                type="file"
+                accept="application/json,.json"
+                className="hidden"
+                onChange={e => {
+                  const f = e.target.files?.[0]
+                  if (f) importDraftJson(f)
+                  e.target.value = ''
+                }}
+              />
+            </label>
+            <button
+              type="button"
+              onClick={resetDraftAndForm}
+              className="bg-white border border-slate-300 text-slate-600 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-slate-50"
+            >
+              Nouveau rapport
+            </button>
           </div>
         </div>
 

@@ -104,8 +104,8 @@ create table if not exists documents (
   intervention_id uuid references interventions(id) on delete set null,
   client_id uuid references clients(id) on delete set null,
 
-  type text not null check (type in ('facture','devis','attestation','rapport')),
-  numero text,                               -- FA-..., DV-..., AT-...
+  type text not null check (type in ('facture','devis','attestation','rapport','inspection')),
+  numero text,                               -- FA-..., DV-..., AT-..., ITV-...
   agence text,
   date_emission date not null default current_date,
   echeance text,

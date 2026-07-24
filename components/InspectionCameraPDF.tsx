@@ -111,10 +111,19 @@ function fmtDateFR(iso: string): string {
   return m ? `${m[3]}/${m[2]}/${m[1]}` : iso
 }
 
+/** Hauteur approx. du bandeau fixe (hors flux) — réserve page.paddingTop */
+const HEADER_RESERVE = 64
+/** Espace sous le bandeau avant le titre */
+const GAP_BELOW_HEADER = 16
+/** Réserve pied de page fixe */
+const FOOTER_RESERVE = 48
+
 /* ============ STYLES ============ */
 const s = StyleSheet.create({
   page: {
     paddingHorizontal: 0,
+    paddingTop: HEADER_RESERVE + GAP_BELOW_HEADER,
+    paddingBottom: FOOTER_RESERVE,
     fontFamily: 'Helvetica',
     fontSize: 9.5,
     color: C.text,
@@ -122,9 +131,13 @@ const s = StyleSheet.create({
     lineHeight: 1.45,
   },
 
-  /* Header */
+  /* Header (fixed + absolute → hors flux sur chaque page) */
   header: {
-    paddingHorizontal: 40, paddingTop: 18, paddingBottom: 10,
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    paddingHorizontal: 40, paddingTop: 18, paddingBottom: 12,
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end',
     backgroundColor: C.white,
     borderBottomWidth: 3, borderBottomColor: C.navy,
@@ -135,21 +148,21 @@ const s = StyleSheet.create({
   headerMeta:     { color: C.muted, fontSize: 8, marginBottom: 1 },
   headerMetaBold: { color: C.navy,  fontFamily: 'Helvetica-Bold', fontSize: 8.5 },
 
-  content: { paddingHorizontal: 40, paddingTop: 14, paddingBottom: 10 },
+  content: { paddingHorizontal: 40, paddingTop: 4, paddingBottom: 10 },
 
   /* Title */
-  titleBlock: { marginBottom: 12 },
-  titleRedBar: { height: 4, width: 56, backgroundColor: C.red, marginBottom: 6 },
+  titleBlock: { marginBottom: 16 },
+  titleRedBar: { height: 4, width: 56, backgroundColor: C.red, marginBottom: 8 },
   titleMain: { color: C.navy, fontSize: 18, fontFamily: 'Helvetica-Bold', textTransform: 'uppercase', letterSpacing: 1 },
-  titleSub:  { color: C.muted, fontSize: 9, marginTop: 4, letterSpacing: 0.5 },
+  titleSub:  { color: C.muted, fontSize: 9, marginTop: 5, letterSpacing: 0.5 },
 
   /* Méta */
   metaTable: {
     flexDirection: 'row', borderWidth: 1, borderColor: C.border,
-    marginBottom: 14, backgroundColor: C.rowAlt,
+    marginBottom: 16, backgroundColor: C.rowAlt,
   },
   metaCell: {
-    flex: 1, paddingVertical: 7, paddingHorizontal: 12,
+    flex: 1, paddingVertical: 8, paddingHorizontal: 12,
     borderRightWidth: 1, borderRightColor: C.border,
   },
   metaCellLast: { borderRightWidth: 0 },
@@ -159,7 +172,7 @@ const s = StyleSheet.create({
   /* Etat (badge large) */
   etatBox: {
     borderWidth: 1, borderColor: C.border, borderRadius: 4,
-    paddingVertical: 8, paddingHorizontal: 12, marginBottom: 14,
+    paddingVertical: 10, paddingHorizontal: 12, marginBottom: 16,
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
   },
   etatLbl: { color: C.muted, fontSize: 8, textTransform: 'uppercase', letterSpacing: 0.4 },
@@ -175,7 +188,7 @@ const s = StyleSheet.create({
 
   /* Identité (2 colonnes) */
   partyTable: {
-    flexDirection: 'row', borderWidth: 1, borderColor: C.border, marginBottom: 12,
+    flexDirection: 'row', borderWidth: 1, borderColor: C.border, marginBottom: 16,
   },
   partyCol: { flex: 1, padding: 10 },
   partyColSep: { borderRightWidth: 1, borderRightColor: C.border },
@@ -269,8 +282,12 @@ const s = StyleSheet.create({
   glossTerme: { color: C.navy, fontFamily: 'Helvetica-Bold', fontSize: 8, width: 90 },
   glossDef:  { flex: 1, color: C.text, fontSize: 8, lineHeight: 1.45 },
 
-  /* Footer */
+  /* Footer (fixed en bas de chaque page) */
   footer: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
     paddingHorizontal: 40, paddingTop: 8, paddingBottom: 14,
     borderTopWidth: 1, borderTopColor: C.border,
     flexDirection: 'row', justifyContent: 'space-between',
