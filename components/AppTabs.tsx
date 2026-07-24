@@ -18,7 +18,7 @@ type Tab = {
 }
 
 const TABS: Tab[] = [
-  { href: '/',             label: 'Accueil',      Icon: HomeIcon },
+  { href: '/',             label: 'ADMIN WORLD',  Icon: HomeIcon },
   { href: '/planning',     label: 'Planning',     Icon: CalendarIcon },
   { href: '/nouveau',      label: 'Rapport',      Icon: DocumentIcon },
   { href: '/inspection',   label: 'Caméra',       Icon: CameraIcon },

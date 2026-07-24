@@ -285,7 +285,7 @@ function InspectionPageInner() {
     setPrefillError('')
   }
 
-  // Hydrate : ?recup=… (fichier public) > brouillon localStorage > nouveau
+  // Hydrate : ?recup=… uniquement. Sinon page vierge (pas d'autoload du dernier rapport).
   useEffect(() => {
     let cancelled = false
     async function hydrate() {
@@ -309,15 +309,11 @@ function InspectionPageInner() {
         }
       }
 
-      const draft = loadDraft()
-      if (draft) {
-        applyDraft(draft)
-      } else {
-        setNumero(genNumero())
-        const savedTech = localStorage.getItem('ltdb_technicien')
-        if (savedTech) setTechnicienNom(savedTech)
-        setPrefillLoading(false)
-      }
+      // Page vierge à chaque ouverture de l'onglet Caméra
+      setNumero(genNumero())
+      const savedTech = localStorage.getItem('ltdb_technicien')
+      if (savedTech) setTechnicienNom(savedTech)
+      setPrefillLoading(false)
       setDraftHydrated(true)
     }
     void hydrate()
@@ -325,14 +321,41 @@ function InspectionPageInner() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [recupFromUrl])
 
+  // Brouillon dispo en local ? (pour bouton « Reprendre » — pas d'autoload)
+  const [pendingDraft, setPendingDraft] = useState<InspectionDraft | null>(null)
+  useEffect(() => {
+    if (!draftHydrated || recupFromUrl || draftRestored) {
+      setPendingDraft(null)
+      return
+    }
+    setPendingDraft(loadDraft())
+  }, [draftHydrated, recupFromUrl, draftRestored])
+
+  function resumePendingDraft() {
+    const d = pendingDraft || loadDraft()
+    if (!d) return
+    applyDraft(d)
+    setPendingDraft(null)
+  }
+
   // Persist tech
   useEffect(() => {
     if (technicienNom && typeof window !== 'undefined') localStorage.setItem('ltdb_technicien', technicienNom)
   }, [technicienNom])
 
-  // Autosave brouillon (debounce) — ne pas écraser avant hydratation
+  // Autosave brouillon (debounce) — ne pas écraser un ancien brouillon avec une page vierge
   useEffect(() => {
     if (!draftHydrated || !numero) return
+    const hasContent =
+      clientNom.trim().length > 0
+      || troncons.some(t =>
+        Boolean(t.resume?.trim())
+        || t.precoSelected.length > 0
+        || t.precoCustom.length > 0
+        || t.observations.some(o => o.position || o.description || o.photoUrl || o.code),
+      )
+    if (!hasContent && !draftRestored) return
+
     const t = window.setTimeout(() => {
       const savedAt = new Date().toISOString()
       saveDraft({
@@ -355,7 +378,7 @@ function InspectionPageInner() {
     }, 600)
     return () => window.clearTimeout(t)
   }, [
-    draftHydrated, numero, dateInspection, technicienNom,
+    draftHydrated, draftRestored, numero, dateInspection, technicienNom,
     linkedInterventionId, linkedInterventionLabel,
     clientNom, clientAdresse, clientCP, clientVille, clientEmail, clientTel,
     troncons,
@@ -775,15 +798,32 @@ function InspectionPageInner() {
           </div>
         </div>
 
+        {pendingDraft && !draftRestored && (
+          <div className="rounded-xl px-4 py-3 text-sm border border-amber-300 bg-amber-50 text-amber-950 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+            <div>
+              <span className="font-bold">Brouillon trouvé</span>
+              {' '}({pendingDraft.numero || 'sans n°'}
+              {pendingDraft.clientNom ? ` · ${pendingDraft.clientNom}` : ''}).
+              {' '}La page s&apos;ouvre vide — reprends-le seulement si tu en as besoin.
+            </div>
+            <button
+              type="button"
+              onClick={resumePendingDraft}
+              className="bg-amber-500 hover:bg-amber-600 text-white px-4 py-2 rounded-lg text-xs font-bold shrink-0"
+            >
+              Reprendre ce brouillon
+            </button>
+          </div>
+        )}
+
         <div className="rounded-xl px-4 py-3 text-sm border border-emerald-200 bg-emerald-50 text-emerald-900 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
           <div>
-            <span className="font-bold">Brouillon auto sur cet appareil.</span>
+            <span className="font-bold">Sauvegarde locale pendant la saisie.</span>
             {' '}
             {draftSavedAt
-              ? `Dernière sauvegarde locale : ${new Date(draftSavedAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}.`
+              ? `Dernière sauvegarde : ${new Date(draftSavedAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}.`
               : 'Les champs sont mémorisés au fur et à mesure.'}
-            {draftRestored ? ' Brouillon restauré au chargement.' : ''}
-            {' '}Tu peux aussi télécharger le PDF ou le JSON pour ne rien perdre.
+            {draftRestored ? ' Brouillon repris.' : ''}
           </div>
           <div className="flex flex-wrap gap-2 shrink-0">
             <label className="cursor-pointer bg-white border border-emerald-300 text-emerald-800 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-emerald-100">
