@@ -1,12 +1,11 @@
 /**
- * Génère le PDF Mirabella tronçon par tronçon puis fusionne.
- * (react-pdf plante si toutes les photos sont dans un seul Document)
+ * Génère le PDF Mirabella : couverture + 1 PDF/tronçon + glossaire, puis fusion.
  * Usage: npx tsx scripts/render-mirabella-pdf.ts
  */
 import fs from "node:fs"
 import path from "node:path"
 import { spawnSync } from "node:child_process"
-import { createElement } from "react"
+import { createElement, type ComponentProps } from "react"
 import { renderToBuffer } from "@react-pdf/renderer"
 import {
   InspectionDocument,
@@ -95,7 +94,11 @@ function buildBlocs(draft: Draft): TronconBloc[] {
   })
 }
 
-function meta(draft: Draft, troncons: TronconBloc[]): InspectionData {
+function meta(draft: Draft, troncons: TronconBloc[], conclusion?: ConclusionEtat): InspectionData {
+  const order = { bon: 0, "a-surveiller": 1, desordre: 2, critique: 3 } as const
+  const worst = troncons.reduce<ConclusionEtat>((w, t) => (
+    order[t.conclusionEtat] > order[w] ? t.conclusionEtat : w
+  ), "bon")
   return {
     numero: draft.numero,
     dateInspection: draft.dateInspection,
@@ -110,12 +113,16 @@ function meta(draft: Draft, troncons: TronconBloc[]): InspectionData {
       telephone: draft.clientTel || undefined,
     },
     troncons,
-    conclusionEtat: "bon",
+    conclusionEtat: conclusion || worst,
   }
 }
 
-async function renderOne(label: string, data: InspectionData, file: string) {
-  const buf = await renderToBuffer(createElement(InspectionDocument, { data }))
+async function renderOne(
+  label: string,
+  file: string,
+  props: ComponentProps<typeof InspectionDocument>,
+) {
+  const buf = await renderToBuffer(createElement(InspectionDocument, props))
   if (!buf || buf.length < 1500) throw new Error(`${label}: PDF trop petit (${buf?.length})`)
   fs.writeFileSync(file, buf)
   console.log(label, buf.length, "→", path.basename(file))
@@ -130,28 +137,33 @@ async function main() {
   }
 
   const partFiles: string[] = []
+  const base = meta(draft, blocs)
 
-  // Intro : identité + conclusion, sans photos
   const introPath = path.join(partsDir, "00-intro.pdf")
-  await renderOne(
-    "intro",
-    meta(draft, [{
-      nom: "Vue d'ensemble",
-      caracteristiques: {},
-      observations: [],
-      preconisations: [],
-      resume: `${blocs.length} tronçons inspectés — détail et photos aux pages suivantes.`,
-      conclusionEtat: "bon",
-    }]),
-    introPath,
-  )
+  await renderOne("intro", introPath, {
+    data: { ...base, troncons: [] },
+    variant: "intro",
+    tronconTotal: blocs.length,
+  })
   partFiles.push(introPath)
 
   for (let i = 0; i < blocs.length; i++) {
     const file = path.join(partsDir, `${String(i + 1).padStart(2, "0")}-troncon.pdf`)
-    await renderOne(`tronçon ${i + 1}`, meta(draft, [blocs[i]]), file)
+    await renderOne(`tronçon ${i + 1}`, file, {
+      data: meta(draft, [blocs[i]]),
+      variant: "troncon",
+      tronconIndex: i + 1,
+      tronconTotal: blocs.length,
+    })
     partFiles.push(file)
   }
+
+  const glossPath = path.join(partsDir, "99-glossaire.pdf")
+  await renderOne("glossaire", glossPath, {
+    data: { ...base, troncons: [] },
+    variant: "glossaire",
+  })
+  partFiles.push(glossPath)
 
   const mergePy = `
 from pypdf import PdfWriter
@@ -161,7 +173,7 @@ for f in sys.argv[1:-1]:
     w.append(f)
 w.write(sys.argv[-1])
 w.close()
-print("merged", sys.argv[-1])
+print("merged pages", len(w.pages) if hasattr(w,'pages') else "?")
 `
   const r = spawnSync("python3", ["-c", mergePy, ...partFiles, outPath], { encoding: "utf8" })
   if (r.status !== 0) {
@@ -169,6 +181,37 @@ print("merged", sys.argv[-1])
     throw new Error("merge failed")
   }
   console.log(r.stdout.trim())
+
+  // Validation anti pages blanches
+  const checkPy = path.join(partsDir, "_validate.py")
+  fs.writeFileSync(checkPy, `
+import zlib, re, sys
+d = open(sys.argv[1], "rb").read()
+maxy = 0
+do = 0
+for m in re.finditer(rb"stream\\r?\\n(.*?)\\r?\\nendstream", d, re.S):
+    raw = m.group(1)
+    try:
+        dec = zlib.decompress(raw)
+    except Exception:
+        dec = raw
+    s = dec.decode("latin1", "replace")
+    do += len(re.findall(r" Do\\b", s))
+    for cm in re.findall(r"1 0 0 1 (-?[\\d.]+) (-?[\\d.]+) cm", s):
+        maxy = max(maxy, abs(float(cm[1])))
+print("maxAbsY", maxy, "Do", do)
+if maxy > 5000:
+    raise SystemExit("layout cassé")
+if do < 1:
+    raise SystemExit("pas de photos")
+`)
+  const check = spawnSync("python3", [checkPy, outPath], { encoding: "utf8" })
+  console.log(check.stdout.trim())
+  if (check.status !== 0) {
+    console.error(check.stderr)
+    throw new Error(check.stderr || check.stdout || "validation failed")
+  }
+
   fs.copyFileSync(outPath, path.resolve("_recup-itv/inspection-camera-mirabella-ITV-20260724-1513-FIXED.pdf"))
   console.log("ok", fs.statSync(outPath).size, "bytes →", outPath)
 }
