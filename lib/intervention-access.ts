@@ -6,6 +6,7 @@ import { isInternalApiCall } from "@/lib/internal-auth"
 export type SessionUser = {
   role?: "admin" | "tech"
   technicienId?: string | null
+  login?: string | null
 }
 
 export async function getSessionUser(): Promise<SessionUser | null> {
@@ -14,6 +15,7 @@ export async function getSessionUser(): Promise<SessionUser | null> {
   return {
     role: session.user.role,
     technicienId: session.user.technicienId ?? null,
+    login: session.user.name ?? null,
   }
 }
 
