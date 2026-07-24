@@ -9,7 +9,7 @@ import {
 import { getSupabaseOrNull, upsertClient, patchClient } from "@/lib/supabase"
 import { isCanalAcquisition } from "@/lib/canaux"
 import { validateCreneau } from "@/lib/creneau"
-import { isModePaiement } from "@/lib/mode-paiement"
+import { normalizeModePaiementInput } from "@/lib/mode-paiement"
 import { permissionsForSession } from "@/lib/tech-permissions"
 import type { PostgrestError } from "@supabase/supabase-js"
 
@@ -254,7 +254,7 @@ export async function POST(req: NextRequest) {
   }
 
   const canalClean = isCanalAcquisition(body.canal_acquisition) ? body.canal_acquisition : null
-  const modePaiementClean = isModePaiement(body.mode_paiement) ? body.mode_paiement : null
+  const modePaiementClean = normalizeModePaiementInput(body.mode_paiement)
 
   const baseRow: Record<string, unknown> = {
     client_id: clientId,
@@ -304,10 +304,17 @@ export async function POST(req: NextRequest) {
     insertErr = res.error
     const msg = res.error?.message || ''
 
-    if (
-      !stripOptionalCols
-      && (msg.includes('mode_paiement') || msg.includes('heure_fin_prevue'))
-    ) {
+    if (!stripOptionalCols && (msg.includes('mode_paiement') || msg.includes('heure_fin_prevue'))) {
+      // Ancienne contrainte mono-mode (migration 030 absente) : garder le 1er mode.
+      if (
+        /check|constraint/i.test(msg)
+        && typeof baseRow.mode_paiement === 'string'
+        && String(baseRow.mode_paiement).includes(',')
+      ) {
+        baseRow.mode_paiement = String(baseRow.mode_paiement).split(',')[0]
+        continue
+      }
+      // Colonnes absentes (028/029) → on les retire pour les essais suivants.
       stripOptionalCols = true
       continue
     }

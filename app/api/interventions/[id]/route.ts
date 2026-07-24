@@ -8,7 +8,7 @@ import {
 import { getSupabaseOrNull } from "@/lib/supabase"
 import { isCanalAcquisition } from "@/lib/canaux"
 import { cascadeDeleteIntervention } from "@/lib/cascadeDelete"
-import { isModePaiement } from "@/lib/mode-paiement"
+import { normalizeModePaiementInput } from "@/lib/mode-paiement"
 import { permissionsForSession } from "@/lib/tech-permissions"
 
 export const dynamic = 'force-dynamic'
@@ -159,7 +159,7 @@ export async function PUT(req: NextRequest, { params }: Params) {
 
   if ('mode_paiement' in update) {
     const v = update.mode_paiement
-    update.mode_paiement = (v === null || v === '') ? null : (isModePaiement(v) ? v : null)
+    update.mode_paiement = (v === null || v === '') ? null : normalizeModePaiementInput(v)
   }
 
   // Auto-set date_realisee when moving to terminee

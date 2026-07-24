@@ -1,5 +1,5 @@
 import { formatCreneau } from "@/lib/creneau"
-import { labelModePaiement } from "@/lib/mode-paiement"
+import { labelModesPaiement } from "@/lib/mode-paiement"
 
 function fmtDateFR(iso?: string | null): string {
   if (!iso) return ''
@@ -22,7 +22,7 @@ export function buildClientRdvSmsText(opts: {
   const type = (opts.typeIntervention || 'intervention').trim()
   const date = fmtDateFR(opts.datePrevue)
   const creneau = formatCreneau(opts.heurePrevue, opts.heureFinPrevue)
-  const paiement = labelModePaiement(opts.modePaiement)
+  const paiement = labelModesPaiement(opts.modePaiement)
   const tel = (opts.telEntreprise || '').trim()
 
   let quandLine = 'Notre technicien interviendra prochainement.'

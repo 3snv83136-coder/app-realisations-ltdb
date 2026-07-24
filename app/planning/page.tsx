@@ -9,7 +9,7 @@ import VilleCombobox from "@/components/VilleCombobox"
 import { AGENCES } from "@/lib/agences"
 import { CANAUX_ACQUISITION } from "@/lib/canaux"
 import { addMinutesToTime, CRENEAU_MAX_MINUTES, formatCreneau, validateCreneau } from "@/lib/creneau"
-import { MODES_PAIEMENT } from "@/lib/mode-paiement"
+import { MODES_PAIEMENT, type ModePaiement, serializeModesPaiement } from "@/lib/mode-paiement"
 import { fmtDateFR, fmtEUR } from "@/lib/format"
 import { TYPES_INTERVENTION as TYPES } from "@/lib/types-intervention"
 import { errorMessage } from "@/lib/error-message"
@@ -606,8 +606,14 @@ function NouvelleInterventionModal({
   const [agence, setAgence] = useState<string>(AGENCES[0])
   const [technicienId, setTechnicienId] = useState<string>('')
   const [canalAcquisition, setCanalAcquisition] = useState<string>('')
-  const [modePaiement, setModePaiement] = useState<string>('cb')
+  const [modesPaiement, setModesPaiement] = useState<ModePaiement[]>(['cb', 'virement', 'especes'])
   const [notes, setNotes] = useState('')
+
+  function toggleModePaiement(key: ModePaiement) {
+    setModesPaiement(prev =>
+      prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key],
+    )
+  }
 
   function onChangeHeureDebut(v: string) {
     setHeurePrevue(v)
@@ -617,7 +623,7 @@ function NouvelleInterventionModal({
   async function handleSubmit() {
     if (!clientNom.trim()) { setError('Nom du client requis'); return }
     if (!typeIntervention) { setError("Type d'intervention requis"); return }
-    if (!modePaiement) { setError('Mode de paiement requis (CB, virement ou espèces)'); return }
+    if (modesPaiement.length === 0) { setError('Choisis au moins un mode de paiement (CB, virement ou espèces)'); return }
     const creneauCheck = validateCreneau(heurePrevue, heureFinPrevue)
     if (!creneauCheck.ok) { setError(creneauCheck.error); return }
     setSubmitting(true); setError('')
@@ -653,7 +659,7 @@ function NouvelleInterventionModal({
           urgence,
           prix_prevu: prixPrevu ? Number(prixPrevu) : null,
           canal_acquisition: canalAcquisition || null,
-          mode_paiement: modePaiement || null,
+          mode_paiement: serializeModesPaiement(modesPaiement),
           notes_internes: notes || null,
         }),
       })
@@ -692,7 +698,7 @@ function NouvelleInterventionModal({
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
-                mode_paiement: modePaiement,
+                mode_paiement: serializeModesPaiement(modesPaiement),
                 heure_fin_prevue: heureFinPrevue,
               }),
             })
@@ -878,25 +884,31 @@ function NouvelleInterventionModal({
             </div>
 
             <div>
-              <span className="text-xs uppercase tracking-wide text-slate-500 font-semibold">Mode de paiement</span>
+              <span className="text-xs uppercase tracking-wide text-slate-500 font-semibold">
+                Modes de paiement acceptés
+              </span>
               <div className="grid grid-cols-3 gap-2 mt-1">
-                {MODES_PAIEMENT.map(m => (
-                  <button
-                    key={m.key}
-                    type="button"
-                    onClick={() => setModePaiement(m.key)}
-                    className={`p-3 rounded-xl border-2 text-center text-sm font-bold transition-all ${
-                      modePaiement === m.key
-                        ? 'border-blue-500 bg-blue-50 text-[#0e2a52]'
-                        : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'
-                    }`}
-                  >
-                    {m.label}
-                  </button>
-                ))}
+                {MODES_PAIEMENT.map(m => {
+                  const on = modesPaiement.includes(m.key)
+                  return (
+                    <button
+                      key={m.key}
+                      type="button"
+                      onClick={() => toggleModePaiement(m.key)}
+                      aria-pressed={on}
+                      className={`p-3 rounded-xl border-2 text-center text-sm font-bold transition-all ${
+                        on
+                          ? 'border-blue-500 bg-blue-50 text-[#0e2a52]'
+                          : 'border-slate-200 bg-white text-slate-400 hover:border-slate-300'
+                      }`}
+                    >
+                      {on ? '✓ ' : ''}{m.label}
+                    </button>
+                  )
+                })}
               </div>
               <span className="text-[11px] text-slate-400 mt-1 block">
-                CB · Virement · Espèces — annoncé dans le SMS client.
+                Tu peux en cocher plusieurs (CB, virement, espèces) — annoncé dans le SMS client.
               </span>
             </div>
 
