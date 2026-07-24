@@ -17,7 +17,6 @@ type Tool = {
   desc: string
   bg: string
   text: 'white' | 'black'
-  external?: boolean
   /** Visible uniquement par le gérant (pas les comptes démo). */
   ownerOnly?: boolean
 }
@@ -31,7 +30,6 @@ type HubGroup = {
   links: { href: string; label: string; sub?: string }[]
 }
 
-/** Seul module en vedette pleine largeur. */
 const HERO: Tool = {
   href: '/planning',
   emoji: '📅',
@@ -41,7 +39,6 @@ const HERO: Tool = {
   text: 'white',
 }
 
-/** Hubs regroupés (doublons fusionnés) — très visibles, filigrane LTDB. */
 const HUBS: HubGroup[] = [
   {
     id: 'rapports',
@@ -78,7 +75,6 @@ const HUBS: HubGroup[] = [
   },
 ]
 
-/** Petites tuiles — tout le reste (accord, relances, etc.). */
 const SMALL_TOOLS: Tool[] = [
   { href: '/accord',           emoji: '🤝', label: 'Accords',       desc: 'Liste signés',        bg: 'bg-gradient-to-br from-red-500 to-red-700',       text: 'white' },
   { href: '/accord/nouveau',   emoji: '✍️', label: 'Nouvel accord', desc: 'Créer',               bg: 'bg-gradient-to-br from-red-400 to-rose-600',      text: 'white' },
@@ -89,7 +85,7 @@ const SMALL_TOOLS: Tool[] = [
   { href: '/clients',          emoji: '👥', label: 'Clients',       desc: 'Annuaire',            bg: 'bg-gradient-to-br from-teal-500 to-teal-700',     text: 'white' },
   { href: '/statistiques',     emoji: '📊', label: 'Statistiques',  desc: 'Acquisition',         bg: 'bg-gradient-to-br from-rose-500 to-rose-700',     text: 'white' },
   { href: '/comptabilite',     emoji: '💼', label: 'Comptabilité',  desc: 'Bilan & FEC',         bg: 'bg-gradient-to-br from-violet-500 to-violet-700', text: 'white' },
-  { href: '/rh',               emoji: '👔', label: 'RH',            desc: 'Salariés',              bg: 'bg-gradient-to-br from-fuchsia-600 to-purple-800', text: 'white' },
+  { href: '/rh',               emoji: '👔', label: 'RH',            desc: 'Salariés',            bg: 'bg-gradient-to-br from-fuchsia-600 to-purple-800', text: 'white' },
   { href: '/techniciens',      emoji: '🦺', label: 'Techniciens',   desc: 'Profils site',        bg: 'bg-gradient-to-br from-orange-500 to-amber-700',  text: 'white' },
   { href: '/admin/comptes',    emoji: '👷', label: 'Comptes techs', desc: 'Login & accès',       bg: 'bg-gradient-to-br from-emerald-500 to-emerald-700', text: 'white', ownerOnly: true },
   { href: '/acces-demo',       emoji: '🔑', label: 'Accès démo',    desc: 'Essai client',        bg: 'bg-gradient-to-br from-yellow-500 to-amber-700',  text: 'white', ownerOnly: true },
@@ -98,50 +94,50 @@ const SMALL_TOOLS: Tool[] = [
   { href: '/connexions',       emoji: '🔐', label: 'Connexions',    desc: 'Historique & pays',   bg: 'bg-gradient-to-br from-zinc-600 to-zinc-800',     text: 'white', ownerOnly: true },
 ]
 
-function LtdbWatermark() {
+function LtdbWatermark({ label = 'LTDB' }: { label?: string }) {
   return (
     <span
       aria-hidden
       className="pointer-events-none select-none absolute inset-0 flex items-center justify-center overflow-hidden"
     >
       <span className="text-[4.5rem] sm:text-[6rem] md:text-[7rem] font-black tracking-tighter text-white/[0.07] leading-none rotate-[-12deg] translate-y-2">
-        LTDB
+        {label}
       </span>
     </span>
   )
 }
 
-function HeroTile({ t, introClass }: { t: Tool; introClass?: string }) {
+function HeroTile({ t }: { t: Tool }) {
   return (
     <Link
       href={t.href}
       title={t.desc}
-      className={`group relative min-h-[132px] sm:min-h-[148px] rounded-2xl overflow-hidden flex flex-col justify-end p-4 sm:p-5 shadow-lg transition-all duration-200 hover:shadow-xl hover:scale-[1.01] ${t.bg} text-white ${introClass || ''}`}
+      className={`group relative min-h-[112px] sm:min-h-[128px] rounded-2xl overflow-hidden flex flex-col justify-end p-4 sm:p-5 shadow-lg transition-all duration-200 hover:shadow-xl hover:scale-[1.01] ${t.bg} text-white`}
     >
       <LtdbWatermark />
       <span
         aria-hidden
-        className="pointer-events-none absolute top-3 right-3 text-[3.5rem] sm:text-[4rem] leading-none opacity-25"
+        className="pointer-events-none absolute top-3 right-3 text-[3rem] sm:text-[3.5rem] leading-none opacity-25"
       >
         {t.emoji}
       </span>
       <div className="relative z-10">
-        <div className="text-2xl sm:text-3xl font-black tracking-tight drop-shadow-sm">{t.label}</div>
+        <div className="text-xl sm:text-2xl font-black tracking-tight drop-shadow-sm">{t.label}</div>
         <p className="mt-1 text-xs sm:text-sm opacity-90 font-medium">{t.desc}</p>
       </div>
     </Link>
   )
 }
 
-function HubTile({ hub, introClass }: { hub: HubGroup; introClass?: string }) {
+function HubTile({ hub }: { hub: HubGroup }) {
   return (
     <div
-      className={`group relative min-h-[168px] sm:min-h-[180px] rounded-2xl overflow-hidden shadow-md ${hub.bg} text-white ${introClass || ''}`}
+      className={`group relative min-h-[156px] sm:min-h-[168px] rounded-2xl overflow-hidden shadow-md ${hub.bg} text-white`}
     >
       <LtdbWatermark />
       <span
         aria-hidden
-        className="pointer-events-none absolute top-2 right-2 text-[2.75rem] sm:text-[3.25rem] leading-none opacity-20"
+        className="pointer-events-none absolute top-2 right-2 text-[2.5rem] sm:text-[3rem] leading-none opacity-20"
       >
         {hub.emoji}
       </span>
@@ -175,11 +171,11 @@ function SmallTile({ t }: { t: Tool }) {
     <Link
       href={t.href}
       title={t.desc}
-      className={`group relative min-h-[100px] sm:min-h-[108px] rounded-xl overflow-hidden flex flex-col justify-end p-3 shadow-sm transition-all duration-200 hover:shadow-lg hover:scale-[1.02] ${t.bg} ${textColor}`}
+      className={`group relative min-h-[96px] sm:min-h-[104px] rounded-xl overflow-hidden flex flex-col justify-end p-3 shadow-sm transition-all duration-200 hover:shadow-lg hover:scale-[1.02] ${t.bg} ${textColor}`}
     >
       <span
         aria-hidden
-        className="pointer-events-none select-none absolute -top-1 -right-1 text-[2.75rem] sm:text-[3.25rem] leading-none opacity-20"
+        className="pointer-events-none select-none absolute -top-1 -right-1 text-[2.5rem] sm:text-[3rem] leading-none opacity-20"
       >
         {t.emoji}
       </span>
@@ -199,6 +195,7 @@ export default function Home() {
   const { data: session } = useSession()
   const isOwner = session?.user?.role === 'admin' && !session?.user?.isDemo
   const visibleTools = SMALL_TOOLS.filter(t => !t.ownerOnly || isOwner)
+  const moduleCount = 1 + HUBS.length + visibleTools.length
 
   const [intro, setIntro] = useState(false)
 
@@ -226,34 +223,64 @@ export default function Home() {
         </div>
       </header>
 
-      <div className="max-w-6xl mx-auto px-3 sm:px-5 py-4 sm:py-6 space-y-4 sm:space-y-5">
-        <section>
-          <h2 className="text-[10px] uppercase tracking-[0.18em] text-white/50 font-semibold mb-2 px-0.5">
-            Priorités
-          </h2>
-          <div className="space-y-2 sm:space-y-3">
-            <HeroTile t={HERO} introClass={introClass} />
-            <EnvoyerAvisSmsPanel className={introClass} />
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-3">
-              {HUBS.map(hub => (
-                <HubTile key={hub.id} hub={hub} introClass={introClass} />
-              ))}
-            </div>
-          </div>
-        </section>
-
-        <section>
-          <h2 className="text-[10px] uppercase tracking-[0.18em] text-white/50 font-semibold mb-2 px-0.5">
-            Tous les modules
-            <span className="ml-2 text-white/40 tabular-nums">{visibleTools.length}</span>
-          </h2>
-          <div
-            className="grid gap-2 sm:gap-2.5"
-            style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 118px), 1fr))' }}
+      <div className="max-w-6xl mx-auto px-3 sm:px-5 py-4 sm:py-6">
+        <section
+          className={`relative overflow-hidden rounded-3xl border border-white/15 bg-gradient-to-br from-[#14082a] via-[#1a1040] to-[#0a1f3d] shadow-2xl ${introClass}`}
+        >
+          <span
+            aria-hidden
+            className="pointer-events-none absolute -right-6 top-2 text-[7rem] sm:text-[9rem] leading-none opacity-[0.08]"
           >
-            {visibleTools.map(t => (
-              <SmallTile key={`${t.href}-${t.label}`} t={t} />
-            ))}
+            👑
+          </span>
+          <span
+            aria-hidden
+            className="pointer-events-none select-none absolute inset-0 flex items-center justify-center overflow-hidden"
+          >
+            <span className="text-[5rem] sm:text-[8rem] md:text-[10rem] font-black tracking-tighter text-white/[0.04] leading-none rotate-[-10deg]">
+              ADMIN
+            </span>
+          </span>
+
+          <div className="relative z-10 p-4 sm:p-6 space-y-4 sm:space-y-5">
+            <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-2 border-b border-white/10 pb-4">
+              <div>
+                <div className="text-[10px] uppercase tracking-[0.28em] text-amber-300/90 font-bold">
+                  Cockpit LTDB
+                </div>
+                <h1 className="mt-1 text-2xl sm:text-4xl font-black tracking-tight text-white">
+                  ADMIN OF THE WORLD
+                </h1>
+                <p className="mt-1 text-sm text-white/65">
+                  Tous les modules · {moduleCount} accès
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-2 sm:space-y-3">
+              <HeroTile t={HERO} />
+              <EnvoyerAvisSmsPanel />
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-3">
+                {HUBS.map(hub => (
+                  <HubTile key={hub.id} hub={hub} />
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <h2 className="text-[10px] uppercase tracking-[0.18em] text-white/45 font-semibold mb-2 px-0.5">
+                Modules
+                <span className="ml-2 text-white/35 tabular-nums">{visibleTools.length}</span>
+              </h2>
+              <div
+                className="grid gap-2 sm:gap-2.5"
+                style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 118px), 1fr))' }}
+              >
+                {visibleTools.map(t => (
+                  <SmallTile key={`${t.href}-${t.label}`} t={t} />
+                ))}
+              </div>
+            </div>
           </div>
         </section>
       </div>

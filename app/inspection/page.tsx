@@ -232,6 +232,7 @@ function InspectionPageInner() {
   const { data: session } = useSession()
   const searchParams = useSearchParams()
   const interventionFromUrl = searchParams.get('intervention')
+  const recupFromUrl = searchParams.get('recup')
 
   const [numero, setNumero] = useState('')
   const [dateInspection, setDateInspection] = useState(new Date().toISOString().split('T')[0])
@@ -241,7 +242,7 @@ function InspectionPageInner() {
   // Lien intervention
   const [linkedInterventionId, setLinkedInterventionId] = useState<string | null>(null)
   const [linkedInterventionLabel, setLinkedInterventionLabel] = useState('')
-  const [prefillLoading, setPrefillLoading] = useState(!!interventionFromUrl)
+  const [prefillLoading, setPrefillLoading] = useState(!!interventionFromUrl || !!recupFromUrl)
   const [prefillError, setPrefillError] = useState('')
   const [showItvPicker, setShowItvPicker] = useState(false)
   const [itvLoading, setItvLoading] = useState(false)
@@ -265,32 +266,64 @@ function InspectionPageInner() {
   const [draftSavedAt, setDraftSavedAt] = useState<string | null>(null)
   const [draftRestored, setDraftRestored] = useState(false)
 
-  // Hydrate brouillon local (photos dataUrl incluses) — avant tout préremplissage URL
+  function applyDraft(draft: InspectionDraft) {
+    setNumero(draft.numero || genNumero())
+    if (draft.dateInspection) setDateInspection(draft.dateInspection)
+    if (draft.technicienNom) setTechnicienNom(draft.technicienNom)
+    setLinkedInterventionId(draft.linkedInterventionId)
+    setLinkedInterventionLabel(draft.linkedInterventionLabel || '')
+    setClientNom(draft.clientNom || '')
+    setClientAdresse(draft.clientAdresse || '')
+    setClientCP(draft.clientCP || '')
+    setClientVille(draft.clientVille || '')
+    setClientEmail(draft.clientEmail || '')
+    setClientTel(draft.clientTel || '')
+    if (draft.troncons?.length) setTroncons(stripTronconsForDraft(draft.troncons))
+    setDraftSavedAt(draft.savedAt || new Date().toISOString())
+    setDraftRestored(true)
+    setPrefillLoading(false)
+    setPrefillError('')
+  }
+
+  // Hydrate : ?recup=… (fichier public) > brouillon localStorage > nouveau
   useEffect(() => {
-    const draft = loadDraft()
-    if (draft) {
-      setNumero(draft.numero || genNumero())
-      if (draft.dateInspection) setDateInspection(draft.dateInspection)
-      if (draft.technicienNom) setTechnicienNom(draft.technicienNom)
-      setLinkedInterventionId(draft.linkedInterventionId)
-      setLinkedInterventionLabel(draft.linkedInterventionLabel || '')
-      setClientNom(draft.clientNom || '')
-      setClientAdresse(draft.clientAdresse || '')
-      setClientCP(draft.clientCP || '')
-      setClientVille(draft.clientVille || '')
-      setClientEmail(draft.clientEmail || '')
-      setClientTel(draft.clientTel || '')
-      if (draft.troncons?.length) setTroncons(stripTronconsForDraft(draft.troncons))
-      setDraftSavedAt(draft.savedAt)
-      setDraftRestored(true)
-      setPrefillLoading(false)
-    } else {
-      setNumero(genNumero())
-      const savedTech = localStorage.getItem('ltdb_technicien')
-      if (savedTech) setTechnicienNom(savedTech)
+    let cancelled = false
+    async function hydrate() {
+      if (recupFromUrl) {
+        try {
+          const slug = recupFromUrl.replace(/[^a-zA-Z0-9._-]/g, '')
+          const res = await fetch(`/recup/${slug}.json`, { cache: 'no-store' })
+          if (!res.ok) throw new Error(`Récupération HTTP ${res.status}`)
+          const draft = await res.json() as InspectionDraft
+          if (cancelled) return
+          if (!draft?.troncons) throw new Error('Fichier récup invalide')
+          applyDraft(draft)
+          saveDraft({ ...draft, v: DRAFT_VERSION, savedAt: new Date().toISOString() })
+          setDraftHydrated(true)
+          return
+        } catch (e) {
+          if (!cancelled) {
+            setPrefillError(errorMessage(e) || 'Impossible de récupérer le brouillon')
+            setPrefillLoading(false)
+          }
+        }
+      }
+
+      const draft = loadDraft()
+      if (draft) {
+        applyDraft(draft)
+      } else {
+        setNumero(genNumero())
+        const savedTech = localStorage.getItem('ltdb_technicien')
+        if (savedTech) setTechnicienNom(savedTech)
+        setPrefillLoading(false)
+      }
+      setDraftHydrated(true)
     }
-    setDraftHydrated(true)
-  }, [])
+    void hydrate()
+    return () => { cancelled = true }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [recupFromUrl])
 
   // Persist tech
   useEffect(() => {
@@ -430,19 +463,8 @@ function InspectionPageInner() {
           setPhotoError('Fichier brouillon invalide')
           return
         }
-        setNumero(parsed.numero || genNumero())
-        if (parsed.dateInspection) setDateInspection(parsed.dateInspection)
-        if (parsed.technicienNom) setTechnicienNom(parsed.technicienNom)
-        setLinkedInterventionId(parsed.linkedInterventionId ?? null)
-        setLinkedInterventionLabel(parsed.linkedInterventionLabel || '')
-        setClientNom(parsed.clientNom || '')
-        setClientAdresse(parsed.clientAdresse || '')
-        setClientCP(parsed.clientCP || '')
-        setClientVille(parsed.clientVille || '')
-        setClientEmail(parsed.clientEmail || '')
-        setClientTel(parsed.clientTel || '')
-        setTroncons(stripTronconsForDraft(parsed.troncons))
-        setDraftRestored(true)
+        applyDraft(parsed)
+        saveDraft({ ...parsed, v: DRAFT_VERSION, savedAt: new Date().toISOString() })
         setPhotoError('')
       } catch {
         setPhotoError('Impossible de lire le fichier brouillon')
