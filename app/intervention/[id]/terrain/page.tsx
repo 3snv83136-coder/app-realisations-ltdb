@@ -206,13 +206,16 @@ function TerrainPageBody({
   const isTech = session?.user?.role === 'tech'
   const showAccordTab = isTech && isAccordFinDeMois()
 
+  // Écran allumé pendant tout le parcours terrain (dictée, génération, signature…)
+  useWakeLock(true)
+
   return (
-    <div className="min-h-screen bg-slate-50 pb-24">
-      <nav className="bg-white border-b border-slate-200 px-4 py-2.5 sticky top-0 z-30 shadow-sm">
-        <div className="max-w-2xl mx-auto flex items-center justify-between gap-3">
+    <div className="min-h-screen bg-slate-50 overflow-x-hidden pb-[max(6rem,env(safe-area-inset-bottom))]">
+      <nav className="bg-white border-b border-slate-200 px-3 sm:px-4 py-2.5 sticky top-0 z-30 shadow-sm pt-[max(0.625rem,env(safe-area-inset-top))]">
+        <div className="max-w-2xl mx-auto flex items-center justify-between gap-2 sm:gap-3">
           <Link
             href={isTech ? '/planning' : `/intervention/${interv.id}`}
-            className="text-sm font-bold text-[#0e2a52] hover:underline"
+            className="text-sm font-bold text-[#0e2a52] hover:underline shrink-0 min-h-[44px] inline-flex items-center"
           >
             ← {isTech ? 'Planning' : 'Fiche'}
           </Link>
@@ -220,14 +223,14 @@ function TerrainPageBody({
             {showAccordTab && (
               <Link
                 href={`/accord/nouveau?intervention=${interv.id}`}
-                className="text-xs font-semibold bg-[#0e2a52] text-white px-3 py-2 rounded-lg transition"
+                className="text-xs font-semibold bg-[#0e2a52] text-white px-3 py-2 rounded-lg transition min-h-[44px] inline-flex items-center"
               >
                 🤝 Accord
               </Link>
             )}
             <Link
               href={isTech ? '/planning' : '/historique'}
-              className="text-xs font-semibold text-slate-500 hover:text-slate-800 px-2 py-2"
+              className="text-xs font-semibold text-slate-500 hover:text-slate-800 px-2 py-2 min-h-[44px] min-w-[44px] inline-flex items-center justify-center"
             >
               ✕
             </Link>
@@ -235,7 +238,7 @@ function TerrainPageBody({
         </div>
       </nav>
 
-      <main className="max-w-2xl mx-auto px-4 py-4 space-y-4">
+      <main className="max-w-2xl mx-auto px-3 sm:px-4 py-3 sm:py-4 space-y-3 sm:space-y-4 w-full">
         <TerrainClientHero
           statut={interv.statut}
           clientNom={client?.nom}
@@ -762,23 +765,23 @@ function StepRapport({ interv, technicien, onSaved, onError }: {
   // ── Vue 1 : preview du rapport généré, en attente de validation ──
   if (rapportPreview) {
     return (
-      <section className="space-y-5">
-        <header className="text-center">
-          <div className="text-5xl mb-2">📄</div>
-          <h1 className="text-2xl font-black text-slate-800">Aperçu du rapport</h1>
+      <section className="space-y-4 sm:space-y-5">
+        <header className="text-center px-1">
+          <div className="text-4xl sm:text-5xl mb-2">📄</div>
+          <h1 className="text-xl sm:text-2xl font-black text-slate-800">Aperçu du rapport</h1>
           <p className="text-sm text-slate-600 mt-2">Relis avant de valider. Tu peux re-dicter ou regénérer si besoin.</p>
         </header>
 
-        <div className="bg-white rounded-2xl border-2 border-slate-200 p-5 space-y-4">
+        <div className="bg-white rounded-2xl border-2 border-slate-200 p-3 sm:p-5 space-y-4 overflow-hidden">
           {seoPreview?.titre_h1 && (
             <div>
               <div className="text-[11px] uppercase tracking-wider text-slate-500 font-bold mb-1">Titre</div>
-              <h2 className="text-lg font-black text-slate-800">{seoPreview.titre_h1}</h2>
+              <h2 className="text-base sm:text-lg font-black text-slate-800 break-words">{seoPreview.titre_h1}</h2>
             </div>
           )}
 
           {seoPreview?.resume_intervention && (
-            <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-sm space-y-1">
+            <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 sm:p-4 text-sm space-y-1 break-words">
               <div className="text-[11px] uppercase tracking-wider text-blue-700 font-bold mb-2">Résumé intervention (site)</div>
               {seoPreview.resume_intervention.lieu && <p>📍 {seoPreview.resume_intervention.lieu}</p>}
               {seoPreview.resume_intervention.probleme && <p><strong>Problème :</strong> {seoPreview.resume_intervention.probleme}</p>}
@@ -814,8 +817,8 @@ function StepRapport({ interv, technicien, onSaved, onError }: {
               <ul className="space-y-1 text-sm">
                 {rapportPreview.devis.lignes.map((l, i) => (
                   <li key={i} className="flex justify-between gap-2">
-                    <span className="text-slate-700">{l.designation}</span>
-                    <span className="text-slate-500 tabular-nums">
+                    <span className="text-slate-700 break-words min-w-0">{l.designation}</span>
+                    <span className="text-slate-500 tabular-nums shrink-0">
                       {l.qte ? `${l.qte} × ` : ''}{Number(l.pu_ht || 0).toFixed(2)} €
                     </span>
                   </li>
@@ -825,12 +828,12 @@ function StepRapport({ interv, technicien, onSaved, onError }: {
           )}
         </div>
 
-        <div className="flex gap-3">
+        <div className="flex flex-col-reverse sm:flex-row gap-2 sm:gap-3 sticky bottom-0 sm:static bg-slate-50/95 sm:bg-transparent backdrop-blur-sm sm:backdrop-blur-none py-3 sm:py-0 -mx-3 px-3 sm:mx-0 sm:px-0 border-t sm:border-0 border-slate-200 z-10">
           <button
             type="button"
             onClick={handleRegenerate}
             disabled={saving}
-            className="flex-1 bg-white border-2 border-slate-300 hover:bg-slate-50 text-slate-700 rounded-2xl py-4 font-bold text-sm disabled:opacity-50 transition"
+            className="w-full sm:flex-1 bg-white border-2 border-slate-300 hover:bg-slate-50 text-slate-700 rounded-2xl py-3.5 sm:py-4 font-bold text-sm disabled:opacity-50 transition min-h-[48px]"
           >
             ↻ Re-dicter
           </button>
@@ -838,7 +841,7 @@ function StepRapport({ interv, technicien, onSaved, onError }: {
             type="button"
             onClick={handleValidate}
             disabled={saving}
-            className="flex-[2] bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white rounded-2xl py-4 font-black text-base shadow-lg transition"
+            className="w-full sm:flex-[2] bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white rounded-2xl py-3.5 sm:py-4 font-black text-base shadow-lg transition min-h-[48px]"
           >
             {saving ? '⚙ Enregistrement…' : '✓ Valider le rapport'}
           </button>
@@ -850,19 +853,19 @@ function StepRapport({ interv, technicien, onSaved, onError }: {
   // ── Vue 2bis : génération en cours → loader ludique ──
   if (generating) {
     return (
-      <section className="space-y-5">
-        <header className="text-center">
-          <div className="text-5xl mb-2">✨</div>
-          <h1 className="text-2xl font-black text-slate-800">Le rapport se rédige…</h1>
+      <section className="space-y-4 sm:space-y-5">
+        <header className="text-center px-1">
+          <div className="text-4xl sm:text-5xl mb-2">✨</div>
+          <h1 className="text-xl sm:text-2xl font-black text-slate-800">Le rapport se rédige…</h1>
           <p className="text-sm text-slate-600 mt-2">Patiente quelques instants, on cingle vers le soleil.</p>
         </header>
 
         <TerrainOceanLoader done={genDone} expectedMs={75_000} />
 
-        <p className="text-xs text-center text-slate-400 italic">
+        <p className="text-xs text-center text-slate-400 italic px-2">
           {genDone
             ? 'Ouverture de l’aperçu…'
-            : 'La génération prend généralement 30 à 90 secondes. Ne ferme pas la page.'}
+            : 'La génération prend généralement 30 à 90 secondes. L’écran reste allumé — ne ferme pas la page.'}
         </p>
       </section>
     )
@@ -870,10 +873,10 @@ function StepRapport({ interv, technicien, onSaved, onError }: {
 
   // ── Vue 2 : dictée initiale ──
   return (
-    <section className="space-y-5">
-      <header className="text-center">
-        <div className="text-5xl mb-2">🎤</div>
-        <h1 className="text-2xl font-black text-slate-800">Dicte le rapport</h1>
+    <section className="space-y-4 sm:space-y-5">
+      <header className="text-center px-1">
+        <div className="text-4xl sm:text-5xl mb-2">🎤</div>
+        <h1 className="text-xl sm:text-2xl font-black text-slate-800">Dicte le rapport</h1>
         <p className="text-sm text-slate-600 mt-2">Décris ce que tu as fait, ce que tu as trouvé, les prestations et les prix.</p>
       </header>
 
@@ -883,7 +886,7 @@ function StepRapport({ interv, technicien, onSaved, onError }: {
         onSynced={handleOfflineSynced}
       />
 
-      <div className="bg-white rounded-2xl border-2 border-slate-200 p-4 space-y-4">
+      <div className="bg-white rounded-2xl border-2 border-slate-200 p-3 sm:p-4 space-y-4 overflow-hidden">
         <VoiceRecorder
           interventionId={interv.id}
           onTranscription={(text) => {
@@ -898,9 +901,9 @@ function StepRapport({ interv, technicien, onSaved, onError }: {
             setQueuedOk(false)
             setTranscription(e.target.value)
           }}
-          rows={8}
+          rows={6}
           placeholder="Ou tape ici directement le texte du rapport…"
-          className="w-full border-2 border-slate-200 focus:border-blue-500 outline-none rounded-xl px-4 py-3 text-sm resize-y"
+          className="w-full border-2 border-slate-200 focus:border-blue-500 outline-none rounded-xl px-3 sm:px-4 py-3 text-base resize-y min-h-[140px]"
         />
         <p className="text-[11px] text-slate-400">
           {transcription.length} caractères
@@ -911,7 +914,7 @@ function StepRapport({ interv, technicien, onSaved, onError }: {
       </div>
 
       {queuedOk && (
-        <div className="bg-emerald-50 border-2 border-emerald-200 rounded-2xl p-4 text-sm font-semibold text-emerald-800">
+        <div className="bg-emerald-50 border-2 border-emerald-200 rounded-2xl p-3 sm:p-4 text-sm font-semibold text-emerald-800">
           ✓ Rapport en file d&apos;attente — génération et enregistrement automatiques au retour du réseau.
         </div>
       )}
@@ -920,7 +923,7 @@ function StepRapport({ interv, technicien, onSaved, onError }: {
         type="button"
         onClick={handleGenerate}
         disabled={transcription.trim().length < 20}
-        className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-2xl py-5 font-black text-lg shadow-lg transition"
+        className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-2xl py-4 sm:py-5 font-black text-base sm:text-lg shadow-lg transition min-h-[52px] sticky bottom-3 z-10"
       >
         {!isOnline ? '📴 Mettre en file d\'attente' : '✨ Générer le rapport'}
       </button>
@@ -932,7 +935,7 @@ function PreviewField({ label, value }: { label: string; value: string }) {
   return (
     <div>
       <div className="text-[11px] uppercase tracking-wider text-slate-500 font-bold mb-1">{label}</div>
-      <p className="text-sm text-slate-700 whitespace-pre-wrap">{value}</p>
+      <p className="text-sm text-slate-700 whitespace-pre-wrap break-words">{value}</p>
     </div>
   )
 }

@@ -122,18 +122,18 @@ export default function VoiceRecorder({ onTranscription, interventionId, onOffli
 
   return (
     <div className="flex flex-col gap-2">
-      <div className="flex items-center gap-3 flex-wrap">
+      <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
         <button
           type="button"
           onClick={recording ? stopRecording : startRecording}
           disabled={processing}
-          className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium text-white min-h-[44px] ${
+          className={`w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-3.5 sm:py-2 rounded-xl font-bold text-white min-h-[52px] sm:min-h-[44px] text-base ${
             recording ? 'bg-red-600 hover:bg-red-700 animate-pulse' : 'bg-blue-700 hover:bg-blue-800'
           } disabled:opacity-50`}
         >
           {recording ? '⏹ Arrêter la dictée' : '🎤 Dicter le rapport'}
         </button>
-        {processing && <span className="text-gray-500 text-sm">Traitement en cours…</span>}
+        {processing && <span className="text-gray-500 text-sm text-center sm:text-left">Traitement en cours…</span>}
       </div>
       {offlineOk && (
         <p className="text-sm font-semibold text-emerald-700">

@@ -1,5 +1,7 @@
 'use client'
 
+import { useEffect, useRef } from 'react'
+
 export const TERRAIN_STEPS = [
   { key: 0, label: 'Photo avant', icon: '📷' },
   { key: 1, label: 'Démarrer', icon: '▶' },
@@ -24,55 +26,68 @@ interface TerrainStepperProps {
 
 export default function TerrainStepper({ current, onStepClick, hiddenSteps = [] }: TerrainStepperProps) {
   const steps = TERRAIN_STEPS.filter(s => !hiddenSteps.includes(s.key))
+  const activeRef = useRef<HTMLButtonElement>(null)
+
+  useEffect(() => {
+    activeRef.current?.scrollIntoView({
+      behavior: 'smooth',
+      inline: 'center',
+      block: 'nearest',
+    })
+  }, [current, steps.length])
+
   return (
-    <div className="bg-white border-b border-slate-200 sticky top-0 z-20 shadow-sm">
-      <div className="max-w-4xl mx-auto px-2 py-3">
-        <div className="flex items-center justify-between gap-1 overflow-x-auto">
-          {steps.map((s, i) => {
-            const done = current > s.key
-            const active = current === s.key
-            const clickable = done && onStepClick
-            return (
-              <div key={s.key} className="flex items-center flex-shrink-0">
-                <button
-                  type="button"
-                  disabled={!clickable}
-                  onClick={() => clickable && onStepClick(s.key)}
-                  className={`flex flex-col items-center gap-0.5 px-2 py-1 rounded-lg transition ${
-                    active ? 'bg-blue-50' : ''
-                  } ${clickable ? 'cursor-pointer hover:bg-slate-100' : 'cursor-default'}`}
-                  title={s.label}
+    <div className="bg-white border border-slate-200 rounded-2xl shadow-sm sticky top-14 z-20 overflow-hidden">
+      <div
+        className="flex items-center gap-0.5 overflow-x-auto px-2 py-2.5 scrollbar-hide snap-x snap-mandatory"
+        style={{ WebkitOverflowScrolling: 'touch' }}
+      >
+        {steps.map((s, i) => {
+          const done = current > s.key
+          const active = current === s.key
+          const clickable = done && onStepClick
+          return (
+            <div key={s.key} className="flex items-center flex-shrink-0 snap-center">
+              <button
+                ref={active ? activeRef : undefined}
+                type="button"
+                disabled={!clickable}
+                onClick={() => clickable && onStepClick(s.key)}
+                className={`flex flex-col items-center gap-0.5 px-1.5 sm:px-2 py-1 rounded-lg transition min-w-[52px] sm:min-w-[64px] ${
+                  active ? 'bg-blue-50' : ''
+                } ${clickable ? 'cursor-pointer hover:bg-slate-100' : 'cursor-default'}`}
+                title={s.label}
+                aria-current={active ? 'step' : undefined}
+              >
+                <div
+                  className={`w-9 h-9 sm:w-10 sm:h-10 rounded-full flex items-center justify-center text-base font-bold transition ${
+                    done
+                      ? 'bg-emerald-500 text-white'
+                      : active
+                      ? 'bg-blue-600 text-white shadow-lg ring-2 ring-blue-200'
+                      : 'bg-slate-200 text-slate-500'
+                  }`}
                 >
-                  <div
-                    className={`w-9 h-9 rounded-full flex items-center justify-center text-base font-bold transition ${
-                      done
-                        ? 'bg-emerald-500 text-white'
-                        : active
-                        ? 'bg-blue-600 text-white shadow-lg ring-2 ring-blue-200'
-                        : 'bg-slate-200 text-slate-500'
-                    }`}
-                  >
-                    {done ? '✓' : s.icon}
-                  </div>
-                  <span
-                    className={`text-[10px] font-bold whitespace-nowrap ${
-                      active ? 'text-blue-700' : done ? 'text-emerald-600' : 'text-slate-400'
-                    }`}
-                  >
-                    {s.label}
-                  </span>
-                </button>
-                {i < steps.length - 1 && (
-                  <div
-                    className={`w-3 h-0.5 mx-0.5 flex-shrink-0 ${
-                      done ? 'bg-emerald-400' : 'bg-slate-200'
-                    }`}
-                  />
-                )}
-              </div>
-            )
-          })}
-        </div>
+                  {done ? '✓' : s.icon}
+                </div>
+                <span
+                  className={`text-[9px] sm:text-[10px] font-bold whitespace-nowrap max-w-[4.5rem] truncate ${
+                    active ? 'text-blue-700' : done ? 'text-emerald-600' : 'text-slate-400'
+                  }`}
+                >
+                  {s.label}
+                </span>
+              </button>
+              {i < steps.length - 1 && (
+                <div
+                  className={`w-2 sm:w-3 h-0.5 mx-0.5 flex-shrink-0 ${
+                    done ? 'bg-emerald-400' : 'bg-slate-200'
+                  }`}
+                />
+              )}
+            </div>
+          )
+        })}
       </div>
     </div>
   )
