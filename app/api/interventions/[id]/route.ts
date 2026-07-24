@@ -25,6 +25,7 @@ const UPDATABLE = new Set([
   'code_postal',
   'date_prevue',
   'heure_prevue',
+  'heure_fin_prevue',
   'duree_estimee_min',
   'urgence',
   'prix_prevu',
@@ -127,7 +128,7 @@ export async function PUT(req: NextRequest, { params }: Params) {
   // autres champs (statut, ids, nombres, urgence) passent tels quels.
   const TEXT_FIELDS = new Set([
     'agence', 'type_intervention', 'adresse_chantier', 'ville', 'code_postal',
-    'date_prevue', 'heure_prevue', 'notes_internes', 'date_realisee',
+    'date_prevue', 'heure_prevue', 'heure_fin_prevue', 'notes_internes', 'date_realisee',
   ])
   const update: Record<string, unknown> = {}
   for (const [k, v] of Object.entries(body)) {
@@ -168,6 +169,9 @@ export async function PUT(req: NextRequest, { params }: Params) {
 
   if (typeof update.heure_prevue === 'string' && /^\d{2}:\d{2}/.test(update.heure_prevue)) {
     update.heure_prevue = (update.heure_prevue as string).slice(0, 5)
+  }
+  if (typeof update.heure_fin_prevue === 'string' && /^\d{2}:\d{2}/.test(update.heure_fin_prevue)) {
+    update.heure_fin_prevue = (update.heure_fin_prevue as string).slice(0, 5)
   }
 
   if (Object.keys(update).length === 0) {

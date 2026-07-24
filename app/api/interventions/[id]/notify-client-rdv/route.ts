@@ -28,26 +28,57 @@ export async function POST(req: NextRequest, { params }: Params) {
     return NextResponse.json({ error: "Supabase non configure" }, { status: 500 })
   }
 
-  const { data: interv } = await sb
+  let bodyOverride: {
+    mode_paiement?: string | null
+    heure_fin_prevue?: string | null
+  } = {}
+  try {
+    bodyOverride = await req.json()
+  } catch {
+    /* body optionnel */
+  }
+
+  const { data: interv, error: intervErr } = await sb
     .from("interventions")
-    .select("id, client_id, type_intervention, date_prevue, heure_prevue, statut")
+    .select("id, client_id, type_intervention, date_prevue, heure_prevue, heure_fin_prevue, statut")
     .eq("id", params.id)
     .maybeSingle()
 
-  if (!interv) {
+  let intervRow: {
+    id: string
+    client_id: string | null
+    type_intervention: string | null
+    date_prevue: string | null
+    heure_prevue: string | null
+    heure_fin_prevue: string | null
+    statut: string
+  } | null = interv
+
+  if (intervErr?.message?.includes("heure_fin_prevue") || (!interv && intervErr)) {
+    const { data: fallback } = await sb
+      .from("interventions")
+      .select("id, client_id, type_intervention, date_prevue, heure_prevue, statut")
+      .eq("id", params.id)
+      .maybeSingle()
+    if (fallback) {
+      intervRow = { ...fallback, heure_fin_prevue: null }
+    }
+  }
+
+  if (!intervRow) {
     return NextResponse.json({ error: "Intervention introuvable" }, { status: 404 })
   }
-  if (interv.statut === "annulee") {
+  if (intervRow.statut === "annulee") {
     return NextResponse.json({ error: "Intervention annulee" }, { status: 400 })
   }
-  if (!interv.client_id) {
+  if (!intervRow.client_id) {
     return NextResponse.json({ error: "Aucun client lie a cette intervention" }, { status: 400 })
   }
 
   const { data: client } = await sb
     .from("clients")
     .select("nom, telephone")
-    .eq("id", interv.client_id)
+    .eq("id", intervRow.client_id)
     .maybeSingle()
 
   const phone = (client?.telephone || "").trim()
@@ -58,16 +89,6 @@ export async function POST(req: NextRequest, { params }: Params) {
     )
   }
 
-  let bodyOverride: {
-    mode_paiement?: string | null
-  } = {}
-  try {
-    bodyOverride = await req.json()
-  } catch {
-    /* body optionnel */
-  }
-
-  // mode_paiement : body prioritaire (formulaire), sinon colonne DB si présente
   let modePaiement = bodyOverride.mode_paiement ?? null
   if (!modePaiement) {
     const { data: row } = await sb
@@ -77,12 +98,19 @@ export async function POST(req: NextRequest, { params }: Params) {
       .maybeSingle()
     modePaiement = (row as { mode_paiement?: string | null } | null)?.mode_paiement ?? null
   }
+
+  const heureFin =
+    bodyOverride.heure_fin_prevue
+    || intervRow.heure_fin_prevue
+    || null
+
   const telEntreprise = await getTelPrincipal()
   const message = buildClientRdvSmsText({
     clientNom: client?.nom,
-    typeIntervention: interv.type_intervention,
-    datePrevue: interv.date_prevue,
-    heurePrevue: interv.heure_prevue,
+    typeIntervention: intervRow.type_intervention,
+    datePrevue: intervRow.date_prevue,
+    heurePrevue: intervRow.heure_prevue,
+    heureFinPrevue: heureFin,
     modePaiement,
     telEntreprise,
   })

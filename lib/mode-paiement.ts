@@ -1,5 +1,5 @@
 export const MODES_PAIEMENT = [
-  { key: 'cb', label: 'Carte bancaire (CB)' },
+  { key: 'cb', label: 'CB' },
   { key: 'virement', label: 'Virement' },
   { key: 'especes', label: 'Espèces' },
 ] as const

@@ -86,6 +86,7 @@ export interface Intervention {
   code_postal: string | null
   date_prevue: string | null
   heure_prevue: string | null
+  heure_fin_prevue: string | null
   duree_estimee_min: number | null
   date_realisee: string | null
   urgence: boolean

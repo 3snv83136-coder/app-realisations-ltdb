@@ -1,4 +1,5 @@
 import { Resend } from "resend"
+import { formatCreneau } from "@/lib/creneau"
 import { EMAIL_RE, escapeHtml, getResendFromEmail, getResendRecipient } from "@/lib/email-utils"
 import { buildTechnicienInterventionSmsText } from "@/lib/notify-technicien-message"
 import { getTelPrincipal } from "@/lib/parametres"
@@ -29,6 +30,7 @@ export type NotifyTechnicienInput = {
   code_postal?: string | null
   date_prevue?: string | null
   heure_prevue?: string | null
+  heure_fin_prevue?: string | null
   type_intervention?: string | null
   urgence?: boolean
   prix_prevu?: number | null
@@ -57,6 +59,7 @@ function emailTechHtml(p: {
   codePostal?: string | null
   datePrevue?: string | null
   heurePrevue?: string | null
+  heureFinPrevue?: string | null
   typeIntervention?: string | null
   urgence: boolean
   prixPrevu?: number | null
@@ -70,7 +73,7 @@ function emailTechHtml(p: {
   const v = escapeHtml(p.ville || '')
   const cp = escapeHtml(p.codePostal || '')
   const dp = escapeHtml(fmtDateFREmpty(p.datePrevue))
-  const hp = escapeHtml(p.heurePrevue ? p.heurePrevue.slice(0, 5) : '')
+  const creneau = escapeHtml(formatCreneau(p.heurePrevue, p.heureFinPrevue))
   const ti = escapeHtml(p.typeIntervention || 'Intervention')
   const prix = typeof p.prixPrevu === 'number' ? fmtEUREmpty(p.prixPrevu) : ''
   const notes = escapeHtml(p.notesInternes || '')
@@ -91,7 +94,7 @@ function emailTechHtml(p: {
       <tr><td style="background:linear-gradient(135deg,#0e2a52,#2c5fa8);padding:30px;color:#fff">
         <div style="font-size:11px;letter-spacing:2px;text-transform:uppercase;opacity:.85;margin-bottom:6px">Nouvelle intervention</div>
         <h1 style="margin:0;font-size:22px">${ti}${v ? ` — ${v}` : ''}</h1>
-        ${dp ? `<p style="margin:6px 0 0;opacity:.9;font-size:13px">${dp}${hp ? ` à ${hp}` : ''}</p>` : ''}
+        ${dp ? `<p style="margin:6px 0 0;opacity:.9;font-size:13px">${dp}${creneau ? ` · ${creneau}` : ''}</p>` : ''}
       </td></tr>
       ${urgenceBanner}
       <tr><td style="padding:30px">
@@ -102,7 +105,7 @@ function emailTechHtml(p: {
           <tr><td style="background:#f8fafc;padding:10px 16px;color:#475569;width:140px">Type</td>
               <td style="padding:10px 16px;font-weight:bold;color:#0e2a52">${ti}</td></tr>
           ${dp ? `<tr><td style="background:#f8fafc;padding:10px 16px;color:#475569;border-top:1px solid #e2e8f0">Date</td>
-              <td style="padding:10px 16px;border-top:1px solid #e2e8f0">${dp}${hp ? ` — ${hp}` : ''}</td></tr>` : ''}
+              <td style="padding:10px 16px;border-top:1px solid #e2e8f0">${dp}${creneau ? ` — ${creneau}` : ''}</td></tr>` : ''}
           <tr><td style="background:#f8fafc;padding:10px 16px;color:#475569;border-top:1px solid #e2e8f0">Client</td>
               <td style="padding:10px 16px;border-top:1px solid #e2e8f0">${cn}</td></tr>
           ${tel ? `<tr><td style="background:#f8fafc;padding:10px 16px;color:#475569;border-top:1px solid #e2e8f0">Téléphone</td>
@@ -190,6 +193,7 @@ export async function notifyTechnicienIntervention(
           codePostal: input.code_postal,
           datePrevue: input.date_prevue,
           heurePrevue: input.heure_prevue,
+          heureFinPrevue: input.heure_fin_prevue,
           typeIntervention: input.type_intervention,
           urgence: !!input.urgence,
           prixPrevu: typeof input.prix_prevu === 'number' ? input.prix_prevu : null,
@@ -217,6 +221,7 @@ export async function notifyTechnicienIntervention(
       codePostal: input.code_postal,
       datePrevue: input.date_prevue,
       heurePrevue: input.heure_prevue,
+      heureFinPrevue: input.heure_fin_prevue,
       typeIntervention: input.type_intervention,
       urgence: !!input.urgence,
       lien,
@@ -313,6 +318,7 @@ export async function notifyTechnicienForIntervention(
     code_postal: i.code_postal,
     date_prevue: i.date_prevue,
     heure_prevue: i.heure_prevue,
+    heure_fin_prevue: i.heure_fin_prevue ?? null,
     type_intervention: i.type_intervention,
     urgence: i.urgence,
     prix_prevu: i.prix_prevu,

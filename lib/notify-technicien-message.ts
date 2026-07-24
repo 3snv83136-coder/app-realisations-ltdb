@@ -1,16 +1,11 @@
+import { formatCreneau } from "@/lib/creneau"
+
 /** Texte SMS envoyé au technicien lors d'une nouvelle intervention assignée. */
 
 function fmtDateFR(iso?: string | null): string {
   if (!iso) return ''
   const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso)
   return m ? `${m[3]}/${m[2]}/${m[1]}` : iso
-}
-
-function fmtHeure(h?: string | null): string {
-  if (!h) return ''
-  const m = /^(\d{2}):(\d{2})/.exec(h)
-  if (!m) return h
-  return m[2] === '00' ? `${m[1]}h` : `${m[1]}h${m[2]}`
 }
 
 function buildAdresseLigne(parts: {
@@ -33,13 +28,14 @@ export function buildTechnicienInterventionSmsText(opts: {
   codePostal?: string | null
   datePrevue?: string | null
   heurePrevue?: string | null
+  heureFinPrevue?: string | null
   typeIntervention?: string | null
   urgence?: boolean
   lien?: string | null
 }): string {
   const type = (opts.typeIntervention || 'Intervention').trim()
   const date = fmtDateFR(opts.datePrevue)
-  const heure = fmtHeure(opts.heurePrevue)
+  const creneau = formatCreneau(opts.heurePrevue, opts.heureFinPrevue)
   const client = (opts.clientNom || 'Client').trim()
   const tel = (opts.clientTelephone || '').trim()
   const adresse = buildAdresseLigne(opts)
@@ -49,7 +45,7 @@ export function buildTechnicienInterventionSmsText(opts: {
   if (opts.urgence) lines.push('URGENT - Nouvelle intervention LTDB')
   else lines.push('Nouvelle intervention LTDB')
 
-  const quand = [date, heure].filter(Boolean).join(' a ')
+  const quand = [date, creneau].filter(Boolean).join(' ')
   lines.push([type, quand].filter(Boolean).join(' | '))
   lines.push(tel ? `${client} - ${tel}` : client)
   if (adresse) lines.push(adresse)

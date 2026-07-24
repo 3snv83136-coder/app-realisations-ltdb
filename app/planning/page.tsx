@@ -8,6 +8,7 @@ import CalendarSubscribePanel from "@/components/CalendarSubscribePanel"
 import VilleCombobox from "@/components/VilleCombobox"
 import { AGENCES } from "@/lib/agences"
 import { CANAUX_ACQUISITION } from "@/lib/canaux"
+import { addMinutesToTime, CRENEAU_MAX_MINUTES, formatCreneau, validateCreneau } from "@/lib/creneau"
 import { MODES_PAIEMENT } from "@/lib/mode-paiement"
 import { fmtDateFR, fmtEUR } from "@/lib/format"
 import { TYPES_INTERVENTION as TYPES } from "@/lib/types-intervention"
@@ -28,6 +29,7 @@ type InterventionRow = {
   code_postal: string | null
   date_prevue: string | null
   heure_prevue: string | null
+  heure_fin_prevue?: string | null
   duree_estimee_min: number | null
   date_realisee: string | null
   urgence: boolean
@@ -444,7 +446,9 @@ function InterventionCard({
 
       <div className={`flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs mb-2 ${metaMuted}`}>
         <span className="font-medium">📅 {fmtDateFR(i.date_prevue || i.date_realisee)}</span>
-        {i.heure_prevue && <span>⏰ {fmtHeure(i.heure_prevue)}</span>}
+        {(i.heure_prevue || i.heure_fin_prevue) && (
+          <span>⏰ {formatCreneau(i.heure_prevue, i.heure_fin_prevue) || fmtHeure(i.heure_prevue)}</span>
+        )}
         {i.duree_estimee_min ? <span>· {i.duree_estimee_min} min</span> : null}
       </div>
 
@@ -595,6 +599,7 @@ function NouvelleInterventionModal({
   const today = new Date().toISOString().slice(0, 10)
   const [datePrevue, setDatePrevue] = useState(today)
   const [heurePrevue, setHeurePrevue] = useState('09:00')
+  const [heureFinPrevue, setHeureFinPrevue] = useState(() => addMinutesToTime('09:00', CRENEAU_MAX_MINUTES))
   const [dureeMin, setDureeMin] = useState<string>('60')
   const [urgence, setUrgence] = useState(false)
   const [prixPrevu, setPrixPrevu] = useState<string>('')
@@ -604,10 +609,17 @@ function NouvelleInterventionModal({
   const [modePaiement, setModePaiement] = useState<string>('cb')
   const [notes, setNotes] = useState('')
 
+  function onChangeHeureDebut(v: string) {
+    setHeurePrevue(v)
+    if (v) setHeureFinPrevue(addMinutesToTime(v, CRENEAU_MAX_MINUTES))
+  }
+
   async function handleSubmit() {
     if (!clientNom.trim()) { setError('Nom du client requis'); return }
     if (!typeIntervention) { setError("Type d'intervention requis"); return }
-    if (!modePaiement) { setError('Mode de paiement requis'); return }
+    if (!modePaiement) { setError('Mode de paiement requis (CB, virement ou espèces)'); return }
+    const creneauCheck = validateCreneau(heurePrevue, heureFinPrevue)
+    if (!creneauCheck.ok) { setError(creneauCheck.error); return }
     setSubmitting(true); setError('')
 
     const adresse = chantierIdem ? clientAdresse : adresseChantier
@@ -636,6 +648,7 @@ function NouvelleInterventionModal({
           code_postal: cp || null,
           date_prevue: datePrevue || null,
           heure_prevue: heurePrevue || null,
+          heure_fin_prevue: heureFinPrevue || null,
           duree_estimee_min: dureeMin ? Number(dureeMin) : null,
           urgence,
           prix_prevu: prixPrevu ? Number(prixPrevu) : null,
@@ -671,14 +684,17 @@ function NouvelleInterventionModal({
 
       if (createdId && clientTel.trim()) {
         const sendClientSms = window.confirm(
-          `${lines.join('\n')}\n\nEnvoyer un SMS de confirmation au client (${clientTel.trim()}) ?\n\nLe SMS indiquera le jour, l'heure, le type d'intervention et le mode de paiement.`,
+          `${lines.join('\n')}\n\nEnvoyer un SMS de confirmation au client (${clientTel.trim()}) ?\n\nLe SMS indiquera le jour, le créneau, le type d'intervention et le mode de paiement.`,
         )
         if (sendClientSms) {
           try {
             const smsRes = await fetch(`/api/interventions/${createdId}/notify-client-rdv`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ mode_paiement: modePaiement }),
+              body: JSON.stringify({
+                mode_paiement: modePaiement,
+                heure_fin_prevue: heureFinPrevue,
+              }),
             })
             const smsData = await smsRes.json()
             if (!smsRes.ok) throw new Error(smsData.error || `HTTP ${smsRes.status}`)
@@ -812,19 +828,42 @@ function NouvelleInterventionModal({
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <label className="block text-sm">
                 <span className="text-xs uppercase tracking-wide text-slate-500 font-semibold">Date prévue</span>
                 <input type="date" value={datePrevue} onChange={e => setDatePrevue(e.target.value)} className="w-full border-2 border-slate-200 focus:border-blue-500 outline-none rounded-lg px-3 py-2 mt-1" />
               </label>
               <label className="block text-sm">
-                <span className="text-xs uppercase tracking-wide text-slate-500 font-semibold">Heure</span>
-                <input type="time" value={heurePrevue} onChange={e => setHeurePrevue(e.target.value)} className="w-full border-2 border-slate-200 focus:border-blue-500 outline-none rounded-lg px-3 py-2 mt-1" />
-              </label>
-              <label className="block text-sm">
-                <span className="text-xs uppercase tracking-wide text-slate-500 font-semibold">Durée (min)</span>
+                <span className="text-xs uppercase tracking-wide text-slate-500 font-semibold">Durée estimée (min)</span>
                 <input type="number" min="0" step="5" value={dureeMin} onChange={e => setDureeMin(e.target.value)} className="w-full border-2 border-slate-200 focus:border-blue-500 outline-none rounded-lg px-3 py-2 mt-1" />
               </label>
+            </div>
+
+            <div>
+              <span className="text-xs uppercase tracking-wide text-slate-500 font-semibold">Créneau horaire (max 2 h)</span>
+              <div className="grid grid-cols-2 gap-3 mt-1">
+                <label className="block text-sm">
+                  <span className="text-[11px] text-slate-500">Début</span>
+                  <input
+                    type="time"
+                    value={heurePrevue}
+                    onChange={e => onChangeHeureDebut(e.target.value)}
+                    className="w-full border-2 border-slate-200 focus:border-blue-500 outline-none rounded-lg px-3 py-2 mt-0.5"
+                  />
+                </label>
+                <label className="block text-sm">
+                  <span className="text-[11px] text-slate-500">Fin</span>
+                  <input
+                    type="time"
+                    value={heureFinPrevue}
+                    onChange={e => setHeureFinPrevue(e.target.value)}
+                    className="w-full border-2 border-slate-200 focus:border-blue-500 outline-none rounded-lg px-3 py-2 mt-0.5"
+                  />
+                </label>
+              </div>
+              <span className="text-[11px] text-slate-400 mt-1 block">
+                Annoncé au client : entre {formatCreneau(heurePrevue, heureFinPrevue) || '—'} (max 2 h).
+              </span>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -846,10 +885,10 @@ function NouvelleInterventionModal({
                     key={m.key}
                     type="button"
                     onClick={() => setModePaiement(m.key)}
-                    className={`p-2.5 rounded-xl border-2 text-center text-sm font-semibold transition-all ${
+                    className={`p-3 rounded-xl border-2 text-center text-sm font-bold transition-all ${
                       modePaiement === m.key
                         ? 'border-blue-500 bg-blue-50 text-[#0e2a52]'
-                        : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
+                        : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'
                     }`}
                   >
                     {m.label}
@@ -857,7 +896,7 @@ function NouvelleInterventionModal({
                 ))}
               </div>
               <span className="text-[11px] text-slate-400 mt-1 block">
-                Annoncé au client dans le SMS de confirmation RDV.
+                CB · Virement · Espèces — annoncé dans le SMS client.
               </span>
             </div>
 

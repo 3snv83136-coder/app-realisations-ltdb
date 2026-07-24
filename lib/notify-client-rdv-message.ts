@@ -1,3 +1,4 @@
+import { formatCreneau } from "@/lib/creneau"
 import { labelModePaiement } from "@/lib/mode-paiement"
 
 function fmtDateFR(iso?: string | null): string {
@@ -6,19 +7,13 @@ function fmtDateFR(iso?: string | null): string {
   return m ? `${m[3]}/${m[2]}/${m[1]}` : iso
 }
 
-function fmtHeure(h?: string | null): string {
-  if (!h) return ''
-  const m = /^(\d{2}):(\d{2})/.exec(h)
-  if (!m) return h
-  return m[2] === '00' ? `${m[1]}h` : `${m[1]}h${m[2]}`
-}
-
 /** SMS commercial de confirmation de RDV au client. */
 export function buildClientRdvSmsText(opts: {
   clientNom?: string | null
   typeIntervention?: string | null
   datePrevue?: string | null
   heurePrevue?: string | null
+  heureFinPrevue?: string | null
   modePaiement?: string | null
   telEntreprise?: string | null
 }): string {
@@ -26,17 +21,21 @@ export function buildClientRdvSmsText(opts: {
   const salut = prenom ? `Bonjour ${prenom},` : 'Bonjour,'
   const type = (opts.typeIntervention || 'intervention').trim()
   const date = fmtDateFR(opts.datePrevue)
-  const heure = fmtHeure(opts.heurePrevue)
-  const quand = [date, heure ? `a ${heure}` : ''].filter(Boolean).join(' ')
+  const creneau = formatCreneau(opts.heurePrevue, opts.heureFinPrevue)
   const paiement = labelModePaiement(opts.modePaiement)
   const tel = (opts.telEntreprise || '').trim()
+
+  let quandLine = 'Notre technicien interviendra prochainement.'
+  if (date && creneau) {
+    quandLine = `Notre technicien interviendra le ${date} entre ${creneau.replace('–', ' et ')}.`
+  } else if (date) {
+    quandLine = `Notre technicien interviendra le ${date}.`
+  }
 
   const lines = [
     salut,
     `Nous avons bien pris en compte votre demande d'intervention (${type}).`,
-    quand
-      ? `Notre technicien interviendra le ${quand}.`
-      : 'Notre technicien interviendra prochainement.',
+    quandLine,
   ]
 
   if (paiement) {

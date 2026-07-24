@@ -8,6 +8,7 @@ import {
 } from "@/lib/notify-technicien"
 import { getSupabaseOrNull, upsertClient, patchClient } from "@/lib/supabase"
 import { isCanalAcquisition } from "@/lib/canaux"
+import { validateCreneau } from "@/lib/creneau"
 import { isModePaiement } from "@/lib/mode-paiement"
 import { permissionsForSession } from "@/lib/tech-permissions"
 import type { PostgrestError } from "@supabase/supabase-js"
@@ -35,6 +36,7 @@ type CreateInterventionBody = {
   code_postal?: string | null
   date_prevue?: string | null
   heure_prevue?: string | null
+  heure_fin_prevue?: string | null
   duree_estimee_min?: number | null
   urgence?: boolean
   prix_prevu?: number | null
@@ -96,7 +98,7 @@ export async function GET(req: NextRequest) {
 
   let query = sb
     .from('interventions')
-    .select('id, reference, client_id, technicien_id, agence, type_intervention, adresse_chantier, ville, code_postal, date_prevue, heure_prevue, duree_estimee_min, date_realisee, urgence, statut, prix_prevu, notes_internes, publie_slug, canal_acquisition, terrain_step, created_at, updated_at')
+    .select('id, reference, client_id, technicien_id, agence, type_intervention, adresse_chantier, ville, code_postal, date_prevue, heure_prevue, heure_fin_prevue, duree_estimee_min, date_realisee, urgence, statut, prix_prevu, notes_internes, publie_slug, canal_acquisition, terrain_step, created_at, updated_at')
     .order('date_prevue', { ascending: true, nullsFirst: false })
     .order('heure_prevue', { ascending: true, nullsFirst: false })
     // range() au lieu de limit() : limit + order drop la ligne la plus
@@ -110,7 +112,25 @@ export async function GET(req: NextRequest) {
   if (from) query = query.gte('date_prevue', from)
   if (to) query = query.lte('date_prevue', to)
 
-  const { data: interventions, error } = await query
+  let { data: interventions, error } = await query
+  if (error?.message?.includes('heure_fin_prevue')) {
+    const fallback = sb
+      .from('interventions')
+      .select('id, reference, client_id, technicien_id, agence, type_intervention, adresse_chantier, ville, code_postal, date_prevue, heure_prevue, duree_estimee_min, date_realisee, urgence, statut, prix_prevu, notes_internes, publie_slug, canal_acquisition, terrain_step, created_at, updated_at')
+      .order('date_prevue', { ascending: true, nullsFirst: false })
+      .order('heure_prevue', { ascending: true, nullsFirst: false })
+      .range(0, limit - 1)
+    let fb = fallback
+    if (statut) fb = fb.eq('statut', statut)
+    if (sessionTechId) fb = fb.eq('technicien_id', sessionTechId)
+    else if (technicien_id) fb = fb.eq('technicien_id', technicien_id)
+    if (agence) fb = fb.eq('agence', agence)
+    if (from) fb = fb.gte('date_prevue', from)
+    if (to) fb = fb.lte('date_prevue', to)
+    const retry = await fb
+    interventions = (retry.data || []).map(i => ({ ...i, heure_fin_prevue: null }))
+    error = retry.error
+  }
   if (error) {
     return NextResponse.json({ error: error.message, interventions: [] }, { status: 500 })
   }
@@ -222,11 +242,21 @@ export async function POST(req: NextRequest) {
   const heurePrevueClean = body.heure_prevue && /^\d{2}:\d{2}/.test(body.heure_prevue)
     ? body.heure_prevue.slice(0, 5)
     : null
+  const heureFinPrevueClean = body.heure_fin_prevue && /^\d{2}:\d{2}/.test(body.heure_fin_prevue)
+    ? body.heure_fin_prevue.slice(0, 5)
+    : null
+
+  if (heurePrevueClean && heureFinPrevueClean) {
+    const creneau = validateCreneau(heurePrevueClean, heureFinPrevueClean)
+    if (!creneau.ok) {
+      return NextResponse.json({ error: creneau.error }, { status: 400 })
+    }
+  }
 
   const canalClean = isCanalAcquisition(body.canal_acquisition) ? body.canal_acquisition : null
   const modePaiementClean = isModePaiement(body.mode_paiement) ? body.mode_paiement : null
 
-  const baseRow = {
+  const baseRow: Record<string, unknown> = {
     client_id: clientId,
     technicien_id: body.technicien_id || null,
     agence: body.agence || null,
@@ -236,6 +266,7 @@ export async function POST(req: NextRequest) {
     code_postal: codePostal,
     date_prevue: body.date_prevue || null,
     heure_prevue: heurePrevueClean,
+    heure_fin_prevue: heureFinPrevueClean,
     duree_estimee_min: typeof body.duree_estimee_min === 'number' ? body.duree_estimee_min : null,
     urgence: !!body.urgence,
     statut: 'planifiee',
@@ -259,12 +290,17 @@ export async function POST(req: NextRequest) {
       insertErr = null
       break
     }
-    // Colonne mode_paiement absente tant que la migration 028 n'est pas appliquée.
-    if (res.error?.message?.includes('mode_paiement')) {
-      const { mode_paiement: _drop, ...rowSansPaiement } = baseRow
+    // Colonnes absentes tant que les migrations 028/029 ne sont pas appliquées.
+    if (
+      res.error?.message?.includes('mode_paiement')
+      || res.error?.message?.includes('heure_fin_prevue')
+    ) {
+      const rowSans = { ...baseRow }
+      delete rowSans.mode_paiement
+      delete rowSans.heure_fin_prevue
       const retry = await sb
         .from('interventions')
-        .insert({ reference: currentRef, ...rowSansPaiement })
+        .insert({ reference: currentRef, ...rowSans })
         .select('*')
         .single()
       if (!retry.error && retry.data) {
