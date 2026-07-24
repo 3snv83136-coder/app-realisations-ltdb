@@ -279,49 +279,58 @@ export async function POST(req: NextRequest) {
   let inserted: ({ id: string; technicien_id: string | null } & Record<string, unknown>) | null = null
   let insertErr: PostgrestError | null = null
   let currentRef = baseReference
-  for (let attempt = 0; attempt < 5; attempt++) {
+  // Tant que 028/029 ne sont pas appliquées, on retire ces colonnes une fois pour toutes.
+  let stripOptionalCols = false
+
+  for (let attempt = 0; attempt < 8; attempt++) {
+    const row: Record<string, unknown> = { ...baseRow }
+    if (stripOptionalCols) {
+      delete row.mode_paiement
+      delete row.heure_fin_prevue
+    }
+
     const res = await sb
       .from('interventions')
-      .insert({ reference: currentRef, ...baseRow })
+      .insert({ reference: currentRef, ...row })
       .select('*')
       .single()
+
     if (!res.error && res.data) {
       inserted = res.data
       insertErr = null
       break
     }
-    // Colonnes absentes tant que les migrations 028/029 ne sont pas appliquées.
-    if (
-      res.error?.message?.includes('mode_paiement')
-      || res.error?.message?.includes('heure_fin_prevue')
-    ) {
-      const rowSans = { ...baseRow }
-      delete rowSans.mode_paiement
-      delete rowSans.heure_fin_prevue
-      const retry = await sb
-        .from('interventions')
-        .insert({ reference: currentRef, ...rowSans })
-        .select('*')
-        .single()
-      if (!retry.error && retry.data) {
-        inserted = retry.data
-        insertErr = null
-        break
-      }
-      insertErr = retry.error
-      break
-    }
+
     insertErr = res.error
-    if (res.error?.code === '23505') {
+    const msg = res.error?.message || ''
+
+    if (
+      !stripOptionalCols
+      && (msg.includes('mode_paiement') || msg.includes('heure_fin_prevue'))
+    ) {
+      stripOptionalCols = true
+      continue
+    }
+
+    // Collision référence (même créneau HH:MM, ou double clic) → nouveau suffixe.
+    if (
+      res.error?.code === '23505'
+      || /interventions_reference_key|duplicate key/i.test(msg)
+    ) {
       const suffix = Math.random().toString(36).slice(2, 5).toUpperCase()
       currentRef = `${baseReference}-${suffix}`
       continue
     }
+
     break
   }
 
   if (insertErr || !inserted) {
-    return NextResponse.json({ error: insertErr?.message || 'Insertion échouée' }, { status: 500 })
+    const msg = insertErr?.message || 'Insertion échouée'
+    const friendly = /interventions_reference_key|duplicate key/i.test(msg)
+      ? 'Une intervention existe déjà pour ce créneau (référence en doublon). Réessaie ou change l’heure.'
+      : msg
+    return NextResponse.json({ error: friendly }, { status: 500 })
   }
 
   // 4. Notification technicien (await — Vercel coupe le process si fire-and-forget)
