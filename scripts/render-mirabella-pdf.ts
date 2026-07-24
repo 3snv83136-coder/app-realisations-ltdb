@@ -158,12 +158,7 @@ async function main() {
     partFiles.push(file)
   }
 
-  const glossPath = path.join(partsDir, "99-glossaire.pdf")
-  await renderOne("glossaire", glossPath, {
-    data: { ...base, troncons: [] },
-    variant: "glossaire",
-  })
-  partFiles.push(glossPath)
+  // Glossaire inclus dans la couverture — pas de part séparée
 
   const mergePy = `
 from pypdf import PdfWriter

@@ -8,8 +8,6 @@ import { TEL_PRINCIPAL_FALLBACK } from "@/lib/parametres"
 /* ============ CHARTE ============ */
 const C = {
   navy: '#0f2e5c',
-  navyDark: '#0a2047',
-  navyMid: '#25477f',
   red: '#c0392b',
   redSoft: '#fdecea',
   greenSoft: '#e8f3ec',
@@ -49,7 +47,6 @@ export type Troncon = {
 }
 
 export type ConclusionEtat = 'bon' | 'a-surveiller' | 'desordre' | 'critique'
-
 export type PreconisationItem = { titre: string; detail: string; urgence?: string }
 
 export type TronconBloc = {
@@ -78,14 +75,10 @@ export type InspectionData = {
   conclusionEtat: ConclusionEtat
 }
 
-/** Parts générées séparément puis fusionnées (évite plantage react-pdf multi-photos). */
 export type InspectionPDFVariant = 'full' | 'intro' | 'troncon' | 'glossaire'
 
 const ETAT_SEVERITY: Record<ConclusionEtat, number> = {
-  bon: 0,
-  'a-surveiller': 1,
-  desordre: 2,
-  critique: 3,
+  bon: 0, 'a-surveiller': 1, desordre: 2, critique: 3,
 }
 
 export function worstConclusion(etats: ConclusionEtat[]): ConclusionEtat {
@@ -98,9 +91,7 @@ export function worstConclusion(etats: ConclusionEtat[]): ConclusionEtat {
 
 export interface InspectionPDFProps {
   data: InspectionData
-  /** intro = couverture ; troncon = un/plusieurs tronçons sans couverture ; glossaire ; full = tout */
   variant?: InspectionPDFVariant
-  /** Index affiché (ex. 1/5) quand variant=troncon */
   tronconIndex?: number
   tronconTotal?: number
 }
@@ -117,175 +108,180 @@ function fmtDateFR(iso: string): string {
   return m ? `${m[3]}/${m[2]}/${m[1]}` : iso
 }
 
+/* Photo 16:9 compacte — 3 obs + tableau + préco sur 1 page A4 */
+const PHOTO_W = 210
+const PHOTO_H = 118
+
 /* ============ STYLES ============ */
 const s = StyleSheet.create({
   page: {
-    paddingHorizontal: 0,
     paddingTop: 0,
-    paddingBottom: 28,
+    paddingBottom: 32,
+    paddingHorizontal: 0,
     fontFamily: 'Helvetica',
-    fontSize: 9.5,
+    fontSize: 8.5,
     color: C.text,
     backgroundColor: C.white,
-    lineHeight: 1.4,
+    lineHeight: 1.35,
   },
 
   header: {
-    paddingHorizontal: 40, paddingTop: 16, paddingBottom: 10,
+    paddingHorizontal: 28, paddingTop: 12, paddingBottom: 8,
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end',
-    backgroundColor: C.white,
-    borderBottomWidth: 3, borderBottomColor: C.navy,
-    marginBottom: 6,
+    borderBottomWidth: 2.5, borderBottomColor: C.navy,
   },
-  firmName: { color: C.navy, fontSize: 12, fontFamily: 'Helvetica-Bold', letterSpacing: 0.4, textTransform: 'uppercase' },
-  firmTag:  { color: C.muted, fontSize: 7.5, marginTop: 2 },
-  headerRight: { alignItems: 'flex-end', maxWidth: 220 },
-  headerMeta:     { color: C.muted, fontSize: 7.5, marginBottom: 1 },
-  headerMetaBold: { color: C.navy,  fontFamily: 'Helvetica-Bold', fontSize: 8 },
+  firmName: { color: C.navy, fontSize: 11, fontFamily: 'Helvetica-Bold', textTransform: 'uppercase' },
+  firmTag:  { color: C.muted, fontSize: 7, marginTop: 1 },
+  headerRight: { alignItems: 'flex-end', maxWidth: 200 },
+  headerMeta:     { color: C.muted, fontSize: 7, marginBottom: 1 },
+  headerMetaBold: { color: C.navy, fontFamily: 'Helvetica-Bold', fontSize: 7.5 },
 
-  content: { paddingHorizontal: 40, paddingTop: 6, paddingBottom: 8 },
+  content: { paddingHorizontal: 28, paddingTop: 10, paddingBottom: 4 },
 
-  titleBlock: { marginBottom: 14 },
-  titleRedBar: { height: 4, width: 56, backgroundColor: C.red, marginBottom: 8 },
-  titleMain: { color: C.navy, fontSize: 16, fontFamily: 'Helvetica-Bold', textTransform: 'uppercase' },
-  titleSub:  { color: C.muted, fontSize: 9, marginTop: 4 },
+  titleBlock: { marginBottom: 10 },
+  titleRedBar: { height: 3, width: 44, backgroundColor: C.red, marginBottom: 6 },
+  titleMain: { color: C.navy, fontSize: 14, fontFamily: 'Helvetica-Bold', textTransform: 'uppercase' },
+  titleSub:  { color: C.muted, fontSize: 8, marginTop: 3 },
 
   metaTable: {
     flexDirection: 'row', borderWidth: 1, borderColor: C.border,
-    marginBottom: 12, backgroundColor: C.rowAlt,
+    marginBottom: 8, backgroundColor: C.rowAlt,
   },
   metaCell: {
-    width: '25%', paddingVertical: 8, paddingHorizontal: 8,
+    width: '25%', paddingVertical: 5, paddingHorizontal: 6,
     borderRightWidth: 1, borderRightColor: C.border,
   },
   metaCellLast: { borderRightWidth: 0 },
-  metaLabel: { color: C.muted, fontSize: 7, textTransform: 'uppercase' },
-  metaValue: { color: C.navy, fontFamily: 'Helvetica-Bold', fontSize: 8.5, marginTop: 3 },
+  metaLabel: { color: C.muted, fontSize: 6.5, textTransform: 'uppercase' },
+  metaValue: { color: C.navy, fontFamily: 'Helvetica-Bold', fontSize: 8, marginTop: 2 },
 
   etatBox: {
-    borderWidth: 1, borderColor: C.border, borderRadius: 4,
-    paddingVertical: 8, paddingHorizontal: 12, marginBottom: 12,
+    borderWidth: 1, borderColor: C.border,
+    paddingVertical: 5, paddingHorizontal: 8, marginBottom: 8,
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
   },
-  etatLbl: { color: C.muted, fontSize: 7.5, textTransform: 'uppercase' },
-  etatVal: { fontFamily: 'Helvetica-Bold', fontSize: 11 },
+  etatLbl: { color: C.muted, fontSize: 7, textTransform: 'uppercase' },
+  etatVal: { fontFamily: 'Helvetica-Bold', fontSize: 10 },
 
   sectionTitle: {
-    color: C.navy, fontFamily: 'Helvetica-Bold', fontSize: 11,
+    color: C.navy, fontFamily: 'Helvetica-Bold', fontSize: 10,
     textTransform: 'uppercase',
-    paddingBottom: 4, marginBottom: 8, marginTop: 2,
+    paddingBottom: 3, marginBottom: 6,
     borderBottomWidth: 1, borderBottomColor: C.navy,
   },
 
   partyTable: {
-    flexDirection: 'row', borderWidth: 1, borderColor: C.border, marginBottom: 12,
+    flexDirection: 'row', borderWidth: 1, borderColor: C.border, marginBottom: 8,
   },
-  partyCol: { width: '50%', padding: 10 },
+  partyCol: { width: '50%', padding: 7 },
   partyColSep: { borderRightWidth: 1, borderRightColor: C.border },
   partyHead: {
-    color: C.navy, fontSize: 8, fontFamily: 'Helvetica-Bold',
-    textTransform: 'uppercase', marginBottom: 4,
+    color: C.navy, fontSize: 7, fontFamily: 'Helvetica-Bold',
+    textTransform: 'uppercase', marginBottom: 3,
   },
-  partyName: { color: C.text, fontFamily: 'Helvetica-Bold', fontSize: 10, marginBottom: 2 },
-  partyLine: { color: C.text, fontSize: 9, marginBottom: 1 },
+  partyName: { color: C.text, fontFamily: 'Helvetica-Bold', fontSize: 9, marginBottom: 1 },
+  partyLine: { color: C.text, fontSize: 8, marginBottom: 1 },
 
-  troncTable: { borderWidth: 1, borderColor: C.border, marginBottom: 12 },
-  troncRow: {
-    flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: C.border,
-    minHeight: 22,
+  /* Grille 2 colonnes — compacte */
+  kvGrid: {
+    flexDirection: 'row', flexWrap: 'wrap',
+    borderWidth: 1, borderColor: C.border, marginBottom: 8,
   },
-  troncRowAlt: { backgroundColor: C.rowAlt },
-  troncLabel: {
-    width: 150, paddingVertical: 5, paddingHorizontal: 8,
-    color: C.navy, fontFamily: 'Helvetica-Bold', fontSize: 8.5,
+  kvCell: {
+    width: '50%', flexDirection: 'row',
+    borderBottomWidth: 1, borderBottomColor: C.border,
+    borderRightWidth: 1, borderRightColor: C.border,
+    minHeight: 18,
+  },
+  kvLabel: {
+    width: 100, paddingVertical: 3, paddingHorizontal: 5,
+    color: C.navy, fontFamily: 'Helvetica-Bold', fontSize: 7.5,
+    backgroundColor: C.rowAlt,
     borderRightWidth: 1, borderRightColor: C.border,
   },
-  troncValue: {
-    width: 325, paddingVertical: 5, paddingHorizontal: 8,
-    color: C.text, fontSize: 9,
+  kvValue: {
+    width: 154, paddingVertical: 3, paddingHorizontal: 5,
+    color: C.text, fontSize: 8,
   },
 
+  /* Observation : texte | photo côte à côte */
   obsItem: {
-    borderWidth: 1, borderColor: C.border, marginBottom: 10,
+    borderWidth: 1, borderColor: C.border, marginBottom: 5,
     backgroundColor: C.white,
   },
   obsHeader: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingVertical: 5, paddingHorizontal: 8,
+    paddingVertical: 2, paddingHorizontal: 5,
     backgroundColor: C.rowAlt, borderBottomWidth: 1, borderBottomColor: C.border,
   },
-  obsHeaderLeft: { flexDirection: 'row', alignItems: 'center', width: 260 },
+  obsHeaderLeft: { flexDirection: 'row', alignItems: 'center', width: 290 },
   obsNum: {
     backgroundColor: C.navy, color: C.white,
-    paddingVertical: 2, paddingHorizontal: 5, marginRight: 6,
-    fontFamily: 'Helvetica-Bold', fontSize: 8,
-  },
-  obsPos: { color: C.text, fontFamily: 'Helvetica-Bold', fontSize: 9, width: 190 },
-  obsCode: {
-    paddingVertical: 2, paddingHorizontal: 5, maxWidth: 190,
+    paddingVertical: 1, paddingHorizontal: 4, marginRight: 5,
     fontFamily: 'Helvetica-Bold', fontSize: 7.5,
   },
-  obsBody: { padding: 8 },
-  obsCodeBlock: { marginBottom: 4 },
-  obsCodeLine: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 2 },
-  obsCodeKey: { color: C.muted, fontSize: 7.5, textTransform: 'uppercase', width: 72 },
-  obsCodeVal: { color: C.text, fontFamily: 'Helvetica-Bold', fontSize: 8.5, width: 370 },
-  obsDesc: { color: C.text, fontSize: 9, marginTop: 3, lineHeight: 1.4 },
-  obsPhotoWrap: {
-    marginTop: 6, borderWidth: 1, borderColor: C.border,
-    padding: 4, alignItems: 'center',
+  obsPos: { color: C.text, fontFamily: 'Helvetica-Bold', fontSize: 8.5, width: 210 },
+  obsCode: {
+    paddingVertical: 1, paddingHorizontal: 4, maxWidth: 200,
+    fontFamily: 'Helvetica-Bold', fontSize: 7,
   },
-  // Images source 1280×720 (16:9) — hauteur calée pour ne pas écraser
-  obsPhotoImg: { width: 470, height: 264 },
-  obsPhotoCap: { color: C.muted, fontSize: 7.5, textAlign: 'center', marginTop: 3 },
+  obsRow: { flexDirection: 'row', padding: 4 },
+  obsTextCol: { width: 290, paddingRight: 5 },
+  obsPhotoCol: { width: PHOTO_W + 2, alignItems: 'center' },
+  obsMetaLine: { color: C.muted, fontSize: 7, marginBottom: 1 },
+  obsMetaStrong: { color: C.text, fontFamily: 'Helvetica-Bold', fontSize: 7.5 },
+  obsDesc: { color: C.text, fontSize: 8, marginTop: 1, lineHeight: 1.3 },
+  obsPhotoImg: { width: PHOTO_W, height: PHOTO_H },
+  obsPhotoCap: { color: C.muted, fontSize: 6.5, textAlign: 'center', marginTop: 1 },
 
   precoBox: {
     backgroundColor: C.greenSoft, borderWidth: 1, borderColor: C.greenBorder,
-    borderLeftWidth: 4, padding: 10, marginBottom: 10,
+    borderLeftWidth: 3, padding: 5, marginBottom: 4, marginTop: 2,
   },
   precoTitle: {
-    color: C.greenDark, fontFamily: 'Helvetica-Bold', fontSize: 9,
-    textTransform: 'uppercase', marginBottom: 6,
+    color: C.greenDark, fontFamily: 'Helvetica-Bold', fontSize: 8,
+    textTransform: 'uppercase', marginBottom: 2,
   },
-  precoItem: { marginBottom: 6 },
-  precoItemTitle: { color: C.text, fontFamily: 'Helvetica-Bold', fontSize: 9.5, marginBottom: 2 },
-  precoItemDetail: { color: C.text, fontSize: 9, lineHeight: 1.4 },
-  precoItemUrgence: {
-    color: C.muted, fontSize: 7.5, textTransform: 'uppercase', marginTop: 2,
-  },
+  precoItem: { marginBottom: 2 },
+  precoItemTitle: { color: C.text, fontFamily: 'Helvetica-Bold', fontSize: 8, marginBottom: 1 },
+  precoItemDetail: { color: C.text, fontSize: 7.5, lineHeight: 1.25 },
 
   resumeBox: {
     backgroundColor: C.yellowSoft, borderWidth: 1, borderColor: C.yellowBorder,
-    borderLeftWidth: 4, padding: 10, marginBottom: 10,
+    borderLeftWidth: 3, padding: 5, marginBottom: 4,
   },
   resumeTitle: {
-    color: C.yellowDark, fontFamily: 'Helvetica-Bold', fontSize: 9,
-    textTransform: 'uppercase', marginBottom: 4,
+    color: C.yellowDark, fontFamily: 'Helvetica-Bold', fontSize: 8,
+    textTransform: 'uppercase', marginBottom: 2,
   },
-  resumeText: { color: C.text, fontSize: 9.5, lineHeight: 1.45 },
+  resumeText: { color: C.text, fontSize: 8, lineHeight: 1.3 },
 
   glossBox: {
     backgroundColor: C.blueSoft, borderWidth: 1, borderColor: C.blueBorder,
-    padding: 10, marginBottom: 6,
+    padding: 7, marginTop: 6,
   },
   glossTitle: {
-    color: C.navy, fontFamily: 'Helvetica-Bold', fontSize: 9,
-    textTransform: 'uppercase', marginBottom: 6,
+    color: C.navy, fontFamily: 'Helvetica-Bold', fontSize: 8,
+    textTransform: 'uppercase', marginBottom: 4,
   },
-  glossRow: { flexDirection: 'row', marginBottom: 3 },
-  glossTerme: { color: C.navy, fontFamily: 'Helvetica-Bold', fontSize: 8, width: 90 },
-  glossDef:  { width: 385, color: C.text, fontSize: 8, lineHeight: 1.35 },
+  glossRow: { flexDirection: 'row', marginBottom: 2 },
+  glossTerme: { color: C.navy, fontFamily: 'Helvetica-Bold', fontSize: 7, width: 78 },
+  glossDef:  { width: 400, color: C.text, fontSize: 7, lineHeight: 1.3 },
 
+  /* Footer fixe en bas — évite la page blanche orpheline */
   footer: {
-    paddingHorizontal: 40, paddingTop: 8, paddingBottom: 12,
+    position: 'absolute',
+    bottom: 10,
+    left: 28,
+    right: 28,
+    paddingTop: 4,
     borderTopWidth: 1, borderTopColor: C.border,
     flexDirection: 'row', justifyContent: 'space-between',
-    marginTop: 10,
   },
-  footerL: { color: C.muted, fontSize: 7, lineHeight: 1.35, width: 360 },
-  footerR: { color: C.muted, fontSize: 7, textAlign: 'right', width: 120 },
+  footerL: { color: C.muted, fontSize: 6.5, lineHeight: 1.3, width: 380 },
+  footerR: { color: C.muted, fontSize: 6.5, textAlign: 'right', width: 100 },
 
-  introNote: { color: C.muted, fontSize: 9, marginTop: 8, lineHeight: 1.45 },
+  introNote: { color: C.muted, fontSize: 8, marginTop: 6, lineHeight: 1.35 },
 })
 
 /* ============ COMPONENTS ============ */
@@ -293,7 +289,7 @@ const Header = () => (
   <View style={s.header}>
     <View>
       <Text style={s.firmName}>Les Techniciens du Débouchage</Text>
-      <Text style={s.firmTag}>Inspection télévisée des canalisations · ITV · NF EN 13508-2</Text>
+      <Text style={s.firmTag}>Inspection télévisée · ITV · NF EN 13508-2</Text>
     </View>
     <View style={s.headerRight}>
       <Text style={s.headerMetaBold}>Rapport d&apos;inspection caméra</Text>
@@ -304,21 +300,20 @@ const Header = () => (
 )
 
 const Footer = ({ numero, pageLabel }: { numero: string; pageLabel?: string }) => (
-  <View style={s.footer}>
-    <View>
-      <Text style={s.footerL}>LTDB · Rapport ITV {numero}</Text>
-      <Text style={s.footerL}>contact@lestechniciensdudebouchage.fr · {TEL_PRINCIPAL_FALLBACK}</Text>
-    </View>
+  <View style={s.footer} fixed>
+    <Text style={s.footerL}>
+      LTDB · ITV {numero} · contact@lestechniciensdudebouchage.fr · {TEL_PRINCIPAL_FALLBACK}
+    </Text>
     {pageLabel ? <Text style={s.footerR}>{pageLabel}</Text> : null}
   </View>
 )
 
-function TroncRow({ label, value, alt }: { label: string; value: string; alt?: boolean }) {
+function Kv({ label, value }: { label: string; value?: string }) {
   if (!value) return null
   return (
-    <View style={alt ? [s.troncRow, s.troncRowAlt] : s.troncRow} wrap={false}>
-      <Text style={s.troncLabel}>{label}</Text>
-      <Text style={s.troncValue}>{value}</Text>
+    <View style={s.kvCell}>
+      <Text style={s.kvLabel}>{label}</Text>
+      <Text style={s.kvValue}>{value}</Text>
     </View>
   )
 }
@@ -342,7 +337,7 @@ function IntroBlock({ data, etat, tronconCount }: {
           <Text style={s.metaValue}>{data.numero}</Text>
         </View>
         <View style={s.metaCell}>
-          <Text style={s.metaLabel}>Date d&apos;inspection</Text>
+          <Text style={s.metaLabel}>Date</Text>
           <Text style={s.metaValue}>{fmtDateFR(data.dateInspection)}</Text>
         </View>
         <View style={s.metaCell}>
@@ -362,15 +357,14 @@ function IntroBlock({ data, etat, tronconCount }: {
 
       <View style={s.partyTable} wrap={false}>
         <View style={[s.partyCol, s.partyColSep]}>
-          <Text style={s.partyHead}>ÉMETTEUR</Text>
+          <Text style={s.partyHead}>Émetteur</Text>
           <Text style={s.partyName}>Les Techniciens du Débouchage</Text>
-          <Text style={s.partyLine}>700 Avenue du 15ème Corps</Text>
-          <Text style={s.partyLine}>83000 Toulon</Text>
+          <Text style={s.partyLine}>700 Avenue du 15ème Corps · 83000 Toulon</Text>
           <Text style={s.partyLine}>Tél. {TEL_PRINCIPAL_FALLBACK}</Text>
           <Text style={s.partyLine}>contact@lestechniciensdudebouchage.fr</Text>
         </View>
         <View style={s.partyCol}>
-          <Text style={s.partyHead}>CLIENT</Text>
+          <Text style={s.partyHead}>Client</Text>
           <Text style={s.partyName}>{data.client.nom || '—'}</Text>
           {data.client.adresse ? <Text style={s.partyLine}>{data.client.adresse}</Text> : null}
           {(data.client.codePostal || data.client.ville) ? (
@@ -383,9 +377,19 @@ function IntroBlock({ data, etat, tronconCount }: {
 
       {tronconCount > 0 ? (
         <Text style={s.introNote}>
-          {tronconCount} tronçon{tronconCount > 1 ? 's' : ''} détaillé{tronconCount > 1 ? 's' : ''} en page{tronconCount > 1 ? 's' : ''} suivante{tronconCount > 1 ? 's' : ''} (un tronçon par page).
+          {tronconCount} tronçon{tronconCount > 1 ? 's' : ''} — détail à la suite (1 tronçon par page).
         </Text>
       ) : null}
+
+      <View style={s.glossBox} wrap={false}>
+        <Text style={s.glossTitle}>Glossaire technique</Text>
+        {GLOSSAIRE.map(g => (
+          <View key={g.terme} style={s.glossRow}>
+            <Text style={s.glossTerme}>{g.terme}</Text>
+            <Text style={s.glossDef}>{g.def}</Text>
+          </View>
+        ))}
+      </View>
     </>
   )
 }
@@ -407,103 +411,85 @@ function TronconBlock({
 
   return (
     <View>
-      <Text style={s.sectionTitle}>
-        {total > 1 ? `${ti + 1}. ${titre}` : `Caractéristiques du ${titre.toLowerCase()}`}
-      </Text>
+      {/* En-tête tronçon + tableau : restent ensemble */}
+      <View wrap={false}>
+        <Text style={s.sectionTitle}>
+          {total > 1 ? `${ti + 1}. ${titre}` : titre}
+        </Text>
 
-      {total > 1 && (
-        <View style={[s.etatBox, { backgroundColor: etatTronc.bg, marginBottom: 10 }]} wrap={false}>
-          <Text style={s.etatLbl}>Conclusion tronçon</Text>
+        <View style={[s.etatBox, { backgroundColor: etatTronc.bg, marginBottom: 6 }]}>
+          <Text style={s.etatLbl}>Conclusion</Text>
           <Text style={[s.etatVal, { color: etatTronc.fg }]}>{etatTronc.label}</Text>
         </View>
-      )}
 
-      <View style={s.troncTable} wrap={false}>
-        <TroncRow label="Type de réseau" value={t.reseau || ''} alt />
-        <TroncRow label="Matériau" value={t.materiau || ''} />
-        <TroncRow label="Diamètre (DN)" value={t.diametre || ''} alt />
-        <TroncRow label="Linéaire inspecté" value={t.longueurM ? `${t.longueurM} m` : ''} />
-        <TroncRow label="Regard amont" value={t.regardAmont || ''} alt />
-        <TroncRow label="Regard aval" value={t.regardAval || ''} />
-        <TroncRow label="Sens d'inspection" value={t.sensInspection || ''} alt />
-        <TroncRow label="Matériel utilisé" value={t.materielUtilise || ''} />
-        <TroncRow label="Conditions" value={t.conditionsMeteo || ''} alt />
+        <View style={s.kvGrid}>
+          <Kv label="Réseau" value={t.reseau} />
+          <Kv label="Matériau" value={t.materiau} />
+          <Kv label="Diamètre" value={t.diametre} />
+          <Kv label="Linéaire" value={t.longueurM != null ? `${t.longueurM} m` : undefined} />
+          <Kv label="Amont" value={t.regardAmont} />
+          <Kv label="Aval" value={t.regardAval} />
+          <Kv label="Sens" value={t.sensInspection} />
+          <Kv label="Matériel" value={t.materielUtilise} />
+          {t.conditionsMeteo ? <Kv label="Conditions" value={t.conditionsMeteo} /> : null}
+        </View>
       </View>
 
-      {bloc.observations.length > 0 && (
-        <>
-          <Text style={[s.sectionTitle, { fontSize: 10 }]}>
-            Observations{total > 1 ? ` — ${titre}` : ''}
-          </Text>
-          {bloc.observations.map((o, i) => {
-            const def = findDefaut(o.code || '')
-            const grav = def ? def.gravite : 1
-            const photoSrc = typeof o.photoUrl === 'string'
-              && (o.photoUrl.startsWith('data:') || o.photoUrl.startsWith('http'))
-              ? o.photoUrl
-              : null
-            const descLines = (o.description || '').split(/\n+/).map(l => l.trim()).filter(Boolean)
-            return (
-              // Bloc atomique : texte + photo restent sur la même page (pas de coupe)
-              <View key={i} style={s.obsItem} wrap={false} minPresenceAhead={120}>
-                <View style={s.obsHeader}>
-                  <View style={s.obsHeaderLeft}>
-                    <Text style={s.obsNum}>{`OBS ${String(i + 1).padStart(2, '0')}`}</Text>
-                    <Text style={s.obsPos}>{o.position || `Point ${i + 1}`}</Text>
-                  </View>
-                  {def ? (
-                    <Text style={[s.obsCode, codeStyle(grav)]}>
-                      {def.code} · {def.libelle}
-                    </Text>
-                  ) : null}
-                </View>
-                <View style={s.obsBody}>
-                  {def ? (
-                    <View style={s.obsCodeBlock}>
-                      <View style={s.obsCodeLine}>
-                        <Text style={s.obsCodeKey}>Catégorie</Text>
-                        <Text style={s.obsCodeVal}>{def.categorie}</Text>
-                      </View>
-                      <View style={s.obsCodeLine}>
-                        <Text style={s.obsCodeKey}>Gravité</Text>
-                        <Text style={[s.obsCodeVal, { color: GRAVITE_LABELS[grav].color }]}>
-                          {GRAVITE_LABELS[grav].label}
-                        </Text>
-                      </View>
-                      <View style={s.obsCodeLine}>
-                        <Text style={s.obsCodeKey}>Définition</Text>
-                        <Text style={[s.obsCodeVal, { fontFamily: 'Helvetica' }]}>{def.description}</Text>
-                      </View>
-                    </View>
-                  ) : null}
-                  {descLines.map((line, li) => (
-                    <Text key={li} style={s.obsDesc}>{line}</Text>
-                  ))}
-                  {photoSrc ? (
-                    <View style={s.obsPhotoWrap}>
-                      <Image src={photoSrc} style={s.obsPhotoImg} />
-                      <Text style={s.obsPhotoCap}>
-                        {o.photoLegende || `Photo ${i + 1}${o.position ? ` — ${o.position}` : ''}`}
-                      </Text>
-                    </View>
-                  ) : null}
-                </View>
+      {bloc.observations.map((o, i) => {
+        const def = findDefaut(o.code || '')
+        const grav = def ? def.gravite : 1
+        const photoSrc = typeof o.photoUrl === 'string'
+          && (o.photoUrl.startsWith('data:') || o.photoUrl.startsWith('http'))
+          ? o.photoUrl
+          : null
+        const desc = (o.description || '').trim()
+        const gravLabel = GRAVITE_LABELS[grav]?.label
+
+        return (
+          <View key={i} style={s.obsItem} wrap={false}>
+            <View style={s.obsHeader}>
+              <View style={s.obsHeaderLeft}>
+                <Text style={s.obsNum}>{`OBS ${String(i + 1).padStart(2, '0')}`}</Text>
+                <Text style={s.obsPos}>{o.position || `Point ${i + 1}`}</Text>
               </View>
-            )
-          })}
-        </>
-      )}
+              {def ? (
+                <Text style={[s.obsCode, codeStyle(grav)]}>
+                  {def.code} · {def.libelle}
+                </Text>
+              ) : null}
+            </View>
+            <View style={s.obsRow}>
+              <View style={s.obsTextCol}>
+                {def ? (
+                  <Text style={s.obsMetaLine}>
+                    {def.categorie} · {gravLabel || ''}
+                  </Text>
+                ) : null}
+                {desc ? <Text style={s.obsDesc}>{desc}</Text> : null}
+                {!desc && !def ? (
+                  <Text style={s.obsMetaLine}>Aucune description</Text>
+                ) : null}
+              </View>
+              {photoSrc ? (
+                <View style={s.obsPhotoCol}>
+                  <Image src={photoSrc} style={s.obsPhotoImg} />
+                  <Text style={s.obsPhotoCap}>
+                    {o.photoLegende || `Photo ${i + 1}`}
+                  </Text>
+                </View>
+              ) : null}
+            </View>
+          </View>
+        )
+      })}
 
       {bloc.preconisations.length > 0 && (
         <View style={s.precoBox} wrap={false}>
-          <Text style={s.precoTitle}>
-            Préconisations{total > 1 ? ` — ${titre}` : ''}
-          </Text>
+          <Text style={s.precoTitle}>Préconisations</Text>
           {bloc.preconisations.map((p, i) => (
             <View key={i} style={s.precoItem}>
               <Text style={s.precoItemTitle}>• {p.titre}</Text>
               <Text style={s.precoItemDetail}>{p.detail}</Text>
-              {p.urgence ? <Text style={s.precoItemUrgence}>Urgence : {p.urgence}</Text> : null}
             </View>
           ))}
         </View>
@@ -511,9 +497,7 @@ function TronconBlock({
 
       {bloc.resume ? (
         <View style={s.resumeBox} wrap={false}>
-          <Text style={s.resumeTitle}>
-            Synthèse{total > 1 ? ` — ${titre}` : ' du technicien'}
-          </Text>
+          <Text style={s.resumeTitle}>Synthèse</Text>
           <Text style={s.resumeText}>{bloc.resume}</Text>
         </View>
       ) : null}
@@ -540,7 +524,7 @@ export function InspectionDocument({
 
   const total = tronconTotal ?? troncons.length
   const pageLabel = variant === 'troncon' && tronconIndex != null && total > 0
-    ? `Tronçon ${tronconIndex} / ${total}`
+    ? `Tronçon ${tronconIndex}/${total}`
     : variant === 'intro'
       ? 'Couverture'
       : variant === 'glossaire'
@@ -584,16 +568,14 @@ export function InspectionDocument({
   }
 
   if (variant === 'troncon') {
-    // Un Document = un tronçon (peut occuper plusieurs pages internes si beaucoup d'obs)
-    // La fusion place chaque Document après le précédent → chaque tronçon commence page neuve.
     return (
       <Document>
         <Page size="A4" style={s.page} wrap>
           <Header />
           <View style={s.content}>
-            {troncons.map((bloc, ti) => (
+            {troncons.map((bloc, i) => (
               <TronconBlock
-                key={ti}
+                key={i}
                 bloc={bloc}
                 ti={(tronconIndex ?? 1) - 1}
                 total={total || 1}
@@ -607,7 +589,6 @@ export function InspectionDocument({
     )
   }
 
-  // full : couverture + tronçons (sans photos lourdes idéalement) + glossaire
   return (
     <Document>
       <Page size="A4" style={s.page}>
@@ -617,37 +598,15 @@ export function InspectionDocument({
         </View>
         <Footer numero={data.numero} pageLabel="Couverture" />
       </Page>
-
       {troncons.map((bloc, ti) => (
         <Page key={ti} size="A4" style={s.page} wrap>
           <Header />
           <View style={s.content}>
-            <TronconBlock
-              bloc={bloc}
-              ti={ti}
-              total={troncons.length}
-              codeStyle={codeStyle}
-            />
+            <TronconBlock bloc={bloc} ti={ti} total={troncons.length} codeStyle={codeStyle} />
           </View>
-          <Footer numero={data.numero} pageLabel={`Tronçon ${ti + 1} / ${troncons.length}`} />
+          <Footer numero={data.numero} pageLabel={`Tronçon ${ti + 1}/${troncons.length}`} />
         </Page>
       ))}
-
-      <Page size="A4" style={s.page}>
-        <Header />
-        <View style={s.content}>
-          <View style={s.glossBox}>
-            <Text style={s.glossTitle}>Glossaire technique</Text>
-            {GLOSSAIRE.map(g => (
-              <View key={g.terme} style={s.glossRow} wrap={false}>
-                <Text style={s.glossTerme}>{g.terme}</Text>
-                <Text style={s.glossDef}>{g.def}</Text>
-              </View>
-            ))}
-          </View>
-        </View>
-        <Footer numero={data.numero} pageLabel="Glossaire" />
-      </Page>
     </Document>
   )
 }
@@ -694,9 +653,7 @@ export default function InspectionDownloadButton(props: DownloadButtonProps) {
       const { pdfElementToBlob } = await import('@/lib/pdfToBase64')
       const element = React.createElement(InspectionDocument, { data: props.data, variant: 'full' })
       const blob = await pdfElementToBlob(element)
-      if (!blob || blob.size < 500) {
-        throw new Error('PDF vide — réessaie dans quelques secondes')
-      }
+      if (!blob || blob.size < 500) throw new Error('PDF vide — réessaie dans quelques secondes')
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
