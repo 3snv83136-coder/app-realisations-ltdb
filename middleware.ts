@@ -18,6 +18,8 @@ function constantTimeEqual(a: string, b: string): boolean {
 
 const PUBLIC_PREFIXES = [
   "/login",
+  "/mirabella",
+  "/recup",
   "/api/auth",
   "/api/health",
   "/api/calendar.ics",
