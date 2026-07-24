@@ -195,7 +195,8 @@ export default function Home() {
   const { data: session } = useSession()
   const isOwner = session?.user?.role === 'admin' && !session?.user?.isDemo
   const visibleTools = SMALL_TOOLS.filter(t => !t.ownerOnly || isOwner)
-  const moduleCount = 1 + HUBS.length + visibleTools.length
+  // Modules dans Admin = hubs (3) + tuiles visibles (Planning + SMS restent hors Admin)
+  const moduleCount = HUBS.length + visibleTools.length
 
   const [intro, setIntro] = useState(false)
 
@@ -223,16 +224,23 @@ export default function Home() {
         </div>
       </header>
 
-      <div className="max-w-6xl mx-auto px-3 sm:px-5 py-4 sm:py-6">
-        {/* UN SEUL conteneur parent — tout le hub est imbriqué ici */}
+      <div className="max-w-6xl mx-auto px-3 sm:px-5 py-4 sm:py-6 space-y-3 sm:space-y-4">
+        {/* 1/3 — Planning (seul, hors Admin) */}
+        <div className={introClass}>
+          <HeroTile t={HERO} />
+        </div>
+
+        {/* 2/3 — Envoyer avis SMS (seul, hors Admin) */}
+        <EnvoyerAvisSmsPanel className={introClass} />
+
+        {/* 3/3 — ADMIN OF THE WORLD : tous les autres containers dedans */}
         <section
           className={`rounded-3xl overflow-hidden border-2 border-amber-400/70 shadow-[0_0_0_1px_rgba(251,191,36,0.25),0_25px_50px_-12px_rgba(0,0,0,0.55)] ${introClass}`}
         >
-          {/* Barre de titre du conteneur */}
           <div className="bg-gradient-to-r from-amber-500 via-amber-400 to-orange-500 px-4 sm:px-6 py-4 sm:py-5 flex items-center justify-between gap-3">
             <div className="min-w-0">
               <div className="text-[10px] sm:text-[11px] font-black uppercase tracking-[0.28em] text-black/55">
-                Conteneur unique · CRM LTDB
+                Conteneur unique
               </div>
               <h1 className="text-xl sm:text-3xl font-black tracking-tight text-[#0a1f3d] truncate">
                 ADMIN OF THE WORLD
@@ -243,18 +251,14 @@ export default function Home() {
             </div>
           </div>
 
-          {/* Contenu : Planning + SMS + hubs + grille — tous DANS le même cadre */}
           <div className="bg-[#0d1830] p-3 sm:p-5 space-y-3 sm:space-y-4">
-            <HeroTile t={HERO} />
-            <EnvoyerAvisSmsPanel />
-
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-3">
               {HUBS.map(hub => (
                 <HubTile key={hub.id} hub={hub} />
               ))}
             </div>
 
-            <div className="pt-1">
+            <div>
               <div className="text-[10px] uppercase tracking-[0.18em] text-white/40 font-semibold mb-2 px-0.5">
                 Modules · {visibleTools.length}
               </div>
