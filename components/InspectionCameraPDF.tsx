@@ -111,19 +111,12 @@ function fmtDateFR(iso: string): string {
   return m ? `${m[3]}/${m[2]}/${m[1]}` : iso
 }
 
-/** Hauteur approx. du bandeau fixe (hors flux) — réserve page.paddingTop */
-const HEADER_RESERVE = 64
-/** Espace sous le bandeau avant le titre */
-const GAP_BELOW_HEADER = 16
-/** Réserve pied de page fixe */
-const FOOTER_RESERVE = 48
-
 /* ============ STYLES ============ */
 const s = StyleSheet.create({
   page: {
     paddingHorizontal: 0,
-    paddingTop: HEADER_RESERVE + GAP_BELOW_HEADER,
-    paddingBottom: FOOTER_RESERVE,
+    paddingTop: 0,
+    paddingBottom: 48,
     fontFamily: 'Helvetica',
     fontSize: 9.5,
     color: C.text,
@@ -131,16 +124,13 @@ const s = StyleSheet.create({
     lineHeight: 1.45,
   },
 
-  /* Header (fixed + absolute → hors flux sur chaque page) */
+  /* Header en flux (pas absolute — sinon Yoga → coords absurdes → pages blanches) */
   header: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
     paddingHorizontal: 40, paddingTop: 18, paddingBottom: 12,
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end',
     backgroundColor: C.white,
     borderBottomWidth: 3, borderBottomColor: C.navy,
+    marginBottom: 8,
   },
   firmName: { color: C.navy, fontSize: 13, fontFamily: 'Helvetica-Bold', letterSpacing: 0.6, textTransform: 'uppercase' },
   firmTag:  { color: C.muted, fontSize: 8, marginTop: 2 },
@@ -239,8 +229,8 @@ const s = StyleSheet.create({
   obsCodeVal: { color: C.text, fontFamily: 'Helvetica-Bold', fontSize: 9.5 },
   obsDesc: { color: C.text, fontSize: 9.5, marginTop: 4, lineHeight: 1.5 },
   obsPhotoWrap: { marginTop: 8, borderWidth: 1, borderColor: C.border, padding: 4 },
-  // Dimensions FIXES — maxHeight/objectFit font exploser le layout react-pdf (nombres absurdes → PDF blanc)
-  obsPhotoImg: { width: 480, height: 150 },
+  // Largeur fixe en pt (évite % + objectFit qui font planter react-pdf)
+  obsPhotoImg: { width: 420, height: 140 },
   obsPhotoCap: { color: C.muted, fontSize: 8, textAlign: 'center', marginTop: 4 },
 
   /* Préco (vert) */
@@ -283,16 +273,13 @@ const s = StyleSheet.create({
   glossTerme: { color: C.navy, fontFamily: 'Helvetica-Bold', fontSize: 8, width: 90 },
   glossDef:  { flex: 1, color: C.text, fontSize: 8, lineHeight: 1.45 },
 
-  /* Footer (fixed en bas de chaque page) */
+  /* Footer — fixed sans absolute (évite layout Yoga cassé) */
   footer: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
     paddingHorizontal: 40, paddingTop: 8, paddingBottom: 14,
     borderTopWidth: 1, borderTopColor: C.border,
     flexDirection: 'row', justifyContent: 'space-between',
     backgroundColor: C.white,
+    marginTop: 12,
   },
   footerL: { color: C.muted, fontSize: 7.5, lineHeight: 1.4 },
   footerR: { color: C.muted, fontSize: 7.5, textAlign: 'right' },
@@ -300,7 +287,7 @@ const s = StyleSheet.create({
 
 /* ============ COMPONENTS ============ */
 const Header = () => (
-  <View style={s.header} fixed>
+  <View style={s.header}>
     <View>
       <Text style={s.firmName}>Les Techniciens du Débouchage</Text>
       <Text style={s.firmTag}>Inspection télévisée des canalisations · ITV · NF EN 13508-2</Text>
@@ -349,130 +336,9 @@ export function InspectionDocument({ data }: InspectionPDFProps) {
     }
   }
 
-  function renderTroncon(bloc: TronconBloc, ti: number) {
-    const t = bloc.caracteristiques || {}
-    const titre = bloc.nom?.trim()
-      || (troncons.length > 1 ? `Tronçon ${ti + 1}` : 'Tronçon inspecté')
-    const etatTronc = ETAT_LABEL[bloc.conclusionEtat]
-
-    return (
-      <View>
-        <Text style={s.sectionTitle}>
-          {troncons.length > 1
-            ? `${ti + 1}. ${titre}`
-            : `Caractéristiques du ${titre.toLowerCase()}`}
-        </Text>
-
-        {troncons.length > 1 && (
-          <View style={[s.etatBox, { backgroundColor: etatTronc.bg, marginBottom: 10 }]} wrap={false}>
-            <Text style={s.etatLbl}>Conclusion tronçon</Text>
-            <Text style={[s.etatVal, { color: etatTronc.fg }]}>{etatTronc.label}</Text>
-          </View>
-        )}
-
-        <View style={s.troncTable} wrap={false}>
-          <TroncRow label="Type de réseau"  value={t.reseau || ''}                       alt />
-          <TroncRow label="Matériau"        value={t.materiau || ''} />
-          <TroncRow label="Diamètre (DN)"   value={t.diametre || ''}                     alt />
-          <TroncRow label="Linéaire inspecté" value={t.longueurM ? `${t.longueurM} m` : ''} />
-          <TroncRow label="Regard amont"    value={t.regardAmont || ''}                  alt />
-          <TroncRow label="Regard aval"     value={t.regardAval || ''} />
-          <TroncRow label="Sens d'inspection" value={t.sensInspection || ''}              alt />
-          <TroncRow label="Matériel utilisé"  value={t.materielUtilise || ''} />
-          <TroncRow label="Conditions"       value={t.conditionsMeteo || ''}             alt />
-        </View>
-
-        {bloc.observations.length > 0 && (
-          <>
-            <Text style={[s.sectionTitle, { fontSize: 10 }]}>
-              Observations{troncons.length > 1 ? ` — ${titre}` : ''}
-            </Text>
-            {bloc.observations.map((o, i) => {
-              const def = findDefaut(o.code || '')
-              const grav = def ? def.gravite : 1
-              const photoSrc = typeof o.photoUrl === 'string' && (o.photoUrl.startsWith('data:') || o.photoUrl.startsWith('http'))
-                ? o.photoUrl
-                : null
-              const descLines = (o.description || '').split(/\n+/).map(l => l.trim()).filter(Boolean)
-              return (
-                <View key={i} style={s.obsItem} wrap={false}>
-                  <View style={s.obsHeader}>
-                    <View style={s.obsHeaderLeft}>
-                      <Text style={s.obsNum}>{`OBS ${String(i + 1).padStart(2, '0')}`}</Text>
-                      <Text style={s.obsPos}>{o.position || `Point ${i + 1}`}</Text>
-                    </View>
-                    {def ? (
-                      <Text style={[s.obsCode, codeStyle(grav)]}>
-                        {def.code} · {def.libelle}
-                      </Text>
-                    ) : null}
-                  </View>
-                  <View style={s.obsBody}>
-                    {def ? (
-                      <View style={s.obsCodeBlock}>
-                        <View style={s.obsCodeLine}>
-                          <Text style={s.obsCodeKey}>Catégorie</Text>
-                          <Text style={s.obsCodeVal}>{def.categorie}</Text>
-                        </View>
-                        <View style={s.obsCodeLine}>
-                          <Text style={s.obsCodeKey}>Gravité</Text>
-                          <Text style={[s.obsCodeVal, { color: GRAVITE_LABELS[grav].color }]}>
-                            {GRAVITE_LABELS[grav].label}
-                          </Text>
-                        </View>
-                        <View style={s.obsCodeLine}>
-                          <Text style={s.obsCodeKey}>Définition</Text>
-                          <Text style={[s.obsCodeVal, { fontFamily: 'Helvetica' }]}>{def.description}</Text>
-                        </View>
-                      </View>
-                    ) : null}
-                    {descLines.map((line, li) => (
-                      <Text key={li} style={s.obsDesc}>{line}</Text>
-                    ))}
-                    {photoSrc ? (
-                      <View style={s.obsPhotoWrap}>
-                        <Image src={photoSrc} style={s.obsPhotoImg} />
-                        <Text style={s.obsPhotoCap}>
-                          {o.photoLegende || `Photo ${i + 1}${o.position ? ` — ${o.position}` : ''}`}
-                        </Text>
-                      </View>
-                    ) : null}
-                  </View>
-                </View>
-              )
-            })}
-          </>
-        )}
-
-        {bloc.preconisations.length > 0 && (
-          <View style={s.precoBox} wrap={false}>
-            <Text style={s.precoTitle}>
-              Préconisations{troncons.length > 1 ? ` — ${titre}` : ''}
-            </Text>
-            {bloc.preconisations.map((p, i) => (
-              <View key={i} style={s.precoItem}>
-                <Text style={s.precoItemTitle}>• {p.titre}</Text>
-                <Text style={s.precoItemDetail}>{p.detail}</Text>
-                {p.urgence ? <Text style={s.precoItemUrgence}>Urgence : {p.urgence}</Text> : null}
-              </View>
-            ))}
-          </View>
-        )}
-
-        {bloc.resume ? (
-          <View style={s.resumeBox} wrap={false}>
-            <Text style={s.resumeTitle}>
-              Synthèse{troncons.length > 1 ? ` — ${titre}` : ' du technicien'}
-            </Text>
-            <Text style={s.resumeText}>{bloc.resume}</Text>
-          </View>
-        ) : null}
-      </View>
-    )
-  }
-
-  // Multi-pages : 1 page d'intro + 1 page / tronçon (+ glossaire).
-  // Un seul <Page> avec 14 photos fait planter react-pdf (unsupported number → PDF blanc).
+  // Un seul <Page> qui paginate naturellement.
+  // Le découpage multi-<Page> + wrap={false} faisait exploser Yoga
+  // (coordonnées ~ -18e6 → PDF avec texte hors page = pages blanches).
   return (
     <Document>
       <Page size="A4" style={s.page}>
@@ -484,7 +350,7 @@ export function InspectionDocument({ data }: InspectionPDFProps) {
             <Text style={s.titleSub}>Inspection télévisée (ITV) — codification NF EN 13508-2</Text>
           </View>
 
-          <View style={s.metaTable} wrap={false}>
+          <View style={s.metaTable}>
             <View style={s.metaCell}>
               <Text style={s.metaLabel}>N° rapport</Text>
               <Text style={s.metaValue}>{data.numero}</Text>
@@ -503,14 +369,14 @@ export function InspectionDocument({ data }: InspectionPDFProps) {
             </View>
           </View>
 
-          <View style={[s.etatBox, { backgroundColor: etat.bg }]} wrap={false}>
+          <View style={[s.etatBox, { backgroundColor: etat.bg }]}>
             <Text style={s.etatLbl}>
               {troncons.length > 1 ? 'Conclusion globale' : 'Conclusion'}
             </Text>
             <Text style={[s.etatVal, { color: etat.fg }]}>{etat.label}</Text>
           </View>
 
-          <View style={s.partyTable} wrap={false}>
+          <View style={s.partyTable}>
             <View style={[s.partyCol, s.partyColSep]}>
               <Text style={s.partyHead}>ÉMETTEUR</Text>
               <Text style={s.partyName}>Les Techniciens du Débouchage</Text>
@@ -531,29 +397,128 @@ export function InspectionDocument({ data }: InspectionPDFProps) {
             </View>
           </View>
 
-          {troncons.length <= 1 && troncons[0] ? renderTroncon(troncons[0], 0) : (
-            <Text style={{ color: C.muted, fontSize: 9, marginTop: 8 }}>
-              {troncons.length} tronçons détaillés en pages suivantes.
-            </Text>
-          )}
-        </View>
-        <Footer numero={data.numero} />
-      </Page>
+          {troncons.map((bloc, ti) => {
+            const t = bloc.caracteristiques || {}
+            const titre = bloc.nom?.trim()
+              || (troncons.length > 1 ? `Tronçon ${ti + 1}` : 'Tronçon inspecté')
+            const etatTronc = ETAT_LABEL[bloc.conclusionEtat]
+            return (
+              <View key={ti} wrap>
+                <Text style={s.sectionTitle}>
+                  {troncons.length > 1
+                    ? `${ti + 1}. ${titre}`
+                    : `Caractéristiques du ${titre.toLowerCase()}`}
+                </Text>
 
-      {troncons.length > 1 && troncons.map((bloc, ti) => (
-        <Page key={ti} size="A4" style={s.page}>
-          <Header />
-          <View style={s.content}>
-            {renderTroncon(bloc, ti)}
-          </View>
-          <Footer numero={data.numero} />
-        </Page>
-      ))}
+                {troncons.length > 1 && (
+                  <View style={[s.etatBox, { backgroundColor: etatTronc.bg, marginBottom: 10 }]}>
+                    <Text style={s.etatLbl}>Conclusion tronçon</Text>
+                    <Text style={[s.etatVal, { color: etatTronc.fg }]}>{etatTronc.label}</Text>
+                  </View>
+                )}
 
-      <Page size="A4" style={s.page}>
-        <Header />
-        <View style={s.content}>
-          <View style={s.glossBox} wrap={false}>
+                <View style={s.troncTable}>
+                  <TroncRow label="Type de réseau"  value={t.reseau || ''}                       alt />
+                  <TroncRow label="Matériau"        value={t.materiau || ''} />
+                  <TroncRow label="Diamètre (DN)"   value={t.diametre || ''}                     alt />
+                  <TroncRow label="Linéaire inspecté" value={t.longueurM ? `${t.longueurM} m` : ''} />
+                  <TroncRow label="Regard amont"    value={t.regardAmont || ''}                  alt />
+                  <TroncRow label="Regard aval"     value={t.regardAval || ''} />
+                  <TroncRow label="Sens d'inspection" value={t.sensInspection || ''}              alt />
+                  <TroncRow label="Matériel utilisé"  value={t.materielUtilise || ''} />
+                  <TroncRow label="Conditions"       value={t.conditionsMeteo || ''}             alt />
+                </View>
+
+                {bloc.observations.length > 0 && (
+                  <>
+                    <Text style={[s.sectionTitle, { fontSize: 10 }]}>
+                      Observations{troncons.length > 1 ? ` — ${titre}` : ''}
+                    </Text>
+                    {bloc.observations.map((o, i) => {
+                      const def = findDefaut(o.code || '')
+                      const grav = def ? def.gravite : 1
+                      const photoSrc = typeof o.photoUrl === 'string' && (o.photoUrl.startsWith('data:') || o.photoUrl.startsWith('http'))
+                        ? o.photoUrl
+                        : null
+                      const descLines = (o.description || '').split(/\n+/).map(l => l.trim()).filter(Boolean)
+                      return (
+                        <View key={i} style={s.obsItem} wrap={false}>
+                          <View style={s.obsHeader}>
+                            <View style={s.obsHeaderLeft}>
+                              <Text style={s.obsNum}>{`OBS ${String(i + 1).padStart(2, '0')}`}</Text>
+                              <Text style={s.obsPos}>{o.position || `Point ${i + 1}`}</Text>
+                            </View>
+                            {def ? (
+                              <Text style={[s.obsCode, codeStyle(grav)]}>
+                                {def.code} · {def.libelle}
+                              </Text>
+                            ) : null}
+                          </View>
+                          <View style={s.obsBody}>
+                            {def ? (
+                              <View style={s.obsCodeBlock}>
+                                <View style={s.obsCodeLine}>
+                                  <Text style={s.obsCodeKey}>Catégorie</Text>
+                                  <Text style={s.obsCodeVal}>{def.categorie}</Text>
+                                </View>
+                                <View style={s.obsCodeLine}>
+                                  <Text style={s.obsCodeKey}>Gravité</Text>
+                                  <Text style={[s.obsCodeVal, { color: GRAVITE_LABELS[grav].color }]}>
+                                    {GRAVITE_LABELS[grav].label}
+                                  </Text>
+                                </View>
+                                <View style={s.obsCodeLine}>
+                                  <Text style={s.obsCodeKey}>Définition</Text>
+                                  <Text style={[s.obsCodeVal, { fontFamily: 'Helvetica' }]}>{def.description}</Text>
+                                </View>
+                              </View>
+                            ) : null}
+                            {descLines.map((line, li) => (
+                              <Text key={li} style={s.obsDesc}>{line}</Text>
+                            ))}
+                            {photoSrc ? (
+                              <View style={s.obsPhotoWrap}>
+                                <Image src={photoSrc} style={s.obsPhotoImg} />
+                                <Text style={s.obsPhotoCap}>
+                                  {o.photoLegende || `Photo ${i + 1}${o.position ? ` — ${o.position}` : ''}`}
+                                </Text>
+                              </View>
+                            ) : null}
+                          </View>
+                        </View>
+                      )
+                    })}
+                  </>
+                )}
+
+                {bloc.preconisations.length > 0 && (
+                  <View style={s.precoBox}>
+                    <Text style={s.precoTitle}>
+                      Préconisations{troncons.length > 1 ? ` — ${titre}` : ''}
+                    </Text>
+                    {bloc.preconisations.map((p, i) => (
+                      <View key={i} style={s.precoItem}>
+                        <Text style={s.precoItemTitle}>• {p.titre}</Text>
+                        <Text style={s.precoItemDetail}>{p.detail}</Text>
+                        {p.urgence ? <Text style={s.precoItemUrgence}>Urgence : {p.urgence}</Text> : null}
+                      </View>
+                    ))}
+                  </View>
+                )}
+
+                {bloc.resume ? (
+                  <View style={s.resumeBox}>
+                    <Text style={s.resumeTitle}>
+                      Synthèse{troncons.length > 1 ? ` — ${titre}` : ' du technicien'}
+                    </Text>
+                    <Text style={s.resumeText}>{bloc.resume}</Text>
+                  </View>
+                ) : null}
+              </View>
+            )
+          })}
+
+          <View style={s.glossBox}>
             <Text style={s.glossTitle}>Glossaire technique</Text>
             {GLOSSAIRE.map(g => (
               <View key={g.terme} style={s.glossRow}>

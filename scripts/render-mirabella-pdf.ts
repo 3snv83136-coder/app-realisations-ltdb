@@ -1,16 +1,24 @@
 /**
- * Génère le PDF Mirabella depuis le brouillon public/recup.
+ * Génère le PDF Mirabella tronçon par tronçon puis fusionne.
+ * (react-pdf plante si toutes les photos sont dans un seul Document)
  * Usage: npx tsx scripts/render-mirabella-pdf.ts
  */
 import fs from "node:fs"
 import path from "node:path"
+import { spawnSync } from "node:child_process"
 import { createElement } from "react"
 import { renderToBuffer } from "@react-pdf/renderer"
-import { InspectionDocument, type InspectionData, type TronconBloc, type ConclusionEtat } from "../components/InspectionCameraPDF"
+import {
+  InspectionDocument,
+  type InspectionData,
+  type TronconBloc,
+  type ConclusionEtat,
+} from "../components/InspectionCameraPDF"
 import { PRECONISATIONS } from "../lib/camera-defauts"
 
 const draftPath = path.resolve("public/recup/ITV-20260724-1513-mirabella.json")
 const outPath = path.resolve("public/recup/ITV-20260724-1513-mirabella.pdf")
+const partsDir = path.resolve("_tmp-pdf-preview/mira-parts")
 
 type Draft = {
   numero: string
@@ -47,8 +55,8 @@ type Draft = {
   }>
 }
 
-function buildData(draft: Draft): InspectionData {
-  const blocs: TronconBloc[] = draft.troncons.map((t, i) => {
+function buildBlocs(draft: Draft): TronconBloc[] {
+  return draft.troncons.map((t, i) => {
     const fromPresets = (t.precoSelected || [])
       .map(id => PRECONISATIONS.find(p => p.id === id))
       .filter((p): p is (typeof PRECONISATIONS)[number] => Boolean(p))
@@ -85,7 +93,9 @@ function buildData(draft: Draft): InspectionData {
       conclusionEtat: t.conclusionEtat || "bon",
     }
   })
+}
 
+function meta(draft: Draft, troncons: TronconBloc[]): InspectionData {
   return {
     numero: draft.numero,
     dateInspection: draft.dateInspection,
@@ -99,21 +109,68 @@ function buildData(draft: Draft): InspectionData {
       email: draft.clientEmail || undefined,
       telephone: draft.clientTel || undefined,
     },
-    troncons: blocs,
+    troncons,
     conclusionEtat: "bon",
   }
 }
 
+async function renderOne(label: string, data: InspectionData, file: string) {
+  const buf = await renderToBuffer(createElement(InspectionDocument, { data }))
+  if (!buf || buf.length < 1500) throw new Error(`${label}: PDF trop petit (${buf?.length})`)
+  fs.writeFileSync(file, buf)
+  console.log(label, buf.length, "→", path.basename(file))
+}
+
 async function main() {
   const draft = JSON.parse(fs.readFileSync(draftPath, "utf8")) as Draft
-  const data = buildData(draft)
-  console.log("render", data.numero, "troncons", data.troncons.length)
-  const t0 = Date.now()
-  const buf = await renderToBuffer(createElement(InspectionDocument, { data }))
-  if (!buf || buf.length < 2000) throw new Error(`PDF trop petit: ${buf?.length}`)
-  fs.writeFileSync(outPath, buf)
+  const blocs = buildBlocs(draft)
+  fs.mkdirSync(partsDir, { recursive: true })
+  for (const f of fs.readdirSync(partsDir)) {
+    if (f.endsWith(".pdf")) fs.unlinkSync(path.join(partsDir, f))
+  }
+
+  const partFiles: string[] = []
+
+  // Intro : identité + conclusion, sans photos
+  const introPath = path.join(partsDir, "00-intro.pdf")
+  await renderOne(
+    "intro",
+    meta(draft, [{
+      nom: "Vue d'ensemble",
+      caracteristiques: {},
+      observations: [],
+      preconisations: [],
+      resume: `${blocs.length} tronçons inspectés — détail et photos aux pages suivantes.`,
+      conclusionEtat: "bon",
+    }]),
+    introPath,
+  )
+  partFiles.push(introPath)
+
+  for (let i = 0; i < blocs.length; i++) {
+    const file = path.join(partsDir, `${String(i + 1).padStart(2, "0")}-troncon.pdf`)
+    await renderOne(`tronçon ${i + 1}`, meta(draft, [blocs[i]]), file)
+    partFiles.push(file)
+  }
+
+  const mergePy = `
+from pypdf import PdfWriter
+import sys
+w = PdfWriter()
+for f in sys.argv[1:-1]:
+    w.append(f)
+w.write(sys.argv[-1])
+w.close()
+print("merged", sys.argv[-1])
+`
+  const r = spawnSync("python3", ["-c", mergePy, ...partFiles, outPath], { encoding: "utf8" })
+  if (r.status !== 0) {
+    console.error(r.stdout, r.stderr)
+    throw new Error("merge failed")
+  }
+  console.log(r.stdout.trim())
   fs.copyFileSync(outPath, path.resolve("_recup-itv/inspection-camera-mirabella-ITV-20260724-1513-FIXED.pdf"))
-  console.log("ok", buf.length, "bytes in", Date.now() - t0, "ms →", outPath)
+  console.log("ok", fs.statSync(outPath).size, "bytes →", outPath)
 }
 
 main().catch(e => {
