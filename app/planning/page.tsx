@@ -8,6 +8,7 @@ import CalendarSubscribePanel from "@/components/CalendarSubscribePanel"
 import VilleCombobox from "@/components/VilleCombobox"
 import { AGENCES } from "@/lib/agences"
 import { CANAUX_ACQUISITION } from "@/lib/canaux"
+import { MODES_PAIEMENT } from "@/lib/mode-paiement"
 import { fmtDateFR, fmtEUR } from "@/lib/format"
 import { TYPES_INTERVENTION as TYPES } from "@/lib/types-intervention"
 import { errorMessage } from "@/lib/error-message"
@@ -600,11 +601,13 @@ function NouvelleInterventionModal({
   const [agence, setAgence] = useState<string>(AGENCES[0])
   const [technicienId, setTechnicienId] = useState<string>('')
   const [canalAcquisition, setCanalAcquisition] = useState<string>('')
+  const [modePaiement, setModePaiement] = useState<string>('cb')
   const [notes, setNotes] = useState('')
 
   async function handleSubmit() {
     if (!clientNom.trim()) { setError('Nom du client requis'); return }
     if (!typeIntervention) { setError("Type d'intervention requis"); return }
+    if (!modePaiement) { setError('Mode de paiement requis'); return }
     setSubmitting(true); setError('')
 
     const adresse = chantierIdem ? clientAdresse : adresseChantier
@@ -637,6 +640,7 @@ function NouvelleInterventionModal({
           urgence,
           prix_prevu: prixPrevu ? Number(prixPrevu) : null,
           canal_acquisition: canalAcquisition || null,
+          mode_paiement: modePaiement || null,
           notes_internes: notes || null,
         }),
       })
@@ -652,16 +656,42 @@ function NouvelleInterventionModal({
         sms_error?: string
       } | null | undefined
 
+      const createdId = data.intervention?.id as string | undefined
+      const lines: string[] = ['Intervention créée.']
+
       if (technicienId && notif && !notif.ok) {
         const detail = notif.skipped || notif.error || notif.sms_error || 'raison inconnue'
-        window.alert(`Intervention créée, mais le technicien n'a pas été notifié :\n${detail}`)
+        lines.push(`Technicien non notifié : ${detail}`)
       } else if (technicienId && notif?.ok) {
         const parts: string[] = []
         if (notif.mail_sent) parts.push('mail')
         if (notif.sms_sent) parts.push('SMS')
-        if (parts.length) {
-          window.alert(`Intervention créée — ${parts.join(' + ')} envoyé(s) au technicien.`)
+        if (parts.length) lines.push(`Technicien notifié (${parts.join(' + ')}).`)
+      }
+
+      if (createdId && clientTel.trim()) {
+        const sendClientSms = window.confirm(
+          `${lines.join('\n')}\n\nEnvoyer un SMS de confirmation au client (${clientTel.trim()}) ?\n\nLe SMS indiquera le jour, l'heure, le type d'intervention et le mode de paiement.`,
+        )
+        if (sendClientSms) {
+          try {
+            const smsRes = await fetch(`/api/interventions/${createdId}/notify-client-rdv`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ mode_paiement: modePaiement }),
+            })
+            const smsData = await smsRes.json()
+            if (!smsRes.ok) throw new Error(smsData.error || `HTTP ${smsRes.status}`)
+            window.alert('SMS de confirmation envoyé au client.')
+          } catch (e) {
+            window.alert(`SMS client non envoyé : ${e instanceof Error ? e.message : String(e)}`)
+          }
         }
+      } else {
+        if (!clientTel.trim()) {
+          lines.push('Pas de téléphone client — SMS de confirmation impossible.')
+        }
+        window.alert(lines.join('\n'))
       }
 
       onCreated()
@@ -806,6 +836,29 @@ function NouvelleInterventionModal({
                 <input type="checkbox" checked={urgence} onChange={e => setUrgence(e.target.checked)} className="w-5 h-5" />
                 🚨 Intervention urgente
               </label>
+            </div>
+
+            <div>
+              <span className="text-xs uppercase tracking-wide text-slate-500 font-semibold">Mode de paiement</span>
+              <div className="grid grid-cols-3 gap-2 mt-1">
+                {MODES_PAIEMENT.map(m => (
+                  <button
+                    key={m.key}
+                    type="button"
+                    onClick={() => setModePaiement(m.key)}
+                    className={`p-2.5 rounded-xl border-2 text-center text-sm font-semibold transition-all ${
+                      modePaiement === m.key
+                        ? 'border-blue-500 bg-blue-50 text-[#0e2a52]'
+                        : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
+                    }`}
+                  >
+                    {m.label}
+                  </button>
+                ))}
+              </div>
+              <span className="text-[11px] text-slate-400 mt-1 block">
+                Annoncé au client dans le SMS de confirmation RDV.
+              </span>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

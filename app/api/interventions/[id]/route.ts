@@ -8,6 +8,7 @@ import {
 import { getSupabaseOrNull } from "@/lib/supabase"
 import { isCanalAcquisition } from "@/lib/canaux"
 import { cascadeDeleteIntervention } from "@/lib/cascadeDelete"
+import { isModePaiement } from "@/lib/mode-paiement"
 import { permissionsForSession } from "@/lib/tech-permissions"
 
 export const dynamic = 'force-dynamic'
@@ -27,6 +28,7 @@ const UPDATABLE = new Set([
   'duree_estimee_min',
   'urgence',
   'prix_prevu',
+  'mode_paiement',
   'notes_internes',
   'date_realisee',
   'canal_acquisition',
@@ -152,6 +154,11 @@ export async function PUT(req: NextRequest, { params }: Params) {
   if ('canal_acquisition' in update) {
     const v = update.canal_acquisition
     update.canal_acquisition = (v === null || v === '') ? null : (isCanalAcquisition(v) ? v : null)
+  }
+
+  if ('mode_paiement' in update) {
+    const v = update.mode_paiement
+    update.mode_paiement = (v === null || v === '') ? null : (isModePaiement(v) ? v : null)
   }
 
   // Auto-set date_realisee when moving to terminee

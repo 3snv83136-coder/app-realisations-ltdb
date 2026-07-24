@@ -8,6 +8,8 @@ import {
 } from "@/lib/notify-technicien"
 import { getSupabaseOrNull, upsertClient, patchClient } from "@/lib/supabase"
 import { isCanalAcquisition } from "@/lib/canaux"
+import { isModePaiement } from "@/lib/mode-paiement"
+import { permissionsForSession } from "@/lib/tech-permissions"
 import type { PostgrestError } from "@supabase/supabase-js"
 
 export const dynamic = 'force-dynamic'
@@ -38,6 +40,7 @@ type CreateInterventionBody = {
   prix_prevu?: number | null
   notes_internes?: string | null
   canal_acquisition?: string | null
+  mode_paiement?: string | null
 }
 
 function buildReference(date_prevue?: string | null, heure_prevue?: string | null): string {
@@ -78,11 +81,14 @@ export async function GET(req: NextRequest) {
   const statut = url.searchParams.get('statut')
   const technicien_id = url.searchParams.get('technicien_id')
   const session = await auth()
-  const sessionTechId = technicienFilterForSession(
-    session?.user
-      ? { role: session.user.role, technicienId: session.user.technicienId ?? null }
-      : null,
-  )
+  const sessionUser = session?.user
+    ? {
+        role: session.user.role,
+        technicienId: session.user.technicienId ?? null,
+        login: session.user.name ?? null,
+      }
+    : null
+  const sessionTechId = technicienFilterForSession(sessionUser)
   const agence = url.searchParams.get('agence')
   const from = url.searchParams.get('from')
   const to = url.searchParams.get('to')
@@ -134,8 +140,11 @@ export async function GET(req: NextRequest) {
     techsMap[t.id] = { nom: t.nom, email: t.email }
   })
 
+  const perms = await permissionsForSession(sessionUser)
+
   const decorated = (interventions || []).map(i => ({
     ...i,
+    prix_prevu: perms.voir_prix ? i.prix_prevu : null,
     client_nom: i.client_id ? clientsMap[i.client_id]?.nom ?? null : null,
     client_email: i.client_id ? clientsMap[i.client_id]?.email ?? null : null,
     client_telephone: i.client_id ? clientsMap[i.client_id]?.telephone ?? null : null,
@@ -215,6 +224,7 @@ export async function POST(req: NextRequest) {
     : null
 
   const canalClean = isCanalAcquisition(body.canal_acquisition) ? body.canal_acquisition : null
+  const modePaiementClean = isModePaiement(body.mode_paiement) ? body.mode_paiement : null
 
   const baseRow = {
     client_id: clientId,
@@ -232,6 +242,7 @@ export async function POST(req: NextRequest) {
     prix_prevu: typeof body.prix_prevu === 'number' ? body.prix_prevu : null,
     notes_internes: body.notes_internes || null,
     canal_acquisition: canalClean,
+    mode_paiement: modePaiementClean,
   }
 
   let inserted: ({ id: string; technicien_id: string | null } & Record<string, unknown>) | null = null
@@ -246,6 +257,22 @@ export async function POST(req: NextRequest) {
     if (!res.error && res.data) {
       inserted = res.data
       insertErr = null
+      break
+    }
+    // Colonne mode_paiement absente tant que la migration 028 n'est pas appliquée.
+    if (res.error?.message?.includes('mode_paiement')) {
+      const { mode_paiement: _drop, ...rowSansPaiement } = baseRow
+      const retry = await sb
+        .from('interventions')
+        .insert({ reference: currentRef, ...rowSansPaiement })
+        .select('*')
+        .single()
+      if (!retry.error && retry.data) {
+        inserted = retry.data
+        insertErr = null
+        break
+      }
+      insertErr = retry.error
       break
     }
     insertErr = res.error

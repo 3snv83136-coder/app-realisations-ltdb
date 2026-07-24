@@ -91,6 +91,7 @@ export interface Intervention {
   urgence: boolean
   statut: Statut
   prix_prevu: number | null
+  mode_paiement: string | null
   notes_internes: string | null
   transcription: string | null
   rapport_json: RapportData | null
