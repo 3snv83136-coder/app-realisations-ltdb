@@ -1,8 +1,11 @@
 'use client'
-import { useEffect, useMemo, useState } from "react"
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react"
 import { useSession } from "next-auth/react"
 import dynamic from "next/dynamic"
+import Link from "next/link"
+import { useSearchParams } from "next/navigation"
 import AppTabs from "@/components/AppTabs"
+import ClientAutocomplete, { type ClientRecord } from "@/components/ClientAutocomplete"
 import VilleCombobox from "@/components/VilleCombobox"
 import {
   DEFAUTS, MATERIAUX, DIAMETRES, RESEAUX, MATERIELS_INSPECTION,
@@ -15,6 +18,18 @@ const InspectionDownloadButton = dynamic(() => import("@/components/InspectionCa
 const InspectionPDFViewer = dynamic(() => import("@/components/InspectionCameraPreviewModal"), { ssr: false })
 
 type ObsForm = ObservationItem & { _photoFile?: File; _photoPreview?: string }
+
+type InterventionPick = {
+  id: string
+  reference: string | null
+  type_intervention: string | null
+  date_prevue: string | null
+  heure_prevue: string | null
+  ville: string | null
+  adresse_chantier: string | null
+  statut: string | null
+  client_nom: string | null
+}
 
 function fileToDataUrl(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -62,7 +77,21 @@ function genNumero() {
 }
 
 export default function InspectionPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center text-slate-500">
+        Chargement…
+      </div>
+    }>
+      <InspectionPageInner />
+    </Suspense>
+  )
+}
+
+function InspectionPageInner() {
   const { data: session } = useSession()
+  const searchParams = useSearchParams()
+  const interventionFromUrl = searchParams.get('intervention')
 
   const [numero, setNumero] = useState('')
   useEffect(() => { setNumero(genNumero()) }, [])
@@ -70,6 +99,17 @@ export default function InspectionPage() {
   const [dateInspection, setDateInspection] = useState(new Date().toISOString().split('T')[0])
   const [technicienNom, setTechnicienNom] = useState('')
   const [agence] = useState('LTDB Toulon')
+
+  // Lien intervention
+  const [linkedInterventionId, setLinkedInterventionId] = useState<string | null>(null)
+  const [linkedInterventionLabel, setLinkedInterventionLabel] = useState('')
+  const [prefillLoading, setPrefillLoading] = useState(!!interventionFromUrl)
+  const [prefillError, setPrefillError] = useState('')
+  const [showItvPicker, setShowItvPicker] = useState(false)
+  const [itvLoading, setItvLoading] = useState(false)
+  const [itvError, setItvError] = useState('')
+  const [itvList, setItvList] = useState<InterventionPick[]>([])
+  const [itvQuery, setItvQuery] = useState('')
 
   // Client
   const [clientNom, setClientNom] = useState('')
@@ -117,6 +157,112 @@ export default function InspectionPage() {
   useEffect(() => {
     if (technicienNom && typeof window !== 'undefined') localStorage.setItem('ltdb_technicien', technicienNom)
   }, [technicienNom])
+
+  function fillFromClient(c: ClientRecord) {
+    setClientNom(c.nom || '')
+    if (c.adresse) setClientAdresse(c.adresse)
+    if (c.code_postal) setClientCP(c.code_postal)
+    if (c.ville) setClientVille(c.ville)
+    if (c.email) setClientEmail(c.email)
+    if (c.telephone) setClientTel(c.telephone)
+  }
+
+  const applyIntervention = useCallback(async (id: string) => {
+    setPrefillError('')
+    setPrefillLoading(true)
+    try {
+      const res = await fetch(`/api/interventions/${id}`, { cache: 'no-store' })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`)
+      const itv = data.intervention
+      const c = data.client
+      const tech = data.technicien
+
+      setLinkedInterventionId(id)
+      setLinkedInterventionLabel(
+        [itv?.reference || id.slice(0, 8), itv?.type_intervention, c?.nom]
+          .filter(Boolean)
+          .join(' · '),
+      )
+
+      if (c?.nom) setClientNom(c.nom)
+      if (c?.email) setClientEmail(c.email)
+      if (c?.telephone) setClientTel(c.telephone)
+
+      // Adresse chantier prioritaire, sinon fiche client
+      const adresse = itv?.adresse_chantier || c?.adresse || ''
+      const cp = itv?.code_postal || c?.code_postal || ''
+      const ville = itv?.ville || c?.ville || ''
+      if (adresse) setClientAdresse(adresse)
+      if (cp) setClientCP(cp)
+      if (ville) setClientVille(ville)
+
+      const dateRaw = itv?.date_realisee || itv?.date_prevue
+      if (dateRaw && /^\d{4}-\d{2}-\d{2}/.test(dateRaw)) {
+        setDateInspection(String(dateRaw).slice(0, 10))
+      }
+      if (tech?.nom) setTechnicienNom(tech.nom)
+
+      setShowItvPicker(false)
+    } catch (e) {
+      setPrefillError(errorMessage(e) || 'Impossible de charger l’intervention')
+    } finally {
+      setPrefillLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!interventionFromUrl) {
+      setPrefillLoading(false)
+      return
+    }
+    void applyIntervention(interventionFromUrl)
+  }, [interventionFromUrl, applyIntervention])
+
+  async function openInterventionPicker() {
+    setShowItvPicker(true)
+    setItvError('')
+    setItvLoading(true)
+    try {
+      const today = new Date()
+      const from = new Date(today)
+      from.setDate(from.getDate() - 7)
+      const to = new Date(today)
+      to.setDate(to.getDate() + 14)
+      const fromStr = from.toISOString().slice(0, 10)
+      const toStr = to.toISOString().slice(0, 10)
+      const res = await fetch(
+        `/api/interventions?from=${fromStr}&to=${toStr}&limit=100`,
+        { cache: 'no-store' },
+      )
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`)
+      const list = (Array.isArray(data.interventions) ? data.interventions : [])
+        .filter((i: InterventionPick) => i.statut !== 'annulee') as InterventionPick[]
+      setItvList(list)
+    } catch (e) {
+      setItvError(errorMessage(e) || 'Chargement impossible')
+      setItvList([])
+    } finally {
+      setItvLoading(false)
+    }
+  }
+
+  function unlinkIntervention() {
+    setLinkedInterventionId(null)
+    setLinkedInterventionLabel('')
+  }
+
+  const filteredItv = useMemo(() => {
+    const q = itvQuery.trim().toLowerCase()
+    if (!q) return itvList
+    return itvList.filter(i => {
+      const hay = [
+        i.reference, i.client_nom, i.type_intervention, i.ville, i.adresse_chantier,
+      ].filter(Boolean).join(' ').toLowerCase()
+      return hay.includes(q)
+    })
+  }, [itvList, itvQuery])
 
   // Gestion observations
   function addObservation() {
@@ -240,6 +386,37 @@ export default function InspectionPage() {
           </div>
         </div>
 
+        {(prefillLoading || linkedInterventionId || prefillError) && (
+          <div className={`rounded-xl px-4 py-3 text-sm border ${
+            prefillError
+              ? 'bg-red-50 border-red-200 text-red-800'
+              : 'bg-sky-50 border-sky-200 text-sky-900'
+          }`}>
+            {prefillLoading ? (
+              'Chargement de l’intervention…'
+            ) : prefillError ? (
+              prefillError
+            ) : (
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span>
+                  Rapport lié à l’intervention{' '}
+                  <Link href={`/intervention/${linkedInterventionId}`} className="font-bold underline">
+                    {linkedInterventionLabel || linkedInterventionId}
+                  </Link>
+                  {' '}— date, nom et adresse préremplis.
+                </span>
+                <button
+                  type="button"
+                  onClick={unlinkIntervention}
+                  className="text-xs font-bold text-sky-700 hover:text-sky-900 underline"
+                >
+                  Délier
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Identité */}
         <Section title="1. Informations générales" icon="📍">
           <div className="grid sm:grid-cols-2 gap-3">
@@ -252,8 +429,76 @@ export default function InspectionPage() {
 
         {/* Client */}
         <Section title="2. Client" icon="👤">
+          <div className="flex flex-wrap gap-2 mb-3">
+            <button
+              type="button"
+              onClick={openInterventionPicker}
+              className="bg-[#0e2a52] hover:bg-[#1a3a6b] text-white text-sm font-bold px-3 py-2 rounded-lg transition"
+            >
+              🔗 Lier une intervention
+            </button>
+            <span className="text-xs text-slate-500 self-center">
+              ou tape le nom client ci-dessous pour récupérer la fiche
+            </span>
+          </div>
+
+          {showItvPicker && (
+            <div className="mb-4 border-2 border-sky-200 bg-sky-50/60 rounded-xl p-3 space-y-3">
+              <div className="flex items-center justify-between gap-2">
+                <div className="text-sm font-bold text-[#0e2a52]">Choisir une intervention (±7 j / +14 j)</div>
+                <button
+                  type="button"
+                  onClick={() => setShowItvPicker(false)}
+                  className="text-slate-500 hover:text-slate-800 text-xl leading-none"
+                  aria-label="Fermer"
+                >
+                  ×
+                </button>
+              </div>
+              <input
+                value={itvQuery}
+                onChange={e => setItvQuery(e.target.value)}
+                placeholder="Filtrer par client, référence, ville…"
+                className={inputCls}
+              />
+              {itvLoading && <p className="text-sm text-slate-500">Chargement…</p>}
+              {itvError && <p className="text-sm text-red-600">{itvError}</p>}
+              {!itvLoading && !itvError && filteredItv.length === 0 && (
+                <p className="text-sm text-slate-500">Aucune intervention sur cette période.</p>
+              )}
+              <div className="max-h-64 overflow-y-auto space-y-1">
+                {filteredItv.map(i => (
+                  <button
+                    key={i.id}
+                    type="button"
+                    onClick={() => void applyIntervention(i.id)}
+                    className="w-full text-left bg-white hover:bg-sky-100 border border-slate-200 rounded-lg px-3 py-2.5 transition"
+                  >
+                    <div className="font-bold text-sm text-[#0e2a52]">
+                      {i.client_nom || 'Client inconnu'}
+                      {i.heure_prevue ? ` · ${String(i.heure_prevue).slice(0, 5)}` : ''}
+                    </div>
+                    <div className="text-xs text-slate-600 mt-0.5">
+                      {[i.date_prevue, i.type_intervention, i.ville || i.adresse_chantier, i.reference]
+                        .filter(Boolean)
+                        .join(' · ')}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
           <div className="grid sm:grid-cols-2 gap-3">
-            <Field label="Nom / Raison sociale"><input value={clientNom} onChange={e => setClientNom(e.target.value)} className={inputCls} /></Field>
+            <Field label="Nom / Raison sociale">
+              <ClientAutocomplete
+                value={clientNom}
+                onChange={setClientNom}
+                onSelect={fillFromClient}
+                placeholder="Rechercher un client…"
+                className={inputCls}
+              />
+            </Field>
             <Field label="Adresse"><input value={clientAdresse} onChange={e => setClientAdresse(e.target.value)} className={inputCls} /></Field>
             <Field label="Code postal"><input value={clientCP} onChange={e => setClientCP(e.target.value)} className={inputCls} /></Field>
             <Field label="Ville">

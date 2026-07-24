@@ -581,6 +581,15 @@ export default function InterventionDetailPage({ params }: { params: { id: strin
                     : '📄 Aller au rapport'}
                 </button>
               )}
+              {intervention.statut !== 'annulee' && (
+                <Link
+                  href={`/inspection?intervention=${intervention.id}`}
+                  className="bg-sky-600 hover:bg-sky-700 text-white px-4 py-2.5 rounded-xl font-bold text-sm transition"
+                  title="Préremplir le rapport d'inspection caméra avec ce client / cette intervention"
+                >
+                  📹 Inspection caméra
+                </Link>
+              )}
               {!editing && (
                 <button
                   onClick={startEdit}
