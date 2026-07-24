@@ -298,14 +298,20 @@ function InspectionPageInner() {
           if (cancelled) return
           if (!draft?.troncons) throw new Error('Fichier récup invalide')
           applyDraft(draft)
-          saveDraft({ ...draft, v: DRAFT_VERSION, savedAt: new Date().toISOString() })
+          try {
+            saveDraft({ ...draft, v: DRAFT_VERSION, savedAt: new Date().toISOString() })
+          } catch {
+            // localStorage peut être trop petit pour les photos — le formulaire est quand même chargé
+          }
           setDraftHydrated(true)
           return
         } catch (e) {
           if (!cancelled) {
             setPrefillError(errorMessage(e) || 'Impossible de récupérer le brouillon')
             setPrefillLoading(false)
+            setDraftHydrated(true)
           }
+          return
         }
       }
 
@@ -797,6 +803,23 @@ function InspectionPageInner() {
             </button>
           </div>
         </div>
+
+        {recupFromUrl && draftRestored && (
+          <div className="rounded-xl px-4 py-3 text-sm border border-sky-300 bg-sky-50 text-sky-950 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+            <div>
+              <span className="font-bold">Rapport récupéré</span>
+              {' '}({numero}{clientNom ? ` · ${clientNom}` : ''}).
+              {' '}Tu peux télécharger le PDF prêt immédiatement.
+            </div>
+            <a
+              href={`/recup/${recupFromUrl.replace(/[^a-zA-Z0-9._-]/g, '')}.pdf`}
+              download
+              className="bg-sky-600 hover:bg-sky-700 text-white px-4 py-2 rounded-lg text-xs font-bold shrink-0 text-center"
+            >
+              ⬇ PDF prêt
+            </a>
+          </div>
+        )}
 
         {pendingDraft && !draftRestored && (
           <div className="rounded-xl px-4 py-3 text-sm border border-amber-300 bg-amber-50 text-amber-950 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
