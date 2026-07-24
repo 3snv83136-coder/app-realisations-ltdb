@@ -48,6 +48,20 @@ export type Troncon = {
   conditionsMeteo?: string         // ex "sec, accès facilité"
 }
 
+export type ConclusionEtat = 'bon' | 'a-surveiller' | 'desordre' | 'critique'
+
+export type PreconisationItem = { titre: string; detail: string; urgence?: string }
+
+/** Un tronçon / une canalisation dans le rapport (obs + préco + synthèse propres). */
+export type TronconBloc = {
+  nom?: string
+  caracteristiques: Troncon
+  observations: ObservationItem[]
+  preconisations: PreconisationItem[]
+  resume: string
+  conclusionEtat: ConclusionEtat
+}
+
 export type InspectionData = {
   numero: string                   // ex "ITV-20260505-1"
   dateInspection: string           // ISO YYYY-MM-DD
@@ -61,18 +75,31 @@ export type InspectionData = {
     email?: string
     telephone?: string
   }
-  troncon: Troncon
-  observations: ObservationItem[]
-  preconisations: { titre: string; detail: string; urgence?: string }[]
-  resume: string                   // synthèse globale
-  conclusionEtat: 'bon' | 'a-surveiller' | 'desordre' | 'critique'
+  troncons: TronconBloc[]
+  /** Conclusion agrégée (pire état des tronçons) — affichée en en-tête PDF. */
+  conclusionEtat: ConclusionEtat
+}
+
+const ETAT_SEVERITY: Record<ConclusionEtat, number> = {
+  bon: 0,
+  'a-surveiller': 1,
+  desordre: 2,
+  critique: 3,
+}
+
+export function worstConclusion(etats: ConclusionEtat[]): ConclusionEtat {
+  let worst: ConclusionEtat = 'bon'
+  for (const e of etats) {
+    if (ETAT_SEVERITY[e] > ETAT_SEVERITY[worst]) worst = e
+  }
+  return worst
 }
 
 export interface InspectionPDFProps {
   data: InspectionData
 }
 
-const ETAT_LABEL: Record<InspectionData['conclusionEtat'], { label: string; bg: string; fg: string }> = {
+const ETAT_LABEL: Record<ConclusionEtat, { label: string; bg: string; fg: string }> = {
   bon:           { label: 'État satisfaisant',          bg: C.greenSoft,  fg: C.greenDark },
   'a-surveiller':{ label: 'À surveiller',                bg: C.yellowSoft, fg: C.yellowDark },
   desordre:      { label: 'Désordres significatifs',     bg: C.redSoft,    fg: C.red },
@@ -290,8 +317,12 @@ function TroncRow({ label, value, alt }: { label: string; value: string; alt?: b
 
 /* ============ DOCUMENT ============ */
 export function InspectionDocument({ data }: InspectionPDFProps) {
-  const etat = ETAT_LABEL[data.conclusionEtat]
-  const t = data.troncon || {}
+  const troncons = data.troncons?.length
+    ? data.troncons
+    : []
+  const conclusionGlobale = data.conclusionEtat
+    || worstConclusion(troncons.map(t => t.conclusionEtat))
+  const etat = ETAT_LABEL[conclusionGlobale]
 
   // Bouton couleur code défaut
   const codeStyle = (gravite: number): Style => {
@@ -334,9 +365,11 @@ export function InspectionDocument({ data }: InspectionPDFProps) {
             </View>
           </View>
 
-          {/* État */}
+          {/* État global */}
           <View style={[s.etatBox, { backgroundColor: etat.bg }]} wrap={false}>
-            <Text style={s.etatLbl}>Conclusion</Text>
+            <Text style={s.etatLbl}>
+              {troncons.length > 1 ? 'Conclusion globale' : 'Conclusion'}
+            </Text>
             <Text style={[s.etatVal, { color: etat.fg }]}>{etat.label}</Text>
           </View>
 
@@ -362,96 +395,121 @@ export function InspectionDocument({ data }: InspectionPDFProps) {
             </View>
           </View>
 
-          {/* Tronçon */}
-          <Text style={s.sectionTitle}>Caractéristiques du tronçon inspecté</Text>
-          <View style={s.troncTable} wrap={false}>
-            <TroncRow label="Type de réseau"  value={t.reseau || ''}                       alt />
-            <TroncRow label="Matériau"        value={t.materiau || ''} />
-            <TroncRow label="Diamètre (DN)"   value={t.diametre || ''}                     alt />
-            <TroncRow label="Linéaire inspecté" value={t.longueurM ? `${t.longueurM} m` : ''} />
-            <TroncRow label="Regard amont"    value={t.regardAmont || ''}                  alt />
-            <TroncRow label="Regard aval"     value={t.regardAval || ''} />
-            <TroncRow label="Sens d'inspection" value={t.sensInspection || ''}              alt />
-            <TroncRow label="Matériel utilisé"  value={t.materielUtilise || ''} />
-            <TroncRow label="Conditions"       value={t.conditionsMeteo || ''}             alt />
-          </View>
+          {troncons.map((bloc, ti) => {
+            const t = bloc.caracteristiques || {}
+            const titre = bloc.nom?.trim()
+              || (troncons.length > 1 ? `Tronçon ${ti + 1}` : 'Tronçon inspecté')
+            const etatTronc = ETAT_LABEL[bloc.conclusionEtat]
 
-          {/* Observations */}
-          {data.observations.length > 0 && (
-            <>
-              <Text style={s.sectionTitle}>Observations relevées</Text>
-              {data.observations.map((o, i) => {
-                const def = findDefaut(o.code || '')
-                const grav = def ? def.gravite : 1
-                return (
-                  <View key={i} style={s.obsItem} wrap={false}>
-                    <View style={s.obsHeader}>
-                      <View style={s.obsHeaderLeft}>
-                        <Text style={s.obsNum}>{`OBS ${String(i + 1).padStart(2, '0')}`}</Text>
-                        <Text style={s.obsPos}>{o.position || `Point ${i + 1}`}</Text>
-                      </View>
-                      {def ? (
-                        <Text style={[s.obsCode, codeStyle(grav)]}>
-                          {def.code} · {def.libelle}
-                        </Text>
-                      ) : null}
-                    </View>
-                    <View style={s.obsBody}>
-                      {def ? (
-                        <View style={s.obsCodeBlock}>
-                          <View style={s.obsCodeLine}>
-                            <Text style={s.obsCodeKey}>Catégorie</Text>
-                            <Text style={s.obsCodeVal}>{def.categorie}</Text>
-                          </View>
-                          <View style={s.obsCodeLine}>
-                            <Text style={s.obsCodeKey}>Gravité</Text>
-                            <Text style={[s.obsCodeVal, { color: GRAVITE_LABELS[grav].color }]}>
-                              {GRAVITE_LABELS[grav].label}
-                            </Text>
-                          </View>
-                          <View style={s.obsCodeLine}>
-                            <Text style={s.obsCodeKey}>Définition</Text>
-                            <Text style={[s.obsCodeVal, { fontFamily: 'Helvetica' }]}>{def.description}</Text>
-                          </View>
-                        </View>
-                      ) : null}
-                      {o.description ? <Text style={s.obsDesc}>{o.description}</Text> : null}
-                      {o.photoUrl ? (
-                        <View style={s.obsPhotoWrap}>
-                          <Image src={o.photoUrl} style={s.obsPhotoImg} />
-                          <Text style={s.obsPhotoCap}>
-                            {o.photoLegende || `Photo ${i + 1}${o.position ? ` — ${o.position}` : ''}`}
-                          </Text>
-                        </View>
-                      ) : null}
-                    </View>
+            return (
+              <View key={ti} style={{ marginBottom: 10 }}>
+                <Text style={s.sectionTitle}>
+                  {troncons.length > 1
+                    ? `${ti + 1}. ${titre}`
+                    : `Caractéristiques du ${titre.toLowerCase()}`}
+                </Text>
+
+                {troncons.length > 1 && (
+                  <View style={[s.etatBox, { backgroundColor: etatTronc.bg, marginBottom: 10 }]} wrap={false}>
+                    <Text style={s.etatLbl}>Conclusion tronçon</Text>
+                    <Text style={[s.etatVal, { color: etatTronc.fg }]}>{etatTronc.label}</Text>
                   </View>
-                )
-              })}
-            </>
-          )}
+                )}
 
-          {/* Préconisations */}
-          {data.preconisations.length > 0 && (
-            <View style={s.precoBox} wrap={false}>
-              <Text style={s.precoTitle}>Préconisations</Text>
-              {data.preconisations.map((p, i) => (
-                <View key={i} style={s.precoItem}>
-                  <Text style={s.precoItemTitle}>• {p.titre}</Text>
-                  <Text style={s.precoItemDetail}>{p.detail}</Text>
-                  {p.urgence ? <Text style={s.precoItemUrgence}>Urgence : {p.urgence}</Text> : null}
+                <View style={s.troncTable} wrap={false}>
+                  <TroncRow label="Type de réseau"  value={t.reseau || ''}                       alt />
+                  <TroncRow label="Matériau"        value={t.materiau || ''} />
+                  <TroncRow label="Diamètre (DN)"   value={t.diametre || ''}                     alt />
+                  <TroncRow label="Linéaire inspecté" value={t.longueurM ? `${t.longueurM} m` : ''} />
+                  <TroncRow label="Regard amont"    value={t.regardAmont || ''}                  alt />
+                  <TroncRow label="Regard aval"     value={t.regardAval || ''} />
+                  <TroncRow label="Sens d'inspection" value={t.sensInspection || ''}              alt />
+                  <TroncRow label="Matériel utilisé"  value={t.materielUtilise || ''} />
+                  <TroncRow label="Conditions"       value={t.conditionsMeteo || ''}             alt />
                 </View>
-              ))}
-            </View>
-          )}
 
-          {/* Résumé */}
-          {data.resume ? (
-            <View style={s.resumeBox} wrap={false}>
-              <Text style={s.resumeTitle}>Synthèse du technicien</Text>
-              <Text style={s.resumeText}>{data.resume}</Text>
-            </View>
-          ) : null}
+                {bloc.observations.length > 0 && (
+                  <>
+                    <Text style={[s.sectionTitle, { fontSize: 10 }]}>
+                      Observations{troncons.length > 1 ? ` — ${titre}` : ''}
+                    </Text>
+                    {bloc.observations.map((o, i) => {
+                      const def = findDefaut(o.code || '')
+                      const grav = def ? def.gravite : 1
+                      return (
+                        <View key={i} style={s.obsItem} wrap={false}>
+                          <View style={s.obsHeader}>
+                            <View style={s.obsHeaderLeft}>
+                              <Text style={s.obsNum}>{`OBS ${String(i + 1).padStart(2, '0')}`}</Text>
+                              <Text style={s.obsPos}>{o.position || `Point ${i + 1}`}</Text>
+                            </View>
+                            {def ? (
+                              <Text style={[s.obsCode, codeStyle(grav)]}>
+                                {def.code} · {def.libelle}
+                              </Text>
+                            ) : null}
+                          </View>
+                          <View style={s.obsBody}>
+                            {def ? (
+                              <View style={s.obsCodeBlock}>
+                                <View style={s.obsCodeLine}>
+                                  <Text style={s.obsCodeKey}>Catégorie</Text>
+                                  <Text style={s.obsCodeVal}>{def.categorie}</Text>
+                                </View>
+                                <View style={s.obsCodeLine}>
+                                  <Text style={s.obsCodeKey}>Gravité</Text>
+                                  <Text style={[s.obsCodeVal, { color: GRAVITE_LABELS[grav].color }]}>
+                                    {GRAVITE_LABELS[grav].label}
+                                  </Text>
+                                </View>
+                                <View style={s.obsCodeLine}>
+                                  <Text style={s.obsCodeKey}>Définition</Text>
+                                  <Text style={[s.obsCodeVal, { fontFamily: 'Helvetica' }]}>{def.description}</Text>
+                                </View>
+                              </View>
+                            ) : null}
+                            {o.description ? <Text style={s.obsDesc}>{o.description}</Text> : null}
+                            {o.photoUrl ? (
+                              <View style={s.obsPhotoWrap}>
+                                <Image src={o.photoUrl} style={s.obsPhotoImg} />
+                                <Text style={s.obsPhotoCap}>
+                                  {o.photoLegende || `Photo ${i + 1}${o.position ? ` — ${o.position}` : ''}`}
+                                </Text>
+                              </View>
+                            ) : null}
+                          </View>
+                        </View>
+                      )
+                    })}
+                  </>
+                )}
+
+                {bloc.preconisations.length > 0 && (
+                  <View style={s.precoBox} wrap={false}>
+                    <Text style={s.precoTitle}>
+                      Préconisations{troncons.length > 1 ? ` — ${titre}` : ''}
+                    </Text>
+                    {bloc.preconisations.map((p, i) => (
+                      <View key={i} style={s.precoItem}>
+                        <Text style={s.precoItemTitle}>• {p.titre}</Text>
+                        <Text style={s.precoItemDetail}>{p.detail}</Text>
+                        {p.urgence ? <Text style={s.precoItemUrgence}>Urgence : {p.urgence}</Text> : null}
+                      </View>
+                    ))}
+                  </View>
+                )}
+
+                {bloc.resume ? (
+                  <View style={s.resumeBox} wrap={false}>
+                    <Text style={s.resumeTitle}>
+                      Synthèse{troncons.length > 1 ? ` — ${titre}` : ' du technicien'}
+                    </Text>
+                    <Text style={s.resumeText}>{bloc.resume}</Text>
+                  </View>
+                ) : null}
+              </View>
+            )
+          })}
 
           {/* Glossaire */}
           <View style={s.glossBox} wrap={false}>

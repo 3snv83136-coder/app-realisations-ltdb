@@ -11,13 +11,39 @@ import {
   DEFAUTS, MATERIAUX, DIAMETRES, RESEAUX, MATERIELS_INSPECTION,
   PRECONISATIONS, GRAVITE_LABELS,
 } from "@/lib/camera-defauts"
-import type { InspectionData, ObservationItem, Troncon } from "@/components/InspectionCameraPDF"
+import type {
+  ConclusionEtat,
+  InspectionData,
+  ObservationItem,
+  TronconBloc,
+} from "@/components/InspectionCameraPDF"
 import { errorMessage } from "@/lib/error-message"
 
 const InspectionDownloadButton = dynamic(() => import("@/components/InspectionCameraPDF"), { ssr: false })
 const InspectionPDFViewer = dynamic(() => import("@/components/InspectionCameraPreviewModal"), { ssr: false })
 
 type ObsForm = ObservationItem & { _photoFile?: File; _photoPreview?: string }
+
+type TronconForm = {
+  id: string
+  nom: string
+  reseau: string
+  materiau: string
+  diametre: string
+  longueurM: string
+  regardAmont: string
+  regardAval: string
+  sensInspection: string
+  materielUtilise: string
+  conditionsMeteo: string
+  observations: ObsForm[]
+  precoSelected: string[]
+  precoCustom: { titre: string; detail: string }[]
+  newPrecoTitre: string
+  newPrecoDetail: string
+  resume: string
+  conclusionEtat: ConclusionEtat
+}
 
 type InterventionPick = {
   id: string
@@ -29,6 +55,56 @@ type InterventionPick = {
   adresse_chantier: string | null
   statut: string | null
   client_nom: string | null
+}
+
+const CONCLUSION_OPTS = [
+  { v: 'bon' as const, label: 'État satisfaisant', cls: 'border-emerald-500 bg-emerald-50 text-emerald-900' },
+  { v: 'a-surveiller' as const, label: 'À surveiller', cls: 'border-amber-500 bg-amber-50 text-amber-900' },
+  { v: 'desordre' as const, label: 'Désordres significatifs', cls: 'border-red-500 bg-red-50 text-red-900' },
+  { v: 'critique' as const, label: 'Critique', cls: 'border-red-800 bg-red-100 text-red-900' },
+]
+
+const ETAT_SEVERITY: Record<ConclusionEtat, number> = {
+  bon: 0,
+  'a-surveiller': 1,
+  desordre: 2,
+  critique: 3,
+}
+
+function worstConclusion(etats: ConclusionEtat[]): ConclusionEtat {
+  let worst: ConclusionEtat = 'bon'
+  for (const e of etats) {
+    if (ETAT_SEVERITY[e] > ETAT_SEVERITY[worst]) worst = e
+  }
+  return worst
+}
+
+function newId() {
+  return `t-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`
+}
+
+function emptyTroncon(partial?: Partial<TronconForm>): TronconForm {
+  return {
+    id: newId(),
+    nom: '',
+    reseau: RESEAUX[0],
+    materiau: MATERIAUX[0],
+    diametre: 'DN 100',
+    longueurM: '',
+    regardAmont: '',
+    regardAval: '',
+    sensInspection: 'amont vers aval',
+    materielUtilise: MATERIELS_INSPECTION[1],
+    conditionsMeteo: '',
+    observations: [{ position: '', code: '', description: '' }],
+    precoSelected: [],
+    precoCustom: [],
+    newPrecoTitre: '',
+    newPrecoDetail: '',
+    resume: '',
+    conclusionEtat: 'a-surveiller',
+    ...partial,
+  }
 }
 
 function fileToDataUrl(file: File): Promise<string> {
@@ -119,34 +195,9 @@ function InspectionPageInner() {
   const [clientEmail, setClientEmail] = useState('')
   const [clientTel, setClientTel] = useState('')
 
-  // Tronçon
-  const [reseau, setReseau] = useState<string>(RESEAUX[0])
-  const [materiau, setMateriau] = useState<string>(MATERIAUX[0])
-  const [diametre, setDiametre] = useState<string>('DN 100')
-  const [longueurM, setLongueurM] = useState<string>('')
-  const [regardAmont, setRegardAmont] = useState('')
-  const [regardAval, setRegardAval] = useState('')
-  const [sensInspection, setSensInspection] = useState('amont vers aval')
-  const [materielUtilise, setMaterielUtilise] = useState<string>(MATERIELS_INSPECTION[1])
-  const [conditionsMeteo, setConditionsMeteo] = useState('')
-
-  // Observations
-  const [observations, setObservations] = useState<ObsForm[]>([
-    { position: '', code: '', description: '' },
-  ])
+  // Tronçons (chacun avec obs + préco + synthèse)
+  const [troncons, setTroncons] = useState<TronconForm[]>(() => [emptyTroncon()])
   const [photoError, setPhotoError] = useState('')
-
-  // Préconisations
-  const [precoSelected, setPrecoSelected] = useState<string[]>([])
-  const [precoCustom, setPrecoCustom] = useState<{ titre: string; detail: string }[]>([])
-  const [newPrecoTitre, setNewPrecoTitre] = useState('')
-  const [newPrecoDetail, setNewPrecoDetail] = useState('')
-
-  // Synthèse
-  const [resume, setResume] = useState('')
-  const [conclusionEtat, setConclusionEtat] = useState<InspectionData['conclusionEtat']>('a-surveiller')
-
-  // Aperçu modal
   const [showPreview, setShowPreview] = useState(false)
 
   // Persist tech
@@ -189,7 +240,6 @@ function InspectionPageInner() {
       if (c?.email) setClientEmail(c.email)
       if (c?.telephone) setClientTel(c.telephone)
 
-      // Adresse chantier prioritaire, sinon fiche client
       const adresse = itv?.adresse_chantier || c?.adresse || ''
       const cp = itv?.code_postal || c?.code_postal || ''
       const ville = itv?.ville || c?.ville || ''
@@ -264,66 +314,160 @@ function InspectionPageInner() {
     })
   }, [itvList, itvQuery])
 
-  // Gestion observations
-  function addObservation() {
-    setObservations(prev => [...prev, { position: '', code: '', description: '' }])
+  function updateTroncon(id: string, patch: Partial<TronconForm>) {
+    setTroncons(prev => prev.map(t => t.id === id ? { ...t, ...patch } : t))
   }
-  function updateObs(i: number, patch: Partial<ObsForm>) {
-    setObservations(prev => prev.map((o, idx) => idx === i ? { ...o, ...patch } : o))
+
+  function addTroncon() {
+    setTroncons(prev => [...prev, emptyTroncon({ nom: `Tronçon ${prev.length + 1}` })])
   }
-  function removeObs(i: number) {
-    setObservations(prev => prev.filter((_, idx) => idx !== i))
+
+  function duplicateTroncon(id: string) {
+    setTroncons(prev => {
+      const src = prev.find(t => t.id === id)
+      if (!src) return prev
+      const copy = emptyTroncon({
+        nom: src.nom ? `${src.nom} (copie)` : `Tronçon ${prev.length + 1}`,
+        reseau: src.reseau,
+        materiau: src.materiau,
+        diametre: src.diametre,
+        longueurM: src.longueurM,
+        regardAmont: src.regardAmont,
+        regardAval: src.regardAval,
+        sensInspection: src.sensInspection,
+        materielUtilise: src.materielUtilise,
+        conditionsMeteo: src.conditionsMeteo,
+        // nouvelles obs / préco / synthèse vides — caractéristiques reprises
+      })
+      const idx = prev.findIndex(t => t.id === id)
+      const next = [...prev]
+      next.splice(idx + 1, 0, copy)
+      return next
+    })
   }
-  async function setObsPhoto(i: number, file: File | null) {
+
+  function removeTroncon(id: string) {
+    setTroncons(prev => {
+      if (prev.length <= 1) return prev
+      return prev.filter(t => t.id !== id)
+    })
+  }
+
+  function addObservation(tronconId: string) {
+    setTroncons(prev => prev.map(t =>
+      t.id === tronconId
+        ? { ...t, observations: [...t.observations, { position: '', code: '', description: '' }] }
+        : t,
+    ))
+  }
+
+  function updateObs(tronconId: string, obsIdx: number, patch: Partial<ObsForm>) {
+    setTroncons(prev => prev.map(t => {
+      if (t.id !== tronconId) return t
+      return {
+        ...t,
+        observations: t.observations.map((o, i) => i === obsIdx ? { ...o, ...patch } : o),
+      }
+    }))
+  }
+
+  function removeObs(tronconId: string, obsIdx: number) {
+    setTroncons(prev => prev.map(t => {
+      if (t.id !== tronconId) return t
+      const next = t.observations.filter((_, i) => i !== obsIdx)
+      return {
+        ...t,
+        observations: next.length > 0 ? next : [{ position: '', code: '', description: '' }],
+      }
+    }))
+  }
+
+  async function setObsPhoto(tronconId: string, obsIdx: number, file: File | null) {
     if (!file) return
     setPhotoError('')
     try {
       const compressed = await compressImage(file)
       const dataUrl = await fileToDataUrl(compressed)
       const preview = URL.createObjectURL(compressed)
-      updateObs(i, { _photoFile: compressed, _photoPreview: preview, photoUrl: dataUrl })
+      updateObs(tronconId, obsIdx, { _photoFile: compressed, _photoPreview: preview, photoUrl: dataUrl })
     } catch (e) {
       console.error(e)
-      setPhotoError(`Photo n°${i + 1} : ${errorMessage(e) || 'compression impossible'}. Réessaie ou choisis une autre image.`)
+      setPhotoError(`Photo : ${errorMessage(e) || 'compression impossible'}. Réessaie ou choisis une autre image.`)
     }
   }
-  function clearObsPhoto(i: number) {
-    updateObs(i, { _photoFile: undefined, _photoPreview: undefined, photoUrl: undefined })
+
+  function clearObsPhoto(tronconId: string, obsIdx: number) {
+    updateObs(tronconId, obsIdx, { _photoFile: undefined, _photoPreview: undefined, photoUrl: undefined })
   }
 
-  function togglePreco(id: string) {
-    setPrecoSelected(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
-  }
-  function addCustomPreco() {
-    if (!newPrecoTitre.trim()) return
-    setPrecoCustom(prev => [...prev, { titre: newPrecoTitre.trim(), detail: newPrecoDetail.trim() }])
-    setNewPrecoTitre(''); setNewPrecoDetail('')
-  }
-  function removeCustomPreco(i: number) {
-    setPrecoCustom(prev => prev.filter((_, idx) => idx !== i))
+  function togglePreco(tronconId: string, precoId: string) {
+    setTroncons(prev => prev.map(t => {
+      if (t.id !== tronconId) return t
+      const selected = t.precoSelected.includes(precoId)
+        ? t.precoSelected.filter(x => x !== precoId)
+        : [...t.precoSelected, precoId]
+      return { ...t, precoSelected: selected }
+    }))
   }
 
-  // Données pour PDF
+  function addCustomPreco(tronconId: string) {
+    setTroncons(prev => prev.map(t => {
+      if (t.id !== tronconId || !t.newPrecoTitre.trim()) return t
+      return {
+        ...t,
+        precoCustom: [...t.precoCustom, { titre: t.newPrecoTitre.trim(), detail: t.newPrecoDetail.trim() }],
+        newPrecoTitre: '',
+        newPrecoDetail: '',
+      }
+    }))
+  }
+
+  function removeCustomPreco(tronconId: string, idx: number) {
+    setTroncons(prev => prev.map(t =>
+      t.id === tronconId
+        ? { ...t, precoCustom: t.precoCustom.filter((_, i) => i !== idx) }
+        : t,
+    ))
+  }
+
   const data: InspectionData = useMemo(() => {
-    const troncon: Troncon = {
-      reseau, materiau, diametre,
-      longueurM: longueurM ? Number(longueurM) : undefined,
-      regardAmont, regardAval, sensInspection, materielUtilise, conditionsMeteo,
-    }
-    const fromPresets = precoSelected
-      .map(id => PRECONISATIONS.find(p => p.id === id))
-      .filter((p): p is (typeof PRECONISATIONS)[number] => Boolean(p))
-      .map(p => ({ titre: p.titre, detail: p.detail, urgence: p.urgence }))
-    const allPrecos = [...fromPresets, ...precoCustom.map(p => ({ titre: p.titre, detail: p.detail, urgence: undefined as string | undefined }))]
-    const cleanObs: ObservationItem[] = observations
-      .filter(o => o.position || o.description || o.photoUrl || o.code)
-      .map(o => ({
-        position: o.position,
-        code: o.code || undefined,
-        description: o.description,
-        photoUrl: o.photoUrl,
-        photoLegende: o.photoLegende,
-      }))
+    const blocs: TronconBloc[] = troncons.map((t, i) => {
+      const fromPresets = t.precoSelected
+        .map(id => PRECONISATIONS.find(p => p.id === id))
+        .filter((p): p is (typeof PRECONISATIONS)[number] => Boolean(p))
+        .map(p => ({ titre: p.titre, detail: p.detail, urgence: p.urgence }))
+      const allPrecos = [
+        ...fromPresets,
+        ...t.precoCustom.map(p => ({ titre: p.titre, detail: p.detail, urgence: undefined as string | undefined })),
+      ]
+      const cleanObs: ObservationItem[] = t.observations
+        .filter(o => o.position || o.description || o.photoUrl || o.code)
+        .map(o => ({
+          position: o.position,
+          code: o.code || undefined,
+          description: o.description,
+          photoUrl: o.photoUrl,
+          photoLegende: o.photoLegende,
+        }))
+      return {
+        nom: t.nom.trim() || `Tronçon ${i + 1}`,
+        caracteristiques: {
+          reseau: t.reseau,
+          materiau: t.materiau,
+          diametre: t.diametre,
+          longueurM: t.longueurM ? Number(t.longueurM) : undefined,
+          regardAmont: t.regardAmont,
+          regardAval: t.regardAval,
+          sensInspection: t.sensInspection,
+          materielUtilise: t.materielUtilise,
+          conditionsMeteo: t.conditionsMeteo,
+        },
+        observations: cleanObs,
+        preconisations: allPrecos,
+        resume: t.resume,
+        conclusionEtat: t.conclusionEtat,
+      }
+    })
     return {
       numero,
       dateInspection,
@@ -337,17 +481,13 @@ function InspectionPageInner() {
         email: clientEmail || undefined,
         telephone: clientTel || undefined,
       },
-      troncon,
-      observations: cleanObs,
-      preconisations: allPrecos,
-      resume,
-      conclusionEtat,
+      troncons: blocs,
+      conclusionEtat: worstConclusion(blocs.map(b => b.conclusionEtat)),
     }
   }, [
     numero, dateInspection, technicienNom, session?.user?.name, agence,
     clientNom, clientAdresse, clientCP, clientVille, clientEmail, clientTel,
-    reseau, materiau, diametre, longueurM, regardAmont, regardAval, sensInspection, materielUtilise, conditionsMeteo,
-    observations, precoSelected, precoCustom, resume, conclusionEtat,
+    troncons,
   ])
 
   const canPreview = clientNom.trim().length > 0
@@ -361,12 +501,13 @@ function InspectionPageInner() {
       </header>
 
       <main className="max-w-5xl mx-auto px-4 py-6 space-y-5">
-        {/* Header bandeau */}
         <div className="bg-gradient-to-br from-[#0e2a52] to-[#1a3a6b] text-white rounded-2xl shadow-sm p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div>
             <div className="text-[11px] uppercase tracking-[0.25em] text-orange-300/90 font-bold">Inspection télévisée · ITV · NF EN 13508-2</div>
             <h1 className="text-2xl sm:text-3xl font-black mt-1">Rapport d&apos;inspection caméra</h1>
-            <p className="text-sm text-white/70 mt-1">N° {numero} · {dateInspection}</p>
+            <p className="text-sm text-white/70 mt-1">
+              N° {numero} · {dateInspection} · {troncons.length} tronçon{troncons.length > 1 ? 's' : ''}
+            </p>
           </div>
           <div className="flex flex-wrap gap-2">
             <button
@@ -417,7 +558,6 @@ function InspectionPageInner() {
           </div>
         )}
 
-        {/* Identité */}
         <Section title="1. Informations générales" icon="📍">
           <div className="grid sm:grid-cols-2 gap-3">
             <Field label="N° rapport"><input value={numero} onChange={e => setNumero(e.target.value)} className={inputCls} /></Field>
@@ -427,7 +567,6 @@ function InspectionPageInner() {
           </div>
         </Section>
 
-        {/* Client */}
         <Section title="2. Client" icon="👤">
           <div className="flex flex-wrap gap-2 mb-3">
             <button
@@ -513,228 +652,301 @@ function InspectionPageInner() {
           </div>
         </Section>
 
-        {/* Tronçon */}
-        <Section title="3. Caractéristiques du tronçon" icon="🛠">
-          <div className="grid sm:grid-cols-2 gap-3">
-            <Field label="Type de réseau">
-              <select value={reseau} onChange={e => setReseau(e.target.value)} className={inputCls}>
-                {RESEAUX.map(r => <option key={r}>{r}</option>)}
-              </select>
-            </Field>
-            <Field label="Matériau">
-              <select value={materiau} onChange={e => setMateriau(e.target.value)} className={inputCls}>
-                {MATERIAUX.map(m => <option key={m}>{m}</option>)}
-              </select>
-            </Field>
-            <Field label="Diamètre">
-              <select value={diametre} onChange={e => setDiametre(e.target.value)} className={inputCls}>
-                {DIAMETRES.map(d => <option key={d}>{d}</option>)}
-              </select>
-            </Field>
-            <Field label="Linéaire inspecté (m)">
-              <input type="number" min="0" step="0.1" value={longueurM} onChange={e => setLongueurM(e.target.value)} className={inputCls} placeholder="ex : 12" />
-            </Field>
-            <Field label="Regard amont"><input value={regardAmont} onChange={e => setRegardAmont(e.target.value)} className={inputCls} placeholder="ex : Regard 1 — pied façade" /></Field>
-            <Field label="Regard aval"><input value={regardAval} onChange={e => setRegardAval(e.target.value)} className={inputCls} placeholder="ex : Regard 2 — collecteur rue" /></Field>
-            <Field label="Sens d'inspection">
-              <select value={sensInspection} onChange={e => setSensInspection(e.target.value)} className={inputCls}>
-                <option>amont vers aval</option>
-                <option>aval vers amont</option>
-                <option>bidirectionnel</option>
-              </select>
-            </Field>
-            <Field label="Matériel utilisé">
-              <select value={materielUtilise} onChange={e => setMaterielUtilise(e.target.value)} className={inputCls}>
-                {MATERIELS_INSPECTION.map(m => <option key={m}>{m}</option>)}
-              </select>
-            </Field>
-            <Field label="Conditions" className="sm:col-span-2">
-              <input value={conditionsMeteo} onChange={e => setConditionsMeteo(e.target.value)} className={inputCls} placeholder="ex : sec, accès facilité ; ou : pluie battante, regard partiellement immergé" />
-            </Field>
-          </div>
-        </Section>
-
-        {/* Observations */}
-        <Section title="4. Observations & photos" icon="📷">
-          <p className="text-xs text-slate-500 mb-3">
-            Une observation = un point précis du tronçon. Renseigne la position (mètres ou repère), choisis le code défaut NF EN 13508-2 et joins la photo correspondante.
+        <Section title="3. Tronçons inspectés" icon="🛠">
+          <p className="text-xs text-slate-500 -mt-2">
+            Un rapport peut contenir plusieurs canalisations. Chaque tronçon a ses caractéristiques, observations, préconisations et synthèse.
           </p>
+
           {photoError && (
-            <div className="bg-red-50 border border-red-200 text-red-700 rounded-xl px-3 py-2 text-sm mb-3 flex items-start justify-between gap-3">
+            <div className="bg-red-50 border border-red-200 text-red-700 rounded-xl px-3 py-2 text-sm flex items-start justify-between gap-3">
               <span>⚠ {photoError}</span>
               <button type="button" onClick={() => setPhotoError('')} className="text-red-500 hover:text-red-700 font-bold">×</button>
             </div>
           )}
-          <div className="space-y-4">
-            {observations.map((o, i) => {
-              const def = DEFAUTS.find(d => d.code === o.code)
-              const grav = def ? GRAVITE_LABELS[def.gravite] : null
-              return (
-                <div key={i} className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <span className="bg-[#0e2a52] text-white text-xs font-black px-2 py-1 rounded">OBS {String(i + 1).padStart(2, '0')}</span>
-                      {grav && <span className="text-xs font-bold px-2 py-0.5 rounded text-white" style={{ backgroundColor: grav.color }}>{grav.label}</span>}
-                    </div>
-                    <button type="button" onClick={() => removeObs(i)} className="text-red-500 hover:text-red-700 text-xl leading-none" aria-label="Supprimer cette observation">×</button>
+
+          <div className="space-y-6">
+            {troncons.map((t, ti) => (
+              <div key={t.id} className="border-2 border-slate-200 rounded-2xl overflow-hidden bg-slate-50/50">
+                <div className="bg-[#0e2a52] text-white px-4 py-3 flex flex-wrap items-center justify-between gap-2">
+                  <div className="font-black text-sm sm:text-base">
+                    Tronçon {ti + 1}
+                    {t.nom.trim() ? <span className="font-semibold opacity-80"> — {t.nom.trim()}</span> : null}
                   </div>
-                  <div className="grid sm:grid-cols-2 gap-3">
-                    <Field label="Position / repère">
-                      <input value={o.position} onChange={e => updateObs(i, { position: e.target.value })} className={inputCls} placeholder="ex : 4,80 m depuis regard 1" />
-                    </Field>
-                    <Field label="Code défaut (NF EN 13508-2)">
-                      <select value={o.code || ''} onChange={e => updateObs(i, { code: e.target.value })} className={inputCls}>
-                        <option value="">— Choisir un code —</option>
-                        <optgroup label="Défauts structurels (BA*)">
-                          {DEFAUTS.filter(d => d.categorie === 'structurel' || d.categorie === 'raccordement').map(d => (
-                            <option key={d.code} value={d.code}>{d.code} — {d.libelle}</option>
-                          ))}
-                        </optgroup>
-                        <optgroup label="Défauts fonctionnels (BB*)">
-                          {DEFAUTS.filter(d => d.categorie === 'fonctionnel').map(d => (
-                            <option key={d.code} value={d.code}>{d.code} — {d.libelle}</option>
-                          ))}
-                        </optgroup>
-                        <option value="RAS">RAS — Rien à signaler</option>
-                      </select>
-                    </Field>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => duplicateTroncon(t.id)}
+                      className="bg-white/15 hover:bg-white/25 text-xs font-bold px-3 py-1.5 rounded-lg"
+                    >
+                      Dupliquer
+                    </button>
+                    {troncons.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => removeTroncon(t.id)}
+                        className="bg-red-500/80 hover:bg-red-500 text-xs font-bold px-3 py-1.5 rounded-lg"
+                      >
+                        Supprimer
+                      </button>
+                    )}
                   </div>
-                  {def && (
-                    <p className="text-xs text-slate-600 italic bg-white border border-slate-200 rounded p-2">
-                      <strong className="text-[#0e2a52]">{def.code}</strong> — {def.description}
-                    </p>
-                  )}
-                  <Field label="Description / commentaire technicien">
-                    <textarea
-                      value={o.description}
-                      onChange={e => updateObs(i, { description: e.target.value })}
-                      rows={2}
-                      className={inputCls + ' resize-y'}
-                      placeholder="Détails observés sur place : étendue, conséquences, contexte…"
-                    />
-                  </Field>
-                  <div className="grid sm:grid-cols-[180px_1fr] gap-3 items-start">
-                    <div>
-                      {o._photoPreview || o.photoUrl ? (
-                        <div className="relative">
-                          <img src={o._photoPreview || o.photoUrl} alt="" className="w-full h-32 object-cover rounded-lg border border-slate-200" />
-                          <button type="button" onClick={() => clearObsPhoto(i)} className="absolute top-1 right-1 bg-white/90 text-slate-700 rounded-full w-7 h-7 text-sm font-bold shadow">×</button>
-                        </div>
-                      ) : (
-                        <label className="flex flex-col items-center justify-center w-full h-32 bg-white border-2 border-dashed border-slate-300 rounded-lg cursor-pointer hover:bg-slate-50 text-slate-500 text-sm font-semibold">
-                          <span className="text-2xl mb-1">📷</span>
-                          Ajouter une photo
-                          <input
-                            type="file" accept="image/*" capture="environment" className="hidden"
-                            onChange={e => setObsPhoto(i, e.target.files?.[0] || null)}
-                          />
-                        </label>
-                      )}
+                </div>
+
+                <div className="p-4 sm:p-5 space-y-6">
+                  {/* Caractéristiques */}
+                  <div className="space-y-3">
+                    <h3 className="text-sm font-black text-[#0e2a52] uppercase tracking-wider">Caractéristiques</h3>
+                    <div className="grid sm:grid-cols-2 gap-3">
+                      <Field label="Nom / repère (optionnel)">
+                        <input
+                          value={t.nom}
+                          onChange={e => updateTroncon(t.id, { nom: e.target.value })}
+                          className={inputCls}
+                          placeholder={`ex : Canalisation cuisine, Tronçon ${ti + 1}`}
+                        />
+                      </Field>
+                      <Field label="Type de réseau">
+                        <select value={t.reseau} onChange={e => updateTroncon(t.id, { reseau: e.target.value })} className={inputCls}>
+                          {RESEAUX.map(r => <option key={r}>{r}</option>)}
+                        </select>
+                      </Field>
+                      <Field label="Matériau">
+                        <select value={t.materiau} onChange={e => updateTroncon(t.id, { materiau: e.target.value })} className={inputCls}>
+                          {MATERIAUX.map(m => <option key={m}>{m}</option>)}
+                        </select>
+                      </Field>
+                      <Field label="Diamètre">
+                        <select value={t.diametre} onChange={e => updateTroncon(t.id, { diametre: e.target.value })} className={inputCls}>
+                          {DIAMETRES.map(d => <option key={d}>{d}</option>)}
+                        </select>
+                      </Field>
+                      <Field label="Linéaire inspecté (m)">
+                        <input type="number" min="0" step="0.1" value={t.longueurM} onChange={e => updateTroncon(t.id, { longueurM: e.target.value })} className={inputCls} placeholder="ex : 12" />
+                      </Field>
+                      <Field label="Regard amont">
+                        <input value={t.regardAmont} onChange={e => updateTroncon(t.id, { regardAmont: e.target.value })} className={inputCls} placeholder="ex : Regard 1 — pied façade" />
+                      </Field>
+                      <Field label="Regard aval">
+                        <input value={t.regardAval} onChange={e => updateTroncon(t.id, { regardAval: e.target.value })} className={inputCls} placeholder="ex : Regard 2 — collecteur rue" />
+                      </Field>
+                      <Field label="Sens d'inspection">
+                        <select value={t.sensInspection} onChange={e => updateTroncon(t.id, { sensInspection: e.target.value })} className={inputCls}>
+                          <option>amont vers aval</option>
+                          <option>aval vers amont</option>
+                          <option>bidirectionnel</option>
+                        </select>
+                      </Field>
+                      <Field label="Matériel utilisé">
+                        <select value={t.materielUtilise} onChange={e => updateTroncon(t.id, { materielUtilise: e.target.value })} className={inputCls}>
+                          {MATERIELS_INSPECTION.map(m => <option key={m}>{m}</option>)}
+                        </select>
+                      </Field>
+                      <Field label="Conditions" className="sm:col-span-2">
+                        <input value={t.conditionsMeteo} onChange={e => updateTroncon(t.id, { conditionsMeteo: e.target.value })} className={inputCls} placeholder="ex : sec, accès facilité" />
+                      </Field>
                     </div>
-                    <Field label="Légende photo">
+                  </div>
+
+                  {/* Observations */}
+                  <div className="space-y-3">
+                    <h3 className="text-sm font-black text-[#0e2a52] uppercase tracking-wider">Observations & photos</h3>
+                    <div className="space-y-4">
+                      {t.observations.map((o, oi) => {
+                        const def = DEFAUTS.find(d => d.code === o.code)
+                        const grav = def ? GRAVITE_LABELS[def.gravite] : null
+                        return (
+                          <div key={oi} className="bg-white border border-slate-200 rounded-xl p-4 space-y-3">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2">
+                                <span className="bg-[#0e2a52] text-white text-xs font-black px-2 py-1 rounded">OBS {String(oi + 1).padStart(2, '0')}</span>
+                                {grav && <span className="text-xs font-bold px-2 py-0.5 rounded text-white" style={{ backgroundColor: grav.color }}>{grav.label}</span>}
+                              </div>
+                              <button type="button" onClick={() => removeObs(t.id, oi)} className="text-red-500 hover:text-red-700 text-xl leading-none" aria-label="Supprimer cette observation">×</button>
+                            </div>
+                            <div className="grid sm:grid-cols-2 gap-3">
+                              <Field label="Position / repère">
+                                <input value={o.position} onChange={e => updateObs(t.id, oi, { position: e.target.value })} className={inputCls} placeholder="ex : 4,80 m depuis regard 1" />
+                              </Field>
+                              <Field label="Code défaut (NF EN 13508-2)">
+                                <select value={o.code || ''} onChange={e => updateObs(t.id, oi, { code: e.target.value })} className={inputCls}>
+                                  <option value="">— Choisir un code —</option>
+                                  <optgroup label="Défauts structurels (BA*)">
+                                    {DEFAUTS.filter(d => d.categorie === 'structurel' || d.categorie === 'raccordement').map(d => (
+                                      <option key={d.code} value={d.code}>{d.code} — {d.libelle}</option>
+                                    ))}
+                                  </optgroup>
+                                  <optgroup label="Défauts fonctionnels (BB*)">
+                                    {DEFAUTS.filter(d => d.categorie === 'fonctionnel').map(d => (
+                                      <option key={d.code} value={d.code}>{d.code} — {d.libelle}</option>
+                                    ))}
+                                  </optgroup>
+                                  <option value="RAS">RAS — Rien à signaler</option>
+                                </select>
+                              </Field>
+                            </div>
+                            {def && (
+                              <p className="text-xs text-slate-600 italic bg-slate-50 border border-slate-200 rounded p-2">
+                                <strong className="text-[#0e2a52]">{def.code}</strong> — {def.description}
+                              </p>
+                            )}
+                            <Field label="Description / commentaire technicien">
+                              <textarea
+                                value={o.description}
+                                onChange={e => updateObs(t.id, oi, { description: e.target.value })}
+                                rows={2}
+                                className={inputCls + ' resize-y'}
+                                placeholder="Détails observés sur place…"
+                              />
+                            </Field>
+                            <div className="grid sm:grid-cols-[180px_1fr] gap-3 items-start">
+                              <div>
+                                {o._photoPreview || o.photoUrl ? (
+                                  <div className="relative">
+                                    <img src={o._photoPreview || o.photoUrl} alt="" className="w-full h-32 object-cover rounded-lg border border-slate-200" />
+                                    <button type="button" onClick={() => clearObsPhoto(t.id, oi)} className="absolute top-1 right-1 bg-white/90 text-slate-700 rounded-full w-7 h-7 text-sm font-bold shadow">×</button>
+                                  </div>
+                                ) : (
+                                  <label className="flex flex-col items-center justify-center w-full h-32 bg-slate-50 border-2 border-dashed border-slate-300 rounded-lg cursor-pointer hover:bg-white text-slate-500 text-sm font-semibold">
+                                    <span className="text-2xl mb-1">📷</span>
+                                    Ajouter une photo
+                                    <input
+                                      type="file" accept="image/*" capture="environment" className="hidden"
+                                      onChange={e => setObsPhoto(t.id, oi, e.target.files?.[0] || null)}
+                                    />
+                                  </label>
+                                )}
+                              </div>
+                              <Field label="Légende photo">
+                                <input
+                                  value={o.photoLegende || ''}
+                                  onChange={e => updateObs(t.id, oi, { photoLegende: e.target.value })}
+                                  className={inputCls}
+                                  placeholder="ex : racines en chevelu obstruant 60% de la section"
+                                />
+                              </Field>
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => addObservation(t.id)}
+                      className="w-full bg-white border-2 border-[#0e2a52] text-[#0e2a52] hover:bg-[#0e2a52] hover:text-white font-bold py-2.5 rounded-xl transition-all"
+                    >
+                      + Ajouter une observation
+                    </button>
+                  </div>
+
+                  {/* Préconisations */}
+                  <div className="space-y-3">
+                    <h3 className="text-sm font-black text-[#0e2a52] uppercase tracking-wider">Préconisations (ce tronçon)</h3>
+                    <div className="grid sm:grid-cols-2 gap-2">
+                      {PRECONISATIONS.map(p => {
+                        const active = t.precoSelected.includes(p.id)
+                        return (
+                          <button
+                            key={p.id}
+                            type="button"
+                            onClick={() => togglePreco(t.id, p.id)}
+                            className={`text-left p-3 rounded-xl border-2 transition-all ${
+                              active
+                                ? 'border-emerald-500 bg-emerald-50'
+                                : 'border-slate-200 bg-white hover:border-slate-300'
+                            }`}
+                          >
+                            <div className="flex justify-between items-start gap-2">
+                              <span className="font-bold text-sm text-[#0e2a52]">{p.titre}</span>
+                              {active && <span className="text-emerald-600 text-lg leading-none">✓</span>}
+                            </div>
+                            <p className="text-xs text-slate-600 mt-1 leading-relaxed">{p.detail}</p>
+                            <div className="text-[10px] uppercase tracking-wider text-slate-400 mt-1.5">Urgence : {p.urgence}</div>
+                          </button>
+                        )
+                      })}
+                    </div>
+
+                    {t.precoCustom.length > 0 && (
+                      <div className="space-y-2">
+                        {t.precoCustom.map((p, i) => (
+                          <div key={i} className="flex justify-between items-start gap-3 bg-emerald-50 border border-emerald-200 rounded-xl p-3">
+                            <div>
+                              <div className="font-bold text-sm text-[#0e2a52]">{p.titre}</div>
+                              {p.detail && <div className="text-xs text-slate-600 mt-1">{p.detail}</div>}
+                            </div>
+                            <button type="button" onClick={() => removeCustomPreco(t.id, i)} className="text-red-500 hover:text-red-700 text-xl leading-none" aria-label="Supprimer">×</button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    <div className="bg-white border border-slate-200 rounded-xl p-3 space-y-2">
+                      <div className="text-xs font-bold text-slate-600 uppercase tracking-wider">Préconisation libre</div>
                       <input
-                        value={o.photoLegende || ''}
-                        onChange={e => updateObs(i, { photoLegende: e.target.value })}
+                        value={t.newPrecoTitre}
+                        onChange={e => updateTroncon(t.id, { newPrecoTitre: e.target.value })}
+                        placeholder="Titre"
                         className={inputCls}
-                        placeholder="ex : racines en chevelu obstruant 60% de la section"
+                      />
+                      <textarea
+                        value={t.newPrecoDetail}
+                        onChange={e => updateTroncon(t.id, { newPrecoDetail: e.target.value })}
+                        placeholder="Détail (optionnel)"
+                        rows={2}
+                        className={inputCls + ' resize-y'}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => addCustomPreco(t.id)}
+                        disabled={!t.newPrecoTitre.trim()}
+                        className="bg-[#0e2a52] hover:bg-[#1a3a6b] disabled:opacity-50 text-white text-sm font-bold py-2 px-4 rounded-lg"
+                      >
+                        + Ajouter
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Synthèse */}
+                  <div className="space-y-3">
+                    <h3 className="text-sm font-black text-[#0e2a52] uppercase tracking-wider">Synthèse & conclusion (ce tronçon)</h3>
+                    <Field label="Conclusion">
+                      <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-2">
+                        {CONCLUSION_OPTS.map(opt => (
+                          <button
+                            key={opt.v}
+                            type="button"
+                            onClick={() => updateTroncon(t.id, { conclusionEtat: opt.v })}
+                            className={`p-3 rounded-xl border-2 text-sm font-bold transition-all ${
+                              t.conclusionEtat === opt.v ? opt.cls : 'border-slate-200 bg-white text-slate-500 hover:border-slate-300'
+                            }`}
+                          >
+                            {opt.label}
+                          </button>
+                        ))}
+                      </div>
+                    </Field>
+                    <Field label="Résumé technique">
+                      <textarea
+                        value={t.resume}
+                        onChange={e => updateTroncon(t.id, { resume: e.target.value })}
+                        rows={4}
+                        className={inputCls + ' resize-y'}
+                        placeholder="Synthèse de ce tronçon : état, défauts marquants, urgences…"
                       />
                     </Field>
                   </div>
                 </div>
-              )
-            })}
+              </div>
+            ))}
           </div>
+
           <button
-            type="button" onClick={addObservation}
-            className="mt-4 w-full bg-[#0e2a52] hover:bg-[#1a3a6b] text-white font-bold py-2.5 rounded-xl transition-all"
+            type="button"
+            onClick={addTroncon}
+            className="w-full bg-[#0e2a52] hover:bg-[#1a3a6b] text-white font-bold py-3 rounded-xl transition-all"
           >
-            + Ajouter une observation
+            + Ajouter un tronçon / une canalisation
           </button>
-        </Section>
-
-        {/* Préconisations */}
-        <Section title="5. Préconisations" icon="🛡">
-          <p className="text-xs text-slate-500 mb-3">
-            Sélectionne les actions recommandées. Tu peux ajouter une préconisation libre en bas.
-          </p>
-          <div className="grid sm:grid-cols-2 gap-2">
-            {PRECONISATIONS.map(p => {
-              const active = precoSelected.includes(p.id)
-              return (
-                <button
-                  key={p.id} type="button" onClick={() => togglePreco(p.id)}
-                  className={`text-left p-3 rounded-xl border-2 transition-all ${
-                    active
-                      ? 'border-emerald-500 bg-emerald-50'
-                      : 'border-slate-200 bg-white hover:border-slate-300'
-                  }`}
-                >
-                  <div className="flex justify-between items-start gap-2">
-                    <span className="font-bold text-sm text-[#0e2a52]">{p.titre}</span>
-                    {active && <span className="text-emerald-600 text-lg leading-none">✓</span>}
-                  </div>
-                  <p className="text-xs text-slate-600 mt-1 leading-relaxed">{p.detail}</p>
-                  <div className="text-[10px] uppercase tracking-wider text-slate-400 mt-1.5">Urgence : {p.urgence}</div>
-                </button>
-              )
-            })}
-          </div>
-
-          {precoCustom.length > 0 && (
-            <div className="mt-4 space-y-2">
-              {precoCustom.map((p, i) => (
-                <div key={i} className="flex justify-between items-start gap-3 bg-emerald-50 border border-emerald-200 rounded-xl p-3">
-                  <div>
-                    <div className="font-bold text-sm text-[#0e2a52]">{p.titre}</div>
-                    {p.detail && <div className="text-xs text-slate-600 mt-1">{p.detail}</div>}
-                  </div>
-                  <button type="button" onClick={() => removeCustomPreco(i)} className="text-red-500 hover:text-red-700 text-xl leading-none" aria-label="Supprimer cette préconisation">×</button>
-                </div>
-              ))}
-            </div>
-          )}
-
-          <div className="mt-4 bg-slate-50 border border-slate-200 rounded-xl p-3 space-y-2">
-            <div className="text-xs font-bold text-slate-600 uppercase tracking-wider">Ajouter une préconisation libre</div>
-            <input value={newPrecoTitre} onChange={e => setNewPrecoTitre(e.target.value)} placeholder="Titre" className={inputCls} />
-            <textarea value={newPrecoDetail} onChange={e => setNewPrecoDetail(e.target.value)} placeholder="Détail (optionnel)" rows={2} className={inputCls + ' resize-y'} />
-            <button
-              type="button" onClick={addCustomPreco} disabled={!newPrecoTitre.trim()}
-              className="bg-[#0e2a52] hover:bg-[#1a3a6b] disabled:opacity-50 text-white text-sm font-bold py-2 px-4 rounded-lg"
-            >
-              + Ajouter
-            </button>
-          </div>
-        </Section>
-
-        {/* Synthèse */}
-        <Section title="6. Synthèse & conclusion" icon="📝">
-          <Field label="Conclusion globale">
-            <div className="grid sm:grid-cols-4 gap-2">
-              {([
-                { v: 'bon',           label: 'État satisfaisant',     cls: 'border-emerald-500 bg-emerald-50 text-emerald-900' },
-                { v: 'a-surveiller',  label: 'À surveiller',           cls: 'border-amber-500 bg-amber-50 text-amber-900' },
-                { v: 'desordre',      label: 'Désordres significatifs',cls: 'border-red-500 bg-red-50 text-red-900' },
-                { v: 'critique',      label: 'Critique',               cls: 'border-red-800 bg-red-100 text-red-900' },
-              ] as const).map(opt => (
-                <button
-                  key={opt.v} type="button" onClick={() => setConclusionEtat(opt.v)}
-                  className={`p-3 rounded-xl border-2 text-sm font-bold transition-all ${
-                    conclusionEtat === opt.v ? opt.cls : 'border-slate-200 bg-white text-slate-500 hover:border-slate-300'
-                  }`}
-                >
-                  {opt.label}
-                </button>
-              ))}
-            </div>
-          </Field>
-          <Field label="Résumé technique">
-            <textarea
-              value={resume} onChange={e => setResume(e.target.value)}
-              rows={6} className={inputCls + ' resize-y'}
-              placeholder="Synthèse libre du technicien : état général du tronçon, défauts marquants, urgences, contexte d'usage…"
-            />
-          </Field>
         </Section>
       </main>
 
