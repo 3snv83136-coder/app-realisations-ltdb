@@ -41,6 +41,11 @@ const RelancesControl = dynamic(
   { ssr: false },
 )
 
+const EnvoyerAvisSmsPanel = dynamic(
+  () => import('@/components/EnvoyerAvisSmsPanel'),
+  { ssr: false },
+)
+
 type Statut = 'planifiee' | 'en_cours' | 'terminee' | 'annulee'
 
 type InterventionDetail = {
@@ -684,6 +689,14 @@ export default function InterventionDetailPage({ params }: { params: { id: strin
             })
           }}
         />
+
+        {!editing ? (
+          <EnvoyerAvisSmsPanel
+            interventionId={intervention.id}
+            clientNom={client?.nom}
+            clientTelephone={client?.telephone}
+          />
+        ) : null}
 
         {!editing ? (
           <RelancesControl
