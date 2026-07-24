@@ -224,54 +224,40 @@ export default function Home() {
       </header>
 
       <div className="max-w-6xl mx-auto px-3 sm:px-5 py-4 sm:py-6">
+        {/* UN SEUL conteneur parent — tout le hub est imbriqué ici */}
         <section
-          className={`relative overflow-hidden rounded-3xl border border-white/15 bg-gradient-to-br from-[#14082a] via-[#1a1040] to-[#0a1f3d] shadow-2xl ${introClass}`}
+          className={`rounded-3xl overflow-hidden border-2 border-amber-400/70 shadow-[0_0_0_1px_rgba(251,191,36,0.25),0_25px_50px_-12px_rgba(0,0,0,0.55)] ${introClass}`}
         >
-          <span
-            aria-hidden
-            className="pointer-events-none absolute -right-6 top-2 text-[7rem] sm:text-[9rem] leading-none opacity-[0.08]"
-          >
-            👑
-          </span>
-          <span
-            aria-hidden
-            className="pointer-events-none select-none absolute inset-0 flex items-center justify-center overflow-hidden"
-          >
-            <span className="text-[5rem] sm:text-[8rem] md:text-[10rem] font-black tracking-tighter text-white/[0.04] leading-none rotate-[-10deg]">
-              ADMIN
-            </span>
-          </span>
-
-          <div className="relative z-10 p-4 sm:p-6 space-y-4 sm:space-y-5">
-            <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-2 border-b border-white/10 pb-4">
-              <div>
-                <div className="text-[10px] uppercase tracking-[0.28em] text-amber-300/90 font-bold">
-                  Cockpit LTDB
-                </div>
-                <h1 className="mt-1 text-2xl sm:text-4xl font-black tracking-tight text-white">
-                  ADMIN OF THE WORLD
-                </h1>
-                <p className="mt-1 text-sm text-white/65">
-                  Tous les modules · {moduleCount} accès
-                </p>
+          {/* Barre de titre du conteneur */}
+          <div className="bg-gradient-to-r from-amber-500 via-amber-400 to-orange-500 px-4 sm:px-6 py-4 sm:py-5 flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <div className="text-[10px] sm:text-[11px] font-black uppercase tracking-[0.28em] text-black/55">
+                Conteneur unique · CRM LTDB
               </div>
+              <h1 className="text-xl sm:text-3xl font-black tracking-tight text-[#0a1f3d] truncate">
+                ADMIN OF THE WORLD
+              </h1>
+            </div>
+            <div className="shrink-0 rounded-full bg-black/15 px-3 py-1.5 text-xs sm:text-sm font-bold text-[#0a1f3d] tabular-nums">
+              {moduleCount} modules
+            </div>
+          </div>
+
+          {/* Contenu : Planning + SMS + hubs + grille — tous DANS le même cadre */}
+          <div className="bg-[#0d1830] p-3 sm:p-5 space-y-3 sm:space-y-4">
+            <HeroTile t={HERO} />
+            <EnvoyerAvisSmsPanel />
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-3">
+              {HUBS.map(hub => (
+                <HubTile key={hub.id} hub={hub} />
+              ))}
             </div>
 
-            <div className="space-y-2 sm:space-y-3">
-              <HeroTile t={HERO} />
-              <EnvoyerAvisSmsPanel />
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-3">
-                {HUBS.map(hub => (
-                  <HubTile key={hub.id} hub={hub} />
-                ))}
+            <div className="pt-1">
+              <div className="text-[10px] uppercase tracking-[0.18em] text-white/40 font-semibold mb-2 px-0.5">
+                Modules · {visibleTools.length}
               </div>
-            </div>
-
-            <div>
-              <h2 className="text-[10px] uppercase tracking-[0.18em] text-white/45 font-semibold mb-2 px-0.5">
-                Modules
-                <span className="ml-2 text-white/35 tabular-nums">{visibleTools.length}</span>
-              </h2>
               <div
                 className="grid gap-2 sm:gap-2.5"
                 style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 118px), 1fr))' }}
