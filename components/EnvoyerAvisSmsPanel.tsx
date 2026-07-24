@@ -3,25 +3,29 @@
 import { useEffect, useState } from 'react'
 
 type Props = {
-  interventionId: string
+  /** Si fourni → API liée à l’intervention ; sinon → envoi direct (accueil). */
+  interventionId?: string
   clientNom?: string | null
   clientTelephone?: string | null
   onTelephoneChange?: (tel: string) => void
+  /** Affiche le champ nom (utile sans fiche client). */
+  showNom?: boolean
   className?: string
 }
 
 /**
- * Conteneur autonome : SMS « lien avis Google » envoyé via Brevo
- * (API /api/interventions/[id]/send-review-sms).
+ * Conteneur autonome : SMS « lien avis Google » via Brevo.
  */
 export default function EnvoyerAvisSmsPanel({
   interventionId,
-  clientNom,
+  clientNom: clientNomProp,
   clientTelephone,
   onTelephoneChange,
+  showNom = !interventionId,
   className = '',
 }: Props) {
   const [telephone, setTelephone] = useState(clientTelephone || '')
+  const [nom, setNom] = useState(clientNomProp || '')
   const [smsOk, setSmsOk] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
@@ -30,6 +34,10 @@ export default function EnvoyerAvisSmsPanel({
   useEffect(() => {
     setTelephone(clientTelephone || '')
   }, [clientTelephone])
+
+  useEffect(() => {
+    setNom(clientNomProp || '')
+  }, [clientNomProp])
 
   useEffect(() => {
     fetch('/api/sms', { cache: 'no-store' })
@@ -48,12 +56,15 @@ export default function EnvoyerAvisSmsPanel({
     setError('')
     setSmsOk(false)
     try {
-      const res = await fetch(`/api/interventions/${interventionId}/send-review-sms`, {
+      const url = interventionId
+        ? `/api/interventions/${interventionId}/send-review-sms`
+        : '/api/notify-client/review-sms'
+      const res = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           clientPhone: phone,
-          clientNom: clientNom?.trim() || undefined,
+          clientNom: (showNom ? nom : clientNomProp)?.trim() || undefined,
         }),
       })
       const data = await res.json().catch(() => ({}))
@@ -79,6 +90,26 @@ export default function EnvoyerAvisSmsPanel({
           Envoie immédiatement le lien Google avis au client (Brevo) — sans rapport ni facture.
         </p>
       </header>
+
+      {showNom && (
+        <div>
+          <label className="block text-xs uppercase tracking-wider text-amber-900/70 font-bold mb-1">
+            Nom du client <span className="font-normal normal-case">(facultatif)</span>
+          </label>
+          <input
+            type="text"
+            value={nom}
+            onChange={e => {
+              setNom(e.target.value)
+              setError('')
+              setSmsOk(false)
+            }}
+            placeholder="ex. Dupont"
+            className="w-full border-2 border-amber-200 focus:border-amber-500 outline-none rounded-xl px-3 py-3 text-base bg-white"
+            disabled={busy}
+          />
+        </div>
+      )}
 
       <div>
         <label className="block text-xs uppercase tracking-wider text-amber-900/70 font-bold mb-1">

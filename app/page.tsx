@@ -1,8 +1,14 @@
 'use client'
 import { useEffect, useState } from "react"
 import Link from "next/link"
+import dynamic from "next/dynamic"
 import { useSession } from "next-auth/react"
 import LtdbLogoLink from "@/components/LtdbLogoLink"
+
+const EnvoyerAvisSmsPanel = dynamic(
+  () => import("@/components/EnvoyerAvisSmsPanel"),
+  { ssr: false },
+)
 
 type Tool = {
   href: string
@@ -227,6 +233,7 @@ export default function Home() {
           </h2>
           <div className="space-y-2 sm:space-y-3">
             <HeroTile t={HERO} introClass={introClass} />
+            <EnvoyerAvisSmsPanel className={introClass} />
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-3">
               {HUBS.map(hub => (
                 <HubTile key={hub.id} hub={hub} introClass={introClass} />
