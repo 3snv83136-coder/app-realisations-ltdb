@@ -2,7 +2,7 @@ import { getSupabaseOrNull } from "@/lib/supabase"
 
 const FALLBACK_REVIEW_URL =
   process.env.GOOGLE_REVIEW_URL
-  || "https://www.google.com/maps/place/Les+Techniciens+du+Débouchage"
+  || "https://g.page/r/CascWzNKHgyEEAE/review"
 
 /** URL avis Google (paramètre Supabase ou variable d'environnement). */
 export async function getGoogleReviewUrl(): Promise<string> {
@@ -27,11 +27,13 @@ export function buildReviewOnlySmsText(opts: {
   tel: string
 }): string {
   const nom = (opts.clientNom || "").trim()
+  const salut = nom ? `Bonjour ${nom},` : "Bonjour,"
   return [
-    nom ? `Bonjour ${nom},` : "Bonjour,",
-    "merci pour votre confiance suite a notre intervention.",
+    salut,
+    "merci pour votre confiance suite a notre intervention ou notre conseil telephonique.",
     "Si vous etes satisfait, laissez-nous un avis Google :",
     opts.reviewUrl,
     `Les Techniciens du Debouchage · ${opts.tel}`,
   ].join(" ")
 }
+
