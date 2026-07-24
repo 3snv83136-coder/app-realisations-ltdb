@@ -1,6 +1,6 @@
 'use client'
 import React from "react"
-import { Document, Page, Text, View, Image, StyleSheet, PDFDownloadLink } from "@react-pdf/renderer"
+import { Document, Page, Text, View, Image, StyleSheet } from "@react-pdf/renderer"
 import type { Style } from "@react-pdf/types"
 import { GRAVITE_LABELS, GLOSSAIRE, findDefaut } from "@/lib/camera-defauts"
 import { TEL_PRINCIPAL_FALLBACK } from "@/lib/parametres"
@@ -239,7 +239,7 @@ const s = StyleSheet.create({
   obsCodeVal: { color: C.text, fontFamily: 'Helvetica-Bold', fontSize: 9.5 },
   obsDesc: { color: C.text, fontSize: 9.5, marginTop: 4, lineHeight: 1.5 },
   obsPhotoWrap: { marginTop: 8, borderWidth: 1, borderColor: C.border, padding: 4 },
-  obsPhotoImg: { width: '100%', height: 180, objectFit: 'cover' },
+  obsPhotoImg: { width: '100%', maxHeight: 160, objectFit: 'contain' },
   obsPhotoCap: { color: C.muted, fontSize: 8, textAlign: 'center', marginTop: 4 },
 
   /* Préco (vert) */
@@ -453,6 +453,10 @@ export function InspectionDocument({ data }: InspectionPDFProps) {
                     {bloc.observations.map((o, i) => {
                       const def = findDefaut(o.code || '')
                       const grav = def ? def.gravite : 1
+                      const photoSrc = typeof o.photoUrl === 'string' && (o.photoUrl.startsWith('data:') || o.photoUrl.startsWith('http'))
+                        ? o.photoUrl
+                        : null
+                      const descLines = (o.description || '').split(/\n+/).map(l => l.trim()).filter(Boolean)
                       return (
                         <View key={i} style={s.obsItem} wrap={false}>
                           <View style={s.obsHeader}>
@@ -485,10 +489,13 @@ export function InspectionDocument({ data }: InspectionPDFProps) {
                                 </View>
                               </View>
                             ) : null}
-                            {o.description ? <Text style={s.obsDesc}>{o.description}</Text> : null}
-                            {o.photoUrl ? (
+                            {descLines.map((line, li) => (
+                              <Text key={li} style={s.obsDesc}>{line}</Text>
+                            ))}
+                            {photoSrc ? (
                               <View style={s.obsPhotoWrap}>
-                                <Image src={o.photoUrl} style={s.obsPhotoImg} />
+                                {/* eslint-disable-next-line jsx-a11y/alt-text -- react-pdf Image */}
+                                <Image src={photoSrc} style={s.obsPhotoImg} />
                                 <Text style={s.obsPhotoCap}>
                                   {o.photoLegende || `Photo ${i + 1}${o.position ? ` — ${o.position}` : ''}`}
                                 </Text>
@@ -553,19 +560,51 @@ interface DownloadButtonProps extends InspectionPDFProps {
 }
 
 export default function InspectionDownloadButton(props: DownloadButtonProps) {
+  const [loading, setLoading] = React.useState(false)
+  const [error, setError] = React.useState('')
+
   const filename = props.filename
     || `inspection-camera-${(props.data.client.nom || 'client').toLowerCase().replace(/\s+/g, '-')}-${props.data.numero}.pdf`
+
+  async function handleDownload() {
+    if (loading) return
+    setLoading(true)
+    setError('')
+    try {
+      // Génération explicite (évite les PDF vides de PDFDownloadLink avec photos base64 lourdes)
+      const { pdfElementToBlob } = await import('@/lib/pdfToBase64')
+      const element = React.createElement(InspectionDocument, { data: props.data })
+      const blob = await pdfElementToBlob(element)
+      if (!blob || blob.size < 500) {
+        throw new Error('PDF vide — réessaie ou retire une photo trop lourde')
+      }
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = filename
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      setTimeout(() => URL.revokeObjectURL(url), 2000)
+    } catch (e) {
+      console.error('[InspectionDownload]', e)
+      setError(e instanceof Error ? e.message : 'Erreur génération PDF')
+    } finally {
+      setLoading(false)
+    }
+  }
+
   return (
-    <PDFDownloadLink document={<InspectionDocument data={props.data} />} fileName={filename}>
-      {({ loading }) => (
-        <button
-          type="button"
-          disabled={loading}
-          className={props.className || "bg-blue-800 text-white px-4 py-2 rounded-lg hover:bg-blue-900 disabled:opacity-50 font-semibold"}
-        >
-          {loading ? 'Préparation…' : (props.label || '📄 Télécharger le PDF')}
-        </button>
-      )}
-    </PDFDownloadLink>
+    <div className="flex flex-col gap-1">
+      <button
+        type="button"
+        onClick={handleDownload}
+        disabled={loading}
+        className={props.className || "bg-blue-800 text-white px-4 py-2 rounded-lg hover:bg-blue-900 disabled:opacity-50 font-semibold"}
+      >
+        {loading ? 'Préparation PDF…' : (props.label || '📄 Télécharger le PDF')}
+      </button>
+      {error ? <span className="text-[11px] text-red-200 font-medium max-w-[16rem]">{error}</span> : null}
+    </div>
   )
 }
