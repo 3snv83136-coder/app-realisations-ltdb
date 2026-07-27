@@ -3,6 +3,8 @@ import { getSupabaseOrNull } from "@/lib/supabase"
 import { buildFactureFromRapport } from "@/lib/rapportToFacture"
 import { persistFacture } from "@/lib/persist"
 import { allocateNumero } from "@/lib/numero"
+import { requireInterventionAccess, getSessionUser } from "@/lib/intervention-access"
+import { permissionsForSession } from "@/lib/tech-permissions"
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 30
@@ -25,6 +27,15 @@ type Params = { params: { id: string } }
  *           Bump terrain_step à 6 (étape signature accord).
  */
 export async function POST(req: NextRequest, { params }: Params) {
+  const access = await requireInterventionAccess(req, params.id)
+  if (!access.ok) return NextResponse.json({ error: access.error }, { status: access.status })
+
+  const sessionUser = await getSessionUser()
+  const perms = await permissionsForSession(sessionUser)
+  if (!perms.creer_facture) {
+    return NextResponse.json({ error: "Création de facture non autorisée pour ce compte" }, { status: 403 })
+  }
+
   const sb = getSupabaseOrNull()
   if (!sb) {
     return NextResponse.json({ error: 'Supabase non configuré' }, { status: 500 })

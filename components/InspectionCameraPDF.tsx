@@ -1,4 +1,9 @@
 'use client'
+/**
+ * Rapport ITV caméra — modèle dense officiel :
+ * couverture (+ glossaire) puis 1 page par tronçon (texte + photo côte à côte).
+ * Génération via `buildInspectionPdfBlob` pour tous les rapports.
+ */
 import React from "react"
 import { Document, Page, Text, View, Image, StyleSheet } from "@react-pdf/renderer"
 import type { Style } from "@react-pdf/types"
@@ -71,6 +76,8 @@ export type InspectionData = {
     email?: string
     telephone?: string
   }
+  /** Image carte (data URL) pour la page de garde — remplie à la génération PDF. */
+  mapImageUrl?: string
   troncons: TronconBloc[]
   conclusionEtat: ConclusionEtat
 }
@@ -142,6 +149,45 @@ const s = StyleSheet.create({
   titleRedBar: { height: 3, width: 44, backgroundColor: C.red, marginBottom: 6 },
   titleMain: { color: C.navy, fontSize: 14, fontFamily: 'Helvetica-Bold', textTransform: 'uppercase' },
   titleSub:  { color: C.muted, fontSize: 8, marginTop: 3 },
+
+  /* Page de garde */
+  coverWrap: { alignItems: 'center', paddingTop: 18, marginBottom: 14 },
+  coverRedBar: { height: 4, width: 72, backgroundColor: C.red, marginBottom: 14 },
+  coverTitle: {
+    color: C.navy, fontSize: 26, fontFamily: 'Helvetica-Bold',
+    textTransform: 'uppercase', textAlign: 'center', lineHeight: 1.2,
+  },
+  coverSub: { color: C.muted, fontSize: 9, marginTop: 8, textAlign: 'center' },
+  coverClientBox: {
+    width: '100%', borderWidth: 1, borderColor: C.border,
+    backgroundColor: C.blueSoft, paddingVertical: 14, paddingHorizontal: 16,
+    marginBottom: 12, alignItems: 'center',
+  },
+  coverClientLabel: {
+    color: C.muted, fontSize: 7.5, textTransform: 'uppercase',
+    fontFamily: 'Helvetica-Bold', letterSpacing: 1, marginBottom: 6,
+  },
+  coverClientName: {
+    color: C.navy, fontSize: 16, fontFamily: 'Helvetica-Bold',
+    textAlign: 'center', marginBottom: 4,
+  },
+  coverClientAddr: { color: C.text, fontSize: 10, textAlign: 'center', marginBottom: 2 },
+  coverMapBox: {
+    width: '100%', borderWidth: 1, borderColor: C.border,
+    marginBottom: 10, overflow: 'hidden',
+  },
+  coverMapImg: { width: '100%', height: 220 },
+  coverMapCap: {
+    color: C.muted, fontSize: 7, textAlign: 'center',
+    paddingVertical: 4, backgroundColor: C.rowAlt,
+  },
+  coverMapFallback: {
+    width: '100%', height: 100, backgroundColor: C.rowAlt,
+    alignItems: 'center', justifyContent: 'center',
+    borderWidth: 1, borderColor: C.border, marginBottom: 10,
+  },
+  coverMapFallbackTxt: { color: C.muted, fontSize: 9 },
+  coverMetaHint: { color: C.muted, fontSize: 8, marginTop: 4, textAlign: 'center' },
 
   metaTable: {
     flexDirection: 'row', borderWidth: 1, borderColor: C.border,
@@ -323,13 +369,40 @@ function IntroBlock({ data, etat, tronconCount }: {
   etat: { label: string; bg: string; fg: string }
   tronconCount: number
 }) {
+  const adresseLigne = [
+    data.client.adresse,
+    [data.client.codePostal, data.client.ville].filter(Boolean).join(' '),
+  ].filter(Boolean).join(' · ')
+  const mapSrc = typeof data.mapImageUrl === 'string'
+    && (data.mapImageUrl.startsWith('data:') || data.mapImageUrl.startsWith('http'))
+    ? data.mapImageUrl
+    : null
+
   return (
     <>
-      <View style={s.titleBlock}>
-        <View style={s.titleRedBar} />
-        <Text style={s.titleMain}>Rapport d&apos;inspection caméra</Text>
-        <Text style={s.titleSub}>Inspection télévisée (ITV) — codification NF EN 13508-2</Text>
+      {/* Page de garde : titre + client + carte */}
+      <View style={s.coverWrap} wrap={false}>
+        <View style={s.coverRedBar} />
+        <Text style={s.coverTitle}>Rapport d&apos;inspection caméra</Text>
+        <Text style={s.coverSub}>Inspection télévisée (ITV) — codification NF EN 13508-2</Text>
       </View>
+
+      <View style={s.coverClientBox} wrap={false}>
+        <Text style={s.coverClientLabel}>Client</Text>
+        <Text style={s.coverClientName}>{data.client.nom || '—'}</Text>
+        {adresseLigne ? <Text style={s.coverClientAddr}>{adresseLigne}</Text> : null}
+      </View>
+
+      {mapSrc ? (
+        <View style={s.coverMapBox} wrap={false}>
+          <Image src={mapSrc} style={s.coverMapImg} />
+          <Text style={s.coverMapCap}>Localisation du site inspecté</Text>
+        </View>
+      ) : (
+        <View style={s.coverMapFallback} wrap={false}>
+          <Text style={s.coverMapFallbackTxt}>Carte non disponible pour cette adresse</Text>
+        </View>
+      )}
 
       <View style={s.metaTable} wrap={false}>
         <View style={s.metaCell}>
@@ -355,41 +428,11 @@ function IntroBlock({ data, etat, tronconCount }: {
         <Text style={[s.etatVal, { color: etat.fg }]}>{etat.label}</Text>
       </View>
 
-      <View style={s.partyTable} wrap={false}>
-        <View style={[s.partyCol, s.partyColSep]}>
-          <Text style={s.partyHead}>Émetteur</Text>
-          <Text style={s.partyName}>Les Techniciens du Débouchage</Text>
-          <Text style={s.partyLine}>700 Avenue du 15ème Corps · 83000 Toulon</Text>
-          <Text style={s.partyLine}>Tél. {TEL_PRINCIPAL_FALLBACK}</Text>
-          <Text style={s.partyLine}>contact@lestechniciensdudebouchage.fr</Text>
-        </View>
-        <View style={s.partyCol}>
-          <Text style={s.partyHead}>Client</Text>
-          <Text style={s.partyName}>{data.client.nom || '—'}</Text>
-          {data.client.adresse ? <Text style={s.partyLine}>{data.client.adresse}</Text> : null}
-          {(data.client.codePostal || data.client.ville) ? (
-            <Text style={s.partyLine}>{[data.client.codePostal, data.client.ville].filter(Boolean).join(' ')}</Text>
-          ) : null}
-          {data.client.telephone ? <Text style={s.partyLine}>Tél. {data.client.telephone}</Text> : null}
-          {data.client.email ? <Text style={s.partyLine}>{data.client.email}</Text> : null}
-        </View>
-      </View>
-
       {tronconCount > 0 ? (
         <Text style={s.introNote}>
           {tronconCount} tronçon{tronconCount > 1 ? 's' : ''} — détail à la suite (1 tronçon par page).
         </Text>
       ) : null}
-
-      <View style={s.glossBox} wrap={false}>
-        <Text style={s.glossTitle}>Glossaire technique</Text>
-        {GLOSSAIRE.map(g => (
-          <View key={g.terme} style={s.glossRow}>
-            <Text style={s.glossTerme}>{g.terme}</Text>
-            <Text style={s.glossDef}>{g.def}</Text>
-          </View>
-        ))}
-      </View>
     </>
   )
 }
@@ -629,30 +672,9 @@ export default function InspectionDownloadButton(props: DownloadButtonProps) {
     setLoading(true)
     setError('')
     try {
-      const recupSlug = props.data.numero === 'ITV-20260724-1513'
-        ? 'ITV-20260724-1513-mirabella'
-        : null
-      if (recupSlug) {
-        const res = await fetch(`/recup/${recupSlug}.pdf`, { cache: 'no-store' })
-        if (res.ok) {
-          const blob = await res.blob()
-          if (blob.size > 2000) {
-            const url = URL.createObjectURL(blob)
-            const a = document.createElement('a')
-            a.href = url
-            a.download = filename
-            document.body.appendChild(a)
-            a.click()
-            document.body.removeChild(a)
-            setTimeout(() => URL.revokeObjectURL(url), 2000)
-            return
-          }
-        }
-      }
-
-      const { pdfElementToBlob } = await import('@/lib/pdfToBase64')
-      const element = React.createElement(InspectionDocument, { data: props.data, variant: 'full' })
-      const blob = await pdfElementToBlob(element)
+      // Même modèle dense pour tous les rapports (couverture + 1 page/tronçon)
+      const { buildInspectionPdfBlob } = await import('@/lib/build-inspection-pdf')
+      const blob = await buildInspectionPdfBlob(props.data)
       if (!blob || blob.size < 500) throw new Error('PDF vide — réessaie dans quelques secondes')
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')

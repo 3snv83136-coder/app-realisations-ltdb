@@ -5,6 +5,8 @@ import { planifierDevisAvecRelances } from "@/lib/devis-relance"
 import { fmtEUR } from "@/lib/format"
 import { persistDevis } from "@/lib/persist"
 import { getTelPrincipal } from "@/lib/parametres"
+import { getSessionUser } from "@/lib/intervention-access"
+import { permissionsForSession } from "@/lib/tech-permissions"
 
 export const maxDuration = 30
 
@@ -17,6 +19,11 @@ function getBaseUrl(req: NextRequest): string {
 }
 
 export async function POST(req: NextRequest) {
+  const perms = await permissionsForSession(await getSessionUser())
+  if (!perms.envoyer_devis) {
+    return NextResponse.json({ error: "Envoi de devis non autorisé pour ce compte" }, { status: 403 })
+  }
+
   let body: Record<string, unknown>
   try {
     body = await req.json()

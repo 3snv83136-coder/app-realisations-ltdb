@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import crypto from "crypto"
 import { getSupabaseOrNull } from "@/lib/supabase"
+import { requireInterventionAccess } from "@/lib/intervention-access"
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 30
@@ -25,6 +26,9 @@ type Params = { params: { id: string } }
  * (un PDF rapport avec photos peut dépasser cette limite en base64).
  */
 export async function POST(req: NextRequest, { params }: Params) {
+  const access = await requireInterventionAccess(req, params.id)
+  if (!access.ok) return NextResponse.json({ error: access.error }, { status: access.status })
+
   const sb = getSupabaseOrNull()
   if (!sb) return NextResponse.json({ error: 'Supabase non configuré' }, { status: 500 })
 

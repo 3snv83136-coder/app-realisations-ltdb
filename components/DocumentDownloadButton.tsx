@@ -6,7 +6,7 @@ import { safeFilename } from "@/lib/filename"
 import { FactureDocument, type FactureData } from "./FacturePDF"
 import { DevisDocument, type DevisData, type ClientData } from "./DevisPDF"
 import { AttestationDocument, type AttestationData } from "./AttestationPDF"
-import { InspectionDocument, type InspectionData } from "./InspectionCameraPDF"
+import type { InspectionData } from "./InspectionCameraPDF"
 import { errorMessage } from "@/lib/error-message"
 import type { DocumentPayload } from "@/lib/types-documents"
 
@@ -112,8 +112,8 @@ async function buildPdfBlob(doc: HistoriqueDocument): Promise<{ blob: Blob; file
       troncons: Array.isArray(data.troncons) ? data.troncons : [],
       conclusionEtat: data.conclusionEtat || 'bon',
     }
-    const element = React.createElement(InspectionDocument, { data: safe })
-    const blob = await pdfElementToBlob(element)
+    const { buildInspectionPdfBlob } = await import('@/lib/build-inspection-pdf')
+    const blob = await buildInspectionPdfBlob(safe)
     return { blob, filename: safeFilename('inspection-camera', safe.numero || doc.id) }
   }
 

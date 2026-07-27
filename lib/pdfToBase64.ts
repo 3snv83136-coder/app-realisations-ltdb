@@ -10,8 +10,7 @@ export async function pdfElementToBlob(doc: ReactElement): Promise<Blob> {
   return pdf(doc).toBlob()
 }
 
-export async function pdfDocumentToBase64(doc: ReactElement): Promise<string> {
-  const blob = await pdfElementToBlob(doc)
+export async function blobToBase64(blob: Blob): Promise<string> {
   const buf = await blob.arrayBuffer()
   const bytes = new Uint8Array(buf)
   let binary = ''
@@ -20,4 +19,9 @@ export async function pdfDocumentToBase64(doc: ReactElement): Promise<string> {
     binary += String.fromCharCode.apply(null, Array.from(bytes.subarray(i, i + chunk)))
   }
   return btoa(binary)
+}
+
+export async function pdfDocumentToBase64(doc: ReactElement): Promise<string> {
+  const blob = await pdfElementToBlob(doc)
+  return blobToBase64(blob)
 }

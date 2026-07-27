@@ -7,6 +7,7 @@ import { safeFilename } from "@/lib/filename"
 import { FactureDocument, type FactureData } from "./FacturePDF"
 import { DevisDocument, type DevisData, type ClientData } from "./DevisPDF"
 import { AttestationDocument, type AttestationData } from "./AttestationPDF"
+import type { InspectionData } from "./InspectionCameraPDF"
 import type { HistoriqueDocument } from "./DocumentDownloadButton"
 import { errorMessage } from "@/lib/error-message"
 import type { DocumentPayload } from "@/lib/types-documents"
@@ -150,6 +151,48 @@ async function buildSendBody(
     }
   }
 
+  if (doc.type === 'inspection') {
+    const data = payload as InspectionData
+    if (!data?.client || !Array.isArray(data.troncons)) {
+      throw new Error('Payload inspection invalide')
+    }
+    const safe: InspectionData = {
+      ...data,
+      numero: data.numero || doc.numero || '',
+      client: {
+        nom: data.client.nom || doc.client_nom || '',
+        adresse: data.client.adresse || doc.client_adresse || '',
+        codePostal: data.client.codePostal || doc.client_code_postal || '',
+        ville: data.client.ville || doc.client_ville || '',
+        email: data.client.email || clientEmail,
+        telephone: data.client.telephone,
+      },
+    }
+    const { buildInspectionPdfBlob } = await import('@/lib/build-inspection-pdf')
+    const { blobToBase64 } = await import('@/lib/pdfToBase64')
+    const blob = await buildInspectionPdfBlob(safe)
+    if (!blob || blob.size < 500) throw new Error('PDF vide')
+    const pdfBase64 = await blobToBase64(blob)
+    return {
+      endpoint: '/api/notify-inspection',
+      body: {
+        clientEmail,
+        clientNom: safe.client.nom,
+        technicienNom: getTechnicien() || safe.technicienNom,
+        ville: safe.client.ville,
+        dateInspection: safe.dateInspection,
+        numero: safe.numero,
+        agence: doc.agence || safe.agence,
+        pdfBase64,
+        pdfFilename: safeFilename('inspection-camera', safe.numero || doc.id),
+        inspection: safe,
+        clientAdresse: safe.client.adresse,
+        clientCP: safe.client.codePostal,
+        clientTelephone: safe.client.telephone,
+      },
+    }
+  }
+
   return null
 }
 
@@ -160,7 +203,7 @@ export default function ResendEmailButton({ doc }: { doc: DocWithEmail }) {
   const [error, setError] = useState('')
   const [sent, setSent] = useState(false)
 
-  if (doc.type !== 'facture' && doc.type !== 'devis' && doc.type !== 'attestation') {
+  if (doc.type !== 'facture' && doc.type !== 'devis' && doc.type !== 'attestation' && doc.type !== 'inspection') {
     return null
   }
 
@@ -190,7 +233,9 @@ export default function ResendEmailButton({ doc }: { doc: DocWithEmail }) {
   }
 
   const typeLabel = doc.type === 'facture' ? 'la facture'
-    : doc.type === 'devis' ? 'le devis' : 'l\'attestation'
+    : doc.type === 'devis' ? 'le devis'
+    : doc.type === 'inspection' ? 'le rapport caméra ITV'
+    : 'l\'attestation'
 
   return (
     <>

@@ -70,7 +70,7 @@ const TABS = [
   { key: 'facture', label: 'Factures' },
   { key: 'devis', label: 'Devis' },
   { key: 'attestation', label: 'Attestations' },
-  { key: 'inspection', label: 'Caméra ITV' },
+  { key: 'inspection', label: 'Caméra IPTV' },
 ] as const
 
 const STATUT_BADGE: Record<string, string> = {
@@ -227,7 +227,7 @@ export default function HistoriquePage() {
           <StatCard label="Factures" value={stats.factures} icon="🧾" />
           <StatCard label="Devis" value={stats.devis} icon="📝" />
           <StatCard label="Attestations" value={stats.attestations} icon="✅" />
-          <StatCard label="Caméra ITV" value={stats.inspections} icon="📹" />
+          <StatCard label="Caméra IPTV" value={stats.inspections} icon="📹" />
           <StatCard label="CA total TTC" value={fmtEUR(stats.ca)} icon="💶" />
         </div>
 
@@ -429,7 +429,7 @@ export default function HistoriquePage() {
                           ) : (
                             <DocumentDownloadButton doc={d} />
                           )}
-                          {(d.type === 'facture' || d.type === 'devis' || d.type === 'attestation') && (
+                          {(d.type === 'facture' || d.type === 'devis' || d.type === 'attestation' || d.type === 'inspection') && (
                             <ResendEmailButton doc={d} />
                           )}
                         </div>

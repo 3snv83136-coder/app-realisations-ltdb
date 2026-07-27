@@ -265,6 +265,9 @@ function InspectionPageInner() {
   const [draftHydrated, setDraftHydrated] = useState(false)
   const [draftSavedAt, setDraftSavedAt] = useState<string | null>(null)
   const [draftRestored, setDraftRestored] = useState(false)
+  const [emailSending, setEmailSending] = useState(false)
+  const [emailSent, setEmailSent] = useState(false)
+  const [emailError, setEmailError] = useState('')
 
   function applyDraft(draft: InspectionDraft) {
     setNumero(draft.numero || genNumero())
@@ -743,6 +746,62 @@ function InspectionPageInner() {
 
   const canPreview = clientNom.trim().length > 0
 
+  async function handleSendToClient() {
+    if (!canPreview) {
+      setEmailError('Renseigne au moins le nom du client.')
+      return
+    }
+    if (!clientEmail.trim()) {
+      setEmailError('Renseigne l\'email du client pour envoyer le rapport.')
+      return
+    }
+    setEmailSending(true)
+    setEmailError('')
+    setEmailSent(false)
+    try {
+      const [{ buildInspectionPdfBlob }, { blobToBase64 }, { safeFilename }] = await Promise.all([
+        import('@/lib/build-inspection-pdf'),
+        import('@/lib/pdfToBase64'),
+        import('@/lib/filename'),
+      ])
+      const blob = await buildInspectionPdfBlob(data)
+      if (!blob || blob.size < 500) throw new Error('PDF vide — réessaie dans quelques secondes')
+      const pdfBase64 = await blobToBase64(blob)
+      const pdfFilename = safeFilename('inspection-camera', numero || 'rapport')
+      const res = await fetch('/api/notify-inspection', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          clientEmail: clientEmail.trim(),
+          clientNom,
+          technicienNom: data.technicienNom,
+          ville: clientVille,
+          dateInspection,
+          numero,
+          pdfBase64,
+          pdfFilename,
+          inspection: data,
+          clientAdresse: clientAdresse || undefined,
+          clientCP: clientCP || undefined,
+          clientTelephone: clientTel || undefined,
+          agence: agence || undefined,
+          interventionId: linkedInterventionId || undefined,
+        }),
+      })
+      const json = await res.json().catch(() => ({})) as { error?: string; warning?: string }
+      if (!res.ok) throw new Error(json.error || `HTTP ${res.status}`)
+      if (json.warning) setEmailError(json.warning)
+      else {
+        setEmailSent(true)
+        clearDraft()
+      }
+    } catch (e) {
+      setEmailError(`Erreur envoi : ${errorMessage(e) || e}`)
+    } finally {
+      setEmailSending(false)
+    }
+  }
+
   return (
     <div className="min-h-screen bg-slate-50 pb-20">
       <header className="bg-white border-b border-slate-200 sticky top-0 z-10">
@@ -787,6 +846,15 @@ function InspectionPageInner() {
                 interventionId: linkedInterventionId || undefined,
               })}
             />
+            <button
+              type="button"
+              onClick={handleSendToClient}
+              disabled={!canPreview || emailSending || !clientEmail.trim()}
+              className="bg-emerald-500 hover:bg-emerald-600 px-4 py-2.5 rounded-xl font-bold text-sm text-white disabled:opacity-50"
+              title={!clientEmail.trim() ? 'Renseigne l\'email client pour envoyer' : 'Envoyer le rapport par email'}
+            >
+              {emailSending ? 'Envoi…' : emailSent ? '✓ Envoyé' : '✉ Envoyer'}
+            </button>
             <InspectionDownloadButton
               data={data}
               filename={`inspection-camera-${(clientNom || 'client').toLowerCase().replace(/\s+/g, '-')}-${numero}.pdf`}
@@ -803,6 +871,20 @@ function InspectionPageInner() {
             </button>
           </div>
         </div>
+
+        {(emailSent || emailError) && (
+          <div className={`rounded-xl px-4 py-3 text-sm border ${
+            emailError && !emailSent
+              ? 'border-red-300 bg-red-50 text-red-800'
+              : 'border-emerald-300 bg-emerald-50 text-emerald-900'
+          }`}>
+            {emailSent && !emailError ? (
+              <>✓ Rapport d&apos;inspection caméra envoyé à <strong>{clientEmail}</strong></>
+            ) : (
+              <>⚠ {emailError}</>
+            )}
+          </div>
+        )}
 
         {recupFromUrl && draftRestored && (
           <div className="rounded-xl px-4 py-3 text-sm border border-sky-300 bg-sky-50 text-sky-950 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
@@ -992,7 +1074,7 @@ function InspectionPageInner() {
                 onSelect={(v) => { setClientVille(v.nom); if (v.cp) setClientCP(v.cp) }}
               />
             </Field>
-            <Field label="Email (optionnel)"><input type="email" value={clientEmail} onChange={e => setClientEmail(e.target.value)} className={inputCls} /></Field>
+            <Field label="Email (pour envoi)"><input type="email" value={clientEmail} onChange={e => { setClientEmail(e.target.value); setEmailSent(false) }} className={inputCls} placeholder="client@email.fr" /></Field>
             <Field label="Téléphone (optionnel)"><input value={clientTel} onChange={e => setClientTel(e.target.value)} className={inputCls} /></Field>
           </div>
         </Section>

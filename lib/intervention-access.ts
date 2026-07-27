@@ -57,3 +57,33 @@ export async function requireInterventionAccess(
   const user = await getSessionUser()
   return assertInterventionAccess(interventionId, user)
 }
+
+
+/**
+ * Accès à un accord : admin toujours, tech seulement si l'accord est lié à
+ * une de ses interventions (un accord sans intervention liée reste admin-only).
+ */
+export async function requireAccordAccess(
+  req: NextRequest,
+  accordId: string,
+): Promise<{ ok: true } | { ok: false; status: number; error: string }> {
+  if (isInternalApiCall(req)) return { ok: true }
+  const user = await getSessionUser()
+  if (!user) return { ok: false, status: 401, error: "Non authentifié" }
+  if (user.role !== "tech" || !user.technicienId) return { ok: true }
+
+  const sb = getSupabaseOrNull()
+  if (!sb) return { ok: false, status: 500, error: "Supabase non configuré" }
+
+  const { data, error } = await sb
+    .from("accords_intervention")
+    .select("intervention_id")
+    .eq("id", accordId)
+    .maybeSingle()
+  if (error) return { ok: false, status: 500, error: error.message }
+  if (!data) return { ok: false, status: 404, error: "Accord introuvable" }
+  if (!data.intervention_id) {
+    return { ok: false, status: 403, error: "Accès refusé à cet accord" }
+  }
+  return assertInterventionAccess(data.intervention_id, user)
+}

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { generateTerrainPdfsOnServer, terrainPdfsReady } from "@/lib/terrain-pdf-server"
 import { getSupabaseOrNull, patchClient, upsertClient } from "@/lib/supabase"
+import { requireInterventionAccess } from "@/lib/intervention-access"
 
 export const dynamic = "force-dynamic"
 export const maxDuration = 120
@@ -15,7 +16,10 @@ function getBaseUrl(req: NextRequest): string {
   return req.nextUrl.origin.replace(/\/+$/, "")
 }
 
-export async function GET(_req: NextRequest, { params }: Params) {
+export async function GET(req: NextRequest, { params }: Params) {
+  const access = await requireInterventionAccess(req, params.id)
+  if (!access.ok) return NextResponse.json({ error: access.error }, { status: access.status })
+
   const sb = getSupabaseOrNull()
   if (!sb) return NextResponse.json({ error: "Supabase non configuré" }, { status: 500 })
 
@@ -24,6 +28,9 @@ export async function GET(_req: NextRequest, { params }: Params) {
 }
 
 export async function POST(req: NextRequest, { params }: Params) {
+  const access = await requireInterventionAccess(req, params.id)
+  if (!access.ok) return NextResponse.json({ error: access.error }, { status: access.status })
+
   const sb = getSupabaseOrNull()
   if (!sb) return NextResponse.json({ error: "Supabase non configuré" }, { status: 500 })
 

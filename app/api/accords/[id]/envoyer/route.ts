@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
+import { requireAccordAccess } from "@/lib/intervention-access"
 import { getSupabaseOrNull, type AccordIntervention } from "@/lib/supabase"
 import { escapeHtml, initResend } from "@/lib/email-utils"
 import { getTelPrincipal } from "@/lib/parametres"
@@ -14,6 +15,8 @@ type Params = { params: { id: string } }
  * (PDF en pièce jointe) par email via Resend.
  */
 export async function POST(req: NextRequest, { params }: Params) {
+  const access = await requireAccordAccess(req, params.id)
+  if (!access.ok) return NextResponse.json({ error: access.error }, { status: access.status })
   const sb = getSupabaseOrNull()
   if (!sb) return NextResponse.json({ error: 'Supabase non configuré' }, { status: 500 })
 
