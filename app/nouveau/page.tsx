@@ -561,6 +561,20 @@ export default function NouveauPage() {
     if (photos.length === 0) {
       setError('Au moins une photo est requise.'); setStep('preview'); return
     }
+    const { resolvePostalCodeForPublish } = await import('@/lib/postal-code')
+    const { findVilleByName } = await import('@/lib/villes-var')
+    const cpNorm = resolvePostalCodeForPublish({
+      codePostal,
+      adresse,
+      ville,
+      findVilleCp: (v) => findVilleByName(v)?.cp,
+    })
+    if (!cpNorm) {
+      setError('Code postal manquant ou invalide — saisis 5 chiffres (ex. 83000).')
+      setStep('preview')
+      return
+    }
+    if (cpNorm !== codePostal) setCodePostal(cpNorm)
     const totalBytes = photos.reduce((sum, p) => sum + p.file.size, 0)
     if (totalBytes > 4 * 1024 * 1024) {
       setError(`Photos trop lourdes (${(totalBytes / 1024 / 1024).toFixed(1)} MB). Retire les plus grandes.`)
@@ -575,7 +589,7 @@ export default function NouveauPage() {
       seo: seo || {},
       typeIntervention,
       ville,
-      codePostal,
+      codePostal: cpNorm,
       transcription,
       interventionDate: dateIntervention,
       publishSlug: publishSlug || `realisation-${Date.now()}`,
@@ -592,8 +606,8 @@ export default function NouveauPage() {
       rapport,
       typeIntervention,
       ville,
-      codePostal,
-      cityPageUrl: buildCityPageUrl(ville, codePostal),
+      codePostal: cpNorm,
+      cityPageUrl: buildCityPageUrl(ville, cpNorm),
       interventionDate: dateIntervention,
       photos: photos.map((p) => ({
         legende: p.legende || `Photo`,
@@ -617,7 +631,7 @@ export default function NouveauPage() {
     formData.append('service_type', typeIntervention)
     formData.append('location', ville)
     formData.append('intervention_city', ville)
-    formData.append('postal_code', codePostal)
+    formData.append('postal_code', cpNorm)
     formData.append('intervention_date', dateIntervention)
     formData.append('description', truncatePublishField(buildPublishDescription({
       seo: seoForPublish,
@@ -636,7 +650,7 @@ export default function NouveauPage() {
     formData.append('seo_json', JSON.stringify(seoForPublish))
     formData.append('client_nom', clientNom || '')
     formData.append('client_email', clientEmail || '')
-    formData.append('client_adresse', `${adresse || ''} ${codePostal || ''} ${ville || ''}`.trim())
+    formData.append('client_adresse', `${adresse || ''} ${cpNorm} ${ville || ''}`.trim())
     if (interventionId) formData.append('intervention_id', interventionId)
     // Django LTDB exige technicien_name NOT NULL (sinon IntegrityError 500).
     formData.append('technicien_name', technicienNom || '')

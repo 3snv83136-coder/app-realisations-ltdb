@@ -11,6 +11,8 @@ import { buildCityPageUrl } from "@/lib/seo-normalize"
 import { publishImageUrlForSite } from "@/lib/publish-image-url"
 import { getSupabaseOrNull } from "@/lib/supabase"
 import { appendTechnicienPhotoToFormData } from "@/lib/technicien-publish"
+import { normalizeFrenchPostalCode, resolvePostalCodeForPublish } from "@/lib/postal-code"
+import { findVilleByName } from "@/lib/villes-var"
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
@@ -107,12 +109,30 @@ export async function POST(req: NextRequest) {
   // n'a pas de chantier renseigné) + base de nommage SEO des photos :
   // « <service>-<ville> » → ex. debouchage-wc-toulon.
   const ville = interv.ville || clientVille || ''
-  const codePostal = interv.code_postal || clientCp || ''
   const adresse = interv.adresse_chantier || clientAdresse || ''
+  const codePostal = resolvePostalCodeForPublish({
+    codePostal: interv.code_postal,
+    clientCp,
+    adresse,
+    ville,
+    findVilleCp: (v) => findVilleByName(v)?.cp,
+  })
   if (!ville.trim()) {
     return NextResponse.json({
       error: 'Ville manquante — renseigne la ville sur l\'intervention ou la fiche client avant de publier.',
     }, { status: 400 })
+  }
+  if (!codePostal) {
+    return NextResponse.json({
+      error: 'Code postal manquant ou invalide — renseigne un code postal à 5 chiffres (ex. 83000) sur l\'intervention ou la fiche client.',
+    }, { status: 400 })
+  }
+
+  // Persiste le CP normalisé si l'intervention n'en avait pas (évite le même rejet au prochain essai)
+  if (!normalizeFrenchPostalCode(interv.code_postal as string | null)) {
+    try {
+      await sb.from('interventions').update({ code_postal: codePostal }).eq('id', interventionId)
+    } catch { /* best-effort */ }
   }
   const slugify = (s: string) =>
     (s || '')
