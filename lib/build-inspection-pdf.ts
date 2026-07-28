@@ -10,6 +10,7 @@ import { pdf } from "@react-pdf/renderer"
 import { PDFDocument } from "pdf-lib"
 import {
   InspectionDocument,
+  pickCoverPhotoUrl,
   type InspectionData,
 } from "@/components/InspectionCameraPDF"
 import { fetchInspectionMapDataUrl } from "@/lib/inspection-map-image"
@@ -19,20 +20,33 @@ async function renderPartToBytes(element: ReactElement): Promise<Uint8Array> {
   return new Uint8Array(await blob.arrayBuffer())
 }
 
-async function withCoverMap(data: InspectionData): Promise<InspectionData> {
+/** Carte en priorité ; sinon 1ʳᵉ photo du rapport (ou 2ᵉ). */
+async function withCoverVisual(data: InspectionData): Promise<InspectionData> {
   if (data.mapImageUrl) return data
+
   const mapImageUrl = await fetchInspectionMapDataUrl(data.client)
-  return mapImageUrl ? { ...data, mapImageUrl } : data
+  if (mapImageUrl) return { ...data, mapImageUrl }
+
+  if (data.coverPhotoUrl) return data
+  const coverPhotoUrl = pickCoverPhotoUrl(data.troncons)
+  return coverPhotoUrl ? { ...data, coverPhotoUrl } : data
 }
 
 /** Construit le PDF ITV au modèle professionnel dense (anti pages blanches / anti plantage multi-photos). */
 export async function buildInspectionPdfBlob(data: InspectionData): Promise<Blob> {
-  const enriched = await withCoverMap(data)
+  const enriched = await withCoverVisual(data)
   const troncons = Array.isArray(enriched.troncons) ? enriched.troncons : []
   const parts: Uint8Array[] = []
 
+  // Intro sans tronçons (léger) mais conserve coverPhotoUrl / mapImageUrl
+  const introData: InspectionData = {
+    ...enriched,
+    troncons: [],
+    coverPhotoUrl: enriched.coverPhotoUrl || pickCoverPhotoUrl(troncons),
+  }
+
   parts.push(await renderPartToBytes(createElement(InspectionDocument, {
-    data: { ...enriched, troncons: [] },
+    data: introData,
     variant: "intro",
     tronconTotal: troncons.length,
   })))

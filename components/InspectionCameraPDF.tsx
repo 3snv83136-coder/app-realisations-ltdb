@@ -78,6 +78,8 @@ export type InspectionData = {
   }
   /** Image carte (data URL) pour la page de garde — remplie à la génération PDF. */
   mapImageUrl?: string
+  /** Photo de repli (1ʳᵉ ou 2ᵉ obs) si la carte est indisponible. */
+  coverPhotoUrl?: string
   troncons: TronconBloc[]
   conclusionEtat: ConclusionEtat
 }
@@ -364,6 +366,28 @@ function Kv({ label, value }: { label: string; value?: string }) {
   )
 }
 
+function isImageSrc(url?: string): url is string {
+  return typeof url === 'string'
+    && (url.startsWith('data:') || url.startsWith('http'))
+}
+
+/** Photos d'observations dans l'ordre (pour page de garde si pas de carte). */
+export function collectInspectionPhotoUrls(troncons: TronconBloc[] | undefined): string[] {
+  const out: string[] = []
+  for (const t of troncons || []) {
+    for (const o of t.observations || []) {
+      if (isImageSrc(o.photoUrl)) out.push(o.photoUrl)
+    }
+  }
+  return out
+}
+
+/** 1ʳᵉ photo du rapport, sinon la 2ᵉ. */
+export function pickCoverPhotoUrl(troncons: TronconBloc[] | undefined): string | undefined {
+  const photos = collectInspectionPhotoUrls(troncons)
+  return photos[0] || photos[1]
+}
+
 function IntroBlock({ data, etat, tronconCount }: {
   data: InspectionData
   etat: { label: string; bg: string; fg: string }
@@ -373,14 +397,19 @@ function IntroBlock({ data, etat, tronconCount }: {
     data.client.adresse,
     [data.client.codePostal, data.client.ville].filter(Boolean).join(' '),
   ].filter(Boolean).join(' · ')
-  const mapSrc = typeof data.mapImageUrl === 'string'
-    && (data.mapImageUrl.startsWith('data:') || data.mapImageUrl.startsWith('http'))
-    ? data.mapImageUrl
-    : null
+
+  const mapSrc = isImageSrc(data.mapImageUrl) ? data.mapImageUrl : null
+  const photoSrc = !mapSrc && isImageSrc(data.coverPhotoUrl)
+    ? data.coverPhotoUrl
+    : (!mapSrc ? pickCoverPhotoUrl(data.troncons) : undefined) || null
+  const coverSrc = mapSrc || photoSrc
+  const coverCaption = mapSrc
+    ? 'Localisation du site inspecté'
+    : 'Photo d\'inspection'
 
   return (
     <>
-      {/* Page de garde : titre + client + carte */}
+      {/* Page de garde : titre + client + carte (ou photo de repli) */}
       <View style={s.coverWrap} wrap={false}>
         <View style={s.coverRedBar} />
         <Text style={s.coverTitle}>Rapport d&apos;inspection caméra</Text>
@@ -393,14 +422,14 @@ function IntroBlock({ data, etat, tronconCount }: {
         {adresseLigne ? <Text style={s.coverClientAddr}>{adresseLigne}</Text> : null}
       </View>
 
-      {mapSrc ? (
+      {coverSrc ? (
         <View style={s.coverMapBox} wrap={false}>
-          <Image src={mapSrc} style={s.coverMapImg} />
-          <Text style={s.coverMapCap}>Localisation du site inspecté</Text>
+          <Image src={coverSrc} style={s.coverMapImg} />
+          <Text style={s.coverMapCap}>{coverCaption}</Text>
         </View>
       ) : (
         <View style={s.coverMapFallback} wrap={false}>
-          <Text style={s.coverMapFallbackTxt}>Carte non disponible pour cette adresse</Text>
+          <Text style={s.coverMapFallbackTxt}>Carte et photo non disponibles</Text>
         </View>
       )}
 

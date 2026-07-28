@@ -81,7 +81,7 @@ export async function POST(req: NextRequest) {
       } else {
         docId = await persistInspection({
           inspection: (() => {
-            const { mapImageUrl: _map, ...rest } = inspection
+            const { mapImageUrl: _map, coverPhotoUrl: _photo, ...rest } = inspection
             return rest
           })(),
           clientNom: clientNom || inspection.client?.nom,
