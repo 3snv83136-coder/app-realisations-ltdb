@@ -109,6 +109,11 @@ Service, FAQPage, BreadcrumbList, ImageObject par photo).
 un titre générique de section (« Galerie des réalisations »). Format recommandé :
 `{{ meta_title }} | Les Techniciens du Débouchage`.
 
+⚠️ **Anti-doublon** : n'appendre `| Les Techniciens du Débouchage` que si
+`meta_title` ne contient pas déjà cette marque. Même règle pour `og:title` et
+`twitter:title` (sinon double suffixe). Ne jamais générer un H1 ou title qui
+finit par `...` / `…`.
+
 Construire un `@graph` à partir du payload :
 
 - **La réalisation** : `Article` (ou `CreativeWork`) — `headline` = `title`,

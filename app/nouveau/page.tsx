@@ -13,7 +13,13 @@ import { useUnsavedChangesWarning } from "@/lib/useUnsavedChangesWarning"
 import { REALISATION_PAGE_STYLE } from "@/lib/realisationPageCss"
 import { buildPublishDescription } from "@/lib/publish-description"
 import { buildPublishContentHtml } from "@/lib/publish-content"
-import { prepareSeoForPublish, truncatePublishField } from "@/lib/publish-seo-prepare"
+import { prepareSeoForPublish } from "@/lib/publish-seo-prepare"
+import {
+  finalizeMetaDescription,
+  finalizeMetaTitle,
+  finalizeTitreH1,
+} from "@/lib/publish-seo-text"
+import { formatTechnicienNom } from "@/lib/technicien-nom"
 import { buildCityPageUrl } from "@/lib/seo-normalize"
 import { publishImageUrlForSite } from "@/lib/publish-image-url"
 
@@ -624,21 +630,21 @@ export default function NouveauPage() {
     })
     const rawTitle = (typeof seoForPublish.titre_h1 === 'string' ? seoForPublish.titre_h1 : '') || ''
     const rawMetaTitle = (typeof seoForPublish.meta_title === 'string' ? seoForPublish.meta_title : '') || rawTitle
-    formData.append('title', truncatePublishField(rawTitle, 95))
-    formData.append('meta_title', truncatePublishField(rawMetaTitle, 70))
-    formData.append('titre_h1', truncatePublishField(rawTitle, 95))
+    formData.append('title', finalizeTitreH1(rawTitle))
+    formData.append('meta_title', finalizeMetaTitle(rawMetaTitle))
+    formData.append('titre_h1', finalizeTitreH1(rawTitle))
     formData.append('slug', (typeof seoForPublish.slug === 'string' ? seoForPublish.slug : '') || '')
     formData.append('service_type', typeIntervention)
     formData.append('location', ville)
     formData.append('intervention_city', ville)
     formData.append('postal_code', cpNorm)
     formData.append('intervention_date', dateIntervention)
-    formData.append('description', truncatePublishField(buildPublishDescription({
+    formData.append('description', finalizeMetaDescription(buildPublishDescription({
       seo: seoForPublish,
       rapport,
       typeIntervention,
       ville,
-    }), 195))
+    }), ville))
     formData.append('meta_keywords', Array.isArray(seoForPublish.meta_keywords) ? seoForPublish.meta_keywords.join(', ') : '')
     formData.append('content', contentWithContainers)
     formData.append('faq_json', JSON.stringify({ "@context": "https://schema.org", "@type": "FAQPage", "mainEntity": (Array.isArray(seoForPublish.faq) ? seoForPublish.faq : []).map(f => ({ "@type": "Question", "name": f?.question || '', "acceptedAnswer": { "@type": "Answer", "text": f?.reponse || '' } })) }))
@@ -653,7 +659,7 @@ export default function NouveauPage() {
     formData.append('client_adresse', `${adresse || ''} ${cpNorm} ${ville || ''}`.trim())
     if (interventionId) formData.append('intervention_id', interventionId)
     // Django LTDB exige technicien_name NOT NULL (sinon IntegrityError 500).
-    formData.append('technicien_name', technicienNom || '')
+    formData.append('technicien_name', formatTechnicienNom(technicienNom) || '')
     if (technicienPhotoUrl) {
       await appendTechnicienPhotoClient(
         formData,

@@ -36,8 +36,11 @@ export function buildMetaTitleFallback(
   }
 
   const title = `Débouchage ${typeShort} ${ville}${angle}`
-  if (title.length <= 70) return title
-  return title.slice(0, 67).trimEnd() + "…"
+  if (title.length <= 60) return title
+  // Coupe au mot, sans ellipsis (Django ajoute déjà la marque en <title>)
+  const cut = title.slice(0, 60)
+  const lastSpace = cut.lastIndexOf(" ")
+  return (lastSpace > 35 ? cut.slice(0, lastSpace) : cut).trimEnd().replace(/[:—,\-–]\s*$/, "")
 }
 
 /** Caméra annoncée comme future (pas encore passée sur le chantier). */
@@ -108,7 +111,13 @@ export function normalizeSeoOutput(
     typeof seo.meta_title === "string" && seo.meta_title.trim()
       ? seo.meta_title.trim()
       : buildMetaTitleFallback(opts.typeIntervention, opts.ville, resume)
-  seo.meta_title = metaTitleRaw.length <= 70 ? metaTitleRaw : metaTitleRaw.slice(0, 67).trimEnd() + "…"
+  seo.meta_title = metaTitleRaw.length <= 60
+    ? metaTitleRaw
+    : (() => {
+        const cut = metaTitleRaw.slice(0, 60)
+        const lastSpace = cut.lastIndexOf(" ")
+        return (lastSpace > 35 ? cut.slice(0, lastSpace) : cut).trimEnd().replace(/[:—,\-–]\s*$/, "")
+      })()
 
   const corpus = [
     opts.transcription || "",

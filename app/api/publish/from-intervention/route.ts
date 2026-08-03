@@ -6,7 +6,13 @@ import {
   buildPublishContentHtml,
   sortPhotosForPublish,
 } from "@/lib/publish-content"
-import { prepareSeoForPublish, truncatePublishField } from "@/lib/publish-seo-prepare"
+import { prepareSeoForPublish } from "@/lib/publish-seo-prepare"
+import {
+  finalizeMetaDescription,
+  finalizeMetaTitle,
+  finalizeTitreH1,
+} from "@/lib/publish-seo-text"
+import { formatTechnicienNom } from "@/lib/technicien-nom"
 import { buildCityPageUrl } from "@/lib/seo-normalize"
 import { publishImageUrlForSite } from "@/lib/publish-image-url"
 import { getSupabaseOrNull } from "@/lib/supabase"
@@ -99,7 +105,7 @@ export async function POST(req: NextRequest) {
       .select('nom, photo_url, annees_experience, titre_metier')
       .eq('id', interv.technicien_id)
       .maybeSingle()
-    technicienNom = t?.nom || ''
+    technicienNom = formatTechnicienNom(t?.nom || '')
     technicienPhotoUrl = t?.photo_url || null
     technicienAnnees = t?.annees_experience ?? null
     technicienTitre = t?.titre_metier || null
@@ -261,16 +267,16 @@ export async function POST(req: NextRequest) {
 
   // Construit le FormData attendu par /api/gallery/publish/ Django.
   const fd = new FormData()
-  fd.append("title", truncatePublishField(rawTitle, 95))
-  fd.append("meta_title", truncatePublishField(rawMetaTitle, 70))
-  fd.append("titre_h1", truncatePublishField(rawTitle, 95))
+  fd.append("title", finalizeTitreH1(rawTitle))
+  fd.append("meta_title", finalizeMetaTitle(rawMetaTitle))
+  fd.append("titre_h1", finalizeTitreH1(rawTitle))
   fd.append('slug', publishSlug)
   fd.append('service_type', interv.type_intervention || '')
   fd.append('location', ville)
   fd.append('intervention_city', ville)
   fd.append('postal_code', codePostal)
   fd.append('intervention_date', dateIntervention)
-  fd.append('description', truncatePublishField(rawDesc, 195))
+  fd.append('description', finalizeMetaDescription(rawDesc, ville))
   fd.append('meta_keywords', Array.isArray(seoForPublish.meta_keywords) ? seoForPublish.meta_keywords.join(', ') : '')
   fd.append('content', contentWithContainers)
   fd.append('faq_json', JSON.stringify({

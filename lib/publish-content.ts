@@ -6,6 +6,7 @@ import {
   resolvePhotoCategory,
 } from "@/lib/photo-categories"
 import { REALISATION_PAGE_STYLE } from "@/lib/realisationPageCss"
+import { formatTechnicienNom } from "@/lib/technicien-nom"
 import type { RapportData, ResumeIntervention, SeoData } from "@/lib/types-documents"
 
 function escapeHtml(s: string): string {
@@ -178,7 +179,7 @@ function buildTechnicienBlockHtml(
   ville: string,
   interventionDate?: string | null,
 ): string {
-  const nom = technicien.nom.trim()
+  const nom = formatTechnicienNom(technicien.nom)
   if (!nom) return ""
 
   const titre = technicien.titreMetier?.trim() || "technicien déboucheur"

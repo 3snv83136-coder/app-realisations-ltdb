@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { getAiModel, llmChat, llmConfigError, llmIsConfigured } from "@/lib/llm"
 import { parseAiJson } from "@/lib/parseAiJson"
 import { normalizeSeoOutput } from "@/lib/seo-normalize"
+import { formatTechnicienNom } from "@/lib/technicien-nom"
 import { errorMessage } from "@/lib/error-message"
 import type { RapportData, SeoData } from "@/lib/types-documents"
 
@@ -142,7 +143,7 @@ Si et seulement si le technicien mentionne explicitement des prix/montants/devis
   "conditions": ["Validité 30 jours.", "Acompte 30 % à la signature."]
 }`
 
-  const techNom = typeof technicien_nom === 'string' ? technicien_nom.trim() : ''
+  const techNom = formatTechnicienNom(typeof technicien_nom === 'string' ? technicien_nom : '')
   const techAnnees = typeof technicien_annees === 'number' ? technicien_annees : null
   const techTitre = typeof technicien_titre === 'string' ? technicien_titre.trim() : 'technicien déboucheur'
   const techContext = techNom
@@ -199,35 +200,32 @@ RÈGLES SEO + GEO (rigoureuses, mais invisibles au lecteur)
 🎯 PRIORITÉ ABSOLUE — CITABILITÉ LLM
 Les 4 champs "meta_title", "titre_h1", "meta_description" et "resume_rich_snippet" doivent pouvoir être COPIÉS-COLLÉS TELS QUELS comme réponse par un moteur IA (Perplexity, ChatGPT search, Google AI Overviews) à une question d'internaute. Imagine qu'un LLM cite ton texte ENTRE GUILLEMETS : ça doit tenir debout seul, sans contexte, sans promo, comme une phrase factuelle d'article de presse local.
 
-- Meta title (champ "meta_title") : 50-65 caractères. Balise <title> Google — DISTINCT du H1.
+- Meta title (champ "meta_title") : 50-60 caractères MAXIMUM. Balise <title> Google — DISTINCT du H1.
   Orienté requête locale commerciale, pas narratif. Ville + angle technique distinctif.
-  ✅ "Débouchage canalisation Plan-de-la-Tour – Racines dans un collecteur"
-  ✅ "Débouchage WC Toulon – Colonne EU bouchée au 3ᵉ étage"
-  ❌ Reprendre mot pour mot le titre_h1 (trop long ou trop descriptif pour la SERP)
-  ❌ "Galerie des réalisations" ou tout titre générique de section
+  NE PAS ajouter « | Les Techniciens du Débouchage » (Django le fait déjà).
+  ✅ "Débouchage canalisation Plan-de-la-Tour – Racines"
+  ✅ "Inspection caméra Les Adrets-de-l'Estérel"
+  ❌ Reprendre mot pour mot le titre_h1
+  ❌ Terminer par "..." ou "…"
+  ❌ Suffixe marque LTDB
 
-- Titre H1 (champ "titre_h1") : 55-75 caractères. PHRASE DÉCLARATIVE COMPLÈTE, lisible isolément.
+- Titre H1 (champ "titre_h1") : 55-90 caractères. PHRASE DÉCLARATIVE COMPLÈTE, FERMÉE (jamais de "...").
   Construction obligatoire : action concrète + élément distinctif tiré de la dictée + ${ville}.
-  ✅ "Débouchage d'une colonne d'eaux usées à ${ville} après accumulation de lingettes"
+  ✅ "Inspection caméra à Les Adrets-de-l'Estérel : recherche de regard enterré après blocage"
   ✅ "Hydrocurage d'un regard extérieur à ${ville} : racines retirées, évacuation rétablie"
-  ✅ "Inspection caméra du réseau EP d'une copropriété à ${ville} — fissure repérée à 18 m"
-  ❌ "DÉBOUCHAGE URGENT 24H/24 À ${ville} !!"            (promo, majuscules, points d'exclamation)
-  ❌ "Comment déboucher une canalisation à ${ville} ?"   (question, pas citable comme fait)
-  ❌ "Plombier expert ${ville} — intervention rapide"    (slogan vide, pas de fait précis)
-  ❌ "Débouchage canalisation"                            (générique, ni ville ni angle)
-  Interdits stricts : majuscules en bloc, "!", "?", "24/7", "urgent", "expert", "n°1", chiffres marketing.
+  ❌ Terminer par points de suspension
+  ❌ "DÉBOUCHAGE URGENT 24H/24 À ${ville} !!"
 
-- Meta description (champ "meta_description") : 150 à 160 caractères MAXIMUM (jamais plus de 160), format RÉPONSE-D'ABORD.
+- Meta description (champ "meta_description") : 150 à 160 caractères MAXIMUM, format RÉPONSE-D'ABORD + CTA court.
   Les LLMs citent surtout les 12-15 PREMIERS MOTS — donc l'info clé doit y être.
-  Structure en 2 phrases :
-    Phrase 1 (60-85 car.) — LE QUOI + OÙ : action principale au passé, lieu précis, élément distinctif.
-    Phrase 2 (60-80 car.) — LE COMMENT + RÉSULTAT : méthode utilisée + résultat mesurable ou observable.
-  Densité d'entités obligatoire : ≥ 3 entités nommées (lieu, problème, technique, ou mesure).
-  Inclure si possible 1 chiffre concret (durée, pression, distance, niveau).
-  ✅ "Débouchage d'une colonne EU à ${ville} après bouchon de lingettes au 3ᵉ étage. Hydrocurage 200 bars, contrôle caméra, évacuation rétablie en 1 h 30."
-  ✅ "Inspection caméra du réseau d'eaux pluviales d'une copropriété à ${ville}. Fissure repérée à 18 m du regard, plan de réparation transmis au syndic."
-  ❌ "Plombier ${ville} 24/7, devis gratuit, intervention rapide. Appelez-nous !"
-  Interdits : "!", phrases d'appel à l'action, urgence forcée, majuscules en bloc, "contactez-nous".
+  Structure :
+    Phrase 1 (60-85 car.) — LE QUOI + OÙ : action au passé, lieu, élément distinctif.
+    Phrase 2 (50-70 car.) — résultat / méthode.
+    Fin : CTA sobre obligatoire, ex. « Devis gratuit, intervention rapide dans le Var. »
+  ✅ "Inspection caméra à ${ville} : blocage localisé à 16 m, suspicion de regard enterré. Diagnostic vidéo + devis gratuit, intervention rapide dans le Var."
+  ❌ Terminer par "..." sans CTA
+  ❌ "Appelez-nous !!!" / majuscules / urgence forcée
+  Interdits : "!", majuscules en bloc, "contactez-nous vite".
 
 - Résumé "resume_rich_snippet" : 2 à 3 phrases, 200-320 caractères. C'EST LE PASSAGE QUI SERA CITÉ comme extrait riche par les moteurs IA.
   Doit répondre seul, sans le reste de la page, à : QUI a fait QUOI, OÙ, COMMENT, avec quel RÉSULTAT.

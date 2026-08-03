@@ -4,7 +4,16 @@ import {
   buildMetaTitleFallback,
   normalizeSeoOutput,
 } from "@/lib/seo-normalize"
+import {
+  finalizeMetaDescription,
+  finalizeMetaTitle,
+  finalizeTitreH1,
+  truncatePublishField,
+} from "@/lib/publish-seo-text"
+import { formatTechnicienNom } from "@/lib/technicien-nom"
 import type { SeoData } from "@/lib/types-documents"
+
+export { truncatePublishField } from "@/lib/publish-seo-text"
 
 export function prepareSeoForPublish(opts: {
   seo: SeoData
@@ -31,26 +40,30 @@ export function prepareSeoForPublish(opts: {
       ? seo.resume_intervention
       : null
 
-  const metaTitle =
+  const metaTitleRaw =
     typeof seo.meta_title === "string" && seo.meta_title.trim()
       ? seo.meta_title.trim()
       : buildMetaTitleFallback(opts.typeIntervention, opts.ville, resume)
 
-  const titreH1 =
+  const titreH1Raw =
     typeof seo.titre_h1 === "string" && seo.titre_h1.trim()
       ? seo.titre_h1.trim()
-      : metaTitle
+      : metaTitleRaw
 
-  const metaDescription =
+  const metaDescriptionRaw =
     typeof seo.meta_description === "string" && seo.meta_description.trim()
       ? seo.meta_description.trim()
       : typeof seo.resume_rich_snippet === "string"
         ? seo.resume_rich_snippet.trim()
         : ""
 
+  const metaTitle = finalizeMetaTitle(metaTitleRaw)
+  const titreH1 = finalizeTitreH1(titreH1Raw)
+  const metaDescription = finalizeMetaDescription(metaDescriptionRaw, opts.ville)
+
   const resumeSnippet =
     typeof seo.resume_rich_snippet === "string" && seo.resume_rich_snippet.trim()
-      ? seo.resume_rich_snippet.trim()
+      ? truncatePublishField(seo.resume_rich_snippet.trim(), 320, { ellipsis: false })
       : metaDescription
 
   const faq = Array.isArray(seo.faq)
@@ -64,6 +77,7 @@ export function prepareSeoForPublish(opts: {
     : []
 
   const pageUrl = `https://lestechniciensdudebouchage.fr/nos-realisations/${opts.publishSlug}`
+  const technicienNom = formatTechnicienNom(opts.technicienNom)
 
   seo.meta_title = metaTitle
   seo.titre_h1 = titreH1
@@ -72,9 +86,9 @@ export function prepareSeoForPublish(opts: {
   seo.slug = opts.publishSlug
   seo.page_url = pageUrl
   seo.city_page_url = buildCityPageUrl(opts.ville, opts.codePostal)
-  if (opts.technicienNom?.trim()) {
+  if (technicienNom) {
     seo.technicien = {
-      nom: opts.technicienNom.trim(),
+      nom: technicienNom,
       titre_metier: opts.technicienTitre || null,
       photo_url: opts.technicienPhotoUrl || null,
     }
@@ -90,7 +104,7 @@ export function prepareSeoForPublish(opts: {
     codePostal: opts.codePostal,
     typeIntervention: opts.typeIntervention,
     interventionDate: opts.interventionDate,
-    technicienNom: opts.technicienNom,
+    technicienNom: technicienNom || null,
     technicienTitre: opts.technicienTitre,
     technicienPhotoUrl: opts.technicienPhotoUrl,
     faq,
@@ -98,10 +112,4 @@ export function prepareSeoForPublish(opts: {
   })
 
   return seo
-}
-
-/** Tronque pour les CharField Django. */
-export function truncatePublishField(s: string, max: number): string {
-  if (s.length <= max) return s
-  return s.slice(0, max - 3).trimEnd() + "..."
 }
