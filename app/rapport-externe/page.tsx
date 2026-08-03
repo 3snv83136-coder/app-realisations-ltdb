@@ -311,8 +311,38 @@ export default function RapportExternePage() {
       formData.append("client_email", "")
       formData.append("client_adresse", `${cp} ${ville}`.trim())
       formData.append("technicien_name", tech)
-      formData.append("before_image", avant.file)
-      formData.append("after_image", apres?.file || avant.file)
+      const { renamePhotoFile, buildPhotoLegende, buildPhotoNomBase } = await import(
+        "@/lib/photo-seo-name"
+      )
+      const photoOpts = {
+        typeIntervention,
+        ville,
+        date: dateIntervention,
+      }
+      const beforeFile = renamePhotoFile(avant.file, { ...photoOpts, role: "avant" })
+      const afterFile = renamePhotoFile(apres?.file || avant.file, { ...photoOpts, role: "apres" })
+      formData.append("before_image", beforeFile)
+      formData.append("after_image", afterFile)
+      formData.append("photos_nom_base", buildPhotoNomBase(photoOpts))
+      formData.append(
+        "photos_json",
+        JSON.stringify([
+          {
+            field: "before_image",
+            ordre: 0,
+            filename: beforeFile.name,
+            legende: buildPhotoLegende({ ...photoOpts, role: "avant" }),
+            categorie: "avant",
+          },
+          {
+            field: "after_image",
+            ordre: 1,
+            filename: afterFile.name,
+            legende: buildPhotoLegende({ ...photoOpts, role: "apres" }),
+            categorie: "apres",
+          },
+        ]),
+      )
 
       setInfo("Publication sur le site…")
       const res = await fetch("/api/publish", { method: "POST", body: formData })

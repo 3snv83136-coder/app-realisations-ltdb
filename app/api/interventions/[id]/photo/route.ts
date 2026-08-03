@@ -1,5 +1,10 @@
 import { NextRequest, NextResponse } from "next/server"
 import { requireInterventionAccess } from "@/lib/intervention-access"
+import {
+  buildPhotoFilename,
+  buildPhotoLegende,
+  roleFromCategory,
+} from "@/lib/photo-seo-name"
 import { getSupabaseOrNull } from "@/lib/supabase"
 
 export const dynamic = 'force-dynamic'
@@ -55,15 +60,25 @@ export async function POST(req: NextRequest, { params }: Params) {
 
   const { data: interv, error: intErr } = await sb
     .from('interventions')
-    .select('id, photos_urls, photos_legendes, photos_categories, terrain_step')
+    .select('id, type_intervention, ville, date_realisee, date_prevue, photos_urls, photos_legendes, photos_categories, terrain_step')
     .eq('id', interventionId)
     .maybeSingle()
   if (intErr) return NextResponse.json({ error: intErr.message }, { status: 500 })
   if (!interv) return NextResponse.json({ error: 'Intervention introuvable' }, { status: 404 })
 
-  const folder = interventionId.replace(/[^a-zA-Z0-9_-]/g, '-').slice(0, 80)
+  const nextIndex = (interv.photos_urls || []).length
+  const inferredCat = categorie || inferCategoryFromLegende(legende, nextIndex)
+  const role = roleFromCategory(inferredCat, nextIndex)
+  const photoOpts = {
+    typeIntervention: (interv.type_intervention as string) || 'intervention',
+    ville: (interv.ville as string) || 'var',
+    date: (interv.date_realisee || interv.date_prevue || null) as string | null,
+  }
   const ext = (file.name.match(/\.[a-zA-Z0-9]+$/)?.[0] || '.jpg').toLowerCase()
-  const path = `${folder}/${Date.now()}${ext}`
+  const seoFilename = buildPhotoFilename({ ...photoOpts, role, index: nextIndex, ext })
+  const folder = interventionId.replace(/[^a-zA-Z0-9_-]/g, '-').slice(0, 80)
+  // Horodatage court pour éviter les collisions si 2 photos même rôle.
+  const path = `${folder}/${Date.now().toString(36)}-${seoFilename}`
   const buf = Buffer.from(await file.arrayBuffer())
 
   const upload = await sb.storage
@@ -79,13 +94,17 @@ export async function POST(req: NextRequest, { params }: Params) {
     return NextResponse.json({ error: 'URL publique introuvable' }, { status: 500 })
   }
 
+  const seoLegende = buildPhotoLegende({ ...photoOpts, role, index: nextIndex })
   const photosUrls = [...(interv.photos_urls || []), url]
-  const photosLegendes = [...(interv.photos_legendes || []), legende || defaultLegende(photosUrls.length - 1)]
+  const photosLegendes = [
+    ...(interv.photos_legendes || []),
+    legende || seoLegende,
+  ]
   const photosCategories = [...(interv.photos_categories || [])]
   while (photosCategories.length < photosUrls.length - 1) {
     photosCategories.push(inferCategoryFromIndex(photosCategories.length, interv.photos_legendes?.[photosCategories.length] || ''))
   }
-  photosCategories.push(categorie || inferCategoryFromLegende(legende, photosUrls.length - 1))
+  photosCategories.push(inferredCat)
 
   // Bump terrain_step : photo avant → 1, photo après → 4 (rapport).
   // Les photos « travaux supplémentaires » ne font pas avancer le wizard.
@@ -137,10 +156,4 @@ function inferCategoryFromLegende(legende: string, index: number): string {
 
 function inferCategoryFromIndex(index: number, legende: string): string {
   return inferCategoryFromLegende(legende, index)
-}
-
-function defaultLegende(index: number): string {
-  if (index === 0) return 'Photo avant intervention'
-  if (index === 1) return 'Photo après intervention'
-  return `Photo ${index + 1}`
 }

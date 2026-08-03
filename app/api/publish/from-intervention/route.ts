@@ -19,6 +19,12 @@ import { getSupabaseOrNull } from "@/lib/supabase"
 import { appendTechnicienPhotoToFormData } from "@/lib/technicien-publish"
 import { normalizeFrenchPostalCode, resolvePostalCodeForPublish } from "@/lib/postal-code"
 import { findVilleByName } from "@/lib/villes-var"
+import {
+  buildPhotoFilename,
+  buildPhotoLegende,
+  buildPhotoNomBase,
+  roleFromCategory,
+} from "@/lib/photo-seo-name"
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
@@ -140,21 +146,10 @@ export async function POST(req: NextRequest) {
       await sb.from('interventions').update({ code_postal: codePostal }).eq('id', interventionId)
     } catch { /* best-effort */ }
   }
-  const slugify = (s: string) =>
-    (s || '')
-      .toLowerCase()
-      .replace(/[àâä]/g, 'a')
-      .replace(/[éèêë]/g, 'e')
-      .replace(/[îï]/g, 'i')
-      .replace(/[ôö]/g, 'o')
-      .replace(/[ùûü]/g, 'u')
-      .replace(/ç/g, 'c')
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/^-+|-+$/g, '')
-  const nomBase =
-    [slugify(interv.type_intervention || 'intervention'), slugify(ville)]
-      .filter(Boolean)
-      .join('-') || 'realisation'
+  const dateIntervention = interv.date_realisee || interv.date_prevue || new Date().toISOString().slice(0, 10)
+  const typeIntervention = (interv.type_intervention as string) || 'intervention'
+  const photoOpts = { typeIntervention, ville, date: dateIntervention }
+  const nomBase = buildPhotoNomBase(photoOpts)
 
   // Récupère les photos depuis Storage en passant par le endpoint de transformation
   // Supabase pour les compresser. Sans ça, 2 photos iPhone ~1MB chacune dépassent
@@ -186,10 +181,16 @@ export async function POST(req: NextRequest) {
         const r = await fetch(renderUrl)
         if (!r.ok) throw new Error(`HTTP ${r.status}`)
         const blob = await r.blob()
+        const role = roleFromCategory(meta.categorie, i)
+        const filename = buildPhotoFilename({ ...photoOpts, role, index: i, ext: '.jpg' })
+        const legende =
+          meta.legende && !/^photo\s*\d+$/i.test(meta.legende.trim())
+            ? meta.legende
+            : buildPhotoLegende({ ...photoOpts, role, index: i })
         return {
           blob,
-          filename: `${nomBase}-${i + 1}.jpg`,
-          legende: meta.legende,
+          filename,
+          legende,
           categorie: meta.categorie,
           url: renderUrl,
         }
@@ -203,8 +204,6 @@ export async function POST(req: NextRequest) {
   if (validPhotos.length === 0) {
     return NextResponse.json({ error: 'Aucune photo téléchargeable depuis Storage.' }, { status: 502 })
   }
-
-  const dateIntervention = interv.date_realisee || interv.date_prevue || new Date().toISOString().slice(0, 10)
 
   // Slug : republier = slug existant ; sinon SEO ou base service-ville + suffixe ID
   const idSuffix = interventionId.replace(/-/g, "").slice(0, 8)

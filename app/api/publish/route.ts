@@ -241,8 +241,13 @@ async function uploadInterventionPhotos(
   const urls: string[] = []
   for (let i = 0; i < ordered.length; i++) {
     const file = ordered[i]
-    const ext = (file.name.match(/\.[a-zA-Z0-9]+$/)?.[0] || '.jpg').toLowerCase()
-    const path = `${folder}/${stamp}-${i}${ext}`
+    // Conserve le nom SEO client (type-ville-date-role) si déjà présent.
+    const rawName = (file.name || '').replace(/[^a-zA-Z0-9._-]/g, '-')
+    const hasSeoName = /^[a-z0-9]+(?:-[a-z0-9]+)+-(?:avant|apres|pendant|camera|photo-\d+)\.[a-z0-9]+$/i.test(rawName)
+    const safeName = hasSeoName
+      ? rawName.toLowerCase()
+      : `${stamp}-${i}${(file.name.match(/\.[a-zA-Z0-9]+$/)?.[0] || '.jpg').toLowerCase()}`
+    const path = `${folder}/${safeName}`
     const buf = Buffer.from(await file.arrayBuffer())
     const { error } = await sb.storage
       .from(PHOTOS_BUCKET)

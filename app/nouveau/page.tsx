@@ -667,9 +667,54 @@ export default function NouveauPage() {
         (typeof seoForPublish.slug === 'string' ? seoForPublish.slug : '') || publishSlug,
       )
     }
-    formData.append('before_image', photos[0].file)
-    formData.append('after_image', (photos[1] || photos[0]).file)
-    photos.slice(2).forEach((p, i) => formData.append(`extra_image_${i}`, p.file))
+    const { renamePhotoFile, buildPhotoLegende, buildPhotoNomBase, roleFromCategory } = await import(
+      '@/lib/photo-seo-name'
+    )
+    const photoOpts = {
+      typeIntervention,
+      ville,
+      date: dateIntervention,
+    }
+    const beforeFile = renamePhotoFile(photos[0].file, { ...photoOpts, role: 'avant' })
+    const afterSrc = (photos[1] || photos[0]).file
+    const afterFile = renamePhotoFile(afterSrc, { ...photoOpts, role: 'apres' })
+    formData.append('before_image', beforeFile)
+    formData.append('after_image', afterFile)
+    const extras = photos.slice(2).map((p, i) =>
+      renamePhotoFile(p.file, { ...photoOpts, role: 'autre', index: i + 2 }),
+    )
+    extras.forEach((f, i) => formData.append(`extra_image_${i}`, f))
+    formData.append('photos_nom_base', buildPhotoNomBase(photoOpts))
+    formData.append(
+      'photos_json',
+      JSON.stringify([
+        {
+          field: 'before_image',
+          ordre: 0,
+          filename: beforeFile.name,
+          legende: buildPhotoLegende({ ...photoOpts, role: 'avant' }),
+          categorie: 'avant',
+        },
+        {
+          field: 'after_image',
+          ordre: 1,
+          filename: afterFile.name,
+          legende: buildPhotoLegende({ ...photoOpts, role: 'apres' }),
+          categorie: 'apres',
+        },
+        ...extras.map((f, i) => ({
+          field: `extra_image_${i}`,
+          ordre: i + 2,
+          filename: f.name,
+          legende: buildPhotoLegende({
+            ...photoOpts,
+            role: roleFromCategory(undefined, i + 2),
+            index: i + 2,
+          }),
+          categorie: 'autre',
+        })),
+      ]),
+    )
     try {
       const res = await fetch('/api/publish', { method: 'POST', body: formData })
       const txt = await res.text()
