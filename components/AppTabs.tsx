@@ -21,6 +21,7 @@ const TABS: Tab[] = [
   { href: '/',             label: 'ADMIN WORLD',  Icon: HomeIcon },
   { href: '/planning',     label: 'Planning',     Icon: CalendarIcon },
   { href: '/nouveau',      label: 'Rapport',      Icon: DocumentIcon },
+  { href: '/rapport-externe', label: 'Externe',   Icon: DocumentIcon },
   { href: '/inspection',   label: 'Caméra',       Icon: CameraIcon },
   { href: '/devis',        label: 'Devis',        Icon: ClipboardIcon },
   { href: '/facture',      label: 'Facturation',  Icon: ReceiptIcon },

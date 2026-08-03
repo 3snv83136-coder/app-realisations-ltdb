@@ -30,6 +30,7 @@ export const ADMIN_HUBS: HubGroup[] = [
     emoji: '📄',
     links: [
       { href: '/nouveau', label: 'Nouveau rapport', sub: 'Mode terrain' },
+      { href: '/rapport-externe', label: 'Rapport externe', sub: 'Site + GMB' },
       { href: '/rapports', label: 'Tous les rapports', sub: 'Liste & envoi' },
     ],
   },
