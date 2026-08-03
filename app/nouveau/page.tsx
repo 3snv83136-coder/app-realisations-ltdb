@@ -602,10 +602,8 @@ export default function NouveauPage() {
       technicienNom: technicienNom || null,
       technicienTitre: technicienProfile?.titre_metier || null,
       technicienPhotoUrl,
-      photos: photos.map((p) => ({
-        url: p.dataUrl || '',
-        legende: p.legende || 'Photo',
-      })).filter((p) => p.url),
+      // Pas de data:image dans SEO/content — les fichiers multipart suffisent.
+      photos: [],
     })
     const { content: contentWithContainers, seo: seoForPublish } = buildPublishContentHtml({
       seo: seoPrepared,
@@ -617,7 +615,6 @@ export default function NouveauPage() {
       interventionDate: dateIntervention,
       photos: photos.map((p) => ({
         legende: p.legende || `Photo`,
-        url: p.dataUrl || undefined,
       })),
       technicien: technicienNom
         ? {

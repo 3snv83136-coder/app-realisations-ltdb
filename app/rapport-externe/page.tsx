@@ -46,7 +46,7 @@ async function fileToDataUrl(file: File): Promise<string> {
   })
 }
 
-async function compressImage(file: File, maxDim = 1920, quality = 0.82): Promise<File> {
+async function compressImage(file: File, maxDim = 1280, quality = 0.72): Promise<File> {
   const bmp = await createImageBitmap(file)
   const scale = Math.min(1, maxDim / Math.max(bmp.width, bmp.height))
   const w = Math.round(bmp.width * scale)
@@ -217,6 +217,8 @@ export default function RapportExternePage() {
         .slice(0, 70)
       const publishSlug = `${baseSlug}-${idSuffix}`.slice(0, 95)
 
+      // Pas de data:image dans content/jsonld : Django reçoit les fichiers
+      // before/after et refuse souvent un body trop gros (HTTP 400 vide).
       const seoPrepared = prepareSeoForPublish({
         seo: seoLocal || {},
         typeIntervention,
@@ -226,11 +228,7 @@ export default function RapportExternePage() {
         interventionDate: dateIntervention,
         publishSlug,
         technicienNom: tech,
-        photos: photos.map((p) => ({
-          url: p.dataUrl,
-          legende: p.legende,
-          alt: `${typeIntervention} à ${ville} — ${p.legende}`,
-        })),
+        photos: [],
       })
 
       const { content: contentWithContainers, seo: seoForPublish } = buildPublishContentHtml({
@@ -243,7 +241,6 @@ export default function RapportExternePage() {
         interventionDate: dateIntervention,
         photos: photos.map((p) => ({
           legende: p.legende,
-          url: p.dataUrl,
         })),
         technicien: { nom: tech, photoUrl: null, anneesExperience: null, titreMetier: null },
       })

@@ -7,6 +7,7 @@ import {
 } from "@/lib/technicien-publish"
 import type { SupabaseClient } from "@supabase/supabase-js"
 import { errorMessage } from "@/lib/error-message"
+import { sanitizePublishFormData } from "@/lib/publish-sanitize"
 import type { RapportData, SeoData } from "@/lib/types-documents"
 
 /** Réponse JSON de l'API gallery Django (forme libre selon succès / erreur). */
@@ -25,6 +26,8 @@ export async function POST(req: NextRequest) {
   }
 
   await enrichTechnicienFormData(formData)
+  // Retire les data:image base64 du HTML/JSON — Django rejette sinon (400 vide).
+  sanitizePublishFormData(formData)
 
   try {
     const response = await fetch(`${ltdbUrl}/api/gallery/publish/`, {
@@ -38,16 +41,28 @@ export async function POST(req: NextRequest) {
     try { data = JSON.parse(txt) } catch { /* réponse non-JSON (HTML d'erreur Django, etc.) */ }
 
     if (!response.ok) {
+      const contentLen = typeof formData.get('content') === 'string'
+        ? (formData.get('content') as string).length
+        : 0
       console.error('[publish] LTDB API error', {
         status: response.status,
         url: `${ltdbUrl}/api/gallery/publish/`,
         contentType: response.headers.get('content-type'),
         bodyPreview: txt.slice(0, 2000),
+        contentChars: contentLen,
         sentFields: Array.from(formData.keys()),
       })
-      const msg = data
+      let msg = data
         ? (typeof data === 'string' ? data : data.error || data.detail || JSON.stringify(data))
         : `HTTP ${response.status} — ${txt.slice(0, 800)}`
+      // Django renvoie souvent un HTML 400 vide quand le multipart est trop gros.
+      if (
+        response.status === 400
+        && typeof msg === 'string'
+        && (/Bad Request/i.test(msg) || msg.includes('<!doctype'))
+      ) {
+        msg = 'Requête rejetée (400) — payload trop volumineux ou champ invalide. Réessaie avec des photos plus légères.'
+      }
       return NextResponse.json({ error: `LTDB API : ${msg}`, status: response.status, bodyPreview: txt.slice(0, 800) }, { status: response.status })
     }
 
