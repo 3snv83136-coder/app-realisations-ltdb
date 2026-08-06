@@ -25,7 +25,6 @@ import { isAccordFinDeMois } from "@/lib/fin-de-mois"
 import { getTravauxSupplementaires } from "@/lib/travaux-supplementaires"
 import RapportOfflineBanner from "@/components/rapport/RapportOfflineBanner"
 import VideoUploadPanel from "@/components/VideoUploadPanel"
-import EnvoyerAvisSmsPanel from "@/components/EnvoyerAvisSmsPanel"
 import { CATALOGUE_PRESTATIONS } from "@/lib/catalogue-prestations"
 import {
   clearRapportDraft,
@@ -2056,7 +2055,7 @@ function TerrainDiffusionPanel({ interv, client, onRefresh, onError, techOnlyMai
             className="w-full border-2 border-slate-200 focus:border-blue-500 outline-none rounded-xl px-4 py-3 text-base"
           />
           <p className="text-[11px] text-slate-500 mt-1">
-            Rapport/facture : ouvre la messagerie du téléphone · Avis Google : envoi auto Brevo.
+            Rapport/facture : ouvre la messagerie du téléphone (envoi manuel).
           </p>
         </div>
 
@@ -2079,19 +2078,12 @@ function TerrainDiffusionPanel({ interv, client, onRefresh, onError, techOnlyMai
         <div className="text-sm text-slate-700 space-y-1 pt-2">
           <div>📄 Rapport d&apos;intervention (PDF)</div>
           <div>🧾 Facture (PDF)</div>
-          <div>⭐ Demande d&apos;avis Google</div>
           <div className="text-xs text-slate-500 pt-1">
-            Avis : J+1 SMS · J+2 mail · J+4 SMS · J+6 mail (Brevo) · facture impayée : relances J+10/15/20
+            Pas de demande d&apos;avis Google automatique — à faire sur place au téléphone si besoin.
+            Facture impayée : relances J+10/15/20.
           </div>
         </div>
       </div>
-
-      <EnvoyerAvisSmsPanel
-        interventionId={interv.id}
-        clientNom={nom}
-        clientTelephone={telephone}
-        onTelephoneChange={setTelephone}
-      />
 
       {progress && (
         <div className="bg-blue-50 border border-blue-200 text-blue-800 rounded-xl px-4 py-3 text-sm font-semibold text-center space-y-1">
@@ -2235,8 +2227,8 @@ function StepTermine({ interv, client, onRefresh, onError, techOnlyMail }: {
         <h1 className="text-2xl font-black text-emerald-800">Intervention terminée</h1>
         <p className="text-sm text-emerald-700 mt-2">
           {techOnlyMail
-            ? 'Tu peux encore envoyer le rapport et la facture par mail ou SMS, ou le SMS avis Google (Brevo).'
-            : 'Tu peux encore déclencher mail, SMS avis Google (Brevo), site, GMB ou YouTube ci-dessous.'}
+            ? 'Tu peux encore envoyer le rapport et la facture par mail ou SMS (choix manuel).'
+            : 'Tu peux encore déclencher mail, SMS client, site, GMB ou YouTube ci-dessous.'}
         </p>
       </div>
 

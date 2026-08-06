@@ -75,17 +75,6 @@ export async function POST(req: NextRequest) {
     if (t?.nom) technicienNom = t.nom
   }
 
-  let reviewUrl = process.env.GOOGLE_REVIEW_URL
-    || "https://www.google.com/maps/place/Les+Techniciens+du+Débouchage"
-  try {
-    const { data: paramRow } = await sb
-      .from("parametres")
-      .select("valeur")
-      .eq("cle", "google_review_url")
-      .maybeSingle()
-    if (paramRow?.valeur) reviewUrl = paramRow.valeur
-  } catch { /* best-effort */ }
-
   const tel = await getTelPrincipal()
   const smsBody = buildRapportFactureSmsText({
     clientNom,
@@ -95,10 +84,10 @@ export async function POST(req: NextRequest) {
     reference: interv.reference || interv.id.slice(0, 8),
     factureNumero: facture.numero || "",
     totalTTC: typeof facture.montant_ttc === "number" ? facture.montant_ttc : null,
-    reviewUrl,
     tel,
     rapportUrl: interv.pdf_rapport_url,
     factureUrl: facture.pdf_url,
+    includeReview: false,
   })
 
   if (body.markSent !== false) {

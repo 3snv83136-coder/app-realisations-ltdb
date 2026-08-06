@@ -369,13 +369,17 @@ export default function InterventionDetailPage({ params }: { params: { id: strin
 
   async function resendNotifyTechnicien() {
     if (!intervention?.technicien_id) return
-    if (!confirm(`Renvoyer le mail et le SMS à ${technicien?.nom || 'ce technicien'} ?`)) return
+    const sendMail = confirm(`Envoyer le mail à ${technicien?.nom || 'ce technicien'} ?`)
+    const sendSms = confirm(`Envoyer le SMS à ${technicien?.nom || 'ce technicien'} ?`)
+    if (!sendMail && !sendSms) return
     setNotifyingTech(true)
     setError('')
     setActionMsg('')
     try {
       const res = await fetch(`/api/interventions/${intervention.id}/notify-technicien`, {
         method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sendMail, sendSms }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || data.message || `HTTP ${res.status}`)
@@ -982,7 +986,7 @@ export default function InterventionDetailPage({ params }: { params: { id: strin
                       disabled={notifyingTech || actionInProgress}
                       className="w-full mt-2 bg-[#0e2a52] hover:bg-[#1a3d6e] disabled:opacity-50 text-white rounded-xl py-2.5 text-sm font-bold transition"
                     >
-                      {notifyingTech ? 'Envoi…' : '📧 Renvoyer mail + SMS au technicien'}
+                      {notifyingTech ? 'Envoi…' : '📧 Notifier le technicien (mail / SMS au choix)'}
                     </button>
                   )}
                 </div>

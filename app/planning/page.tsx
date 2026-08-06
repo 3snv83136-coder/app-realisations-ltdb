@@ -680,12 +680,33 @@ function NouvelleInterventionModal({
 
       if (technicienId && notif && !notif.ok) {
         const detail = notif.skipped || notif.error || notif.sms_error || 'raison inconnue'
-        lines.push(`Technicien non notifié : ${detail}`)
+        lines.push(`Technicien non notifié (mail) : ${detail}`)
       } else if (technicienId && notif?.ok) {
-        const parts: string[] = []
-        if (notif.mail_sent) parts.push('mail')
-        if (notif.sms_sent) parts.push('SMS')
-        if (parts.length) lines.push(`Technicien notifié (${parts.join(' + ')}).`)
+        if (notif.mail_sent) lines.push('Mail envoyé au technicien.')
+        else lines.push('Technicien assigné (pas de mail).')
+      }
+
+      // SMS tech : choix manuel (plus d'envoi auto).
+      if (createdId && technicienId) {
+        const sendTechSms = window.confirm(
+          `${lines.join('\n')}\n\nEnvoyer un SMS au technicien pour cette intervention ?`,
+        )
+        if (sendTechSms) {
+          try {
+            const smsRes = await fetch(`/api/interventions/${createdId}/notify-technicien`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ sendMail: false, sendSms: true }),
+            })
+            const smsData = await smsRes.json()
+            if (!smsRes.ok) throw new Error(smsData.error || smsData.message || `HTTP ${smsRes.status}`)
+            lines.push('SMS envoyé au technicien.')
+          } catch (e) {
+            lines.push(`SMS technicien non envoyé : ${e instanceof Error ? e.message : String(e)}`)
+          }
+        } else {
+          lines.push('SMS technicien non envoyé (choix manuel).')
+        }
       }
 
       if (createdId && clientTel.trim()) {
@@ -704,10 +725,12 @@ function NouvelleInterventionModal({
             })
             const smsData = await smsRes.json()
             if (!smsRes.ok) throw new Error(smsData.error || `HTTP ${smsRes.status}`)
-            window.alert('SMS de confirmation envoyé au client.')
+            window.alert([...lines, 'SMS de confirmation envoyé au client.'].join('\n'))
           } catch (e) {
-            window.alert(`SMS client non envoyé : ${e instanceof Error ? e.message : String(e)}`)
+            window.alert([...lines, `SMS client non envoyé : ${e instanceof Error ? e.message : String(e)}`].join('\n'))
           }
+        } else {
+          window.alert([...lines, 'SMS client non envoyé (choix manuel).'].join('\n'))
         }
       } else {
         if (!clientTel.trim()) {

@@ -258,7 +258,9 @@ export async function POST(req: NextRequest) {
   const dateFacture = facture.date_emission || dateInterv
 
   const tel = await getTelPrincipal()
-  const skipReviews = !!body.skipReviews
+  // Plus de demande d'avis Google auto (harcèlement signalé) — avis demandé sur place au téléphone.
+  const skipReviews = body.skipReviews !== false ? true : false
+  const includeReview = !skipReviews
 
   let reviewUrl = process.env.GOOGLE_REVIEW_URL
     || 'https://www.google.com/maps/place/Les+Techniciens+du+Débouchage'
@@ -271,7 +273,7 @@ export async function POST(req: NextRequest) {
     if (paramRow?.valeur) reviewUrl = paramRow.valeur
   } catch { /* best-effort */ }
 
-  // Relances avis : J+1 SMS, J+2 mail, J+4 SMS, J+6 mail (best-effort).
+  // Relances avis désactivées par défaut.
   let relanceIds: string[] = []
   let smsPlanned = 0
   let avisRelanceErrors: string[] = []
@@ -314,6 +316,7 @@ export async function POST(req: NextRequest) {
       clientNom, technicienNom, ville, dateIntervention: dateInterv,
       reference, factureNumero: factureNum, totalTTC, reviewUrl, stopUrl, tel,
       factureReglee,
+      includeReview,
     }),
     attachments: [
       { filename: `rapport-${reference}.pdf`, content: rapportB64 },

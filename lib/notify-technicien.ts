@@ -35,6 +35,10 @@ export type NotifyTechnicienInput = {
   urgence?: boolean
   prix_prevu?: number | null
   notes_internes?: string | null
+  /** SMS désactivé par défaut — à activer manuellement. */
+  sendSms?: boolean
+  /** Mail activé par défaut. */
+  sendMail?: boolean
 }
 
 export type NotifyTechnicienResult = {
@@ -149,13 +153,17 @@ export async function notifyTechnicienIntervention(
   const techEmail = (input.technicien_email || '').trim()
   const techPhone = (input.technicien_telephone || '').trim()
   const hasValidEmail = !!techEmail && EMAIL_RE.test(techEmail)
+  const wantMail = input.sendMail !== false
+  const wantSms = input.sendSms === true
 
-  if (!hasValidEmail && !techPhone) {
+  if ((!wantMail || !hasValidEmail) && (!wantSms || !techPhone)) {
     return {
       ok: false,
       mail_sent: false,
       sms_sent: false,
-      skipped: 'Technicien sans email ni téléphone renseignés',
+      skipped: !wantMail && !wantSms
+        ? 'Aucun canal demandé (mail/SMS)'
+        : 'Technicien sans email ni téléphone renseignés',
     }
   }
 
@@ -166,7 +174,7 @@ export async function notifyTechnicienIntervention(
   let error: string | undefined
   let smsError: string | undefined
 
-  if (hasValidEmail) {
+  if (wantMail && hasValidEmail) {
     const resendKey = process.env.RESEND_API_KEY
     if (!resendKey) {
       error = 'RESEND_API_KEY manquante'
@@ -211,7 +219,7 @@ export async function notifyTechnicienIntervention(
     }
   }
 
-  if (techPhone && isSmsConfigured()) {
+  if (wantSms && techPhone && isSmsConfigured()) {
     const smsBody = buildTechnicienInterventionSmsText({
       technicienNom: input.technicien_nom,
       clientNom: input.client_nom,
@@ -233,8 +241,10 @@ export async function notifyTechnicienIntervention(
       console.error('[notify-technicien] SMS', smsResult.error)
       if (!error) error = `SMS : ${smsResult.error}`
     }
-  } else if (techPhone && !isSmsConfigured()) {
+  } else if (wantSms && techPhone && !isSmsConfigured()) {
     smsError = 'SMS non configuré (BREVO_API_KEY ou Twilio)'
+  } else if (wantSms && !techPhone) {
+    smsError = 'Technicien sans téléphone'
   }
 
   const ok = mailSent || smsSent
@@ -260,6 +270,7 @@ export async function notifyTechnicienForIntervention(
   interventionId: string,
   technicienId: string,
   baseUrl: string,
+  opts?: { sendMail?: boolean; sendSms?: boolean },
 ): Promise<NotifyTechnicienResult> {
   const sb = getSupabaseOrNull()
   if (!sb) {
@@ -323,6 +334,9 @@ export async function notifyTechnicienForIntervention(
     urgence: i.urgence,
     prix_prevu: i.prix_prevu,
     notes_internes: i.notes_internes,
+    // Création / réassignation : mail seul. SMS uniquement si demandé explicitement.
+    sendMail: opts?.sendMail !== false,
+    sendSms: opts?.sendSms === true,
   }, baseUrl)
 }
 
