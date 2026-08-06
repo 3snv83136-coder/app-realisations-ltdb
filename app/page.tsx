@@ -10,10 +10,6 @@ const EnvoyerAvisSmsPanel = dynamic(
   () => import("@/components/EnvoyerAvisSmsPanel"),
   { ssr: false },
 )
-const RelanceAvisGooglePanel = dynamic(
-  () => import("@/components/RelanceAvisGooglePanel"),
-  { ssr: false },
-)
 
 function LtdbWatermark() {
   return (
@@ -85,10 +81,7 @@ export default function Home() {
         {/* 2 — Envoyer avis SMS */}
         <EnvoyerAvisSmsPanel className={introClass} />
 
-        {/* 3 — Relance avis Google (historique + stop/continuer) */}
-        <RelanceAvisGooglePanel className={introClass} />
-
-        {/* 4 — ADMIN OF THE WORLD (porte uniquement) */}
+        {/* 3 — ADMIN OF THE WORLD (porte uniquement) */}
         <Link
           href="/admin-world"
           className={`block rounded-3xl overflow-hidden border-2 border-amber-400/80 shadow-[0_0_0_1px_rgba(251,191,36,0.25),0_20px_40px_-12px_rgba(0,0,0,0.5)] transition-transform duration-200 hover:scale-[1.01] active:scale-[0.99] focus:outline-none focus-visible:ring-4 focus-visible:ring-amber-300/40 ${introClass}`}
