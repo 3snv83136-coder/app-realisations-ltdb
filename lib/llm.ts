@@ -1,48 +1,71 @@
 import Anthropic from "@anthropic-ai/sdk"
+import { errorMessage } from "@/lib/error-message"
 
-export type AiProvider = "mistral" | "deepseek"
+export type AiProvider = "anthropic" | "mistral"
 export type AiModelTier = "pro" | "flash"
 
 const MISTRAL_BASE = "https://api.mistral.ai/v1"
 
 export function getAiProvider(): AiProvider {
-  const raw = (process.env.AI_PROVIDER || "deepseek").toLowerCase().trim()
-  return raw === "deepseek" ? "deepseek" : "mistral"
+  const raw = (process.env.AI_PROVIDER || "anthropic").toLowerCase().trim()
+  return raw === "mistral" ? "mistral" : "anthropic"
 }
 
-export function getAiModel(tier: AiModelTier = "pro"): string {
-  if (getAiProvider() === "mistral") {
+export function getAiModel(tier: AiModelTier = "pro", provider: AiProvider = getAiProvider()): string {
+  if (provider === "mistral") {
     if (tier === "flash") {
       return process.env.AI_FLASH_MODEL || "mistral-small-latest"
     }
     return process.env.AI_REPORT_MODEL || "mistral-large-latest"
   }
-  return tier === "flash" ? "deepseek-v4-flash" : "deepseek-v4-pro"
+  if (tier === "flash") {
+    return process.env.AI_FLASH_MODEL || "claude-haiku-4-5-20251001"
+  }
+  return process.env.ANTHROPIC_MODEL || process.env.AI_REPORT_MODEL || "claude-sonnet-4-5"
+}
+
+function providerConfigured(provider: AiProvider): boolean {
+  return provider === "mistral"
+    ? !!process.env.MISTRAL_API_KEY
+    : !!process.env.ANTHROPIC_API_KEY
 }
 
 export function llmIsConfigured(): boolean {
-  return getAiProvider() === "mistral"
-    ? !!process.env.MISTRAL_API_KEY
-    : !!process.env.DEEPSEEK_API_KEY
+  return providerConfigured("anthropic") || providerConfigured("mistral")
 }
 
 export function llmConfigError(): string {
+  if (!process.env.ANTHROPIC_API_KEY && !process.env.MISTRAL_API_KEY) {
+    return "Aucune clé IA configurée (ANTHROPIC_API_KEY)"
+  }
   return getAiProvider() === "mistral"
     ? "MISTRAL_API_KEY non configurée"
-    : "DEEPSEEK_API_KEY non configurée"
+    : "ANTHROPIC_API_KEY non configurée"
 }
 
-let _deepseek: Anthropic | null = null
-function getDeepseekClient(): Anthropic {
-  if (!_deepseek) {
-    const key = process.env.DEEPSEEK_API_KEY
-    if (!key) throw new Error("DEEPSEEK_API_KEY non configurée")
-    _deepseek = new Anthropic({
-      baseURL: "https://api.deepseek.com/anthropic",
-      apiKey: key,
-    })
+export function isInsufficientBalanceError(e: unknown): boolean {
+  const err = e as { status?: number; response?: { status?: number }; message?: string }
+  const status = err?.status || err?.response?.status
+  const msg = String(err?.message || e)
+  return status === 402 || /insufficient.?balance|payment.?required|crédits?.?insuffis|credit.?balance/i.test(msg)
+}
+
+export function formatLlmUserError(e: unknown, provider: AiProvider = getAiProvider()): string {
+  if (isInsufficientBalanceError(e)) {
+    const name = provider === "mistral" ? "Mistral" : "Anthropic"
+    return `Crédit IA épuisé sur ${name}. Vérifie le solde du compte API.`
   }
-  return _deepseek
+  return errorMessage(e)
+}
+
+let _anthropic: Anthropic | null = null
+function getAnthropicClient(): Anthropic {
+  if (!_anthropic) {
+    const key = process.env.ANTHROPIC_API_KEY
+    if (!key) throw new Error("ANTHROPIC_API_KEY non configurée")
+    _anthropic = new Anthropic({ apiKey: key })
+  }
+  return _anthropic
 }
 
 export async function callWithRetry<T>(fn: () => Promise<T>, maxAttempts = 3): Promise<T> {
@@ -52,6 +75,7 @@ export async function callWithRetry<T>(fn: () => Promise<T>, maxAttempts = 3): P
       return await fn()
     } catch (e: unknown) {
       lastErr = e
+      if (isInsufficientBalanceError(e)) throw e
       const err = e as { status?: number; response?: { status?: number }; message?: string }
       const status = err?.status || err?.response?.status
       const msg = String(err?.message || e)
@@ -69,16 +93,17 @@ export async function callWithRetry<T>(fn: () => Promise<T>, maxAttempts = 3): P
 export type LlmChatOptions = {
   model?: string
   maxTokens?: number
-  /** Force le mode JSON (Mistral response_format + suffixe prompt DeepSeek) */
+  /** Force le mode JSON (Mistral response_format + instruction Claude) */
   jsonMode?: boolean
   retries?: number
+  provider?: AiProvider
 }
 
 async function mistralChat(prompt: string, opts: LlmChatOptions): Promise<string> {
   const key = process.env.MISTRAL_API_KEY
   if (!key) throw new Error("MISTRAL_API_KEY non configurée")
 
-  const model = opts.model || getAiModel("pro")
+  const model = opts.model || getAiModel("pro", "mistral")
   const body: Record<string, unknown> = {
     model,
     max_tokens: opts.maxTokens ?? 8000,
@@ -99,7 +124,9 @@ async function mistralChat(prompt: string, opts: LlmChatOptions): Promise<string
 
   if (!res.ok) {
     const detail = await res.text().catch(() => "")
-    throw new Error(`Mistral API ${res.status}${detail ? ` : ${detail.slice(0, 300)}` : ""}`)
+    const err = new Error(`Mistral API ${res.status}${detail ? ` : ${detail.slice(0, 300)}` : ""}`) as Error & { status?: number }
+    err.status = res.status
+    throw err
   }
 
   const data = await res.json() as {
@@ -110,9 +137,9 @@ async function mistralChat(prompt: string, opts: LlmChatOptions): Promise<string
   return text
 }
 
-async function deepseekChat(prompt: string, opts: LlmChatOptions): Promise<string> {
-  const client = getDeepseekClient()
-  const model = opts.model || getAiModel("pro")
+async function anthropicChat(prompt: string, opts: LlmChatOptions): Promise<string> {
+  const client = getAnthropicClient()
+  const model = opts.model || getAiModel("pro", "anthropic")
   const content = opts.jsonMode
     ? `${prompt}\n\nRéponds UNIQUEMENT avec du JSON valide, sans markdown ni backticks.`
     : prompt
@@ -120,7 +147,6 @@ async function deepseekChat(prompt: string, opts: LlmChatOptions): Promise<strin
   const msg = await client.messages.create({
     model,
     max_tokens: opts.maxTokens ?? 8000,
-    thinking: { type: "disabled" },
     messages: [{ role: "user", content }],
   })
 
@@ -130,15 +156,55 @@ async function deepseekChat(prompt: string, opts: LlmChatOptions): Promise<strin
     .join("")
 }
 
-/** Appel LLM unifié — Mistral ou DeepSeek selon AI_PROVIDER */
+function chatForProvider(provider: AiProvider, prompt: string, opts: LlmChatOptions): Promise<string> {
+  const nextOpts: LlmChatOptions = {
+    ...opts,
+    model: opts.model && opts.provider === provider ? opts.model : undefined,
+    provider,
+  }
+  return provider === "mistral"
+    ? mistralChat(prompt, nextOpts)
+    : anthropicChat(prompt, nextOpts)
+}
+
+function fallbackProvider(primary: AiProvider): AiProvider | null {
+  const other: AiProvider = primary === "anthropic" ? "mistral" : "anthropic"
+  return providerConfigured(other) ? other : null
+}
+
+/** Appel LLM unifié — Anthropic (défaut) ou Mistral selon AI_PROVIDER. */
 export async function llmChat(prompt: string, opts: LlmChatOptions = {}): Promise<string> {
   const retries = opts.retries ?? 3
-  return callWithRetry(
-    () => getAiProvider() === "mistral"
-      ? mistralChat(prompt, opts)
-      : deepseekChat(prompt, opts),
-    retries,
-  )
+  const primary = opts.provider || getAiProvider()
+  if (!providerConfigured(primary)) {
+    const fb = fallbackProvider(primary)
+    if (!fb) throw new Error(llmConfigError())
+    console.warn(`[llm] ${primary} non configuré → fallback ${fb}`)
+    return callWithRetry(() => chatForProvider(fb, prompt, { ...opts, provider: fb }), retries)
+  }
+
+  try {
+    return await callWithRetry(
+      () => chatForProvider(primary, prompt, { ...opts, provider: primary }),
+      retries,
+    )
+  } catch (e) {
+    if (!isInsufficientBalanceError(e)) throw e
+    const fb = fallbackProvider(primary)
+    if (!fb) throw new Error(formatLlmUserError(e, primary))
+    console.warn(`[llm] ${primary} crédit épuisé → fallback ${fb}`)
+    try {
+      return await callWithRetry(
+        () => chatForProvider(fb, prompt, { ...opts, provider: fb, model: undefined }),
+        retries,
+      )
+    } catch (e2) {
+      if (isInsufficientBalanceError(e2)) {
+        throw new Error(formatLlmUserError(e2, fb))
+      }
+      throw e2
+    }
+  }
 }
 
 /** Ping léger pour /api/health */

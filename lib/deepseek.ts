@@ -1,19 +1,17 @@
 /**
- * @deprecated Utiliser `lib/llm.ts` (AI_PROVIDER=mistral|deepseek).
- * Conservé pour compat scripts/debug.
+ * @deprecated DeepSeek abandonné — utiliser `lib/llm.ts` (Anthropic).
+ * Conservé uniquement pour d'anciens scripts de debug locaux.
  */
 import Anthropic from "@anthropic-ai/sdk"
 
 let _client: Anthropic | null = null
 
+/** @deprecated Utiliser llmChat() / ANTHROPIC_API_KEY */
 export function getDeepseek(): Anthropic {
   if (!_client) {
-    const key = process.env.DEEPSEEK_API_KEY
-    if (!key) throw new Error("DEEPSEEK_API_KEY manquante")
-    _client = new Anthropic({
-      baseURL: "https://api.deepseek.com/anthropic",
-      apiKey: key,
-    })
+    const key = process.env.ANTHROPIC_API_KEY || process.env.DEEPSEEK_API_KEY
+    if (!key) throw new Error("ANTHROPIC_API_KEY manquante")
+    _client = new Anthropic({ apiKey: key })
   }
   return _client
 }

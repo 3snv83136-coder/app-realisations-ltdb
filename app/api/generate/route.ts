@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { getAiModel, llmChat, llmConfigError, llmIsConfigured } from "@/lib/llm"
+import { formatLlmUserError, getAiModel, getAiProvider, llmChat, llmConfigError, llmIsConfigured } from "@/lib/llm"
 import { parseAiJson } from "@/lib/parseAiJson"
 import { normalizeSeoOutput } from "@/lib/seo-normalize"
 import { formatTechnicienNom } from "@/lib/technicien-nom"
@@ -295,11 +295,14 @@ sont placés avant pour ne jamais être perdus si la réponse est longue.
   let seoRaw: string
   try {
     [rapportRaw, seoRaw] = await Promise.all([
-      llmChat(rapportPrompt, { model, maxTokens: 16000, jsonMode: true }),
-      llmChat(seoPrompt, { model, maxTokens: 16000, jsonMode: true }),
+      llmChat(rapportPrompt, { maxTokens: 16000, jsonMode: true }),
+      llmChat(seoPrompt, { maxTokens: 16000, jsonMode: true }),
     ])
   } catch (e) {
-    return NextResponse.json({ error: `AI API : ${errorMessage(e)}`, model }, { status: 500 })
+    return NextResponse.json({
+      error: formatLlmUserError(e, getAiProvider()),
+      model,
+    }, { status: 500 })
   }
 
   let rapport: AiRapport
