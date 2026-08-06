@@ -39,7 +39,6 @@ export default function ResendAllButton({ intervention }: { intervention: Resend
           interventionId: intervention.id,
           clientEmail: email.trim(),
           forceResend,
-          skipReviews: true,
         }),
       })
       const data = await res.json().catch(() => ({}))

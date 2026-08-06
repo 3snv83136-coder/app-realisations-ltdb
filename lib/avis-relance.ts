@@ -94,18 +94,13 @@ function smsRelanceText(opts: {
   tel: string
   day: number
 }): string {
-  const base = buildReviewOnlySmsText({
+  // Un seul SMS J+1 — texte unique, pas de « rappel ».
+  void opts.day
+  return buildReviewOnlySmsText({
     clientNom: opts.clientNom,
     reviewUrl: opts.reviewUrl,
     tel: opts.tel,
   })
-  if (opts.day === 4) {
-    return base.replace(
-      "Si vous etes satisfait",
-      "Petit rappel : si vous etes satisfait",
-    )
-  }
-  return base
 }
 
 export type PlanifierAvisRelancesInput = {
@@ -217,7 +212,7 @@ export async function planifierAvisRelances(
 
   return {
     emailIds,
-    smsPlanned: smsPlan.length,
+    smsPlanned: smsPlan.filter((x) => (x.channel || "sms") === "sms").length,
     errors,
     stopUrl,
   }

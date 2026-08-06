@@ -116,7 +116,6 @@ export async function POST(req: NextRequest, { params }: Params) {
       ccEmail: (body.ccEmail || "").trim() || undefined,
       forceResend: !!body.forceResend,
       regeneratePdfs: false,
-      skipReviews: true,
     }),
   })
 

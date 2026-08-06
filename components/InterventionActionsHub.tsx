@@ -47,7 +47,7 @@ export default function InterventionActionsHub({
       const res = await fetch('/api/notify-rapport-facture', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ interventionId, clientEmail: email, skipReviews: true }),
+        body: JSON.stringify({ interventionId, clientEmail: email }),
       })
       const j = await res.json()
       if (!res.ok || j.error) {

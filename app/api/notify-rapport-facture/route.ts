@@ -258,9 +258,9 @@ export async function POST(req: NextRequest) {
   const dateFacture = facture.date_emission || dateInterv
 
   const tel = await getTelPrincipal()
-  // Plus de demande d'avis Google auto (harcèlement signalé) — avis demandé sur place au téléphone.
-  const skipReviews = body.skipReviews !== false ? true : false
-  const includeReview = !skipReviews
+  // Mail sans CTA avis. Un seul SMS avis programmé à J+1 (pas de relances).
+  const includeReview = false
+  const skipAvisSms = body.skipReviews === true
 
   let reviewUrl = process.env.GOOGLE_REVIEW_URL
     || 'https://www.google.com/maps/place/Les+Techniciens+du+Débouchage'
@@ -273,14 +273,17 @@ export async function POST(req: NextRequest) {
     if (paramRow?.valeur) reviewUrl = paramRow.valeur
   } catch { /* best-effort */ }
 
-  // Relances avis désactivées par défaut.
+  // SMS avis unique J+1 (24 h après envoi / fin d'intervention).
   let relanceIds: string[] = []
   let smsPlanned = 0
   let avisRelanceErrors: string[] = []
-  let stopUrl = ''
-  if (!skipReviews) {
+  const stopUrl = ''
+  if (!skipAvisSms) {
     try {
       const signSecret = process.env.REVIEW_STOP_SECRET || process.env.NEXTAUTH_SECRET || process.env.RESEND_API_KEY || ''
+      const anchorAt = dateInterv
+        ? `${String(dateInterv).slice(0, 10)}T12:00:00.000Z`
+        : new Date().toISOString()
       const rel = await planifierAvisRelances({
         interventionId,
         baseUrl: getBaseUrl(req),
@@ -294,13 +297,13 @@ export async function POST(req: NextRequest) {
         reviewUrl,
         tel,
         signSecret,
+        anchorAt,
       })
       relanceIds = rel.emailIds
       smsPlanned = rel.smsPlanned
       avisRelanceErrors = rel.errors
-      stopUrl = rel.stopUrl
     } catch (e) {
-      console.error("[notify-rapport-facture] relances avis", e)
+      console.error("[notify-rapport-facture] SMS avis J+1", e)
       avisRelanceErrors.push(e instanceof Error ? e.message : String(e))
     }
   }

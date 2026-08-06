@@ -2079,7 +2079,7 @@ function TerrainDiffusionPanel({ interv, client, onRefresh, onError, techOnlyMai
           <div>📄 Rapport d&apos;intervention (PDF)</div>
           <div>🧾 Facture (PDF)</div>
           <div className="text-xs text-slate-500 pt-1">
-            Pas de demande d&apos;avis Google automatique — à faire sur place au téléphone si besoin.
+            Avis Google : 1 seul SMS 24&nbsp;h après l&apos;intervention (pas de relance).
             Facture impayée : relances J+10/15/20.
           </div>
         </div>
