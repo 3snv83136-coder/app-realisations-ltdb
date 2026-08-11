@@ -204,9 +204,50 @@ export const REALISATION_PAGE_STYLE = `<style>
 .faq-answer { padding: 4px 20px 16px; color: var(--ltdb-muted); }
 .faq-answer p { margin: 10px 0 0; }
 
+.dialogue-qa-block .dialogue-qa {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-top: 4px;
+}
+.dialogue-qa .bubble {
+  max-width: 92%;
+  padding: 12px 16px;
+  border-radius: 16px;
+  font-size: 15px;
+  line-height: 1.55;
+  color: var(--ltdb-ink);
+}
+.dialogue-qa .bubble-label {
+  display: block;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 6px;
+  color: var(--ltdb-muted);
+}
+.dialogue-qa .bubble-client {
+  align-self: flex-start;
+  background: #fff;
+  border: 1px solid var(--ltdb-border);
+  border-bottom-left-radius: 4px;
+}
+.dialogue-qa .bubble-technicien {
+  align-self: flex-end;
+  background: var(--ltdb-navy);
+  color: #fff;
+  border-bottom-right-radius: 4px;
+}
+.dialogue-qa .bubble-technicien .bubble-label {
+  color: #fca5a5;
+}
+.dialogue-qa .bubble p { margin: 0; }
+
 @media (max-width: 560px) {
   .content-block { padding: 20px; }
   .technicien-card { flex-direction: column; align-items: center; text-align: center; }
   .technicien-photo { width: 100px; height: 100px; }
+  .dialogue-qa .bubble { max-width: 100%; }
 }
 </style>`

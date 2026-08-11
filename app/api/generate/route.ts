@@ -4,6 +4,11 @@ import { parseAiJson } from "@/lib/parseAiJson"
 import { normalizeSeoOutput } from "@/lib/seo-normalize"
 import { formatTechnicienNom } from "@/lib/technicien-nom"
 import { errorMessage } from "@/lib/error-message"
+import {
+  applyPrixToDialogue,
+  genererDialogueQa,
+  resolvePrixPlaceholdersForType,
+} from "@/lib/generer-dialogue-qa"
 import type { RapportData, SeoData } from "@/lib/types-documents"
 
 /**
@@ -514,6 +519,19 @@ sont placés avant pour ne jamais être perdus si la réponse est longue.
     ]
   }
   seo.page_url = pageUrl
+
+  // Dialogue Q&A podcast écrit (best-effort — n'échoue pas la génération SEO)
+  try {
+    const dialogue = await genererDialogueQa(rapport as Partial<RapportData>, {
+      typeIntervention: type_intervention,
+    })
+    if (dialogue) {
+      const prix = await resolvePrixPlaceholdersForType(type_intervention)
+      seo.dialogue_qa = applyPrixToDialogue(dialogue, prix)
+    }
+  } catch (e) {
+    console.error("[generate] dialogue_qa", e)
+  }
 
   return NextResponse.json({ rapport, seo, ...(seoWarning ? { warning: seoWarning } : {}) })
 }

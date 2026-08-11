@@ -46,6 +46,11 @@ const EnvoyerAvisSmsPanel = dynamic(
   { ssr: false },
 )
 
+const DialogueQaAdminPanel = dynamic(
+  () => import('@/components/DialogueQaAdminPanel'),
+  { ssr: false },
+)
+
 type Statut = 'planifiee' | 'en_cours' | 'terminee' | 'annulee'
 
 type InterventionDetail = {
@@ -704,6 +709,13 @@ export default function InterventionDetailPage({ params }: { params: { id: strin
             })
           }}
         />
+
+        {!editing ? (
+          <DialogueQaAdminPanel
+            interventionId={intervention.id}
+            hasRapport={!!intervention.rapport_json && Object.keys(intervention.rapport_json || {}).length > 0}
+          />
+        ) : null}
 
         {!editing ? (
           <EnvoyerAvisSmsPanel

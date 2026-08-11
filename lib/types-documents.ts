@@ -96,6 +96,18 @@ export interface RapportData {
 
 export interface SeoFaqItem { question: string; reponse: string }
 
+/** Dialogue « podcast écrit » technicien / client (SEO Q&A). */
+export type DialogueQaRole = "technicien" | "client"
+
+export interface DialogueQaItem {
+  role: DialogueQaRole
+  texte: string
+}
+
+export interface DialogueQa {
+  items: DialogueQaItem[]
+}
+
 export interface SeoRelatedService { label: string; url: string }
 
 export interface SeoTechnicien {
@@ -129,6 +141,8 @@ export interface SeoData {
   expertise_locale?: string
   meta_keywords?: string[]
   faq?: SeoFaqItem[]
+  /** Dialogue Q&A podcast écrit (bulles client/technicien). */
+  dialogue_qa?: DialogueQa | null
   related_services?: SeoRelatedService[]
   contenu_principal?: string
   slug?: string

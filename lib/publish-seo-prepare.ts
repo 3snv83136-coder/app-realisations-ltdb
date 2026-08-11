@@ -11,6 +11,7 @@ import {
   truncatePublishField,
 } from "@/lib/publish-seo-text"
 import { formatTechnicienNom } from "@/lib/technicien-nom"
+import { dialogueQaToFaqPairs, normalizeDialogueQa } from "@/lib/generer-dialogue-qa"
 import type { SeoData } from "@/lib/types-documents"
 
 export { truncatePublishField } from "@/lib/publish-seo-text"
@@ -76,6 +77,18 @@ export function prepareSeoForPublish(opts: {
         .map((f) => ({ question: f.question, reponse: f.reponse }))
     : []
 
+  const dialogue = normalizeDialogueQa(seo.dialogue_qa)
+  if (dialogue) seo.dialogue_qa = dialogue
+  const dialogueFaq = dialogue ? dialogueQaToFaqPairs(dialogue) : []
+  const faqMerged = [...faq]
+  const seenQ = new Set(faq.map((f) => f.question.trim().toLowerCase()))
+  for (const p of dialogueFaq) {
+    const key = p.question.trim().toLowerCase()
+    if (!key || seenQ.has(key)) continue
+    seenQ.add(key)
+    faqMerged.push(p)
+  }
+
   const pageUrl = `https://lestechniciensdudebouchage.fr/nos-realisations/${opts.publishSlug}`
   const technicienNom = formatTechnicienNom(opts.technicienNom)
 
@@ -107,7 +120,7 @@ export function prepareSeoForPublish(opts: {
     technicienNom: technicienNom || null,
     technicienTitre: opts.technicienTitre,
     technicienPhotoUrl: opts.technicienPhotoUrl,
-    faq,
+    faq: faqMerged,
     photos: opts.photos,
   })
 

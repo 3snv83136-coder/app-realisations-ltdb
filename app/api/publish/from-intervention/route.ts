@@ -25,9 +25,16 @@ import {
   buildPhotoNomBase,
   roleFromCategory,
 } from "@/lib/photo-seo-name"
+import {
+  applyPrixToDialogue,
+  genererDialogueQa,
+  normalizeDialogueQa,
+  resolvePrixPlaceholdersForType,
+} from "@/lib/generer-dialogue-qa"
+import type { RapportData, SeoData } from "@/lib/types-documents"
 
 export const dynamic = 'force-dynamic'
-export const maxDuration = 60
+export const maxDuration = 90
 
 /**
  * Publication directe d'une intervention déjà saisie (avec rapport_json,
@@ -214,8 +221,28 @@ export async function POST(req: NextRequest) {
   }
   publishSlug = publishSlug.slice(0, 95)
 
+  // Dialogue Q&A podcast écrit : génère si absent, remplace placeholders prix depuis tarifs DB
+  let seoData: SeoData = { ...(seo as SeoData) }
+  if (!normalizeDialogueQa(seoData.dialogue_qa)) {
+    try {
+      const generated = await genererDialogueQa(interv.rapport_json as Partial<RapportData>, {
+        typeIntervention,
+      })
+      if (generated) {
+        const prix = await resolvePrixPlaceholdersForType(typeIntervention)
+        seoData = {
+          ...seoData,
+          dialogue_qa: applyPrixToDialogue(generated, prix),
+        }
+        await sb.from("interventions").update({ seo_json: seoData }).eq("id", interventionId)
+      }
+    } catch (e) {
+      console.error("[publish/from-intervention] dialogue_qa", e)
+    }
+  }
+
   const seoPrepared = prepareSeoForPublish({
-    seo: seo as Record<string, unknown>,
+    seo: seoData,
     typeIntervention: (interv.type_intervention as string) || "Intervention",
     ville,
     codePostal,

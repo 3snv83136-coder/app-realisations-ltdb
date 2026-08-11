@@ -7,7 +7,8 @@ import {
 } from "@/lib/photo-categories"
 import { REALISATION_PAGE_STYLE } from "@/lib/realisationPageCss"
 import { formatTechnicienNom } from "@/lib/technicien-nom"
-import type { RapportData, ResumeIntervention, SeoData } from "@/lib/types-documents"
+import type { DialogueQa, RapportData, ResumeIntervention, SeoData } from "@/lib/types-documents"
+import { normalizeDialogueQa } from "@/lib/generer-dialogue-qa"
 
 function escapeHtml(s: string): string {
   return s
@@ -280,6 +281,19 @@ function buildGalleryByCategory(
 </section>`
 }
 
+function buildDialogueQaHtml(dialogue: DialogueQa | null | undefined): string {
+  const normalized = normalizeDialogueQa(dialogue)
+  if (!normalized) return ""
+  const bubbles = normalized.items
+    .map((it) => {
+      const cls = it.role === "client" ? "bubble bubble-client" : "bubble bubble-technicien"
+      const label = it.role === "client" ? "Client" : "Technicien"
+      return `<div class="${cls}"><span class="bubble-label">${label}</span><p>${escapeHtml(it.texte)}</p></div>`
+    })
+    .join("")
+  return `<section class="content-block dialogue-qa-block"><h2>Questions fréquentes sur cette intervention</h2><div class="dialogue-qa">${bubbles}</div></section>`
+}
+
 export function buildPublishContentHtml(opts: {
   seo: SeoData
   rapport?: Partial<RapportData> | null
@@ -355,7 +369,9 @@ export function buildPublishContentHtml(opts: {
           .join("")}</section>`
       : ""
 
-  const body = `${resumeIaHtml}${technicienHtml}${contenuPrincipal}${galleryHtml}${expertiseHtml}${cityLinkHtml}${faqHtml}`
+  const dialogueHtml = buildDialogueQaHtml(seo.dialogue_qa)
+
+  const body = `${resumeIaHtml}${technicienHtml}${contenuPrincipal}${galleryHtml}${expertiseHtml}${cityLinkHtml}${faqHtml}${dialogueHtml}`
   const content = `${REALISATION_PAGE_STYLE}${body}`
   return { content, seo }
 }
