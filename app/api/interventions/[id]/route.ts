@@ -33,6 +33,7 @@ const UPDATABLE = new Set([
   'notes_internes',
   'date_realisee',
   'canal_acquisition',
+  'client_final_nom',
 ])
 
 const ALLOWED_STATUTS = new Set(['planifiee', 'en_cours', 'terminee', 'annulee'])
@@ -129,6 +130,7 @@ export async function PUT(req: NextRequest, { params }: Params) {
   const TEXT_FIELDS = new Set([
     'agence', 'type_intervention', 'adresse_chantier', 'ville', 'code_postal',
     'date_prevue', 'heure_prevue', 'heure_fin_prevue', 'notes_internes', 'date_realisee',
+    'client_final_nom',
   ])
   const update: Record<string, unknown> = {}
   for (const [k, v] of Object.entries(body)) {

@@ -25,7 +25,8 @@ import { isAccordFinDeMois } from "@/lib/fin-de-mois"
 import { getTravauxSupplementaires } from "@/lib/travaux-supplementaires"
 import RapportOfflineBanner from "@/components/rapport/RapportOfflineBanner"
 import VideoUploadPanel from "@/components/VideoUploadPanel"
-import { CATALOGUE_PRESTATIONS } from "@/lib/catalogue-prestations"
+import { CATALOGUE_PRESTATIONS, fetchCataloguePrestations, type PrestationCatalogue } from "@/lib/catalogue-prestations"
+import FactureRemiseButton from "@/components/FactureRemiseButton"
 import {
   clearRapportDraft,
   getRapportDraft,
@@ -961,6 +962,7 @@ function StepFacture({ interv, client, onCreated, onError }: {
   onError: (e: string) => void
 }) {
   const [lignes, setLignes] = useState<LigneFacture[]>([])
+  const [catalogue, setCatalogue] = useState<PrestationCatalogue[]>(CATALOGUE_PRESTATIONS)
   const [objet, setObjet] = useState('')
   const [modeReglement, setModeReglement] = useState('')
   const [echeance, setEcheance] = useState<'Réglée' | 'À réception' | '30 jours'>('Réglée')
@@ -971,6 +973,14 @@ function StepFacture({ interv, client, onCreated, onError }: {
   const [numero, setNumero] = useState('')
 
   // Charge le prefill au mount
+  useEffect(() => {
+    let cancelled = false
+    void fetchCataloguePrestations().then(list => {
+      if (!cancelled && list.length > 0) setCatalogue(list)
+    })
+    return () => { cancelled = true }
+  }, [])
+
   useEffect(() => {
     let cancelled = false
     async function load() {
@@ -1017,7 +1027,7 @@ function StepFacture({ interv, client, onCreated, onError }: {
     setLignes(prev => [...prev, { designation: '', description: '', qte: 1, unite: 'forfait', pu_ht: 0, inclus: false }])
   }
   function ajouterPrestationCatalogue(id: string) {
-    const presta = CATALOGUE_PRESTATIONS.find(p => p.id === id)
+    const presta = catalogue.find(p => p.id === id)
     if (!presta) return
     setLignes(prev => [...prev, {
       designation: presta.designation,
@@ -1098,7 +1108,7 @@ function StepFacture({ interv, client, onCreated, onError }: {
 
       {/* Lignes éditables */}
       <div className="bg-white rounded-2xl border-2 border-slate-200 p-4 space-y-3">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-2 flex-wrap">
           <h2 className="text-sm font-bold uppercase tracking-wider text-slate-500">Lignes</h2>
           <button
             type="button"
@@ -1116,12 +1126,32 @@ function StepFacture({ interv, client, onCreated, onError }: {
           className="w-full border-2 border-blue-200 bg-blue-50 focus:border-blue-500 outline-none rounded-lg px-3 py-2.5 text-sm font-semibold text-blue-800"
         >
           <option value="">+ Ajouter une prestation du catalogue…</option>
-          {CATALOGUE_PRESTATIONS.map(p => (
+          {catalogue.map(p => (
             <option key={p.id} value={p.id}>
               {p.designation} — {p.pu_ht} €{p.unite === 'ml' ? ' / ml' : p.unite === 'h' ? ' / h' : ''}
             </option>
           ))}
         </select>
+
+        <FactureRemiseButton
+          compact
+          lignes={lignes.map(l => ({
+            designation: l.designation,
+            description: l.description,
+            qte: l.qte,
+            unite: l.unite,
+            pu_ht: l.pu_ht,
+            inclus: l.inclus,
+          }))}
+          onAdd={line => setLignes(prev => [...prev, {
+            designation: line.designation,
+            description: line.description || '',
+            qte: line.qte,
+            unite: line.unite || 'forfait',
+            pu_ht: line.pu_ht,
+            inclus: !!line.inclus,
+          }])}
+        />
 
         {lignes.length === 0 && (
           <p className="text-sm text-slate-400 italic text-center py-4">Aucune ligne. Choisis une prestation ci-dessus ou &quot;+ Ligne libre&quot;.</p>
@@ -1173,12 +1203,11 @@ function StepFacture({ interv, client, onCreated, onError }: {
               <input
                 type="number"
                 inputMode="decimal"
-                min="0"
                 step="0.01"
                 value={l.pu_ht}
                 onChange={e => updateLigne(i, { pu_ht: Number(e.target.value) || 0 })}
                 placeholder="PU HT"
-                className="col-span-5 border-2 border-slate-200 focus:border-blue-500 outline-none rounded-lg px-2 py-2 text-sm text-right tabular-nums bg-white"
+                className={`col-span-5 border-2 border-slate-200 focus:border-blue-500 outline-none rounded-lg px-2 py-2 text-sm text-right tabular-nums bg-white ${l.pu_ht < 0 ? 'text-amber-800 font-bold' : ''}`}
               />
             </div>
 
@@ -1192,7 +1221,7 @@ function StepFacture({ interv, client, onCreated, onError }: {
                 />
                 <span className="font-bold text-slate-600">Inclus (gratuit)</span>
               </label>
-              <span className="text-sm font-bold tabular-nums text-slate-700">
+              <span className={`text-sm font-bold tabular-nums ${l.pu_ht < 0 && !l.inclus ? 'text-amber-800' : 'text-slate-700'}`}>
                 {l.inclus ? <span className="text-emerald-600 italic">Inclus</span> : `${(l.qte * l.pu_ht).toFixed(2)} €`}
               </span>
             </div>

@@ -1,5 +1,6 @@
 'use client'
-import { useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
+import type { PrestationCatalogItem } from "@/lib/tarifs-catalog"
 
 export type PrestationArticle = {
   id: string
@@ -9,9 +10,8 @@ export type PrestationArticle = {
   preset?: boolean
 }
 
-const STORAGE_KEY = 'ltdb_prestations_catalog'
-
-const PRESETS: PrestationArticle[] = [
+/** Fallback offline / avant chargement API (catalogue historique). */
+const FALLBACK: PrestationArticle[] = [
   { id: 'p-debouch-canal',  designation: 'Débouchage canalisation',  pu_ht: 250, unite: 'forfait', preset: true },
   { id: 'p-debouch-wc',     designation: 'Débouchage WC',            pu_ht: 180, unite: 'forfait', preset: true },
   { id: 'p-debouch-evier',  designation: 'Débouchage évier',         pu_ht: 150, unite: 'forfait', preset: true },
@@ -21,23 +21,17 @@ const PRESETS: PrestationArticle[] = [
   { id: 'p-vidange-fosse',  designation: 'Vidange fosse septique',   pu_ht: 280, unite: 'forfait', preset: true },
   { id: 'p-curage',         designation: 'Curage canalisation',      pu_ht: 320, unite: 'forfait', preset: true },
   { id: 'p-deplacement',    designation: 'Déplacement',              pu_ht: 50,  unite: 'forfait', preset: true },
-  { id: 'p-main-doeuvre',   designation: 'Main d’œuvre',        pu_ht: 65,  unite: 'heure',   preset: true },
+  { id: 'p-main-doeuvre',   designation: "Main d'œuvre",             pu_ht: 65,  unite: 'heure',   preset: true },
 ]
 
-function loadCustom(): PrestationArticle[] {
-  if (typeof window === 'undefined') return []
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    if (!raw) return []
-    const arr = JSON.parse(raw)
-    return Array.isArray(arr) ? arr : []
-  } catch {
-    return []
+function toArticle(a: PrestationCatalogItem): PrestationArticle {
+  return {
+    id: a.id,
+    designation: a.designation,
+    pu_ht: a.pu_ht,
+    unite: a.unite,
+    preset: a.standard,
   }
-}
-
-function saveCustom(list: PrestationArticle[]) {
-  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(list)) } catch {}
 }
 
 type Props = {
@@ -49,53 +43,100 @@ type Props = {
 export default function PrestationsCombobox({ designation, onChange, className }: Props) {
   const [open, setOpen] = useState(false)
   const [filter, setFilter] = useState('')
-  const [custom, setCustom] = useState<PrestationArticle[]>([])
+  const [articles, setArticles] = useState<PrestationArticle[]>(FALLBACK)
+  const [loaded, setLoaded] = useState(false)
   const [creating, setCreating] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [createError, setCreateError] = useState('')
   const [newDesig, setNewDesig] = useState('')
   const [newPu, setNewPu] = useState('')
   const [newUnite, setNewUnite] = useState('forfait')
   const wrapRef = useRef<HTMLDivElement>(null)
 
-  useEffect(() => { setCustom(loadCustom()) }, [])
+  const loadCatalog = useCallback(async () => {
+    try {
+      const res = await fetch('/api/tarifs', { cache: 'no-store' })
+      const j = await res.json()
+      if (!res.ok) throw new Error(j.error || `HTTP ${res.status}`)
+      const list = (j.articles as PrestationCatalogItem[] || []).map(toArticle)
+      if (list.length > 0) setArticles(list)
+      setLoaded(true)
+    } catch {
+      setLoaded(true)
+    }
+  }, [])
+
+  useEffect(() => { void loadCatalog() }, [loadCatalog])
 
   useEffect(() => {
     if (!open) return
     function onClickOutside(e: MouseEvent) {
       if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) {
-        setOpen(false); setCreating(false)
+        setOpen(false); setCreating(false); setCreateError('')
       }
     }
     document.addEventListener('mousedown', onClickOutside)
     return () => document.removeEventListener('mousedown', onClickOutside)
   }, [open])
 
-  const all = [...PRESETS, ...custom]
   const f = filter.trim().toLowerCase()
-  const visible = f ? all.filter(a => a.designation.toLowerCase().includes(f)) : all
+  const visible = f ? articles.filter(a => a.designation.toLowerCase().includes(f)) : articles
 
   function pick(a: PrestationArticle) {
     onChange({ designation: a.designation, pu_ht: a.pu_ht, unite: a.unite })
-    setOpen(false); setCreating(false); setFilter('')
+    setOpen(false); setCreating(false); setFilter(''); setCreateError('')
   }
 
-  function handleCreate() {
+  async function handleCreate() {
     const d = newDesig.trim()
     if (!d) return
-    const article: PrestationArticle = {
-      id: `c-${Date.now()}`,
-      designation: d,
-      pu_ht: Number(newPu) || 0,
-      unite: newUnite.trim() || 'forfait',
+    setSaving(true)
+    setCreateError('')
+    try {
+      const res = await fetch('/api/tarifs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          designation: d,
+          pu_ht: Number(newPu) || 0,
+          unite: newUnite.trim() || 'forfait',
+        }),
+      })
+      const j = await res.json()
+      if (!res.ok) throw new Error(j.error || `HTTP ${res.status}`)
+      const article = toArticle(j.article as PrestationCatalogItem)
+      setArticles(prev => {
+        const without = prev.filter(p => p.id !== article.id)
+        return [...without, article].sort((a, b) => a.designation.localeCompare(b.designation, 'fr'))
+      })
+      pick(article)
+      setNewDesig(''); setNewPu(''); setNewUnite('forfait')
+    } catch (e) {
+      // Fallback local si pas admin : sélectionne sans persister côté serveur
+      const article: PrestationArticle = {
+        id: `local-${Date.now()}`,
+        designation: d,
+        pu_ht: Number(newPu) || 0,
+        unite: newUnite.trim() || 'forfait',
+      }
+      setCreateError(e instanceof Error ? e.message : String(e))
+      pick(article)
+    } finally {
+      setSaving(false)
     }
-    const next = [...custom, article]
-    setCustom(next); saveCustom(next)
-    pick(article)
-    setNewDesig(''); setNewPu(''); setNewUnite('forfait')
   }
 
-  function handleDelete(id: string) {
-    const next = custom.filter(a => a.id !== id)
-    setCustom(next); saveCustom(next)
+  async function handleDelete(id: string) {
+    try {
+      const res = await fetch(`/api/tarifs/${id}`, { method: 'DELETE' })
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}))
+        throw new Error(j.error || `HTTP ${res.status}`)
+      }
+      setArticles(prev => prev.filter(a => a.id !== id))
+    } catch {
+      /* ignore — article standard ou droits insuffisants */
+    }
   }
 
   return (
@@ -109,7 +150,10 @@ export default function PrestationsCombobox({ designation, onChange, className }
         />
         <button
           type="button"
-          onClick={() => setOpen(o => !o)}
+          onClick={() => {
+            setOpen(o => !o)
+            if (!loaded) void loadCatalog()
+          }}
           className="px-2 py-1 border-2 border-blue-200 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded font-semibold text-xs whitespace-nowrap shrink-0"
           title="Choisir un article du catalogue ou en créer un"
           aria-label="Ouvrir le catalogue d'articles"
@@ -145,16 +189,16 @@ export default function PrestationsCombobox({ designation, onChange, className }
                       <div className="font-semibold text-slate-800">{a.designation}</div>
                       <div className="text-xs text-slate-500">
                         {a.pu_ht.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} € HT / {a.unite}
-                        {a.preset ? ' · standard' : ' · personnalisé'}
+                        {a.preset ? ' · standard' : ' · manuel'}
                       </div>
                     </button>
                     {!a.preset && (
                       <button
                         type="button"
-                        onClick={() => handleDelete(a.id)}
+                        onClick={() => void handleDelete(a.id)}
                         className="px-2 text-slate-400 hover:text-red-600 text-lg leading-none"
-                        aria-label="Supprimer cet article"
-                        title="Supprimer cet article"
+                        aria-label="Désactiver cet article"
+                        title="Désactiver cet article"
                       >×</button>
                     )}
                   </li>
@@ -163,7 +207,7 @@ export default function PrestationsCombobox({ designation, onChange, className }
               <div className="border-t border-slate-100 p-2 bg-slate-50">
                 <button
                   type="button"
-                  onClick={() => { setCreating(true); setNewDesig(filter) }}
+                  onClick={() => { setCreating(true); setNewDesig(filter); setCreateError('') }}
                   className="w-full text-left text-sm font-bold text-blue-700 hover:text-blue-900 px-2 py-1.5"
                 >
                   + Créer un nouvel article
@@ -195,24 +239,29 @@ export default function PrestationsCombobox({ designation, onChange, className }
                   className="w-24 border border-slate-200 rounded px-2 py-1.5 text-sm"
                 />
               </div>
+              {createError && (
+                <p className="text-[11px] text-amber-700">{createError} — ligne remplie quand même.</p>
+              )}
               <div className="flex gap-2 pt-1">
                 <button
                   type="button"
-                  onClick={() => { setCreating(false); setNewDesig(''); setNewPu(''); setNewUnite('forfait') }}
+                  onClick={() => { setCreating(false); setNewDesig(''); setNewPu(''); setNewUnite('forfait'); setCreateError('') }}
                   className="flex-1 border border-slate-200 rounded px-3 py-1.5 text-sm font-semibold text-slate-600 hover:bg-slate-50"
                 >
                   Annuler
                 </button>
                 <button
                   type="button"
-                  onClick={handleCreate}
-                  disabled={!newDesig.trim()}
+                  onClick={() => void handleCreate()}
+                  disabled={!newDesig.trim() || saving}
                   className="flex-1 bg-[#0e2a52] text-white rounded px-3 py-1.5 text-sm font-bold hover:bg-[#1a3a6b] disabled:opacity-50"
                 >
-                  Enregistrer
+                  {saving ? '…' : 'Enregistrer'}
                 </button>
               </div>
-              <p className="text-[11px] text-slate-400">L&apos;article sera enregistré dans le catalogue local et sélectionné pour cette ligne.</p>
+              <p className="text-[11px] text-slate-400">
+                Enregistré dans le catalogue partagé (réglages prestations) et sélectionné pour cette ligne.
+              </p>
             </div>
           )}
         </div>

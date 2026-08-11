@@ -9,6 +9,8 @@ export type ClientRecord = {
   adresse: string | null
   code_postal: string | null
   ville: string | null
+  /** SIRET (si stocké dans la base). */
+  siret?: string | null
 }
 
 type Props = {

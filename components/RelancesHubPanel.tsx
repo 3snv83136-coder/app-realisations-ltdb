@@ -6,13 +6,15 @@ import type { ClientRelancesGroup, RelanceItem, RelanceKind } from "@/lib/relanc
 
 type Snapshot = {
   groups: ClientRelancesGroup[]
-  totals: { avis: number; devis: number; facture: number; all: number }
+  totals: { avis: number; devis: number; facture: number; autre: number; all: number }
 }
 
 const KIND_META: Record<RelanceKind, { emoji: string; label: string; color: string }> = {
   avis: { emoji: '⭐', label: 'Avis Google', color: 'bg-amber-100 text-amber-900 border-amber-200' },
   devis: { emoji: '📋', label: 'Devis', color: 'bg-blue-100 text-blue-900 border-blue-200' },
   facture: { emoji: '🧾', label: 'Facture', color: 'bg-emerald-100 text-emerald-900 border-emerald-200' },
+  devis_complementaire: { emoji: '📝', label: 'Devis complémentaire', color: 'bg-violet-100 text-violet-900 border-violet-200' },
+  autre: { emoji: '🔔', label: 'Autre relance', color: 'bg-slate-100 text-slate-900 border-slate-200' },
 }
 
 type StopScope =
@@ -35,7 +37,7 @@ export default function RelancesHubPanel() {
       const res = await fetch('/api/relances', { cache: 'no-store' })
       const j = await res.json()
       if (!res.ok) throw new Error(j.error || `HTTP ${res.status}`)
-      setData({ groups: j.groups || [], totals: j.totals || { avis: 0, devis: 0, facture: 0, all: 0 } })
+      setData({ groups: j.groups || [], totals: j.totals || { avis: 0, devis: 0, facture: 0, autre: 0, all: 0 } })
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
     } finally {
@@ -88,7 +90,7 @@ export default function RelancesHubPanel() {
     }
   }
 
-  const totals = data?.totals ?? { avis: 0, devis: 0, facture: 0, all: 0 }
+  const totals = data?.totals ?? { avis: 0, devis: 0, facture: 0, autre: 0, all: 0 }
   const hasAny = totals.all > 0
 
   return (
@@ -98,7 +100,7 @@ export default function RelancesHubPanel() {
           <div>
             <h2 className="text-lg font-black text-slate-800">Centre de contrôle des relances</h2>
             <p className="text-sm text-slate-500 mt-1">
-              Arrêtez les relances avis, devis ou factures sans passer par l&apos;historique ou chaque fiche.
+              Toutes les relances actives, quelle que soit leur origine, avec arrêt immédiat depuis cet écran.
             </p>
           </div>
           {hasAny && (
@@ -116,10 +118,11 @@ export default function RelancesHubPanel() {
           )}
         </div>
 
-        <div className="grid grid-cols-3 gap-2 sm:gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
           <Kpi emoji="⭐" label="Avis" value={totals.avis} tone="amber" />
           <Kpi emoji="📋" label="Devis" value={totals.devis} tone="blue" />
           <Kpi emoji="🧾" label="Factures" value={totals.facture} tone="emerald" />
+          <Kpi emoji="🔔" label="Autres" value={totals.autre} tone="slate" />
         </div>
 
         <input
@@ -168,11 +171,12 @@ export default function RelancesHubPanel() {
   )
 }
 
-function Kpi({ emoji, label, value, tone }: { emoji: string; label: string; value: number; tone: 'amber' | 'blue' | 'emerald' }) {
+function Kpi({ emoji, label, value, tone }: { emoji: string; label: string; value: number; tone: 'amber' | 'blue' | 'emerald' | 'slate' }) {
   const tones = {
     amber: 'bg-amber-50 border-amber-200',
     blue: 'bg-blue-50 border-blue-200',
     emerald: 'bg-emerald-50 border-emerald-200',
+    slate: 'bg-slate-50 border-slate-200',
   }
   return (
     <div className={`rounded-xl border p-3 text-center ${tones[tone]}`}>

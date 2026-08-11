@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { Resend } from "resend"
 import crypto from "crypto"
+import { cancelRegisteredRelancesByProviderIds } from "@/lib/relances-registry"
 
 function verifySignature(payload: string, exp: number, sig: string, secret: string): boolean {
   const expected = crypto.createHmac("sha256", secret).update(`${payload}.${exp}`).digest("hex")
@@ -40,6 +41,7 @@ export async function GET(req: NextRequest) {
   const resend = new Resend(resendKey)
   const results = await Promise.all(ids.map((id) => resend.emails.cancel(id)))
   const canceledCount = results.filter((r) => !r.error).length
+  await cancelRegisteredRelancesByProviderIds(ids)
 
   return new NextResponse(
     `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Relances devis arrêtées</title></head><body style="font-family:Arial,sans-serif;background:#f4f6fa;padding:24px"><div style="max-width:560px;margin:0 auto;background:#fff;border-radius:10px;padding:24px;border:1px solid #e1e6ef"><h1 style="margin:0 0 10px;color:#0e2a52">Relances devis arrêtées</h1><p style="margin:0;color:#334155">C'est bon, vous ne recevrez plus de relance pour ce devis. Relances annulées: ${canceledCount}/${ids.length}.</p></div></body></html>`,

@@ -14,7 +14,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
 
   const { data, error } = await sb
     .from('clients')
-    .select('id, nom, email, telephone, adresse, code_postal, ville')
+    .select('id, nom, email, telephone, adresse, code_postal, ville, siret')
     .eq('id', params.id)
     .maybeSingle()
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
@@ -64,7 +64,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     .from('clients')
     .update(update)
     .eq('id', params.id)
-    .select('id, nom, email, telephone, adresse, code_postal, ville')
+    .select('id, nom, email, telephone, adresse, code_postal, ville, siret')
     .maybeSingle()
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   if (!data) return NextResponse.json({ error: 'Client introuvable' }, { status: 404 })

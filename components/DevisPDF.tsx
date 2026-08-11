@@ -227,6 +227,8 @@ export interface EmetteurData {
 
 export interface ClientData {
   nom: string
+  /** Occupant / locataire / propriétaire (cas syndic). */
+  nomFinal?: string
   adresseLignes: string[]
   adresseChantier?: string
   siret?: string
@@ -327,6 +329,9 @@ export function DevisDocument({ emetteur, client, devis, phone }: DevisPDFProps)
             <View style={s.billTo}>
               <Text style={s.sectionLabel}>Devis pour</Text>
               <Text style={s.clientName}>{client.nom}</Text>
+              {client.nomFinal ? (
+                <Text style={s.clientLine}>Client concerné : {client.nomFinal}</Text>
+              ) : null}
               {client.adresseLignes.map((l, i) => (
                 <Text key={i} style={s.clientLine}>{l}</Text>
               ))}

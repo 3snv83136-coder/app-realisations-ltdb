@@ -93,6 +93,7 @@ export default auth(async (req) => {
     || pathname.startsWith("/api/connexions")
     || pathname.startsWith("/admin")
     || pathname.startsWith("/api/admin")
+    || pathname.startsWith("/reglages")
     || (pathname.startsWith("/api/demo-access") && !pathname.startsWith("/api/demo-access/check"))
 
   if (isDemo && demoMgmtBlocked) {

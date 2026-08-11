@@ -85,6 +85,23 @@ export async function GET(req: NextRequest) {
     if (d.type === 'facture' && d.intervention_id) factureByIntervention.add(d.intervention_id as string)
   })
 
+  // client_final_nom (occupant) porté par l'intervention liée au document
+  const intervIds = Array.from(new Set(
+    rawDocuments.map(d => d.intervention_id).filter(Boolean) as string[],
+  ))
+  let finalNomByIntervention: Record<string, string | null> = {}
+  if (intervIds.length > 0) {
+    const { data: intervRows } = await sb
+      .from('interventions')
+      .select('id, client_final_nom')
+      .in('id', intervIds)
+    if (intervRows) {
+      finalNomByIntervention = Object.fromEntries(
+        intervRows.map(i => [i.id, (i.client_final_nom as string | null) || null]),
+      )
+    }
+  }
+
   const decoratedInterventions = rawInterventions.map(i => {
     const c = i.client_id ? clients[i.client_id] : null
     const t = i.technicien_id ? techniciens[i.technicien_id] : null
@@ -110,6 +127,9 @@ export async function GET(req: NextRequest) {
       client_adresse: c?.adresse || null,
       client_code_postal: c?.code_postal || null,
       client_ville: c?.ville || null,
+      client_final_nom: d.intervention_id
+        ? (finalNomByIntervention[d.intervention_id as string] || null)
+        : null,
     }
   })
 

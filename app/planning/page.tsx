@@ -537,6 +537,7 @@ function NouvelleInterventionModal({
   // Client
   const [clientId, setClientId] = useState<string | null>(null)
   const [clientNom, setClientNom] = useState('')
+  const [clientFinalNom, setClientFinalNom] = useState('')
   const [clientEmail, setClientEmail] = useState('')
   const [clientTel, setClientTel] = useState('')
   const [clientAdresse, setClientAdresse] = useState('')
@@ -646,6 +647,7 @@ function NouvelleInterventionModal({
             code_postal: clientCP || null,
             ville: clientVille || null,
           },
+          client_final_nom: clientFinalNom.trim() || null,
           technicien_id: technicienId || null,
           agence: agence || null,
           type_intervention: typeIntervention,
@@ -770,6 +772,7 @@ function NouvelleInterventionModal({
               }}
             />
             <ClientAutocomplete
+              label="Nom facturé (syndic / client) *"
               value={clientNom}
               onTextChange={v => { setClientNom(v); setClientId(null) }}
               onSelect={c => {
@@ -781,6 +784,12 @@ function NouvelleInterventionModal({
                 setClientCP(c.code_postal || '')
                 setClientVille(c.ville || '')
               }}
+            />
+            <Field
+              label="Nom du client concerné (occupant / locataire)"
+              value={clientFinalNom}
+              onChange={setClientFinalNom}
+              placeholder="Ex. M. Dupont — si différent du syndic"
             />
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <Field label="Email" type="email" value={clientEmail} onChange={setClientEmail} placeholder="client@exemple.fr" />
@@ -1088,11 +1097,12 @@ function SiretLookup({ onFound }: {
 // Autocomplete client (recherche dans clients existants)
 // ====================================================================
 function ClientAutocomplete({
-  value, onTextChange, onSelect,
+  value, onTextChange, onSelect, label = 'Nom du client *',
 }: {
   value: string
   onTextChange: (v: string) => void
   onSelect: (c: ClientRow) => void
+  label?: string
 }) {
   const [results, setResults] = useState<ClientRow[]>([])
   const [open, setOpen] = useState(false)
@@ -1123,12 +1133,12 @@ function ClientAutocomplete({
 
   return (
     <div ref={wrapRef} className="relative">
-      <span className="text-xs uppercase tracking-wide text-slate-500 font-semibold">Nom du client *</span>
+      <span className="text-xs uppercase tracking-wide text-slate-500 font-semibold">{label}</span>
       <input
         value={value}
         onChange={e => { onTextChange(e.target.value); setOpen(true) }}
         onFocus={() => setOpen(true)}
-        placeholder="M. Dupont, Mme Jules…"
+        placeholder="Syndic, société, M. Dupont…"
         className="w-full border-2 border-slate-200 focus:border-blue-500 outline-none rounded-lg px-3 py-2 mt-1"
       />
       {open && results.length > 0 && (

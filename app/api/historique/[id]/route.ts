@@ -35,6 +35,7 @@ export async function GET(
   let client_adresse: string | null = null
   let client_code_postal: string | null = null
   let client_ville: string | null = null
+  let client_final_nom: string | null = null
   if (data.client_id) {
     const { data: c } = await sb
       .from('clients')
@@ -49,11 +50,20 @@ export async function GET(
       client_ville = c.ville || null
     }
   }
+  if (data.intervention_id) {
+    const { data: interv } = await sb
+      .from('interventions')
+      .select('client_final_nom')
+      .eq('id', data.intervention_id)
+      .maybeSingle()
+    client_final_nom = (interv?.client_final_nom as string | null) || null
+  }
 
   return NextResponse.json({
     document: {
       ...data,
       client_nom, client_email, client_adresse, client_code_postal, client_ville,
+      client_final_nom,
     },
   })
 }

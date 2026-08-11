@@ -156,6 +156,8 @@ export type PlanifierDevisEnvoiInput = {
 export type PlanifierDevisEnvoiResult = {
   immediateId?: string
   reminderIds: string[]
+  /** Tous les IDs encore annulables, y compris le premier mail s'il est programmé. */
+  pendingIds: string[]
   reminderErrors: string[]
   stopUrl: string
 }
@@ -273,5 +275,10 @@ export async function planifierDevisAvecRelances(input: PlanifierDevisEnvoiInput
   if (first.error) throw new Error(first.error.message || "Envoi devis échoué")
   immediateId = first.data?.id
 
-  return { immediateId, reminderIds, reminderErrors, stopUrl }
+  const pendingIds = [
+    ...reminderIds,
+    ...(!isImmediate && immediateId ? [immediateId] : []),
+  ]
+
+  return { immediateId, reminderIds, pendingIds, reminderErrors, stopUrl }
 }

@@ -68,7 +68,7 @@ export async function generateTerrainPdfsOnServer(input: GenerateTerrainPdfsInpu
 
   const { data: interv, error: intErr } = await sb
     .from("interventions")
-    .select("id, reference, type_intervention, adresse_chantier, ville, code_postal, date_realisee, date_prevue, agence, rapport_json, photos_urls, photos_legendes, pdf_rapport_url, technicien_id, client_id")
+    .select("id, reference, type_intervention, adresse_chantier, ville, code_postal, date_realisee, date_prevue, agence, rapport_json, photos_urls, photos_legendes, pdf_rapport_url, technicien_id, client_id, client_final_nom")
     .eq("id", interventionId)
     .single()
 
@@ -87,9 +87,13 @@ export async function generateTerrainPdfsOnServer(input: GenerateTerrainPdfsInpu
     }
   }
 
-  let clientRow: { adresse?: string; code_postal?: string; ville?: string } | null = null
+  let clientRow: { adresse?: string; code_postal?: string; ville?: string; siret?: string } | null = null
   if (interv.client_id) {
-    const { data: cl } = await sb.from("clients").select("adresse, code_postal, ville").eq("id", interv.client_id).maybeSingle()
+    const { data: cl } = await sb
+      .from("clients")
+      .select("adresse, code_postal, ville, siret")
+      .eq("id", interv.client_id)
+      .maybeSingle()
     clientRow = cl
   }
 
@@ -170,12 +174,22 @@ export async function generateTerrainPdfsOnServer(input: GenerateTerrainPdfsInpu
     clientAdresseLignes.push([adresseCP, adresseVille].filter(Boolean).join(" "))
   }
 
+  const adresseChantierComplete = (interv.adresse_chantier as string)
+    ? [
+      (interv.adresse_chantier as string).trim(),
+      [interv.code_postal, interv.ville].filter(Boolean).join(" "),
+    ].filter(Boolean).join(", ")
+    : undefined
+
   const factureBuf = await renderToBuffer(
     createElement(FactureDocument, {
       emetteur: ltdbFactureEmetteur((interv.agence as string) || undefined),
       client: {
         nom: clientNom,
+        nomFinal: (interv.client_final_nom as string) || undefined,
         adresseLignes: clientAdresseLignes.length > 0 ? clientAdresseLignes : ["—"],
+        adresseChantier: adresseChantierComplete,
+        siret: clientRow?.siret as string | undefined,
       },
       facture: facture.payload,
     }) as ReactElement,

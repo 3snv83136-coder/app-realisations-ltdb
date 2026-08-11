@@ -7,6 +7,7 @@ import AppTabs from "@/components/AppTabs"
 import VilleCombobox from "@/components/VilleCombobox"
 import PrestationsCombobox from "@/components/PrestationsCombobox"
 import ClientAutocomplete from "@/components/ClientAutocomplete"
+import FactureRemiseButton from "@/components/FactureRemiseButton"
 import { useUnsavedChangesWarning } from "@/lib/useUnsavedChangesWarning"
 import { AGENCES, type Agence } from "@/lib/agences"
 import { LTDB_EMETTEUR, ltdbFactureEmetteur } from "@/lib/emetteur"
@@ -44,6 +45,7 @@ export default function FacturePage() {
   const [clientAdresse, setClientAdresse] = useState('')
   const [clientCP, setClientCP] = useState('')
   const [clientVille, setClientVille] = useState('')
+  const [clientSiret, setClientSiret] = useState<string | null>(null)
   const [adresseChantier, setAdresseChantier] = useState('idem')
   const [dateFacture, setDateFacture] = useState(new Date().toISOString().split('T')[0])
   const [referenceDossier, setReferenceDossier] = useState('')
@@ -76,6 +78,7 @@ export default function FacturePage() {
       if (payload.client_adresse) setClientAdresse(payload.client_adresse)
       if (payload.client_cp) setClientCP(payload.client_cp)
       if (payload.client_ville) setClientVille(payload.client_ville)
+      setClientSiret(null) // le payload ne contient pas le SIRET
       if (payload.adresse_chantier) setAdresseChantier(payload.adresse_chantier)
       if (payload.reference_dossier) setReferenceDossier(payload.reference_dossier)
       if (payload.client_email) setClientEmail(payload.client_email)
@@ -141,6 +144,7 @@ export default function FacturePage() {
           [clientCP, clientVille].filter(Boolean).join(' '),
         ].filter(Boolean),
         adresseChantier: adresseChantier || undefined,
+        siret: clientSiret || undefined,
       }
       const emetteur = ltdbFactureEmetteur(agence)
       const [{ FactureDocument }, { pdfDocumentToBase64 }, React] = await Promise.all([
@@ -208,7 +212,10 @@ export default function FacturePage() {
         body: JSON.stringify({ transcription }),
       })
       const data = await res.json()
-      if (data.client_nom && !clientNom) setClientNom(data.client_nom)
+      if (data.client_nom && !clientNom) {
+        setClientNom(data.client_nom)
+        setClientSiret(null)
+      }
       if (data.adresse && !clientAdresse) setClientAdresse(data.adresse)
       if (data.ville && !clientVille) setClientVille(data.ville)
       if (data.code_postal && !clientCP) setClientCP(data.code_postal)
@@ -242,7 +249,10 @@ export default function FacturePage() {
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Génération échouée')
 
-      if (!clientNom && data.facture?.client_nom_detecte) setClientNom(data.facture.client_nom_detecte)
+      if (!clientNom && data.facture?.client_nom_detecte) {
+        setClientNom(data.facture.client_nom_detecte)
+        setClientSiret(null)
+      }
       if (!clientAdresse && data.facture?.client_adresse_detectee) setClientAdresse(data.facture.client_adresse_detectee)
 
       await enterPreviewWithNumero(data.facture)
@@ -323,6 +333,7 @@ export default function FacturePage() {
         [clientCP, clientVille].filter(Boolean).join(' '),
       ].filter(Boolean),
       adresseChantier: adresseChantier || undefined,
+      siret: clientSiret || undefined,
     }
     const missingClient: string[] = []
     if (!clientNom.trim()) missingClient.push('nom')
@@ -467,9 +478,10 @@ export default function FacturePage() {
                 <div className="mt-1">
                   <ClientAutocomplete
                     value={clientNom}
-                    onChange={setClientNom}
+                    onChange={v => { setClientNom(v); setClientSiret(null) }}
                     onSelect={c => {
                       setClientNom(c.nom)
+                      setClientSiret(c.siret || null)
                       if (c.adresse) setClientAdresse(c.adresse)
                       if (c.code_postal) setClientCP(c.code_postal)
                       if (c.ville) setClientVille(c.ville)
@@ -479,6 +491,12 @@ export default function FacturePage() {
                   />
                 </div>
               </label>
+              <Field
+                label="SIRET client (pour mention SIREN)"
+                value={clientSiret || ''}
+                onChange={v => setClientSiret(v.trim() ? v.trim() : null)}
+                placeholder="14 chiffres (optionnel)"
+              />
               <Field label="Adresse client" value={clientAdresse} onChange={setClientAdresse} />
               <Field label="Code postal" value={clientCP} onChange={setClientCP} />
               <label className="block text-sm">
@@ -512,9 +530,15 @@ export default function FacturePage() {
 
           {/* Lignes */}
           <section className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 space-y-3">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between gap-3 flex-wrap">
               <h2 className="font-bold text-[#0e2a52]">Prestations</h2>
-              <button onClick={addLine} className="text-sm font-semibold text-blue-700 hover:text-blue-900">+ Ajouter une ligne</button>
+              <div className="flex items-center gap-3">
+                <FactureRemiseButton
+                  lignes={facture.lignes}
+                  onAdd={line => setFacture({ ...facture, lignes: [...facture.lignes, line] })}
+                />
+                <button onClick={addLine} className="text-sm font-semibold text-blue-700 hover:text-blue-900">+ Ajouter une ligne</button>
+              </div>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
@@ -562,11 +586,11 @@ export default function FacturePage() {
                       </td>
                       <td className="py-1 pr-2">
                         <input
-                          type="number" step="0.01" min="0"
+                          type="number" step="0.01"
                           value={l.pu_ht}
                           onChange={e => updateLine(i, { pu_ht: Number(e.target.value) })}
                           disabled={!!l.inclus}
-                          className="w-full border border-slate-200 rounded px-2 py-1 text-right disabled:bg-slate-50 disabled:text-slate-400"
+                          className={`w-full border border-slate-200 rounded px-2 py-1 text-right disabled:bg-slate-50 disabled:text-slate-400 ${!l.inclus && l.pu_ht < 0 ? 'text-amber-800 font-semibold' : ''}`}
                         />
                       </td>
                       <td className="py-1 pr-2 text-center">
@@ -577,7 +601,7 @@ export default function FacturePage() {
                           aria-label="Inclus"
                         />
                       </td>
-                      <td className="py-1 pr-2 text-right font-semibold text-[#0e2a52]">
+                      <td className={`py-1 pr-2 text-right font-semibold ${!l.inclus && l.pu_ht < 0 ? 'text-amber-800' : 'text-[#0e2a52]'}`}>
                         {l.inclus
                           ? <span className="text-slate-400 italic font-normal">inclus</span>
                           : `${(l.qte * l.pu_ht).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`}
@@ -724,9 +748,10 @@ export default function FacturePage() {
               <div className="mt-1">
                 <ClientAutocomplete
                   value={clientNom}
-                  onChange={setClientNom}
+                  onChange={v => { setClientNom(v); setClientSiret(null) }}
                   onSelect={c => {
                     setClientNom(c.nom)
+                    setClientSiret(c.siret || null)
                     if (c.adresse) setClientAdresse(c.adresse)
                     if (c.code_postal) setClientCP(c.code_postal)
                     if (c.ville) setClientVille(c.ville)
@@ -736,6 +761,12 @@ export default function FacturePage() {
                 />
               </div>
             </label>
+            <Field
+              label="SIRET client (pour mention SIREN)"
+              value={clientSiret || ''}
+              onChange={v => setClientSiret(v.trim() ? v.trim() : null)}
+              placeholder="14 chiffres (optionnel)"
+            />
             <Field label="Adresse" value={clientAdresse} onChange={setClientAdresse} />
             <Field label="Code postal" value={clientCP} onChange={setClientCP} />
             <label className="block text-sm">

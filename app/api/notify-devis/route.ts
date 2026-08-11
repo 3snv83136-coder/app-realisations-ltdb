@@ -71,7 +71,7 @@ export async function POST(req: NextRequest) {
 
   try {
     let immediateId: string | undefined
-    let reminderIds: string[] = []
+    let pendingIds: string[] = []
     let reminderErrors: string[] = []
 
     if (avecRelances) {
@@ -91,7 +91,7 @@ export async function POST(req: NextRequest) {
         premierEnvoiAt,
       })
       immediateId = out.immediateId
-      reminderIds = out.reminderIds
+      pendingIds = out.pendingIds
       reminderErrors = out.reminderErrors
     } else {
       const { resend, fromEmail, recipient } = ctx
@@ -155,9 +155,9 @@ export async function POST(req: NextRequest) {
         await sb.from('interventions').update({ statut: 'en_cours' }).eq('id', interventionId)
         // Stocke les IDs des relances devis pour pouvoir les stopper depuis l'app.
         // Best-effort : ne casse pas l'envoi si la colonne n'est pas encore migrée.
-        if (reminderIds.length) {
+        if (pendingIds.length) {
           try {
-            await sb.from('interventions').update({ devis_relance_ids: reminderIds }).eq('id', interventionId)
+            await sb.from('interventions').update({ devis_relance_ids: pendingIds }).eq('id', interventionId)
           } catch { /* migration 018 non appliquée */ }
         }
       }
@@ -165,14 +165,14 @@ export async function POST(req: NextRequest) {
 
     // Devis sans intervention liée : on garde les IDs de relance dans le payload du
     // document pour que « ✓ Accepté » (Devis > Tous) puisse aussi les stopper.
-    if (!interventionId && docId && reminderIds.length) {
+    if (!interventionId && docId && pendingIds.length) {
       try {
         const { getSupabaseOrNull } = await import('@/lib/supabase')
         const sb = getSupabaseOrNull()
         if (sb) {
           const { data: row } = await sb.from('documents').select('payload').eq('id', docId).maybeSingle()
           const base = row?.payload && typeof row.payload === 'object' ? row.payload as Record<string, unknown> : {}
-          await sb.from('documents').update({ payload: { ...base, relance_ids: reminderIds } }).eq('id', docId)
+          await sb.from('documents').update({ payload: { ...base, relance_ids: pendingIds } }).eq('id', docId)
         }
       } catch (e) {
         console.error('[notify-devis] store relance_ids on document', e)
@@ -184,7 +184,7 @@ export async function POST(req: NextRequest) {
       id: immediateId,
       docId,
       relances_planifiees: avecRelances,
-      reminders_ids: reminderIds,
+      reminders_ids: pendingIds,
       ...(reminderErrors.length ? { reminder_errors: reminderErrors } : {}),
       ...(persistError ? { warning: `Email planifié mais devis non enregistré : ${persistError}` } : {}),
     })

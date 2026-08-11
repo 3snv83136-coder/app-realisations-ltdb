@@ -1,8 +1,7 @@
 /**
- * Catalogue des prestations standard LTDB — source des prix proposés dans le
- * menu déroulant de la facturation (mode terrain). Prix HT unitaires.
- *
- * Modifier ici met à jour le menu déroulant partout où le catalogue est importé.
+ * Catalogue des prestations LTDB.
+ * Source de vérité : table Supabase `tarifs` (via GET /api/tarifs).
+ * Le fallback ci-dessous sert hors-ligne / avant chargement.
  */
 
 export type PrestationCatalogue = {
@@ -14,6 +13,7 @@ export type PrestationCatalogue = {
   description?: string
 }
 
+/** Fallback historique (mode terrain) si l'API est indisponible. */
 export const CATALOGUE_PRESTATIONS: PrestationCatalogue[] = [
   { id: 'debouchage_pression', designation: 'Débouchage à pression', pu_ht: 199, unite: 'forfait' },
   { id: 'debouchage_manuel', designation: 'Débouchage manuel', pu_ht: 90, unite: 'forfait' },
@@ -24,6 +24,25 @@ export const CATALOGUE_PRESTATIONS: PrestationCatalogue[] = [
   { id: 'curage', designation: 'Curage', pu_ht: 25, unite: 'ml' },
 ]
 
-export function findPrestation(id: string): PrestationCatalogue | undefined {
-  return CATALOGUE_PRESTATIONS.find((p) => p.id === id)
+export function findPrestation(id: string, list: PrestationCatalogue[] = CATALOGUE_PRESTATIONS): PrestationCatalogue | undefined {
+  return list.find((p) => p.id === id)
+}
+
+/** Charge le catalogue partagé depuis l'API (tarifs actifs). */
+export async function fetchCataloguePrestations(): Promise<PrestationCatalogue[]> {
+  try {
+    const res = await fetch('/api/tarifs', { cache: 'no-store' })
+    const j = await res.json()
+    if (!res.ok) return CATALOGUE_PRESTATIONS
+    const articles = Array.isArray(j.articles) ? j.articles : []
+    if (articles.length === 0) return CATALOGUE_PRESTATIONS
+    return articles.map((a: { id: string; designation: string; pu_ht: number; unite: string }) => ({
+      id: a.id,
+      designation: a.designation,
+      pu_ht: Number(a.pu_ht) || 0,
+      unite: a.unite || 'forfait',
+    }))
+  } catch {
+    return CATALOGUE_PRESTATIONS
+  }
 }

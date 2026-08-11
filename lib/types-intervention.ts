@@ -10,6 +10,9 @@ export const TYPES_INTERVENTION = [
   'Débouchage douche',
   'Hydrocurage',
   'Inspection caméra',
+  'Recherche de fuite par caméra',
+  'Pompe de relevage',
+  'Dépannage pompe de relevage',
   'Vidange fosse septique',
   'Curage canalisation',
   'Devis',
@@ -35,7 +38,10 @@ export function detectTypeIntervention(text: string | null | undefined): TypeInt
   const t = text.toLowerCase()
 
   if (/\bdevis\b|estimation|chiffrage/.test(t)) return 'Devis'
+  if (/recherche.*fuite|fuite.*cam[ée]ra|d[ée]tection.*fuite/.test(t)) return 'Recherche de fuite par caméra'
   if (/inspection.*cam[ée]ra|cam[ée]ra.*inspection|cam[ée]ra/.test(t)) return 'Inspection caméra'
+  if (/d[ée]pannage.*pompe.*relevage|pompe.*relevage.*d[ée]pannage/.test(t)) return 'Dépannage pompe de relevage'
+  if (/pompe.*relevage|relevage/.test(t)) return 'Pompe de relevage'
   if (/hydrocurage|hydro.curage|curage.haute.pression/.test(t)) return 'Hydrocurage'
   if (/vidange.*fosse|fosse.*septique/.test(t)) return 'Vidange fosse septique'
   if (/curage/.test(t)) return 'Curage canalisation'

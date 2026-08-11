@@ -3,6 +3,7 @@ import { Resend } from "resend"
 import crypto from "crypto"
 import { EMAIL_RE, escapeHtml, getResendFromEmail, getResendRecipient } from "@/lib/email-utils"
 import { errorMessage } from "@/lib/error-message"
+import { registerRelances } from "@/lib/relances-registry"
 
 function getBaseUrl(req: NextRequest): string {
   const configured = process.env.APP_BASE_URL
@@ -139,6 +140,28 @@ export async function POST(req: NextRequest) {
   if (immediate.error) {
     return NextResponse.json({ error: immediate.error.message || "Envoi devis échoué" }, { status: 500 })
   }
+
+  await registerRelances(
+    reminders.flatMap((reminder, index) => {
+      const providerId = reminder.data?.id
+      if (!providerId) return []
+      return [{
+        kind: "devis_complementaire" as const,
+        sourceType: "quote_complementaire",
+        sourceId: quoteId,
+        providerId,
+        sendAt: new Date(Date.now() + semaines[index] * 24 * 60 * 60 * 1000).toISOString(),
+        clientNom: typeof clientNom === "string" ? clientNom : null,
+        clientEmail,
+        ville: typeof ville === "string" ? ville : null,
+        label: quoteId,
+        metadata: {
+          technicien_nom: tech,
+          rapport_reference: typeof rapportReference === "string" ? rapportReference : null,
+        },
+      }]
+    }),
+  )
 
   return NextResponse.json({
     ok: true,

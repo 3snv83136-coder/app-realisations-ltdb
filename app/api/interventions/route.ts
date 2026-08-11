@@ -28,6 +28,8 @@ type ClientInput = {
 
 type CreateInterventionBody = {
   client?: ClientInput
+  /** Occupant / locataire / propriétaire (cas syndic). */
+  client_final_nom?: string | null
   technicien_id?: string | null
   agence?: string | null
   type_intervention?: string | null
@@ -255,9 +257,13 @@ export async function POST(req: NextRequest) {
 
   const canalClean = isCanalAcquisition(body.canal_acquisition) ? body.canal_acquisition : null
   const modePaiementClean = normalizeModePaiementInput(body.mode_paiement)
+  const clientFinalNom = typeof body.client_final_nom === 'string' && body.client_final_nom.trim()
+    ? body.client_final_nom.trim()
+    : null
 
   const baseRow: Record<string, unknown> = {
     client_id: clientId,
+    client_final_nom: clientFinalNom,
     technicien_id: body.technicien_id || null,
     agence: body.agence || null,
     type_intervention: body.type_intervention,
@@ -279,7 +285,7 @@ export async function POST(req: NextRequest) {
   let inserted: ({ id: string; technicien_id: string | null } & Record<string, unknown>) | null = null
   let insertErr: PostgrestError | null = null
   let currentRef = baseReference
-  // Tant que 028/029 ne sont pas appliquées, on retire ces colonnes une fois pour toutes.
+  // Tant que 028/029/034 ne sont pas appliquées, on retire ces colonnes une fois pour toutes.
   let stripOptionalCols = false
 
   for (let attempt = 0; attempt < 8; attempt++) {
@@ -287,6 +293,7 @@ export async function POST(req: NextRequest) {
     if (stripOptionalCols) {
       delete row.mode_paiement
       delete row.heure_fin_prevue
+      delete row.client_final_nom
     }
 
     const res = await sb
@@ -304,7 +311,14 @@ export async function POST(req: NextRequest) {
     insertErr = res.error
     const msg = res.error?.message || ''
 
-    if (!stripOptionalCols && (msg.includes('mode_paiement') || msg.includes('heure_fin_prevue'))) {
+    if (
+      !stripOptionalCols
+      && (
+        msg.includes('mode_paiement')
+        || msg.includes('heure_fin_prevue')
+        || msg.includes('client_final_nom')
+      )
+    ) {
       // Ancienne contrainte mono-mode (migration 030 absente) : garder le 1er mode.
       if (
         /check|constraint/i.test(msg)
@@ -314,7 +328,7 @@ export async function POST(req: NextRequest) {
         baseRow.mode_paiement = String(baseRow.mode_paiement).split(',')[0]
         continue
       }
-      // Colonnes absentes (028/029) → on les retire pour les essais suivants.
+      // Colonnes absentes (028/029/034) → on les retire pour les essais suivants.
       stripOptionalCols = true
       continue
     }

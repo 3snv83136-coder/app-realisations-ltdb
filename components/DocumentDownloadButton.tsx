@@ -22,6 +22,7 @@ export interface HistoriqueDocument {
   client_adresse: string | null
   client_code_postal: string | null
   client_ville: string | null
+  client_final_nom?: string | null
 }
 
 async function fetchPayload(id: string): Promise<DocumentPayload | null> {
@@ -36,6 +37,7 @@ function buildClientData(d: HistoriqueDocument): ClientData {
   const ville = d.client_ville || ''
   return {
     nom: d.client_nom || '—',
+    nomFinal: d.client_final_nom || undefined,
     adresseLignes: [
       d.client_adresse || '',
       [cp, ville].filter(Boolean).join(' '),

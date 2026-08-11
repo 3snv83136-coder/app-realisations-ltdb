@@ -6,12 +6,20 @@ import {
   isFacturePayeeOuReglee,
   relanceIdsFromPayload,
 } from "@/lib/facture-relance"
+import {
+  cancelRegisteredRelances,
+  cancelRegisteredRelancesByProviderIds,
+} from "@/lib/relances-registry"
 import { getSupabaseOrNull } from "@/lib/supabase"
 
-export type RelanceKind = "avis" | "devis" | "facture"
+export type RelanceKind = "avis" | "devis" | "facture" | "devis_complementaire" | "autre"
+export type RelanceSourceType = "intervention" | "document" | "registry" | "resend"
 
 export type RelanceItem = {
   kind: RelanceKind
+  sourceType: RelanceSourceType
+  registrySourceType?: string
+  providerIds?: string[]
   /** interventionId (avis/devis lié) ou documentId (facture / devis seul) */
   id: string
   interventionId: string | null
@@ -34,13 +42,15 @@ export type ClientRelancesGroup = {
 
 export type RelancesHubSnapshot = {
   groups: ClientRelancesGroup[]
-  totals: { avis: number; devis: number; facture: number; all: number }
+  totals: { avis: number; devis: number; facture: number; autre: number; all: number }
 }
 
 const KIND_LABEL: Record<RelanceKind, string> = {
   avis: "Avis Google",
   devis: "Devis",
   facture: "Facture impayée",
+  devis_complementaire: "Devis complémentaire",
+  autre: "Autre relance",
 }
 
 export function relanceKindLabel(kind: RelanceKind): string {
@@ -150,14 +160,27 @@ export async function stopRelances(
 
   for (const item of items) {
     try {
-      if (item.kind === "avis" && item.interventionId) {
+      if (item.sourceType === "registry") {
+        const n = await cancelRegisteredRelances(
+          item.registrySourceType || item.kind,
+          item.id,
+        )
+        stopped += n || item.pendingCount
+        details.push(`${item.label} ${relanceKindLabel(item.kind).toLowerCase()} : ${n} annulée(s)`)
+      } else if (item.sourceType === "resend") {
+        const ids = item.providerIds || [item.id]
+        const n = await cancelResendIds(ids)
+        await cancelRegisteredRelancesByProviderIds(ids)
+        stopped += n || item.pendingCount
+        details.push(`${item.label} : ${n} annulée(s)`)
+      } else if (item.kind === "avis" && item.interventionId) {
         const r = await annulerRelancesAvis(item.interventionId)
         const n = r.emailsCanceled + r.smsCanceled
         stopped += n || item.pendingCount
         details.push(`${item.label} avis : ${n} annulée(s)`)
       } else if (item.kind === "devis") {
         let n = 0
-        if (item.interventionId) {
+        if (item.sourceType === "intervention" && item.interventionId) {
           n = await annulerRelancesDevisIntervention(item.interventionId)
         } else {
           n = await annulerRelancesDevisDocument(item.id)
@@ -217,10 +240,11 @@ export async function listPendingRelances(
 ): Promise<RelancesHubSnapshot> {
   const sb = getSupabaseOrNull()
   if (!sb) {
-    return { groups: [], totals: { avis: 0, devis: 0, facture: 0, all: 0 } }
+    return { groups: [], totals: { avis: 0, devis: 0, facture: 0, autre: 0, all: 0 } }
   }
 
   const items: RelanceItem[] = []
+  const trackedProviderIds = new Set<string>()
 
   let intervQuery = sb
     .from("interventions")
@@ -259,11 +283,17 @@ export async function listPendingRelances(
     const ville = row.ville || null
 
     if (!row.avis_recu) {
+      if (Array.isArray(row.avis_relance_ids)) {
+        for (const id of row.avis_relance_ids as string[]) {
+          if (id) trackedProviderIds.add(id)
+        }
+      }
       const avisCount = countAvisRelancesPendantes(row.avis_relance_ids, row.avis_sms_plan)
       if (avisCount > 0 || row.mail_envoye_at) {
         if (avisCount > 0) {
           items.push({
             kind: "avis",
+            sourceType: "intervention",
             id: row.id as string,
             interventionId: row.id as string,
             clientKey: ck,
@@ -282,9 +312,11 @@ export async function listPendingRelances(
       const devisIds = Array.isArray(row.devis_relance_ids)
         ? (row.devis_relance_ids as string[]).filter(Boolean)
         : []
+      for (const id of devisIds) trackedProviderIds.add(id)
       if (devisIds.length > 0) {
         items.push({
           kind: "devis",
+          sourceType: "intervention",
           id: row.id as string,
           interventionId: row.id as string,
           clientKey: ck,
@@ -331,11 +363,19 @@ export async function listPendingRelances(
       const ids = Array.isArray(payload?.relance_ids)
         ? (payload.relance_ids as string[]).filter(Boolean)
         : []
-      if (ids.length > 0 && !intervId) {
+      for (const id of ids) trackedProviderIds.add(id)
+      const alreadyListedFromIntervention = !!intervId
+        && items.some(item =>
+          item.kind === "devis"
+          && item.sourceType === "intervention"
+          && item.interventionId === intervId
+        )
+      if (ids.length > 0 && !alreadyListedFromIntervention) {
         items.push({
           kind: "devis",
+          sourceType: "document",
           id: doc.id as string,
-          interventionId: null,
+          interventionId: intervId,
           clientKey: ck,
           clientNom,
           clientEmail,
@@ -349,9 +389,11 @@ export async function listPendingRelances(
 
     if (doc.type === "facture" && !isFacturePayeeOuReglee(doc.statut, doc.echeance)) {
       const ids = relanceIdsFromPayload(doc.payload)
+      for (const id of ids) trackedProviderIds.add(id)
       if (ids.length > 0) {
         items.push({
           kind: "facture",
+          sourceType: "document",
           id: doc.id as string,
           interventionId: intervId,
           clientKey: ck,
@@ -366,11 +408,125 @@ export async function listPendingRelances(
     }
   }
 
+  let registeredQuery = sb
+    .from("relances_planifiees")
+    .select(
+      "kind, source_type, source_id, provider_id, channel, client_id, client_nom, client_email, ville, label, intervention_id, technicien_id, href",
+    )
+    .eq("status", "pending")
+    .or(`send_at.is.null,send_at.gt.${new Date().toISOString()}`)
+
+  if (technicienId) {
+    registeredQuery = registeredQuery.or(`technicien_id.eq.${technicienId},technicien_id.is.null`)
+  }
+
+  const { data: registered, error: registeredError } = await registeredQuery
+  if (registeredError) {
+    // Compatibilité tant que la migration 033 n'est pas appliquée.
+    if (registeredError.code !== "42P01" && registeredError.code !== "PGRST205") {
+      console.error("[relances-hub] registered relances", registeredError.message)
+    }
+  } else {
+    const campaigns = new Map<string, RelanceItem>()
+    for (const row of registered || []) {
+      if (row.provider_id) trackedProviderIds.add(row.provider_id)
+      const rawKind = String(row.kind || "autre")
+      const kind: RelanceKind = (
+        ["avis", "devis", "facture", "devis_complementaire"].includes(rawKind)
+          ? rawKind
+          : "autre"
+      ) as RelanceKind
+      const sourceType = String(row.source_type || kind)
+      const sourceId = String(row.source_id)
+      const campaignKey = `${sourceType}:${sourceId}`
+      const existing = campaigns.get(campaignKey)
+      if (existing) {
+        existing.pendingCount++
+        continue
+      }
+
+      const clientNom = row.client_nom || "Client"
+      const clientEmail = row.client_email || null
+      campaigns.set(campaignKey, {
+        kind,
+        sourceType: "registry",
+        registrySourceType: sourceType,
+        id: sourceId,
+        interventionId: row.intervention_id || null,
+        clientKey: clientKeyFrom(row.client_id, clientNom, clientEmail),
+        clientNom,
+        clientEmail,
+        ville: row.ville || null,
+        label: row.label || sourceId,
+        pendingCount: 1,
+        href: row.href || null,
+      })
+    }
+    items.push(...Array.from(campaigns.values()))
+  }
+
+  // Filet de sécurité admin : Resend reste la source de vérité pour les anciens
+  // envois qui n'ont jamais été persistés (notamment les devis complémentaires).
+  const resendKey = process.env.RESEND_API_KEY
+  if (!technicienId && resendKey) {
+    const resend = new Resend(resendKey)
+    let after: string | undefined
+    for (let page = 0; page < 10; page++) {
+      try {
+        const response = await resend.emails.list({ limit: 100, ...(after ? { after } : {}) })
+        if (response.error) {
+          console.error("[relances-hub] Resend list", response.error.message)
+          break
+        }
+        const emails = response.data?.data || []
+        for (const email of emails) {
+          if (email.last_event !== "scheduled" || trackedProviderIds.has(email.id)) continue
+          const searchable = `${email.subject} ${email.to.join(" ")}`.toLowerCase()
+          if (!/(relance|rappel|devis|facture|avis)/i.test(searchable)) continue
+
+          const kind: RelanceKind = searchable.includes("devis complémentaire")
+            ? "devis_complementaire"
+            : searchable.includes("devis")
+              ? "devis"
+              : searchable.includes("facture")
+                ? "facture"
+                : searchable.includes("avis")
+                  ? "avis"
+                  : "autre"
+          const emailClient = email.to[0] || null
+          items.push({
+            kind,
+            sourceType: "resend",
+            providerIds: [email.id],
+            id: email.id,
+            interventionId: null,
+            clientKey: clientKeyFrom(null, "", emailClient),
+            clientNom: emailClient || "Destinataire inconnu",
+            clientEmail: emailClient,
+            ville: null,
+            label: email.subject || `Relance ${email.id.slice(0, 8)}`,
+            pendingCount: 1,
+            href: null,
+          })
+          trackedProviderIds.add(email.id)
+        }
+
+        if (!response.data?.has_more || emails.length === 0) break
+        after = emails[emails.length - 1]?.id
+        if (!after) break
+      } catch (error) {
+        console.error("[relances-hub] Resend list", error)
+        break
+      }
+    }
+  }
+
   const groups = buildGroups(items)
   const totals = {
     avis: items.filter(i => i.kind === "avis").reduce((s, i) => s + i.pendingCount, 0),
-    devis: items.filter(i => i.kind === "devis").reduce((s, i) => s + i.pendingCount, 0),
+    devis: items.filter(i => i.kind === "devis" || i.kind === "devis_complementaire").reduce((s, i) => s + i.pendingCount, 0),
     facture: items.filter(i => i.kind === "facture").reduce((s, i) => s + i.pendingCount, 0),
+    autre: items.filter(i => i.kind === "autre").reduce((s, i) => s + i.pendingCount, 0),
     all: items.reduce((s, i) => s + i.pendingCount, 0),
   }
 

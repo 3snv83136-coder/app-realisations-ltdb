@@ -78,6 +78,8 @@ export interface Intervention {
   id: string
   reference: string | null
   client_id: string | null
+  /** Occupant / locataire / propriétaire, distinct du client facturé. */
+  client_final_nom: string | null
   technicien_id: string | null
   agence: string | null
   type_intervention: string | null

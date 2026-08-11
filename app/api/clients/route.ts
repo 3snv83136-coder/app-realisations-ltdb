@@ -27,7 +27,7 @@ export async function GET(req: NextRequest) {
     }
     const { data: candidates, error: candErr } = await sb
       .from('clients')
-      .select('id, nom, email, telephone, adresse, code_postal, ville')
+      .select('id, nom, email, telephone, adresse, code_postal, ville, siret')
       .not('telephone', 'is', null)
       .order('nom', { ascending: true })
       .range(0, 999)
@@ -50,7 +50,7 @@ export async function GET(req: NextRequest) {
 
   let query = sb
     .from('clients')
-    .select('id, nom, email, telephone, adresse, code_postal, ville')
+    .select('id, nom, email, telephone, adresse, code_postal, ville, siret')
     .order('nom', { ascending: true })
     .range(0, limit - 1)
 

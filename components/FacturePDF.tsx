@@ -89,6 +89,8 @@ const s = StyleSheet.create({
   cQte: { width: '14%', paddingHorizontal: 6, fontSize: 9.5, textAlign: 'center' },
   cTot: { width: '18%', paddingHorizontal: 6, fontSize: 9.5, textAlign: 'right', fontFamily: 'Helvetica-Bold' },
   cInclus: { color: C.muted, fontStyle: 'italic', fontFamily: 'Helvetica' },
+  cRemise: { color: '#92400e' },
+  cRemiseName: { color: '#92400e', fontFamily: 'Helvetica-Bold', fontSize: 9.5 },
 
   /* Totaux : mini-lignes alignées à droite + barre rouge pleine largeur */
   totalsMini: { alignSelf: 'flex-end', width: '46%', marginTop: 10 },
@@ -180,6 +182,10 @@ export interface FactureData {
   mode_reglement?: string
   observations?: string
   recommandation?: string
+  /** Mention e-facturation (1er sept 2026) : catégorie d'opération. */
+  operation_nature?: 'prestations_de_services' | 'livraisons_de_biens' | 'biens_et_services'
+  /** Mention e-facturation : option pour le paiement de la TVA d'après les débits. */
+  tva_paiement_debits_optie?: boolean
 }
 
 export interface FactureEmetteurData extends EmetteurData {
@@ -252,6 +258,9 @@ export function FactureDocument({ emetteur, client, facture, phone }: FacturePDF
   const tvaTaux = facture.tva_taux ?? 0
   const echeanceVal = facture.echeance || 'À réception'
   const isRegle = /^r[ée]gl[ée]e?$/i.test(echeanceVal.trim())
+  const clientSiren = client.siret ? client.siret.slice(0, 9) : ''
+  const operationNature = facture.operation_nature ?? 'prestations_de_services'
+  const isDebitsOption = facture.tva_paiement_debits_optie === true
 
   const totalHT = facture.lignes.reduce((sum, l) => {
     if (l.inclus) return sum
@@ -278,13 +287,17 @@ export function FactureDocument({ emetteur, client, facture, phone }: FacturePDF
             <View style={s.billTo}>
               <Text style={s.sectionLabel}>Facturé à</Text>
               <Text style={s.clientName}>{client.nom}</Text>
+              {client.nomFinal ? (
+                <Text style={s.clientLine}>Client concerné : {client.nomFinal}</Text>
+              ) : null}
               {client.adresseLignes.map((l, i) => (
                 <Text key={i} style={s.clientLine}>{l}</Text>
               ))}
               {client.siret ? <Text style={s.clientLine}>SIRET {client.siret}</Text> : null}
-              {client.adresseChantier ? (
+              {clientSiren ? <Text style={s.clientLine}>SIREN du client : {clientSiren}</Text> : null}
+              {client.adresseChantier && client.adresseChantier.trim().toLowerCase() !== 'idem' ? (
                 <>
-                  <Text style={s.clientLabel}>Adresse du chantier :</Text>
+                  <Text style={s.clientLabel}>Adresse de livraison (si différente) :</Text>
                   <Text style={s.clientLine}>{client.adresseChantier}</Text>
                 </>
               ) : null}
@@ -330,21 +343,24 @@ export function FactureDocument({ emetteur, client, facture, phone }: FacturePDF
             <Text style={[s.itemsHeadCell, { width: '18%', textAlign: 'right' }]}>Total HT</Text>
           </View>
 
-          {facture.lignes.map((l, li) => (
+          {facture.lignes.map((l, li) => {
+            const isRemise = !l.inclus && ((l.pu_ht || 0) * (l.qte || 0)) < 0
+            return (
             <View key={li} style={s.itemsRow} wrap={false}>
               <View style={s.cDesig}>
-                <Text style={s.cDesigName}>{l.designation}</Text>
+                <Text style={isRemise ? s.cRemiseName : s.cDesigName}>{l.designation}</Text>
                 {l.description ? <Text style={s.cDesigDesc}>{l.description}</Text> : null}
               </View>
-              <Text style={[s.cPu, l.inclus ? s.cInclus : {}]}>
+              <Text style={[s.cPu, l.inclus ? s.cInclus : {}, isRemise ? s.cRemise : {}]}>
                 {l.inclus ? 'inclus' : fmtEur(l.pu_ht)}
               </Text>
               <Text style={s.cQte}>{l.qte}{l.unite ? ` ${l.unite}` : ''}</Text>
-              <Text style={[s.cTot, l.inclus ? s.cInclus : {}]}>
+              <Text style={[s.cTot, l.inclus ? s.cInclus : {}, isRemise ? s.cRemise : {}]}>
                 {l.inclus ? 'inclus' : fmtEur((l.pu_ht || 0) * (l.qte || 0))}
               </Text>
             </View>
-          ))}
+            )
+          })}
 
           {/* ===== Totaux ===== */}
           <View style={s.totalsMini} wrap={false}>
@@ -400,7 +416,21 @@ export function FactureDocument({ emetteur, client, facture, phone }: FacturePDF
           ) : null}
 
           <View style={s.legalBox} wrap={false}>
-            <Text style={s.legalText}>{FACTURE_MENTIONS_LEGALES}</Text>
+            <Text style={s.legalText}>
+              {FACTURE_MENTIONS_LEGALES}
+              {' '}
+              {`Catégorie d'opération : ${
+                operationNature === 'livraisons_de_biens'
+                  ? 'livraisons de biens'
+                  : operationNature === 'biens_et_services'
+                    ? 'livraisons de biens et prestations de services'
+                    : 'prestations de services'
+              }.`}
+              {' '}
+              {isDebitsOption
+                ? "Option pour le paiement de la taxe d'après les débits."
+                : ''}
+            </Text>
           </View>
         </View>
 

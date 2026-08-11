@@ -118,6 +118,8 @@ export function buildFactureFromRapport(src: RapportToFactureSource): RapportToF
     reference_dossier,
     lignes: buildLignesFromRapport(rapport, objet),
     tva_taux: 0, // Franchise en base de TVA (auto-entrepreneur) — art. 293 B du CGI
+    operation_nature: 'prestations_de_services',
+    tva_paiement_debits_optie: false,
     mode_reglement: '',
     observations: '',
     recommandation: '',

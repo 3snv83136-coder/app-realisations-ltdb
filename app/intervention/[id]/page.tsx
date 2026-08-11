@@ -70,6 +70,7 @@ type InterventionDetail = {
   rapport_json: RapportData | null
   photos_urls: string[] | null
   canal_acquisition: string | null
+  client_final_nom: string | null
   video_urls: Partial<Record<'vertical' | 'horizontal' | 'square', string>> | null
   video_status: 'idle' | 'rendering' | 'ready' | 'failed' | 'uploading' | 'published' | null
   video_error: string | null
@@ -160,6 +161,7 @@ export default function InterventionDetailPage({ params }: { params: { id: strin
       technicien_id: intervention.technicien_id,
       agence: intervention.agence,
       notes_internes: intervention.notes_internes,
+      client_final_nom: intervention.client_final_nom,
     })
     setClientForm(
       client
@@ -822,8 +824,16 @@ export default function InterventionDetailPage({ params }: { params: { id: strin
           <h2 className="text-sm font-bold uppercase tracking-wider text-slate-500">Client</h2>
           {editing && client ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-blue-50 rounded-xl p-3 border border-blue-200">
-              <EditField label="Nom">
+              <EditField label="Nom facturé">
                 <input value={clientForm.nom || ''} onChange={e => setClientForm(f => ({ ...f, nom: e.target.value }))} className={editInputCls} />
+              </EditField>
+              <EditField label="Client concerné (occupant)">
+                <input
+                  value={form.client_final_nom || ''}
+                  onChange={e => setForm(f => ({ ...f, client_final_nom: e.target.value }))}
+                  className={editInputCls}
+                  placeholder="Si différent du syndic / client facturé"
+                />
               </EditField>
               <EditField label="Téléphone">
                 <input value={clientForm.telephone || ''} onChange={e => setClientForm(f => ({ ...f, telephone: e.target.value }))} className={editInputCls} inputMode="tel" placeholder="Compléter le téléphone…" />
@@ -847,7 +857,8 @@ export default function InterventionDetailPage({ params }: { params: { id: strin
             </div>
           ) : client ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
-              <InfoCell label="Nom" value={client.nom} />
+              <InfoCell label="Nom facturé" value={client.nom} />
+              <InfoCell label="Client concerné" value={intervention.client_final_nom || '—'} />
               <InfoCell label="Téléphone" value={client.telephone ? <a href={`tel:${client.telephone}`} className="text-blue-600 hover:underline font-bold">{client.telephone}</a> : '—'} />
               <InfoCell label="Email" value={client.email ? <a href={`mailto:${client.email}`} className="text-blue-600 hover:underline">{client.email}</a> : '—'} />
               <InfoCell label="Ville" value={[client.code_postal, client.ville].filter(Boolean).join(' ') || '—'} />
