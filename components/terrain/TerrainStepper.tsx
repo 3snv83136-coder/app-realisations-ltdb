@@ -17,15 +17,43 @@ export const TERRAIN_STEPS = [
 
 export type TerrainStep = typeof TERRAIN_STEPS[number]['key']
 
+type DisplayStep =
+  | { kind: 'db'; key: number; label: string; icon: string }
+  | { kind: 'attestation'; key: 'attestation'; label: string; icon: string }
+
 interface TerrainStepperProps {
   current: number
   onStepClick?: (step: number) => void
   /** Masquer certaines étapes (ex. « Réseaux » pour les techniciens). */
   hiddenSteps?: number[]
+  /** Affiche l'onglet Attestation entre Facture et Signature. */
+  showAttestationStep?: boolean
+  /** Attestation déjà générée ou passée. */
+  attestationResolved?: boolean
+  /** true = on affiche actuellement l'UI attestation (pas encore Signature). */
+  attestationActive?: boolean
+  /** Revenir à l'écran attestation (si déjà traitée). */
+  onAttestationClick?: () => void
 }
 
-export default function TerrainStepper({ current, onStepClick, hiddenSteps = [] }: TerrainStepperProps) {
-  const steps = TERRAIN_STEPS.filter(s => !hiddenSteps.includes(s.key))
+export default function TerrainStepper({
+  current,
+  onStepClick,
+  hiddenSteps = [],
+  showAttestationStep = false,
+  attestationResolved = false,
+  attestationActive = false,
+  onAttestationClick,
+}: TerrainStepperProps) {
+  const steps: DisplayStep[] = []
+  for (const s of TERRAIN_STEPS) {
+    if (hiddenSteps.includes(s.key)) continue
+    if (showAttestationStep && s.key === 6) {
+      steps.push({ kind: 'attestation', key: 'attestation', label: 'Attestation', icon: '📜' })
+    }
+    steps.push({ kind: 'db', key: s.key, label: s.label, icon: s.icon })
+  }
+
   const activeRef = useRef<HTMLButtonElement>(null)
 
   useEffect(() => {
@@ -34,7 +62,7 @@ export default function TerrainStepper({ current, onStepClick, hiddenSteps = [] 
       inline: 'center',
       block: 'nearest',
     })
-  }, [current, steps.length])
+  }, [current, attestationActive, steps.length])
 
   return (
     <div className="bg-white border border-slate-200 rounded-2xl shadow-sm sticky top-14 z-20 overflow-hidden">
@@ -43,16 +71,41 @@ export default function TerrainStepper({ current, onStepClick, hiddenSteps = [] 
         style={{ WebkitOverflowScrolling: 'touch' }}
       >
         {steps.map((s, i) => {
-          const done = current > s.key
-          const active = current === s.key
-          const clickable = done && onStepClick
+          let done = false
+          let active = false
+          if (s.kind === 'attestation') {
+            done = attestationResolved && !attestationActive
+            active = attestationActive
+            // Si on est déjà passé à Signature+ sans forcer l'UI attestation
+            if (!attestationActive && (current > 6 || (current === 6 && attestationResolved))) {
+              done = true
+            }
+          } else if (s.key < 6) {
+            done = current > s.key
+            active = current === s.key
+          } else if (s.key === 6) {
+            // Signature : active seulement si step 6 et attestation résolue (ou pas d'étape att.)
+            done = current > 6
+            active = current === 6 && !attestationActive && (!showAttestationStep || attestationResolved)
+          } else {
+            done = current > s.key
+            active = current === s.key
+          }
+
+          const clickable =
+            (s.kind === 'attestation' && done && !!onAttestationClick)
+            || (s.kind === 'db' && done && !!onStepClick)
+
           return (
             <div key={s.key} className="flex items-center flex-shrink-0 snap-center">
               <button
                 ref={active ? activeRef : undefined}
                 type="button"
                 disabled={!clickable}
-                onClick={() => clickable && onStepClick(s.key)}
+                onClick={() => {
+                  if (s.kind === 'attestation') onAttestationClick?.()
+                  else if (clickable) onStepClick?.(s.key)
+                }}
                 className={`flex flex-col items-center gap-0.5 px-1.5 sm:px-2 py-1 rounded-lg transition min-w-[52px] sm:min-w-[64px] ${
                   active ? 'bg-blue-50' : ''
                 } ${clickable ? 'cursor-pointer hover:bg-slate-100' : 'cursor-default'}`}

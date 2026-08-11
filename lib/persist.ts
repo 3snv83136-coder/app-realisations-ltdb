@@ -120,6 +120,7 @@ export interface PersistAttestationInput extends Common {
   dateAttestation?: string | null
   emailSent?: boolean
   envoyeAt?: string | null
+  interventionId?: string | null
 }
 
 export async function persistAttestation(p: PersistAttestationInput): Promise<string | null> {
@@ -141,6 +142,7 @@ export async function persistAttestation(p: PersistAttestationInput): Promise<st
       variante: (p.variante || p.attestation?.variante || undefined) as AttestationVariante | undefined,
     },
     client_id: clientId,
+    intervention_id: p.interventionId || null,
     envoye_email: p.emailSent ? (p.clientEmail || null) : null,
     envoye_at: p.emailSent ? (p.envoyeAt || new Date().toISOString()) : null,
   })

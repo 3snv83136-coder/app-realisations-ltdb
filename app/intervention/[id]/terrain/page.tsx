@@ -10,6 +10,7 @@ import TerrainExtraPhotos from "@/components/terrain/TerrainExtraPhotos"
 import StepTravauxSupplementaires from "@/components/terrain/StepTravauxSupplementaires"
 import StepGaranti from "@/components/terrain/StepGaranti"
 import StepSignatureAccord from "@/components/terrain/StepSignatureAccord"
+import StepAttestationConformite from "@/components/terrain/StepAttestationConformite"
 import TerrainOceanLoader from "@/components/terrain/TerrainOceanLoader"
 import TerrainClientHero from "@/components/terrain/TerrainClientHero"
 import DevisEnvoiPanel from "@/components/DevisEnvoiPanel"
@@ -20,7 +21,8 @@ import { fetchJsonWithRetry, fetchWithRetry } from "@/lib/fetchWithRetry"
 import { useWakeLock } from "@/lib/useWakeLock"
 import { proxyImageUrl } from "@/lib/proxyImageUrl"
 import { buildSmsUri, isMobileForSms, openNativeSms } from "@/lib/sms"
-import { isDevisIntervention } from "@/lib/types-intervention"
+import { isAttestationConformite, isDevisIntervention } from "@/lib/types-intervention"
+import { isAttestationConformiteResolved } from "@/lib/attestation-conformite"
 import { isAccordFinDeMois } from "@/lib/fin-de-mois"
 import { getTravauxSupplementaires } from "@/lib/travaux-supplementaires"
 import RapportOfflineBanner from "@/components/rapport/RapportOfflineBanner"
@@ -60,6 +62,7 @@ type Intervention = {
   photos_categories?: string[] | null
   publie_slug: string | null
   prix_prevu: number | null
+  transcription?: string | null
   video_urls?: { horizontal?: string; vertical?: string; square?: string } | null
   video_youtube_url?: string | null
   video_status?: string | null
@@ -89,6 +92,7 @@ export default function TerrainPage({ params }: { params: { id: string } }) {
   const [interv, setInterv] = useState<Intervention | null>(null)
   const [client, setClient] = useState<Client>(null)
   const [technicien, setTechnicien] = useState<Technicien>(null)
+  const [hasAttestationDoc, setHasAttestationDoc] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
@@ -105,6 +109,7 @@ export default function TerrainPage({ params }: { params: { id: string } }) {
       setInterv(data.intervention)
       setClient(data.client)
       setTechnicien(data.technicien || null)
+      setHasAttestationDoc(!!data.has_attestation)
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
     } finally {
@@ -176,6 +181,7 @@ export default function TerrainPage({ params }: { params: { id: string } }) {
       callTerrainAction={callTerrainAction}
       load={load}
       paramsId={params.id}
+      hasAttestationDoc={hasAttestationDoc}
     />
   )
 }
@@ -191,6 +197,7 @@ function TerrainPageBody({
   callTerrainAction,
   load,
   paramsId,
+  hasAttestationDoc,
 }: {
   interv: Intervention
   client: Client
@@ -202,10 +209,24 @@ function TerrainPageBody({
   callTerrainAction: (a: 'debut' | 'fin') => void | Promise<void>
   load: () => void | Promise<void>
   paramsId: string
+  hasAttestationDoc: boolean
 }) {
   const { data: session } = useSession()
   const isTech = session?.user?.role === 'tech'
   const showAccordTab = isTech && isAccordFinDeMois()
+  const needsAttestation = isAttestationConformite(interv.type_intervention)
+  const attestationResolved = isAttestationConformiteResolved(interv.rapport_json, hasAttestationDoc)
+  const [forceAttestationUi, setForceAttestationUi] = useState(false)
+
+  // Si on quitte l'étape 6, on ne force plus l'UI attestation
+  useEffect(() => {
+    if (step !== 6) setForceAttestationUi(false)
+  }, [step])
+
+  const showAttestationUi =
+    needsAttestation
+    && step === 6
+    && (!attestationResolved || forceAttestationUi)
 
   // Écran allumé pendant tout le parcours terrain (dictée, génération, signature…)
   useWakeLock(true)
@@ -251,7 +272,21 @@ function TerrainPageBody({
           typeIntervention={interv.type_intervention}
         />
 
-        <TerrainStepper current={step} onStepClick={setStep} hiddenSteps={isTech ? [9] : []} />
+        <TerrainStepper
+          current={step}
+          onStepClick={(s) => {
+            if (s === 6) setForceAttestationUi(false)
+            void setStep(s)
+          }}
+          hiddenSteps={isTech ? [9] : []}
+          showAttestationStep={needsAttestation}
+          attestationResolved={attestationResolved}
+          attestationActive={showAttestationUi}
+          onAttestationClick={() => {
+            setForceAttestationUi(true)
+            if (step !== 6) void setStep(6)
+          }}
+        />
 
         {error && (
           <div className="bg-red-50 border-2 border-red-200 text-red-700 p-3 rounded-xl text-sm font-semibold">
@@ -288,7 +323,23 @@ function TerrainPageBody({
         {step === 3 && <StepRapport interv={interv} technicien={technicien} onSaved={load} onError={setError} />}
         {step === 4 && <StepGaranti interv={interv} onSaved={load} onError={setError} />}
         {step === 5 && <StepFacture interv={interv} client={client} onCreated={load} onError={setError} />}
-        {step === 6 && (
+        {showAttestationUi && (
+          <StepAttestationConformite
+            interv={interv}
+            client={client}
+            technicienNom={technicien?.nom || undefined}
+            onDone={async () => {
+              setForceAttestationUi(false)
+              await load()
+            }}
+            onSkip={async () => {
+              setForceAttestationUi(false)
+              await load()
+            }}
+            onError={setError}
+          />
+        )}
+        {step === 6 && !showAttestationUi && (
           <StepSignatureAccord
             interv={interv}
             client={client}

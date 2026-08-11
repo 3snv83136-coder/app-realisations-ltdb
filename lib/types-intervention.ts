@@ -27,6 +27,25 @@ export function isDevisIntervention(type: string | null | undefined): boolean {
   return type === 'Devis'
 }
 
+/** RDV / intervention d'attestation de conformité de raccordement. */
+export function isAttestationConformite(type: string | null | undefined): boolean {
+  const t = (type || '').trim()
+  return (
+    t === "Attestation de conformité tout-à-l'égout"
+    || t === 'Attestation de conformité fosse septique'
+  )
+}
+
+/** Variante PDF AttestationPDF dérivée du type d'intervention. */
+export function attestationVarianteFromType(
+  type: string | null | undefined,
+): 'tout-a-legout' | 'fosse-septique' | null {
+  const t = (type || '').trim()
+  if (t === "Attestation de conformité tout-à-l'égout") return 'tout-a-legout'
+  if (t === 'Attestation de conformité fosse septique') return 'fosse-septique'
+  return null
+}
+
 /**
  * Détecte un type d'intervention dans un texte libre (objet d'un rapport / devis).
  * Recherche par mots-clés. Renvoie le type matché, sinon null.

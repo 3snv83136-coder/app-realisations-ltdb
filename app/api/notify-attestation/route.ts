@@ -72,6 +72,7 @@ export async function POST(req: NextRequest) {
         attestation: attestation || {}, clientNom, clientEmail, clientAdresse, clientCP, ville,
         agence, numero, variante, dateAttestation,
         emailSent: true,
+        interventionId: body.interventionId || null,
       })
       if (!docId) persistError = "Sauvegarde DB impossible (vérifie les logs serveur)"
     } catch (e) {

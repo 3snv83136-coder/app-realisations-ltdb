@@ -90,6 +90,14 @@ export async function GET(_req: NextRequest, { params }: Params) {
     .limit(1)
     .maybeSingle()
 
+  const { data: attestationDoc } = await sb
+    .from('documents')
+    .select('id')
+    .eq('intervention_id', id)
+    .eq('type', 'attestation')
+    .limit(1)
+    .maybeSingle()
+
   const perms = await permissionsForSession(user)
   const safeIntervention = perms.voir_prix
     ? intervention
@@ -100,6 +108,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
     client,
     technicien,
     has_devis: !!devisDoc?.id,
+    has_attestation: !!attestationDoc?.id,
   })
 }
 
