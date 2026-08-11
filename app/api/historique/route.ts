@@ -90,14 +90,23 @@ export async function GET(req: NextRequest) {
     rawDocuments.map(d => d.intervention_id).filter(Boolean) as string[],
   ))
   let finalNomByIntervention: Record<string, string | null> = {}
+  let chantierByIntervention: Record<string, string | null> = {}
   if (intervIds.length > 0) {
     const { data: intervRows } = await sb
       .from('interventions')
-      .select('id, client_final_nom')
+      .select('id, client_final_nom, adresse_chantier, ville, code_postal')
       .in('id', intervIds)
     if (intervRows) {
       finalNomByIntervention = Object.fromEntries(
         intervRows.map(i => [i.id, (i.client_final_nom as string | null) || null]),
+      )
+      chantierByIntervention = Object.fromEntries(
+        intervRows.map(i => {
+          const rue = ((i.adresse_chantier as string) || '').trim()
+          if (!rue) return [i.id, null]
+          const cpVille = [i.code_postal, i.ville].filter(Boolean).join(' ')
+          return [i.id, [rue, cpVille].filter(Boolean).join(', ')]
+        }),
       )
     }
   }
@@ -129,6 +138,9 @@ export async function GET(req: NextRequest) {
       client_ville: c?.ville || null,
       client_final_nom: d.intervention_id
         ? (finalNomByIntervention[d.intervention_id as string] || null)
+        : null,
+      adresse_chantier: d.intervention_id
+        ? (chantierByIntervention[d.intervention_id as string] || null)
         : null,
     }
   })

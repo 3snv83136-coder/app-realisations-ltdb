@@ -1,10 +1,12 @@
 import crypto from "crypto"
 import { createElement, type ReactElement } from "react"
 import { ltdbFactureEmetteur } from "@/lib/emetteur"
+import { buildAdresseChantierLine } from "@/lib/facture-adresse-chantier"
 import { embedImageForPdf, getLtdbSignatureDataUri } from "@/lib/pdf-image-embed"
 import { pdfBufferHasText } from "@/lib/pdf-text-check"
 import { getLtdbSignatureUrl } from "@/lib/rapport-signatures"
 import { getSignatureClientFromRapport } from "@/lib/sync-signature-rapport"
+import type { FactureData } from "@/components/FacturePDF"
 import type { SupabaseClient } from "@supabase/supabase-js"
 
 const PDFS_BUCKET = process.env.SUPABASE_PDFS_BUCKET || "intervention-pdfs"
@@ -174,12 +176,22 @@ export async function generateTerrainPdfsOnServer(input: GenerateTerrainPdfsInpu
     clientAdresseLignes.push([adresseCP, adresseVille].filter(Boolean).join(" "))
   }
 
-  const adresseChantierComplete = (interv.adresse_chantier as string)
-    ? [
-      (interv.adresse_chantier as string).trim(),
-      [interv.code_postal, interv.ville].filter(Boolean).join(" "),
-    ].filter(Boolean).join(", ")
-    : undefined
+  const adresseChantierComplete =
+    (typeof (facture.payload as { adresse_chantier?: string })?.adresse_chantier === "string"
+      && (facture.payload as { adresse_chantier?: string }).adresse_chantier?.trim())
+    || buildAdresseChantierLine({
+      adresse: interv.adresse_chantier as string,
+      codePostal: interv.code_postal as string,
+      ville: interv.ville as string,
+    })
+    || undefined
+
+  const facturePayload = {
+    ...(facture.payload as FactureData),
+    ...(adresseChantierComplete
+      ? { adresse_chantier: adresseChantierComplete }
+      : {}),
+  } as FactureData
 
   const factureBuf = await renderToBuffer(
     createElement(FactureDocument, {
@@ -191,7 +203,7 @@ export async function generateTerrainPdfsOnServer(input: GenerateTerrainPdfsInpu
         adresseChantier: adresseChantierComplete,
         siret: clientRow?.siret as string | undefined,
       },
-      facture: facture.payload,
+      facture: facturePayload,
     }) as ReactElement,
   )
 

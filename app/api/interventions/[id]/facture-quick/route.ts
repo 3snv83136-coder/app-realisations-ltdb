@@ -138,7 +138,13 @@ export async function POST(req: NextRequest, { params }: Params) {
   if (typeof body.objet === 'string' && body.objet.trim()) facture.objet = body.objet.trim()
   facture.observations = ''
   facture.recommandation = ''
-
+  // Adresse chantier figée dans le payload (affichage PDF)
+  {
+    const rue = ((interv.adresse_chantier as string) || '').trim()
+    const cpVille = [interv.code_postal, interv.ville].filter(Boolean).join(' ')
+    const line = [rue, cpVille].filter(Boolean).join(', ')
+    if (line) facture.adresse_chantier = line
+  }
   // Numéro séquentiel continu (FA-2026-0001) alloué atomiquement côté serveur.
   // Idempotence : si une facture existe déjà pour cette intervention, on réutilise
   // son numéro (re-création depuis le terrain) au lieu d'en brûler un nouveau.

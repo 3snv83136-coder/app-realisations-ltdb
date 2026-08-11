@@ -23,6 +23,7 @@ export interface HistoriqueDocument {
   client_code_postal: string | null
   client_ville: string | null
   client_final_nom?: string | null
+  adresse_chantier?: string | null
 }
 
 async function fetchPayload(id: string): Promise<DocumentPayload | null> {
@@ -32,38 +33,72 @@ async function fetchPayload(id: string): Promise<DocumentPayload | null> {
   return data?.document?.payload ?? null
 }
 
+async function fetchDocumentMeta(id: string): Promise<Partial<HistoriqueDocument>> {
+  const res = await fetch(`/api/historique/${id}`, { cache: 'no-store' })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`)
+  const d = data?.document || {}
+  return {
+    payload: d.payload ?? null,
+    client_nom: d.client_nom ?? null,
+    client_adresse: d.client_adresse ?? null,
+    client_code_postal: d.client_code_postal ?? null,
+    client_ville: d.client_ville ?? null,
+    client_final_nom: d.client_final_nom ?? null,
+    adresse_chantier: d.adresse_chantier ?? null,
+    agence: d.agence ?? null,
+    numero: d.numero ?? null,
+  }
+}
+
 function buildClientData(d: HistoriqueDocument): ClientData {
   const cp = d.client_code_postal || ''
   const ville = d.client_ville || ''
+  const adresseLignes = [
+    d.client_adresse || '',
+    [cp, ville].filter(Boolean).join(' '),
+  ].filter(Boolean)
+  const payloadChantier =
+    d.payload && typeof d.payload === 'object' && 'adresse_chantier' in d.payload
+      ? String((d.payload as { adresse_chantier?: string }).adresse_chantier || '')
+      : ''
   return {
     nom: d.client_nom || '—',
     nomFinal: d.client_final_nom || undefined,
-    adresseLignes: [
-      d.client_adresse || '',
-      [cp, ville].filter(Boolean).join(' '),
-    ].filter(Boolean),
+    adresseLignes,
+    adresseChantier: d.adresse_chantier || payloadChantier || undefined,
   }
 }
 
 async function buildPdfBlob(doc: HistoriqueDocument): Promise<{ blob: Blob; filename: string } | null> {
-  let payload = doc.payload
+  let enriched = doc
+  if (!doc.payload || typeof doc.payload !== 'object' || !doc.adresse_chantier) {
+    try {
+      const meta = await fetchDocumentMeta(doc.id)
+      enriched = { ...doc, ...meta }
+    } catch {
+      /* continue with what we have */
+    }
+  }
+  let payload = enriched.payload
   if (!payload || typeof payload !== 'object') {
     payload = await fetchPayload(doc.id)
+    enriched = { ...enriched, payload }
   }
   if (!payload || typeof payload !== 'object') return null
 
   if (doc.type === 'facture') {
     const facture: FactureData = payload as FactureData
     if (!facture.lignes) return null
-    const emetteur = ltdbFactureEmetteur(doc.agence || undefined)
+    const emetteur = ltdbFactureEmetteur(enriched.agence || doc.agence || undefined)
     const element = React.createElement(FactureDocument, {
       emetteur,
-      client: buildClientData(doc),
+      client: buildClientData(enriched),
       facture,
       phone: emetteur.telephone,
     })
     const blob = await pdfElementToBlob(element)
-    return { blob, filename: safeFilename('facture', facture.numero || doc.numero || doc.id) }
+    return { blob, filename: safeFilename('facture', facture.numero || enriched.numero || doc.numero || doc.id) }
   }
 
   if (doc.type === 'devis') {
@@ -71,12 +106,12 @@ async function buildPdfBlob(doc: HistoriqueDocument): Promise<{ blob: Blob; file
     if (!devis.lignes) return null
     const element = React.createElement(DevisDocument, {
       emetteur: LTDB_EMETTEUR,
-      client: buildClientData(doc),
+      client: buildClientData(enriched),
       devis,
       phone: LTDB_EMETTEUR.telephone,
     })
     const blob = await pdfElementToBlob(element)
-    return { blob, filename: safeFilename('devis', devis.numero || doc.numero || doc.id) }
+    return { blob, filename: safeFilename('devis', devis.numero || enriched.numero || doc.numero || doc.id) }
   }
 
   if (doc.type === 'attestation') {

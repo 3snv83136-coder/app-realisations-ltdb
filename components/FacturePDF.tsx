@@ -3,6 +3,7 @@ import { Document, Page, Text, View, StyleSheet } from "@react-pdf/renderer"
 import type { EmetteurData, ClientData } from "./DevisPDF"
 import { FACTURE_MENTIONS_LEGALES } from "@/lib/entreprise"
 import { MENTION_TVA_FRANCHISE } from "@/lib/accord/blocs-legaux"
+import { resolveAdresseChantierAffichee } from "@/lib/facture-adresse-chantier"
 import { PdfBanner, PDF_C } from "./PdfBranding"
 import type { Agence } from "@/lib/agences"
 
@@ -182,6 +183,8 @@ export interface FactureData {
   mode_reglement?: string
   observations?: string
   recommandation?: string
+  /** Adresse chantier affichée sur le PDF (ligne complète). */
+  adresse_chantier?: string
   /** Mention e-facturation (1er sept 2026) : catégorie d'opération. */
   operation_nature?: 'prestations_de_services' | 'livraisons_de_biens' | 'biens_et_services'
   /** Mention e-facturation : option pour le paiement de la TVA d'après les débits. */
@@ -261,6 +264,10 @@ export function FactureDocument({ emetteur, client, facture, phone }: FacturePDF
   const clientSiren = client.siret ? client.siret.slice(0, 9) : ''
   const operationNature = facture.operation_nature ?? 'prestations_de_services'
   const isDebitsOption = facture.tva_paiement_debits_optie === true
+  const adresseChantierAffichee = resolveAdresseChantierAffichee(
+    client.adresseChantier || facture.adresse_chantier,
+    client.adresseLignes || [],
+  )
 
   const totalHT = facture.lignes.reduce((sum, l) => {
     if (l.inclus) return sum
@@ -295,10 +302,10 @@ export function FactureDocument({ emetteur, client, facture, phone }: FacturePDF
               ))}
               {client.siret ? <Text style={s.clientLine}>SIRET {client.siret}</Text> : null}
               {clientSiren ? <Text style={s.clientLine}>SIREN du client : {clientSiren}</Text> : null}
-              {client.adresseChantier && client.adresseChantier.trim().toLowerCase() !== 'idem' ? (
+              {adresseChantierAffichee ? (
                 <>
-                  <Text style={s.clientLabel}>Adresse de livraison (si différente) :</Text>
-                  <Text style={s.clientLine}>{client.adresseChantier}</Text>
+                  <Text style={s.clientLabel}>Adresse du chantier :</Text>
+                  <Text style={s.clientLine}>{adresseChantierAffichee}</Text>
                 </>
               ) : null}
             </View>

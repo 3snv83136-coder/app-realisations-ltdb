@@ -19,6 +19,7 @@ import type {
 } from "@/components/FacturePDF"
 import type { ClientData } from "@/components/DevisPDF"
 import { errorMessage } from "@/lib/error-message"
+import { resolveAdresseChantierAffichee } from "@/lib/facture-adresse-chantier"
 
 const FactureDownloadButton = dynamic(() => import("@/components/FacturePDFDownloadButton"), { ssr: false })
 const SaveDocumentButton = dynamic(() => import("@/components/SaveDocumentButton"), { ssr: false })
@@ -137,14 +138,20 @@ export default function FacturePage() {
       }, 0)
       const totalTTC = totalHT * (1 + ((facture.tva_taux ?? 0) / 100))
       const technicienNom = typeof window !== 'undefined' ? (localStorage.getItem('ltdb_technicien') || '') : ''
-      const client: ClientData = {
-        nom: clientNom || '—',
-        adresseLignes: [
+      const adresseLignes = [
           clientAdresse || '',
           [clientCP, clientVille].filter(Boolean).join(' '),
-        ].filter(Boolean),
-        adresseChantier: adresseChantier || undefined,
+        ].filter(Boolean)
+      const chantierResolved = resolveAdresseChantierAffichee(adresseChantier, adresseLignes) || undefined
+      const client: ClientData = {
+        nom: clientNom || '—',
+        adresseLignes,
+        adresseChantier: chantierResolved,
         siret: clientSiret || undefined,
+      }
+      const factureToSend = {
+        ...facture,
+        ...(chantierResolved ? { adresse_chantier: chantierResolved } : {}),
       }
       const emetteur = ltdbFactureEmetteur(agence)
       const [{ FactureDocument }, { pdfDocumentToBase64 }, React] = await Promise.all([
@@ -156,7 +163,7 @@ export default function FacturePage() {
         React.createElement(FactureDocument, {
           emetteur,
           client,
-          facture,
+          facture: factureToSend,
           phone: emetteur.telephone,
         })
       )
@@ -177,7 +184,7 @@ export default function FacturePage() {
           pdfBase64,
           pdfFilename: filename,
           // Champs persistance DB
-          facture,
+          facture: factureToSend,
           totalHT,
           tvaTaux: facture.tva_taux ?? 0,
           clientAdresse,
@@ -326,14 +333,19 @@ export default function FacturePage() {
   }
 
   if (step === 'preview' && facture) {
+    const adresseLignes = [
+      clientAdresse || '',
+      [clientCP, clientVille].filter(Boolean).join(' '),
+    ].filter(Boolean)
     const client: ClientData = {
       nom: clientNom || '—',
-      adresseLignes: [
-        clientAdresse || '',
-        [clientCP, clientVille].filter(Boolean).join(' '),
-      ].filter(Boolean),
-      adresseChantier: adresseChantier || undefined,
+      adresseLignes,
+      adresseChantier: resolveAdresseChantierAffichee(adresseChantier, adresseLignes) || undefined,
       siret: clientSiret || undefined,
+    }
+    const factureWithChantier: FactureData = {
+      ...facture,
+      ...(client.adresseChantier ? { adresse_chantier: client.adresseChantier } : {}),
     }
     const missingClient: string[] = []
     if (!clientNom.trim()) missingClient.push('nom')
@@ -343,7 +355,7 @@ export default function FacturePage() {
     const pdfProps: FacturePDFProps = {
       emetteur,
       client,
-      facture,
+      facture: factureWithChantier,
       phone: emetteur.telephone,
     }
 
@@ -375,7 +387,7 @@ export default function FacturePage() {
                 endpoint="/api/save-facture"
                 className="bg-amber-500 text-white px-4 py-2 rounded-lg font-semibold text-sm hover:bg-amber-600 disabled:opacity-50 transition"
                 body={() => ({
-                  facture,
+                  facture: factureWithChantier,
                   clientNom,
                   clientEmail,
                   clientAdresse,

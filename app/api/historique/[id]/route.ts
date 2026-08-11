@@ -36,6 +36,7 @@ export async function GET(
   let client_code_postal: string | null = null
   let client_ville: string | null = null
   let client_final_nom: string | null = null
+  let adresse_chantier: string | null = null
   if (data.client_id) {
     const { data: c } = await sb
       .from('clients')
@@ -53,10 +54,22 @@ export async function GET(
   if (data.intervention_id) {
     const { data: interv } = await sb
       .from('interventions')
-      .select('client_final_nom')
+      .select('client_final_nom, adresse_chantier, ville, code_postal')
       .eq('id', data.intervention_id)
       .maybeSingle()
     client_final_nom = (interv?.client_final_nom as string | null) || null
+    const rue = (interv?.adresse_chantier as string | null) || null
+    if (rue) {
+      const cpVille = [interv?.code_postal, interv?.ville].filter(Boolean).join(' ')
+      adresse_chantier = [rue.trim(), cpVille].filter(Boolean).join(', ')
+    }
+  }
+  // Repli payload facture
+  if (!adresse_chantier && data.payload && typeof data.payload === 'object') {
+    const p = data.payload as { adresse_chantier?: string }
+    if (typeof p.adresse_chantier === 'string' && p.adresse_chantier.trim()) {
+      adresse_chantier = p.adresse_chantier.trim()
+    }
   }
 
   return NextResponse.json({
@@ -64,6 +77,7 @@ export async function GET(
       ...data,
       client_nom, client_email, client_adresse, client_code_postal, client_ville,
       client_final_nom,
+      adresse_chantier,
     },
   })
 }
