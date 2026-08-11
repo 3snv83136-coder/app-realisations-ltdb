@@ -847,23 +847,18 @@ function NouvelleInterventionModal({
             <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500">Intervention</h3>
 
             <div>
-              <span className="text-xs uppercase tracking-wide text-slate-500 font-semibold">Type</span>
-              <div className="grid grid-cols-2 gap-2 mt-1">
-                {TYPES.map(t => (
-                  <button
-                    key={t}
-                    type="button"
-                    onClick={() => setTypeIntervention(t)}
-                    className={`p-2.5 rounded-xl border-2 text-left text-sm font-semibold transition-all ${
-                      typeIntervention === t
-                        ? 'border-blue-500 bg-blue-50 text-[#0e2a52]'
-                        : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
-                    }`}
-                  >
-                    {t}
-                  </button>
-                ))}
-              </div>
+              <label className="block text-sm">
+                <span className="text-xs uppercase tracking-wide text-slate-500 font-semibold">Type d&apos;intervention</span>
+                <select
+                  value={typeIntervention}
+                  onChange={e => setTypeIntervention(e.target.value)}
+                  className="w-full border-2 border-slate-200 focus:border-blue-500 outline-none rounded-lg px-3 py-2.5 mt-1 bg-white text-sm font-semibold text-[#0e2a52]"
+                >
+                  {TYPES.map(t => (
+                    <option key={t} value={t}>{t}</option>
+                  ))}
+                </select>
+              </label>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

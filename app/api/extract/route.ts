@@ -2,17 +2,9 @@ import { NextRequest, NextResponse } from "next/server"
 import { getAiModel, llmChat, llmConfigError, llmIsConfigured } from "@/lib/llm"
 import { VILLES_VAR, findVilleByName, searchVilles } from "@/lib/villes-var"
 import { errorMessage, errorStatus } from "@/lib/error-message"
+import { TYPES_INTERVENTION } from "@/lib/types-intervention"
 
-const TYPES = [
-  'Débouchage canalisation',
-  'Débouchage WC',
-  'Débouchage évier',
-  'Débouchage douche',
-  'Hydrocurage',
-  'Inspection caméra',
-  'Vidange fosse septique',
-  'Curage canalisation',
-]
+const TYPES = TYPES_INTERVENTION
 
 function parseJson(raw: string) {
   const cleaned = raw.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '')

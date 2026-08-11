@@ -15,6 +15,8 @@ export const TYPES_INTERVENTION = [
   'Dépannage pompe de relevage',
   'Vidange fosse septique',
   'Curage canalisation',
+  'Attestation de conformité tout-à-l\'égout',
+  'Attestation de conformité fosse septique',
   'Devis',
 ] as const
 
@@ -38,6 +40,12 @@ export function detectTypeIntervention(text: string | null | undefined): TypeInt
   const t = text.toLowerCase()
 
   if (/\bdevis\b|estimation|chiffrage/.test(t)) return 'Devis'
+  if (/attestation.*conformit[ée].*tout.?[àa].?l.?[ée]gout|tout.?[àa].?l.?[ée]gout.*attestation|conformit[ée].*tout.?[àa].?l.?[ée]gout/.test(t)) {
+    return "Attestation de conformité tout-à-l'égout"
+  }
+  if (/attestation.*conformit[ée].*fosse|fosse.*septique.*attestation|conformit[ée].*fosse/.test(t)) {
+    return 'Attestation de conformité fosse septique'
+  }
   if (/recherche.*fuite|fuite.*cam[ée]ra|d[ée]tection.*fuite/.test(t)) return 'Recherche de fuite par caméra'
   if (/inspection.*cam[ée]ra|cam[ée]ra.*inspection|cam[ée]ra/.test(t)) return 'Inspection caméra'
   if (/d[ée]pannage.*pompe.*relevage|pompe.*relevage.*d[ée]pannage/.test(t)) return 'Dépannage pompe de relevage'
