@@ -15,6 +15,8 @@ import { sendOwnerConfirmation } from "@/lib/owner-confirmation"
 import { fetchPdfAsBase64Robust, isValidPdfBase64 } from "@/lib/supabase-pdf-fetch"
 import { pdfBufferHasText } from "@/lib/pdf-text-check"
 import { generateTerrainPdfsOnServer } from "@/lib/terrain-pdf-server"
+import { loadAttestationPdfBase64ForIntervention } from "@/lib/attestation-pdf-for-mail"
+import { isAttestationConformite } from "@/lib/types-intervention"
 
 export const maxDuration = 120
 
@@ -198,6 +200,14 @@ export async function POST(req: NextRequest) {
     return fetchPdfAsBase64(accord.pdf_url, sb)
   })()
 
+  const attestationPdf = await loadAttestationPdfBase64ForIntervention(
+    sb,
+    interventionId,
+    getBaseUrl(req),
+  )
+  const attestationB64 = attestationPdf?.base64 || null
+  const attestationNumero = attestationPdf?.numero || null
+
   // Si le rapport stocké est vide/corrompu, regénère une fois.
   if (!isValidPdfBase64(rapportB64) && !body.pdfRapportBase64) {
     try {
@@ -308,7 +318,9 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  const subject = `Votre rapport et facture${factureNum ? ` ${factureNum}` : ''}${ville ? ` — ${ville}` : ''}`
+  const subject = attestationB64
+    ? `Votre rapport, facture et attestation${factureNum ? ` ${factureNum}` : ''}${ville ? ` — ${ville}` : ''}`
+    : `Votre rapport et facture${factureNum ? ` ${factureNum}` : ''}${ville ? ` — ${ville}` : ''}`
 
   const immediate = await resend.emails.send({
     from: `Les Techniciens du Débouchage <${fromEmail}>`,
@@ -320,11 +332,19 @@ export async function POST(req: NextRequest) {
       reference, factureNumero: factureNum, totalTTC, reviewUrl, stopUrl, tel,
       factureReglee,
       includeReview,
+      attestationJointe: !!attestationB64,
+      attestationNumero,
     }),
     attachments: [
       { filename: `rapport-${reference}.pdf`, content: rapportB64 },
       { filename: `facture${factureNum ? `-${factureNum}` : ''}.pdf`, content: factureB64 },
       ...(accordB64 ? [{ filename: `accord-${reference}.pdf`, content: accordB64 }] : []),
+      ...(attestationB64
+        ? [{
+            filename: `attestation${attestationNumero ? `-${attestationNumero}` : ''}.pdf`.replace(/\s+/g, '-'),
+            content: attestationB64,
+          }]
+        : []),
     ],
   })
 
@@ -352,6 +372,7 @@ export async function POST(req: NextRequest) {
     ccEmail: ccEmail || undefined,
     messageId: immediate.data?.id,
     accordJoint: !!accordB64,
+    attestationJointe: !!attestationB64,
   })
 
   // Relances paiement J+10, J+15, J+20 (si facture non réglée)
@@ -422,6 +443,7 @@ export async function POST(req: NextRequest) {
       rapport: true,
       facture: true,
       accord: !!accordB64,
+      attestation: !!attestationB64,
     },
     followUp_ids: relanceIds,
     avis_sms_planifies: smsPlanned,
@@ -431,6 +453,9 @@ export async function POST(req: NextRequest) {
     ...(ownerConfirmation.error ? { owner_confirmation_warning: ownerConfirmation.error } : {}),
     ...(!accordB64 ? {
       accord_warning: 'Accord signé introuvable ou PDF non archivé — mail envoyé sans pièce accord.',
+    } : {}),
+    ...(!attestationB64 && isAttestationConformite(interv.type_intervention) ? {
+      attestation_warning: 'Attestation de conformité absente — génère-la à l\'étape Attestation avant l\'envoi.',
     } : {}),
     ...(isResendTestMode() ? {
       test_mode_warning: `Mode test actif : le mail est redirigé vers ${recipient}, pas vers le client.`,

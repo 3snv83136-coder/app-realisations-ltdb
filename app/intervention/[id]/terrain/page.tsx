@@ -1812,7 +1812,7 @@ function TerrainDiffusionPanel({ interv, client, onRefresh, onError, techOnlyMai
     alreadySent?: boolean
     ownerConfirmation?: boolean
     ownerRecipients?: string[]
-    attachments?: { rapport?: boolean; facture?: boolean; accord?: boolean }
+    attachments?: { rapport?: boolean; facture?: boolean; accord?: boolean; attestation?: boolean }
     warnings: string[]
   } | null>(null)
   const mailRef = useRef(false)
@@ -1871,9 +1871,10 @@ function TerrainDiffusionPanel({ interv, client, onRefresh, onError, techOnlyMai
         owner_confirmation?: boolean
         owner_confirmation_warning?: string
         accord_warning?: string
+        attestation_warning?: string
         test_mode_warning?: string
         warning?: string
-        attachments?: { rapport?: boolean; facture?: boolean; accord?: boolean }
+        attachments?: { rapport?: boolean; facture?: boolean; accord?: boolean; attestation?: boolean }
         immediate_id?: string
         owner_confirmation_to?: string[]
       }>(
@@ -1898,6 +1899,7 @@ function TerrainDiffusionPanel({ interv, client, onRefresh, onError, techOnlyMai
       if (result.warning) warnings.push(result.warning)
       if (result.test_mode_warning) warnings.push(result.test_mode_warning)
       if (result.accord_warning) warnings.push(result.accord_warning)
+      if (result.attestation_warning) warnings.push(result.attestation_warning)
       if (result.owner_confirmation_warning) warnings.push(`Accusé gérant : ${result.owner_confirmation_warning}`)
       if (alreadySent) {
         warnings.unshift('Aucun nouvel envoi — le mail avait déjà été envoyé récemment.')
@@ -2204,6 +2206,7 @@ function TerrainDiffusionPanel({ interv, client, onRefresh, onError, techOnlyMai
               Pièces jointes : rapport {mailResult.attachments.rapport ? '✓' : '✗'}
               {' · '}facture {mailResult.attachments.facture ? '✓' : '✗'}
               {' · '}accord {mailResult.attachments.accord ? '✓' : '✗'}
+              {' · '}attestation {mailResult.attachments.attestation ? '✓' : '✗'}
             </p>
           )}
           <p>Accusé gérant : {mailResult.ownerConfirmation ? '✓ envoyé' : '✗ non reçu'}</p>

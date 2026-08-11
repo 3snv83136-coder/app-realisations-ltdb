@@ -22,6 +22,7 @@ export async function sendOwnerConfirmation(opts: {
   ccEmail?: string
   messageId?: string
   accordJoint?: boolean
+  attestationJointe?: boolean
 }): Promise<{ sent: boolean; id?: string; error?: string; recipients?: string[] }> {
   try {
     const ownerEmails = await getOwnerNotifyEmails()
@@ -31,7 +32,7 @@ export async function sendOwnerConfirmation(opts: {
 
     const tel = await getTelPrincipal()
     const quoiLabel = opts.type === 'rapport_facture'
-      ? 'Rapport + facture'
+      ? (opts.attestationJointe ? 'Rapport + facture + attestation' : 'Rapport + facture')
       : opts.type === 'rapport'
         ? 'Rapport'
         : 'Facture'
@@ -88,6 +89,7 @@ function buildHtml(opts: {
   tel: string
   messageId?: string
   accordJoint?: boolean
+  attestationJointe?: boolean
 }): string {
   const now = new Date().toLocaleString('fr-FR', { dateStyle: 'long', timeStyle: 'short' })
   const destinataire = opts.destinataireReel && opts.destinataireReel !== opts.clientEmail
@@ -113,6 +115,7 @@ function buildHtml(opts: {
           ${row('N° facture', opts.factureNumero || '')}
           ${row('Montant TTC', opts.ttc)}
           ${row('Accord joint', opts.accordJoint ? 'Oui' : 'Non')}
+          ${row('Attestation jointe', opts.attestationJointe ? 'Oui' : 'Non')}
           ${row('Copie (CC)', opts.ccEmail || '')}
           ${row('ID message', opts.messageId || '')}
         </table>

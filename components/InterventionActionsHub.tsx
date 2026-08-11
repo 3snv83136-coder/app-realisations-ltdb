@@ -56,11 +56,12 @@ export default function InterventionActionsHub({
         setStatus(`⚠ Déjà envoyé récemment — aucun nouvel envoi (${j.recipient || email})`)
       } else {
         const pj = j.attachments
-          ? `rapport ${j.attachments.rapport ? '✓' : '✗'}, facture ${j.attachments.facture ? '✓' : '✗'}, accord ${j.attachments.accord ? '✓' : '✗'}`
+          ? `rapport ${j.attachments.rapport ? '✓' : '✗'}, facture ${j.attachments.facture ? '✓' : '✗'}, accord ${j.attachments.accord ? '✓' : '✗'}, attestation ${j.attachments.attestation ? '✓' : '✗'}`
           : ''
         const ack = j.owner_confirmation ? 'Accusé gérant ✓' : 'Accusé gérant ✗'
         setStatus(`Envoyé à ${j.recipient || email} · ${pj} · ${ack}`)
         if (j.accord_warning) setStatus(s => `${s} · ${j.accord_warning}`)
+        if (j.attestation_warning) setStatus(s => `${s} · ${j.attestation_warning}`)
         if (j.owner_confirmation_warning) setStatus(s => `${s} · ${j.owner_confirmation_warning}`)
       }
     } catch (e) {

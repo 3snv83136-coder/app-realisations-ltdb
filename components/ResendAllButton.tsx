@@ -13,7 +13,7 @@ export interface ResendAllIntervention {
 
 type SendResult = {
   recipient?: string
-  attachments?: { rapport?: boolean; facture?: boolean; accord?: boolean }
+  attachments?: { rapport?: boolean; facture?: boolean; accord?: boolean; attestation?: boolean }
   owner_confirmation?: boolean
   warnings: string[]
 }
@@ -48,6 +48,7 @@ export default function ResendAllButton({ intervention }: { intervention: Resend
       if (data.warning) warnings.push(String(data.warning))
       if (data.test_mode_warning) warnings.push(String(data.test_mode_warning))
       if (data.accord_warning) warnings.push(String(data.accord_warning))
+      if (data.attestation_warning) warnings.push(String(data.attestation_warning))
       if (data.owner_confirmation_warning) warnings.push(`Accusé gérant : ${data.owner_confirmation_warning}`)
       if (data.alreadySent) warnings.unshift('Aucun nouvel envoi — déjà envoyé récemment.')
 
@@ -75,7 +76,7 @@ export default function ResendAllButton({ intervention }: { intervention: Resend
           setEmail(intervention.client_email || '')
         }}
         className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-[#0e2a52] hover:bg-[#1a3d6e] text-white text-xs font-bold transition"
-        title="Renvoyer rapport + facture + accord"
+        title="Renvoyer rapport + facture + accord (+ attestation si présente)"
       >
         ✉ Tout renvoyer
       </button>
@@ -123,6 +124,7 @@ export default function ResendAllButton({ intervention }: { intervention: Resend
                     PJ : rapport {result.attachments.rapport ? '✓' : '✗'}
                     {' · '}facture {result.attachments.facture ? '✓' : '✗'}
                     {' · '}accord {result.attachments.accord ? '✓' : '✗'}
+                    {' · '}attestation {result.attachments.attestation ? '✓' : '✗'}
                   </p>
                 )}
                 <p className="text-xs">Accusé gérant : {result.owner_confirmation ? '✓' : '✗'}</p>

@@ -19,6 +19,9 @@ export type RapportFactureMessageCtx = {
   factureReglee?: boolean
   /** Inclure le CTA avis Google (désactivé par défaut). */
   includeReview?: boolean
+  /** Attestation de conformité jointe (si générée pour l'intervention). */
+  attestationJointe?: boolean
+  attestationNumero?: string | null
 }
 
 function formatDateFr(iso: string): string {
@@ -43,6 +46,9 @@ export function buildRapportFacturePlainText(ctx: RapportFactureMessageCtx): str
     "",
     `📝 Rapport d'intervention (réf. ${ref})${ctx.rapportUrl ? ` : ${ctx.rapportUrl}` : ""}`,
     `🧾 Facture${num ? ` ${num}` : ""}${ttc ? ` — ${ttc} TTC` : ""}${ctx.factureUrl ? ` : ${ctx.factureUrl}` : ""}`,
+    ...(ctx.attestationJointe
+      ? [`📜 Attestation de conformité${ctx.attestationNumero ? ` ${ctx.attestationNumero}` : ""}`]
+      : []),
     "",
     `Pour tout règlement ou question : ${ctx.tel}.`,
     "",
@@ -101,13 +107,18 @@ export function buildRapportFactureHtml(ctx: RapportFactureMessageCtx): string {
         </div>`
     : ""
 
+  const titre = ctx.attestationJointe
+    ? "Votre rapport, facture et attestation"
+    : "Votre rapport et votre facture"
+  const attNum = escapeHtml(ctx.attestationNumero || "")
+
   return `<!doctype html>
 <html><body style="margin:0;padding:0;font-family:Arial,sans-serif;background:#f4f6fa;color:#1a1a1a">
 <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f6fa;padding:30px 0">
   <tr><td align="center">
     <table width="640" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:10px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,.08)">
       <tr><td style="background:linear-gradient(135deg,#0e2a52,#2c5fa8);padding:28px;color:#fff">
-        <h1 style="margin:0;font-size:22px">Votre rapport et votre facture</h1>
+        <h1 style="margin:0;font-size:22px">${titre}</h1>
         <p style="margin:6px 0 0;opacity:.85;font-size:13px">Les Techniciens du Débouchage</p>
       </td></tr>
       <tr><td style="padding:28px">
@@ -116,6 +127,9 @@ export function buildRapportFactureHtml(ctx: RapportFactureMessageCtx): string {
         <ul style="font-size:14px">
           <li>📝 Votre rapport d'intervention détaillé (réf. ${ref})</li>
           <li>🧾 Votre facture${num ? ` ${num}` : ""}${ttc ? ` — ${ttc} TTC` : ""}</li>
+          ${ctx.attestationJointe
+            ? `<li>📜 Votre attestation de conformité${attNum ? ` ${attNum}` : ""}</li>`
+            : ""}
         </ul>
         ${ctx.factureReglee
     ? `<p style="font-size:14px;color:#0f7a3b"><strong>Intervention déjà réglée</strong> — aucun solde restant dû.</p>`
