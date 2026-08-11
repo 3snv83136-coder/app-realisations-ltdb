@@ -1,6 +1,5 @@
 import { buildPublishDescription } from "@/lib/publish-description"
 import {
-  PHOTO_CATEGORY_LABELS,
   PHOTO_CATEGORY_ORDER,
   type PhotoCategory,
   resolvePhotoCategory,
@@ -239,46 +238,18 @@ function buildExpertiseLocaleHtml(expertise: string): string {
 }
 
 function buildGalleryByCategory(
-  photos: PhotoMeta[],
-  typeIntervention?: string | null,
-  ville?: string,
+  _photos: PhotoMeta[],
+  _typeIntervention?: string | null,
+  _ville?: string,
 ): string {
-  const withUrl = photos.filter((p) => typeof p.url === "string" && p.url.trim())
-  if (withUrl.length === 0) return ""
-
-  const byCat = new Map<PhotoCategory, PhotoMeta[]>()
-  for (const p of withUrl) {
-    const cat = p.categorie || "autre"
-    if (!byCat.has(cat)) byCat.set(cat, [])
-    byCat.get(cat)!.push(p)
-  }
-
-  const sections: string[] = []
-  for (const cat of PHOTO_CATEGORY_ORDER) {
-    const items = byCat.get(cat)
-    if (!items?.length) continue
-    const label = PHOTO_CATEGORY_LABELS[cat]
-    const cards = items
-      .map((p) => {
-        const src = p.url!.trim()
-        const legendePropre = /^photo \d+$/i.test(p.legende) ? label : p.legende
-        const alt =
-          p.alt ||
-          `${typeIntervention || "Intervention"} à ${ville || ""}${legendePropre ? ` — ${legendePropre}` : ""}`
-        return `<figure class="photo-card"><img src="${escapeHtml(src)}" alt="${escapeHtml(alt)}" loading="lazy"><figcaption>${escapeHtml(legendePropre)}</figcaption></figure>`
-      })
-      .join("")
-    if (!cards.trim()) continue
-    sections.push(`<div class="photo-category-section"><h3>${escapeHtml(label)}</h3><div class="photo-grid">${cards}</div></div>`)
-  }
-
-  if (sections.length === 0) return ""
-
-  return `<section class="content-block gallery-block">
-  <h2>Photos de l'intervention</h2>
-  <p>Preuves visuelles du chantier : état initial, travaux, résultat et constats techniques.</p>
-  ${sections.join("")}
-</section>`
+  /**
+   * Ne plus injecter la galerie dans `content` HTML.
+   * Le site public sanitize (retire figure/div) → il ne restait que
+   * « Preuves visuelles… » + h3 Avant/Après vides.
+   * Les photos avant/après sont déjà envoyées en multipart (before_image /
+   * after_image) et affichées par le template /nos-realisations.
+   */
+  return ""
 }
 
 function buildDialogueQaHtml(dialogue: DialogueQa | null | undefined): string {
