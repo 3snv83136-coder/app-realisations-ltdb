@@ -591,8 +591,33 @@ export default function NouveauPage() {
     const publishSlug = (typeof seo?.slug === 'string' ? seo.slug : '') || ''
     const technicienProfile = await resolveTechnicienProfile(technicienNom)
     const technicienPhotoUrl = publishImageUrlForSite(technicienProfile?.photo_url)
+
+    // Dialogue Q&A : génère si absent avant construction du HTML
+    let seoWithDialogue = seo || {}
+    if (rapport && !(seoWithDialogue as SeoData).dialogue_qa?.items?.length) {
+      try {
+        const resDlg = await fetch('/api/dialogue-qa/generate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            rapport,
+            type_intervention: typeIntervention,
+            seo: seoWithDialogue,
+          }),
+          signal: AbortSignal.timeout(90_000),
+        })
+        const dataDlg = await resDlg.json()
+        if (resDlg.ok && dataDlg.dialogue_qa) {
+          seoWithDialogue = { ...seoWithDialogue, dialogue_qa: dataDlg.dialogue_qa }
+          setSeo(seoWithDialogue as SeoData)
+        }
+      } catch (e) {
+        console.warn('[nouveau] dialogue_qa', e)
+      }
+    }
+
     const seoPrepared = prepareSeoForPublish({
-      seo: seo || {},
+      seo: seoWithDialogue,
       typeIntervention,
       ville,
       codePostal: cpNorm,

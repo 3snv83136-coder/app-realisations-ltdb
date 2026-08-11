@@ -198,6 +198,32 @@ export default function RapportExternePage() {
         setRapport(rapportLocal)
       }
 
+      // Dialogue Q&A : génère si absent (même si seo déjà en mémoire)
+      if (rapportLocal && !seoLocal?.dialogue_qa?.items?.length) {
+        setInfo("Génération du dialogue Q&A…")
+        try {
+          const resDlg = await fetch("/api/dialogue-qa/generate", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              rapport: rapportLocal,
+              type_intervention: typeIntervention,
+              seo: seoLocal || {},
+            }),
+            signal: AbortSignal.timeout(90_000),
+          })
+          const dataDlg = await resDlg.json()
+          if (resDlg.ok && dataDlg.dialogue_qa) {
+            seoLocal = { ...(seoLocal || {}), dialogue_qa: dataDlg.dialogue_qa }
+            setSeo(seoLocal)
+          } else {
+            console.warn("[rapport-externe] dialogue_qa", dataDlg.error)
+          }
+        } catch (e) {
+          console.warn("[rapport-externe] dialogue_qa", e)
+        }
+      }
+
       const tech = formatTechnicienNom(technicienNom) || "Mondor"
       const photos = [
         { dataUrl: avant.dataUrl, legende: "Avant intervention", file: avant.file },

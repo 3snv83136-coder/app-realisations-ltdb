@@ -88,6 +88,7 @@ export function prepareSeoForPublish(opts: {
     seenQ.add(key)
     faqMerged.push(p)
   }
+  seo.faq = faqMerged
 
   const pageUrl = `https://lestechniciensdudebouchage.fr/nos-realisations/${opts.publishSlug}`
   const technicienNom = formatTechnicienNom(opts.technicienNom)

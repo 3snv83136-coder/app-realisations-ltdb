@@ -26,6 +26,7 @@ const TECH_API_PREFIXES = [
   "/api/sms",
   "/api/health",
   "/api/tarifs",
+  "/api/dialogue-qa",
 ] as const
 
 export function isTechPageAllowed(pathname: string): boolean {
