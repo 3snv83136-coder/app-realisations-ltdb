@@ -99,7 +99,7 @@ Réponds UNIQUEMENT avec ce JSON (sans markdown, sans backticks) :
   }
 
   // Validation type
-  const type = data.type_intervention && TYPES.includes(data.type_intervention)
+  const type = data.type_intervention && (TYPES as readonly string[]).includes(data.type_intervention)
     ? data.type_intervention
     : TYPES[0]
 
