@@ -210,44 +210,55 @@ export const REALISATION_PAGE_STYLE = `<style>
   gap: 14px;
   margin-top: 4px;
 }
-.dialogue-qa .bubble {
+/* Bulles = <p> (le site public strip les <div>) */
+.dialogue-qa .ltdb-dlg,
+.ltdb-dlg {
   max-width: 92%;
   padding: 12px 16px;
   border-radius: 16px;
   font-size: 15px;
   line-height: 1.55;
-  color: var(--ltdb-ink);
+  margin: 0 0 14px;
 }
-.dialogue-qa .bubble-label {
+.dialogue-qa .ltdb-dlg-label,
+.ltdb-dlg-label {
   display: block;
   font-size: 11px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.04em;
   margin-bottom: 6px;
-  color: var(--ltdb-muted);
 }
-.dialogue-qa .bubble-client {
+.dialogue-qa .ltdb-dlg-client,
+.ltdb-dlg-client {
   align-self: flex-start;
-  background: #fff;
+  background: #f8fafc;
   border: 1px solid var(--ltdb-border);
   border-bottom-left-radius: 4px;
+  color: var(--ltdb-ink);
 }
-.dialogue-qa .bubble-technicien {
+.dialogue-qa .ltdb-dlg-client .ltdb-dlg-label,
+.ltdb-dlg-client .ltdb-dlg-label {
+  color: var(--ltdb-muted);
+}
+.dialogue-qa .ltdb-dlg-technicien,
+.ltdb-dlg-technicien {
   align-self: flex-end;
+  margin-left: auto;
   background: var(--ltdb-navy);
   color: #fff;
   border-bottom-right-radius: 4px;
 }
-.dialogue-qa .bubble-technicien .bubble-label {
+.dialogue-qa .ltdb-dlg-technicien .ltdb-dlg-label,
+.ltdb-dlg-technicien .ltdb-dlg-label {
   color: #fca5a5;
 }
-.dialogue-qa .bubble p { margin: 0; }
 
 @media (max-width: 560px) {
   .content-block { padding: 20px; }
   .technicien-card { flex-direction: column; align-items: center; text-align: center; }
   .technicien-photo { width: 100px; height: 100px; }
-  .dialogue-qa .bubble { max-width: 100%; }
+  .dialogue-qa .ltdb-dlg,
+  .ltdb-dlg { max-width: 100%; }
 }
 </style>`

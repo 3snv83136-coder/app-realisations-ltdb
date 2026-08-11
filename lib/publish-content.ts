@@ -284,14 +284,43 @@ function buildGalleryByCategory(
 function buildDialogueQaHtml(dialogue: DialogueQa | null | undefined): string {
   const normalized = normalizeDialogueQa(dialogue)
   if (!normalized) return ""
+
+  /**
+   * Le site public (/nos-realisations) sanitize le HTML publié :
+   * - retire <style>, <section>, <div>, …
+   * - conserve h2 / p / span (+ class)
+   * On s’aligne donc sur des <p> + classes Tailwind déjà présentes sur le site
+   * (même look que DialogueQaAdminPanel : client gris à gauche, technicien navy à droite).
+   */
+  const h2 =
+    `<h2>Questions fréquentes sur cette intervention</h2>`
+
   const bubbles = normalized.items
     .map((it) => {
-      const cls = it.role === "client" ? "bubble bubble-client" : "bubble bubble-technicien"
       const label = it.role === "client" ? "Client" : "Technicien"
-      return `<div class="${cls}"><span class="bubble-label">${label}</span><p>${escapeHtml(it.texte)}</p></div>`
+      const text = escapeHtml(it.texte)
+      if (it.role === "client") {
+        return (
+          `<p class="ltdb-dlg ltdb-dlg-client bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 mb-3 max-w-xl text-sm leading-relaxed shadow-sm">` +
+          `<span class="ltdb-dlg-label block text-xs font-bold uppercase tracking-wide text-slate-500 mb-1">${label}</span>` +
+          `${text}</p>`
+        )
+      }
+      return (
+        `<p class="ltdb-dlg ltdb-dlg-technicien bg-slate-900 text-white rounded-xl px-4 py-3 mb-3 max-w-xl ml-auto text-sm leading-relaxed shadow-sm">` +
+        `<span class="ltdb-dlg-label block text-xs font-bold uppercase tracking-wide text-red-200 mb-1">${label}</span>` +
+        `${text}</p>`
+      )
     })
     .join("")
-  return `<section class="content-block dialogue-qa-block"><h2>Questions fréquentes sur cette intervention</h2><div class="dialogue-qa">${bubbles}</div></section>`
+
+  // Wrapper section+div pour l’aperçu app (style embarqué) ; le site les strippera
+  // sans casser les <p> intérieurs.
+  return (
+    `<section class="content-block dialogue-qa-block">` +
+    `${h2}<div class="dialogue-qa">${bubbles}</div>` +
+    `</section>`
+  )
 }
 
 export function buildPublishContentHtml(opts: {
