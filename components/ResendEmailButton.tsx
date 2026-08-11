@@ -11,6 +11,7 @@ import type { InspectionData } from "./InspectionCameraPDF"
 import type { HistoriqueDocument } from "./DocumentDownloadButton"
 import { errorMessage } from "@/lib/error-message"
 import type { DocumentPayload } from "@/lib/types-documents"
+import { getLtdbSignatureUrl } from "@/lib/rapport-signatures"
 
 type DocWithEmail = HistoriqueDocument & {
   envoye_email?: string | null
@@ -129,7 +130,11 @@ async function buildSendBody(
       observations: Array.isArray(data.observations) ? data.observations : [],
       conclusion: data.conclusion || '',
     }
-    const element = React.createElement(AttestationDocument, { data: safe, photos: [] })
+    const element = React.createElement(AttestationDocument, {
+      data: safe,
+      photos: [],
+      signatureLtdbUrl: getLtdbSignatureUrl(),
+    })
     const pdfBase64 = await pdfDocumentToBase64(element)
     return {
       endpoint: '/api/notify-attestation',

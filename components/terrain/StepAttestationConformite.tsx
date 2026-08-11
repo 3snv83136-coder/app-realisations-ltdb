@@ -6,6 +6,7 @@ import type { AttestationData, AttestationObservation, Variante } from '@/compon
 import { attestationVarianteFromType } from '@/lib/types-intervention'
 import { splitNomPrenom } from '@/lib/rapportToDevis'
 import { errorMessage } from '@/lib/error-message'
+import { getLtdbSignatureUrl } from '@/lib/rapport-signatures'
 import VoiceRecorder from '@/components/VoiceRecorder'
 
 const AttestationDownloadButton = dynamic(() => import('@/components/AttestationPDF'), { ssr: false })
@@ -241,7 +242,11 @@ export default function StepAttestationConformite({
         </div>
 
         <div className="flex flex-col sm:flex-row gap-2">
-          <AttestationDownloadButton data={data} photos={photosForPdf} />
+          <AttestationDownloadButton
+            data={data}
+            photos={photosForPdf}
+            signatureLtdbUrl={getLtdbSignatureUrl()}
+          />
           <button
             type="button"
             onClick={() => setPhase('capture')}

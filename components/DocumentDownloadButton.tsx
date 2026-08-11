@@ -9,6 +9,7 @@ import { AttestationDocument, type AttestationData } from "./AttestationPDF"
 import type { InspectionData } from "./InspectionCameraPDF"
 import { errorMessage } from "@/lib/error-message"
 import type { DocumentPayload } from "@/lib/types-documents"
+import { getLtdbSignatureUrl } from "@/lib/rapport-signatures"
 
 export type DocType = 'facture' | 'devis' | 'attestation' | 'rapport' | 'inspection'
 
@@ -127,7 +128,11 @@ async function buildPdfBlob(doc: HistoriqueDocument): Promise<{ blob: Blob; file
       observations: Array.isArray(data.observations) ? data.observations : [],
       conclusion: data.conclusion || '',
     }
-    const element = React.createElement(AttestationDocument, { data: safe, photos: [] })
+    const element = React.createElement(AttestationDocument, {
+      data: safe,
+      photos: [],
+      signatureLtdbUrl: getLtdbSignatureUrl(),
+    })
     const blob = await pdfElementToBlob(element)
     return { blob, filename: safeFilename('attestation', safe.numero || doc.id) }
   }

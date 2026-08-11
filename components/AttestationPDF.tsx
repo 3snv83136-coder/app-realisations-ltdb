@@ -3,6 +3,7 @@ import React from "react"
 import { Document, Page, Text, View, Image, StyleSheet, PDFDownloadLink } from "@react-pdf/renderer"
 import type { Style } from "@react-pdf/types"
 import { LTDB_EMETTEUR } from "@/lib/emetteur"
+import { LTDB_SIGNATURE_PATH } from "@/lib/rapport-signatures"
 
 /* ============ CHARTE OFFICIELLE ============ */
 const C = {
@@ -229,9 +230,18 @@ const s = StyleSheet.create({
   sigLabel: { color: C.muted, fontSize: 8, textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 2 },
   sigValue: { color: C.navy, fontFamily: 'Helvetica-Bold', fontSize: 10, marginBottom: 2 },
   sigArea: {
-    height: 70, marginTop: 6,
+    height: 78, marginTop: 6,
     borderWidth: 0.5, borderColor: C.borderDark,
     backgroundColor: '#fafbfc',
+    justifyContent: 'center',
+    alignItems: 'flex-start',
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+  },
+  sigImg: {
+    height: 58,
+    maxWidth: 180,
+    objectFit: 'contain',
   },
 
   /* Footer */
@@ -299,6 +309,8 @@ export interface AttestationData {
 export interface AttestationPDFProps {
   data: AttestationData
   photos: { url: string; legende?: string }[]
+  /** Signature LTDB (défaut : /signature-ltdb.png). */
+  signatureLtdbUrl?: string
 }
 
 /* ============ HELPERS ============ */
@@ -439,7 +451,8 @@ function attestationClause(data: AttestationData): { badge: string; wrapStyle: S
 }
 
 /* ============ DOCUMENT ============ */
-export function AttestationDocument({ data, photos }: AttestationPDFProps) {
+export function AttestationDocument({ data, photos, signatureLtdbUrl }: AttestationPDFProps) {
+  const ltdbSigUrl = signatureLtdbUrl || LTDB_SIGNATURE_PATH
   const clause = attestationClause(data)
   const variantTitle = attestationLabel(data.variante)
 
@@ -627,7 +640,9 @@ export function AttestationDocument({ data, photos }: AttestationPDFProps) {
                   <Text style={s.sigLabel}>Technicien intervenant</Text>
                   <Text style={s.sigValue}>{data.technicienNom || '—'}</Text>
                   <Text style={s.sigLabel}>Cachet & signature</Text>
-                  <View style={s.sigArea} />
+                  <View style={s.sigArea}>
+                    <Image style={s.sigImg} src={ltdbSigUrl} />
+                  </View>
                 </View>
               </View>
             </View>
