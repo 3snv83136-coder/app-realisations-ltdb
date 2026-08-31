@@ -2,7 +2,7 @@
 import { Suspense, useState, useEffect } from "react"
 import { useSession } from "next-auth/react"
 import Link from "next/link"
-import { useRouter, useSearchParams } from "next/navigation"
+import { useRouter, useSearchParams, usePathname } from "next/navigation"
 import dynamic from "next/dynamic"
 import VoiceRecorder from "@/components/VoiceRecorder"
 import AppTabs from "@/components/AppTabs"
@@ -17,6 +17,12 @@ import { fmtDateISOtoFR } from "@/lib/format"
 import { detectTypeIntervention } from "@/lib/types-intervention"
 import DevisEnvoiPanel from "@/components/DevisEnvoiPanel"
 import { errorMessage } from "@/lib/error-message"
+import {
+  DEVIS_TRAVAUX_MENTIONS_LEGALES,
+  type DevisVariant,
+  isDevisTravauxVariant,
+} from "@/lib/devis-variant"
+import type { DevisTabKey } from "@/components/DevisTabs"
 
 const DevisDownloadButton = dynamic(() => import("@/components/DevisPDF"), { ssr: false })
 const SaveDocumentButton = dynamic(() => import("@/components/SaveDocumentButton"), { ssr: false })
@@ -34,6 +40,12 @@ export default function DevisPage() {
 }
 
 function DevisPageContent() {
+  const pathname = usePathname() || ''
+  const variant: DevisVariant = pathname.startsWith('/devis/travaux')
+    ? 'travaux-assainissement'
+    : 'classique'
+  const isTravaux = isDevisTravauxVariant(variant)
+  const devisTab: DevisTabKey = isTravaux ? 'travaux' : 'nouveau'
   useSession()
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -155,7 +167,9 @@ function DevisPageContent() {
 
   async function handleGenerate() {
     if (!transcription || transcription.trim().length < 20) {
-      setError('Dicte au moins quelques phrases sur les travaux, les quantités et les prix.')
+      setError(isTravaux
+        ? 'Dicte au moins quelques phrases sur les travaux (terrassement, regards, réseaux, pompe…), les quantités et les prix.'
+        : 'Dicte au moins quelques phrases sur les travaux, les quantités et les prix.')
       return
     }
     setError(''); setStep('generating')
@@ -171,6 +185,7 @@ function DevisPageContent() {
           client_code_postal: clientCP,
           date_devis: dateDevis,
           reference_dossier: referenceDossier,
+          variant,
         }),
       })
       const data = await res.json()
@@ -257,8 +272,50 @@ function DevisPageContent() {
 
   async function enterPreviewWithDevisNumero(d: DevisData) {
     const numero = await allocateDevisNumero()
-    setDevis(numero ? { ...d, numero } : d)
+    const withVariant: DevisData = {
+      ...d,
+      variant: isTravaux ? 'travaux-assainissement' : (d.variant || 'classique'),
+      mentions_legales: isTravaux
+        ? (d.mentions_legales?.length ? d.mentions_legales : [...DEVIS_TRAVAUX_MENTIONS_LEGALES])
+        : d.mentions_legales,
+    }
+    setDevis(numero ? { ...withVariant, numero } : withVariant)
     setStep('preview')
+  }
+
+  function handleManualEntry() {
+    const today = new Date()
+    const defaultSection = isTravaux ? '1. Terrassement & fouilles' : '1. Prestations'
+    void enterPreviewWithDevisNumero({
+      numero: '',
+      date_devis: today.toISOString().split('T')[0],
+      validite_jours: 30,
+      variant: isTravaux ? 'travaux-assainissement' : 'classique',
+      objet: '',
+      lignes: [{ section: defaultSection, designation: '', description: '', qte: 1, unite: 'forfait', pu_ht: 0 }],
+      tva_taux: 10,
+      tva_reduite_attestation: true,
+      conditions: {
+        validite: '30 jours à compter de la date d\'établissement',
+        delai_execution: 'À convenir avec le client après validation',
+        duree_chantier: isTravaux ? 'Selon accès, météo et découvertes en fouille' : 'Selon accès et météo',
+        garanties: isTravaux
+          ? 'Garantie décennale sur ouvrages enterrés (canalisations, regards, raccordements) · Garantie de parfait achèvement 1 an · Garantie fabricant sur équipements (pompe, armoire) selon notice'
+          : 'Garantie décennale sur ouvrages enterrés · Garantie de parfait achèvement 1 an',
+        assurance: 'RC Pro et décennale LTDB en cours de validité',
+        particulieres: isTravaux
+          ? 'DT-DICT / repérage réseaux avant terrassement · Accès engin · Évacuation gravats vers filière agréée'
+          : '',
+      },
+      modalites: {
+        acompte_pct: 30,
+        modes_paiement: ['Chèque', 'Virement bancaire', 'Carte bancaire', 'Espèces (dans la limite légale)'],
+      },
+      constats_conformes: [],
+      constats_critiques: [],
+      non_garantie: '',
+      mentions_legales: isTravaux ? [...DEVIS_TRAVAUX_MENTIONS_LEGALES] : undefined,
+    })
   }
 
   function handleTransformToFacture() {
@@ -309,34 +366,6 @@ function DevisPageContent() {
     router.push('/facture/nouvelle')
   }
 
-  function handleManualEntry() {
-    const today = new Date()
-    void enterPreviewWithDevisNumero({
-      numero: '', // alloué par enterPreviewWithDevisNumero (séquence DV-2026-0001)
-      date_devis: today.toISOString().split('T')[0],
-      validite_jours: 30,
-      objet: '',
-      lignes: [{ section: '1. Prestations', designation: '', description: '', qte: 1, unite: 'forfait', pu_ht: 0 }],
-      tva_taux: 10,
-      tva_reduite_attestation: true,
-      conditions: {
-        validite: '30 jours à compter de la date d\'établissement',
-        delai_execution: 'À convenir avec le client après validation',
-        duree_chantier: 'Selon accès et météo',
-        garanties: 'Garantie décennale sur ouvrages enterrés · Garantie de parfait achèvement 1 an',
-        assurance: 'RC Pro et décennale LTDB en cours de validité',
-        particulieres: '',
-      },
-      modalites: {
-        acompte_pct: 30,
-        modes_paiement: ['Chèque', 'Virement bancaire', 'Carte bancaire', 'Espèces (dans la limite légale)'],
-      },
-      constats_conformes: [],
-      constats_critiques: [],
-      non_garantie: '',
-    })
-  }
-
   function updateConstat(
     kind: 'conformes' | 'critiques',
     index: number,
@@ -376,12 +405,14 @@ function DevisPageContent() {
         <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-8 max-w-md w-full text-center">
           <div className="inline-block animate-spin rounded-full h-12 w-12 border-4 border-blue-200 border-t-[#0e2a52] mb-4" />
           <h2 className="text-xl font-black text-[#0e2a52]">
-            {editDocumentId ? 'Chargement du devis…' : 'Analyse de la dictée…'}
+            {editDocumentId ? 'Chargement du devis…' : (isTravaux ? 'Analyse des travaux…' : 'Analyse de la dictée…')}
           </h2>
           <p className="text-sm text-slate-500 mt-2">
             {editDocumentId
               ? 'Récupération des lignes, du client et des conditions.'
-              : "L'IA structure le devis (constats, objet, lignes, conditions, TVA)."}
+              : (isTravaux
+                ? "L'IA structure le devis travaux (sections terrassement/regards/pompe, constats, mentions légales, TVA)."
+                : "L'IA structure le devis (constats, objet, lignes, conditions, TVA).")}
           </p>
         </div>
       </div>
@@ -415,13 +446,15 @@ function DevisPageContent() {
             <AppTabs />
           </div>
         </header>
-        <DevisTabs current="nouveau" />
+        <DevisTabs current={devisTab} />
 
         <main className="max-w-4xl mx-auto px-4 py-6 space-y-4">
           {/* Header preview */}
           <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <div>
-              <h1 className="text-xl font-black text-[#0e2a52]">Devis N° {devis.numero}</h1>
+              <h1 className="text-xl font-black text-[#0e2a52]">
+                Devis {isTravaux ? 'travaux ' : ''}N° {devis.numero}
+              </h1>
               <p className="text-sm text-slate-500">Établi le {fmtDateISOtoFR(devis.date_devis)} · valable {devis.validite_jours} jours</p>
             </div>
             <div className="flex flex-wrap gap-2">
@@ -628,6 +661,28 @@ function DevisPageContent() {
             </div>
           </section>
 
+          {isTravaux && (devis.mentions_legales || []).length > 0 && (
+            <section className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 space-y-3">
+              <h2 className="font-bold text-[#0e2a52]">Mentions légales &amp; réglementaires</h2>
+              <p className="text-xs text-slate-500">Pré-remplies pour les travaux d&apos;assainissement — modifiables avant export.</p>
+              {(devis.mentions_legales || []).map((mention, i) => (
+                <label key={i} className="block text-sm">
+                  <span className="text-xs font-bold text-slate-500">Mention {i + 1}</span>
+                  <textarea
+                    value={mention}
+                    onChange={e => {
+                      const next = [...(devis.mentions_legales || [])]
+                      next[i] = e.target.value
+                      setDevis({ ...devis, mentions_legales: next })
+                    }}
+                    rows={3}
+                    className="w-full border border-slate-200 rounded-lg px-3 py-2 mt-1 text-sm"
+                  />
+                </label>
+              ))}
+            </section>
+          )}
+
           {/* Photos (optionnel) */}
           <section className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 space-y-3">
             <div className="flex items-center justify-between">
@@ -831,7 +886,7 @@ function DevisPageContent() {
           <AppTabs />
         </div>
       </header>
-      <DevisTabs current="nouveau" />
+        <DevisTabs current={devisTab} />
 
       <main className="max-w-3xl mx-auto px-4 py-5 space-y-4">
         {interventionId && (
@@ -845,8 +900,14 @@ function DevisPageContent() {
           </div>
         )}
         <div className="text-center">
-          <h1 className="text-2xl font-black text-[#0e2a52]">Nouveau devis</h1>
-          <p className="text-sm text-slate-500 mt-1">Dicte les travaux, les quantités et les prix — on s&apos;occupe du reste.</p>
+          <h1 className="text-2xl font-black text-[#0e2a52]">
+            {isTravaux ? 'Devis travaux assainissement' : 'Nouveau devis'}
+          </h1>
+          <p className="text-sm text-slate-500 mt-1">
+            {isTravaux
+              ? 'Terrassement, regards, réseaux EU/EP, pompes de relevage — dictée avec quantités et prix.'
+              : 'Dicte les travaux, les quantités et les prix — on s\'occupe du reste.'}
+          </p>
         </div>
 
         {/* Saisie manuelle */}
@@ -867,9 +928,13 @@ function DevisPageContent() {
         {/* Dictée */}
         <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 sm:p-6 space-y-4">
           <div>
-            <h2 className="text-xl font-black text-[#0e2a52]">Raconte le chantier</h2>
+            <h2 className="text-xl font-black text-[#0e2a52]">
+              {isTravaux ? 'Décris les travaux d\'assainissement' : 'Raconte le chantier'}
+            </h2>
             <p className="text-sm text-slate-500 mt-1">
-              Dicte ou tape. Exemple : « Devis pour M. Dupont à Toulon — pompage fosse 390 €, tranchée 8 mètres à 95 € le mètre, pose carrelage 18 m² à 78 €, TVA 10 %. »
+              {isTravaux
+                ? 'Ex. : « Devis M. Martin à La Garde — remplacement regard EU 450 €, tranchée 12 ml à 85 €/ml, pose pompe de relevage Grundfos 1 850 €, remblai et remise en état 320 €, TVA 10 %. »'
+                : 'Dicte ou tape. Ex. : « Devis pour M. Dupont à Toulon — pompage fosse 390 €, tranchée 8 mètres à 95 € le mètre, pose carrelage 18 m² à 78 €, TVA 10 %. »'}
             </p>
           </div>
 
@@ -881,7 +946,9 @@ function DevisPageContent() {
             value={transcription}
             onChange={e => setTranscription(e.target.value)}
             rows={6}
-            placeholder="Dicte les prestations avec leurs quantités et prix…"
+            placeholder={isTravaux
+              ? 'Terrassement, regards, raccordement, pompe de relevage, quantités et prix…'
+              : 'Dicte les prestations avec leurs quantités et prix…'}
             className="w-full border-2 border-slate-200 focus:border-blue-500 outline-none rounded-xl px-4 py-3 text-base transition-colors"
           />
 

@@ -2,6 +2,7 @@
 import React from "react"
 import { Document, Page, Text, View, StyleSheet, Image, PDFDownloadLink } from "@react-pdf/renderer"
 import { PdfBanner, PDF_C } from "./PdfBranding"
+import { isDevisTravauxVariant } from '@/lib/devis-variant'
 
 /* ============ CHARTE ============ */
 const C = {
@@ -138,6 +139,9 @@ const s = StyleSheet.create({
   modalitesStrong: { fontFamily: 'Helvetica-Bold' },
   modalitesMuted: { color: C.muted, fontSize: 8, marginTop: 4, lineHeight: 1.4, fontStyle: 'italic' },
 
+  legalItem: { color: C.text, fontSize: 8.5, lineHeight: 1.45, marginBottom: 6, paddingLeft: 8 },
+  legalBullet: { color: C.navy, fontFamily: 'Helvetica-Bold', fontSize: 8.5 },
+
   attestation: { color: C.text, fontSize: 8.5, fontFamily: 'Helvetica-Oblique', lineHeight: 1.5, marginVertical: 12 },
   attestationStrong: { fontFamily: 'Helvetica-BoldOblique' },
 
@@ -201,6 +205,8 @@ export interface DevisData {
   majoration_note?: string
   objet: string
   reference_dossier?: string
+  /** classique = débouchage/curage · travaux-assainissement = terrassement, regards, pompes */
+  variant?: 'classique' | 'travaux-assainissement'
   lignes: DevisLineData[]
   tva_taux?: number
   tva_reduite_attestation?: boolean
@@ -209,6 +215,8 @@ export interface DevisData {
   constats_conformes?: DevisConstatItem[]
   constats_critiques?: DevisConstatItem[]
   non_garantie?: string
+  /** Bloc mentions légales (devis travaux assainissement / pompe de relevage). */
+  mentions_legales?: string[]
   photos?: string[]           // URLs ou data URIs (base64) — optionnel, non bloquant
 }
 
@@ -525,6 +533,23 @@ export function DevisDocument({ emetteur, client, devis, phone }: DevisPDFProps)
               </Text>
             </View>
           </View>
+
+          {/* ===== Mentions légales (devis travaux) ===== */}
+          {isDevisTravauxVariant(devis.variant) && devis.mentions_legales && devis.mentions_legales.length > 0 ? (
+            <View>
+              <View style={s.bandNavy} wrap={false}>
+                <Text style={s.bandTxt}>Mentions légales &amp; réglementaires</Text>
+              </View>
+              <View style={[s.modalitesBox, { borderLeftColor: C.navy, marginBottom: 10 }]}>
+                {devis.mentions_legales.map((mention, i) => (
+                  <Text key={i} style={s.legalItem}>
+                    <Text style={s.legalBullet}>{i + 1}. </Text>
+                    {mention}
+                  </Text>
+                ))}
+              </View>
+            </View>
+          ) : null}
 
           {/* ===== Attestation TVA 10% ===== */}
           {devis.tva_reduite_attestation ? (

@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getAiModel, llmChat, llmConfigError, llmIsConfigured } from "@/lib/llm"
 import { errorMessage } from "@/lib/error-message"
+import { buildDevisTravauxPrompt } from "@/lib/devis-travaux-prompt"
+import { DEVIS_TRAVAUX_MENTIONS_LEGALES, type DevisVariant, isDevisTravauxVariant } from "@/lib/devis-variant"
 import type { DevisConstatItem, DevisData } from "@/lib/types-documents"
 
 /** Sortie LLM avant normalisation — forme espérée mais non garantie. */
@@ -29,10 +31,18 @@ export async function POST(req: NextRequest) {
     client_code_postal,
     date_devis,
     reference_dossier,
+    variant: variantRaw,
   } = body || {}
 
+  const variant: DevisVariant = variantRaw === 'travaux-assainissement'
+    ? 'travaux-assainissement'
+    : 'classique'
+
+  const dictationHint = isDevisTravauxVariant(variant)
+    ? 'Décris les travaux (terrassement, regards, réseaux, pompe de relevage), les quantités, les matériaux et les prix.'
+    : 'Décris l\'objet du devis, les travaux, les quantités, les prix, les délais.'
   if (!transcription || typeof transcription !== 'string' || transcription.trim().length < 15) {
-    return NextResponse.json({ error: 'Dictée trop courte (décris l\'objet du devis, les travaux, les quantités, les prix, les délais).' }, { status: 400 })
+    return NextResponse.json({ error: `Dictée trop courte (${dictationHint})` }, { status: 400 })
   }
   if (!llmIsConfigured()) {
     return NextResponse.json({ error: llmConfigError() }, { status: 500 })
@@ -45,7 +55,19 @@ export async function POST(req: NextRequest) {
   const seq = String(today.getHours()).padStart(2, '0') + String(today.getMinutes()).padStart(2, '0')
   const numeroFallback = `DV-${today.getFullYear()}${String(today.getMonth() + 1).padStart(2, '0')}${String(today.getDate()).padStart(2, '0')}-${seq}`
 
-  const prompt = `Tu es un assistant spécialisé dans la rédaction de devis estimatifs pour une entreprise de débouchage et assainissement (LTDB — Les Techniciens du Débouchage, Var). À partir d'une dictée vocale du technicien/chef d'équipe, tu structures un devis complet.
+  const prompt = isDevisTravauxVariant(variant)
+    ? buildDevisTravauxPrompt({
+      transcription,
+      client_nom,
+      client_adresse,
+      client_ville,
+      client_code_postal,
+      date_devis: datePourIA,
+      reference_dossier,
+      numeroFallback,
+      validite_jours: body?.validite_jours,
+    })
+    : `Tu es un assistant spécialisé dans la rédaction de devis estimatifs pour une entreprise de débouchage et assainissement (LTDB — Les Techniciens du Débouchage, Var). À partir d'une dictée vocale du technicien/chef d'équipe, tu structures un devis complet.
 
 DICTÉE :
 """
@@ -203,6 +225,19 @@ Réponds UNIQUEMENT avec ce JSON (sans markdown, sans backticks) :
     ? data.constats_critiques.map(normConstat).filter((r: { intitule: string; description: string }) => r.intitule || r.description)
     : []
   data.non_garantie = typeof data.non_garantie === 'string' ? data.non_garantie.trim() : ''
+
+  if (isDevisTravauxVariant(variant)) {
+    data.variant = 'travaux-assainissement'
+    const mentions = Array.isArray(data.mentions_legales)
+      ? data.mentions_legales.map(m => (typeof m === 'string' ? m.trim() : '')).filter(Boolean)
+      : []
+    data.mentions_legales = mentions.length > 0
+      ? mentions
+      : [...DEVIS_TRAVAUX_MENTIONS_LEGALES]
+  } else {
+    data.variant = 'classique'
+    delete data.mentions_legales
+  }
 
   return NextResponse.json({ devis: data })
 }
