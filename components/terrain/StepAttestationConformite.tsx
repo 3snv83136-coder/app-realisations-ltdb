@@ -58,6 +58,7 @@ export default function StepAttestationConformite({
   const { prenom: prenomDefaut, nomFamille: nomDefaut } = splitNomPrenom(client?.nom || '')
 
   const [variante, setVariante] = useState<Variante>(varianteDefaut)
+  const [techNom, setTechNom] = useState(technicienNom || '')
   const [nom, setNom] = useState(nomDefaut)
   const [prenom, setPrenom] = useState(prenomDefaut)
   const [adresse, setAdresse] = useState(interv.adresse_chantier || client?.adresse || '')
@@ -88,6 +89,10 @@ export default function StepAttestationConformite({
   }, [interv.photos_urls, interv.photos_legendes])
 
   async function generer() {
+    if (!techNom.trim()) {
+      onError('Indique le nom du technicien intervenant.')
+      return
+    }
     if (transcription.trim().length < 15) {
       onError('Dictée trop courte — décris l’inspection, les constats et les conclusions.')
       return
@@ -107,7 +112,7 @@ export default function StepAttestationConformite({
           code_postal: codePostal,
           ville,
           date,
-          technicien_nom: technicienNom || '',
+          technicien_nom: techNom.trim(),
         }),
       })
       const result = await res.json()
@@ -213,6 +218,7 @@ export default function StepAttestationConformite({
             rows={3}
             className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm"
           />
+          <Field label="Technicien intervenant" value={data.technicienNom} onChange={v => setData({ ...data, technicienNom: v })} />
           <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide">Conclusion</label>
           <textarea
             value={data.conclusion}
@@ -301,6 +307,7 @@ export default function StepAttestationConformite({
           <Field label="Prénom" value={prenom} onChange={setPrenom} />
           <Field label="Nom" value={nom} onChange={setNom} />
         </div>
+        <Field label="Nom du technicien" value={techNom} onChange={setTechNom} />
         <Field label="Adresse du bien" value={adresse} onChange={setAdresse} />
         <div className="grid grid-cols-2 gap-3">
           <Field label="Code postal" value={codePostal} onChange={setCodePostal} />

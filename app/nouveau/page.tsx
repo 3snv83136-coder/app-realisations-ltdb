@@ -161,7 +161,7 @@ export default function NouveauPage() {
   const [clientNom, setClientNom] = useState('')
   const [clientEmail, setClientEmail] = useState('')
   const [technicienNom, setTechnicienNom] = useState('')
-  const [editTech, setEditTech] = useState(false)
+  const [editTech, setEditTech] = useState(true)
   const [interventionId, setInterventionId] = useState<string | null>(null)
   type PhotoItem = { file: File; dataUrl: string; preview: string; legende: string }
   const [photos, setPhotos] = useState<PhotoItem[]>([])
@@ -921,22 +921,21 @@ export default function NouveauPage() {
               <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg>
               <span className="hidden sm:inline">Historique</span>
             </button>
-            {editTech ? (
+            {editTech || !technicienNom ? (
               <input
-                autoFocus
                 value={technicienNom}
                 onChange={e => setTechnicienNom(e.target.value)}
                 onBlur={() => technicienNom && setEditTech(false)}
                 onKeyDown={e => { if (e.key === 'Enter' && technicienNom) setEditTech(false) }}
-                placeholder="Ton nom"
-                className="bg-white/20 placeholder:text-white/60 text-white text-sm font-semibold px-3 py-1.5 rounded-lg outline-none border border-white/30 focus:border-white"
+                placeholder="Nom du technicien"
+                className="min-w-[9rem] max-w-[11rem] shrink-0 bg-white/20 placeholder:text-white/60 text-white text-sm font-semibold px-3 py-1.5 rounded-lg outline-none border border-white/30 focus:border-white"
               />
-            ) : technicienNom ? (
-              <button onClick={() => setEditTech(true)} className="text-right group">
+            ) : (
+              <button onClick={() => setEditTech(true)} className="text-right group shrink-0">
                 <div className="text-[10px] opacity-60 group-hover:opacity-100">Technicien ✎</div>
                 <div className="text-sm font-semibold">{technicienNom}</div>
               </button>
-            ) : null}
+            )}
           </div>
         </div>
       </nav>
@@ -997,6 +996,19 @@ export default function NouveauPage() {
                 </button>
               </div>
             )}
+
+            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 sm:p-6">
+              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
+                Nom du technicien *
+              </label>
+              <input
+                value={technicienNom}
+                onChange={e => setTechnicienNom(e.target.value)}
+                placeholder="Prénom Nom"
+                autoComplete="name"
+                className="w-full border-2 border-slate-200 focus:border-blue-500 outline-none rounded-xl px-4 py-3 text-base transition-colors"
+              />
+            </div>
 
             {/* Dictée */}
             <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 sm:p-6 space-y-4">
@@ -1132,6 +1144,17 @@ export default function NouveauPage() {
               <div>
                 <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Adresse <span className="font-normal text-slate-400 normal-case">(optionnel)</span></label>
                 <input value={adresse} onChange={e => setAdresse(e.target.value)} placeholder="ex: 5 rue des Tombades" className="w-full border-2 border-slate-200 focus:border-blue-500 outline-none rounded-xl px-4 py-3 text-base transition-colors" />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Nom du technicien *</label>
+                <input
+                  value={technicienNom}
+                  onChange={e => setTechnicienNom(e.target.value)}
+                  placeholder="Prénom Nom"
+                  autoComplete="name"
+                  className="w-full border-2 border-slate-200 focus:border-blue-500 outline-none rounded-xl px-4 py-3 text-base transition-colors"
+                />
               </div>
             </div>
 

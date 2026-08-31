@@ -1,5 +1,6 @@
 'use client'
 import { useEffect, useRef, useState } from "react"
+import { errorMessage } from "@/lib/error-message"
 
 export type ClientRecord = {
   id: string
@@ -25,6 +26,7 @@ export default function ClientAutocomplete({ value, onChange, onSelect, placehol
   const [open, setOpen] = useState(false)
   const [results, setResults] = useState<ClientRecord[]>([])
   const [loading, setLoading] = useState(false)
+  const [searchError, setSearchError] = useState('')
   const [highlight, setHighlight] = useState(0)
   const ref = useRef<HTMLDivElement>(null)
   const lastQueryRef = useRef('')
@@ -43,19 +45,25 @@ export default function ClientAutocomplete({ value, onChange, onSelect, placehol
     if (q.length < 2) {
       setResults([])
       setLoading(false)
+      setSearchError('')
       return
     }
     setLoading(true)
+    setSearchError('')
     const ctrl = new AbortController()
     const timer = setTimeout(async () => {
       try {
-        const res = await fetch(`/api/clients?q=${encodeURIComponent(q)}&limit=8`, { signal: ctrl.signal })
+        const res = await fetch(`/api/clients?q=${encodeURIComponent(q)}&limit=8`, { signal: ctrl.signal, cache: 'no-store' })
         const data = await res.json()
         if (lastQueryRef.current !== q) return
+        if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`)
         setResults(Array.isArray(data?.clients) ? data.clients : [])
         setHighlight(0)
-      } catch {
-        if (lastQueryRef.current === q) setResults([])
+      } catch (e) {
+        if (lastQueryRef.current === q) {
+          setResults([])
+          setSearchError(errorMessage(e) || 'Recherche impossible')
+        }
       } finally {
         if (lastQueryRef.current === q) setLoading(false)
       }
@@ -87,10 +95,14 @@ export default function ClientAutocomplete({ value, onChange, onSelect, placehol
         autoComplete="off"
         className={className ?? baseInput}
       />
-      {open && (results.length > 0 || loading) && (
+      {open && value.trim().length >= 2 && (loading || results.length > 0 || searchError) && (
         <div className="absolute z-40 left-0 right-0 mt-1 bg-white border-2 border-slate-200 rounded-xl shadow-2xl max-h-72 overflow-y-auto">
-          {loading && results.length === 0 ? (
+          {loading ? (
             <div className="px-4 py-3 text-sm text-slate-500">Recherche…</div>
+          ) : searchError ? (
+            <div className="px-4 py-3 text-sm text-red-600">⚠ {searchError}</div>
+          ) : results.length === 0 ? (
+            <div className="px-4 py-3 text-sm text-slate-500">Aucun client trouvé.</div>
           ) : (
             results.map((c, i) => {
               const subtitle = [c.adresse, [c.code_postal, c.ville].filter(Boolean).join(' ')].filter(Boolean).join(' · ')

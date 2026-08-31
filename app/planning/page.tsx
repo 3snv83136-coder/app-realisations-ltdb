@@ -133,10 +133,13 @@ export default function PlanningPage() {
       if (!intRes.ok) throw new Error(intData.error || 'Erreur interventions')
       setInterventions(intData.interventions || [])
       if (!isTech) {
-        const techRes = await fetch('/api/techniciens', { cache: 'no-store' })
-        const techData = await techRes.json()
-        if (!techRes.ok) throw new Error(techData.error || 'Erreur techniciens')
-        setTechniciens(techData.techniciens || [])
+        try {
+          const techRes = await fetch('/api/techniciens', { cache: 'no-store' })
+          const techData = await techRes.json()
+          if (techRes.ok) setTechniciens(techData.techniciens || [])
+        } catch {
+          /* la modal recharge la liste si besoin */
+        }
       }
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e)
@@ -525,7 +528,7 @@ function FilterSelect({
 // Modal nouvelle intervention
 // ====================================================================
 function NouvelleInterventionModal({
-  techniciens, onClose, onCreated,
+  techniciens: techniciensProp, onClose, onCreated,
 }: {
   techniciens: Technicien[]
   onClose: () => void
@@ -533,6 +536,31 @@ function NouvelleInterventionModal({
 }) {
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
+  const [techniciens, setTechniciens] = useState<Technicien[]>(techniciensProp)
+  const [techniciensError, setTechniciensError] = useState('')
+
+  useEffect(() => {
+    if (techniciensProp.length > 0) {
+      setTechniciens(techniciensProp)
+      setTechniciensError('')
+      return
+    }
+    let cancelled = false
+    fetch('/api/techniciens', { cache: 'no-store' })
+      .then(r => r.json().then(d => ({ ok: r.ok, d })))
+      .then(({ ok, d }) => {
+        if (cancelled) return
+        if (!ok) throw new Error(d.error || 'Erreur techniciens')
+        setTechniciens(d.techniciens || [])
+        if (!(d.techniciens || []).length) {
+          setTechniciensError('Aucun technicien actif — active-en un dans l’onglet Techniciens.')
+        }
+      })
+      .catch((e: unknown) => {
+        if (!cancelled) setTechniciensError(errorMessage(e) || 'Impossible de charger les techniciens.')
+      })
+    return () => { cancelled = true }
+  }, [techniciensProp])
 
   // Client
   const [clientId, setClientId] = useState<string | null>(null)
@@ -846,7 +874,7 @@ function NouvelleInterventionModal({
           <section className="space-y-3 pt-3 border-t border-slate-100">
             <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500">Intervention</h3>
 
-            <div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <label className="block text-sm">
                 <span className="text-xs uppercase tracking-wide text-slate-500 font-semibold">Type d&apos;intervention</span>
                 <select
@@ -858,6 +886,22 @@ function NouvelleInterventionModal({
                     <option key={t} value={t}>{t}</option>
                   ))}
                 </select>
+              </label>
+              <label className="block text-sm">
+                <span className="text-xs uppercase tracking-wide text-slate-500 font-semibold">Technicien</span>
+                <select
+                  value={technicienId}
+                  onChange={e => setTechnicienId(e.target.value)}
+                  className="w-full border-2 border-slate-200 focus:border-blue-500 outline-none rounded-lg px-3 py-2.5 mt-1 bg-white text-sm font-semibold text-[#0e2a52]"
+                >
+                  <option value="">— non assignée —</option>
+                  {techniciens.map(t => (
+                    <option key={t.id} value={t.id}>{t.nom}{t.agence ? ` (${t.agence})` : ''}</option>
+                  ))}
+                </select>
+                {techniciensError && (
+                  <span className="text-[11px] text-red-600 mt-1 block">{techniciensError}</span>
+                )}
               </label>
             </div>
 
@@ -939,20 +983,11 @@ function NouvelleInterventionModal({
               </span>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
               <label className="block text-sm">
                 <span className="text-xs uppercase tracking-wide text-slate-500 font-semibold">Agence</span>
                 <select value={agence} onChange={e => setAgence(e.target.value)} className="w-full border-2 border-slate-200 focus:border-blue-500 outline-none rounded-lg px-3 py-2 mt-1 bg-white">
                   {AGENCES.map(a => <option key={a} value={a}>{a}</option>)}
-                </select>
-              </label>
-              <label className="block text-sm">
-                <span className="text-xs uppercase tracking-wide text-slate-500 font-semibold">Technicien</span>
-                <select value={technicienId} onChange={e => setTechnicienId(e.target.value)} className="w-full border-2 border-slate-200 focus:border-blue-500 outline-none rounded-lg px-3 py-2 mt-1 bg-white">
-                  <option value="">— non assignée —</option>
-                  {techniciens.map(t => (
-                    <option key={t.id} value={t.id}>{t.nom}{t.agence ? ` (${t.agence})` : ''}</option>
-                  ))}
                 </select>
               </label>
             </div>
@@ -1101,18 +1136,34 @@ function ClientAutocomplete({
 }) {
   const [results, setResults] = useState<ClientRow[]>([])
   const [open, setOpen] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const [searchError, setSearchError] = useState('')
   const wrapRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    if (!value.trim() || value.trim().length < 2) { setResults([]); return }
+    const q = value.trim()
+    if (q.length < 2) {
+      setResults([])
+      setLoading(false)
+      setSearchError('')
+      return
+    }
     const ctrl = new AbortController()
+    setLoading(true)
+    setSearchError('')
     const t = setTimeout(async () => {
       try {
-        const res = await fetch(`/api/clients?q=${encodeURIComponent(value)}&limit=8`, { signal: ctrl.signal, cache: 'no-store' })
+        const res = await fetch(`/api/clients?q=${encodeURIComponent(q)}&limit=8`, { signal: ctrl.signal, cache: 'no-store' })
         const data = await res.json()
-        if (res.ok) setResults(data.clients || [])
-      } catch {
-        /* abort */
+        if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`)
+        setResults(data.clients || [])
+      } catch (e) {
+        if (!ctrl.signal.aborted) {
+          setResults([])
+          setSearchError(errorMessage(e) || 'Recherche impossible')
+        }
+      } finally {
+        if (!ctrl.signal.aborted) setLoading(false)
       }
     }, 250)
     return () => { ctrl.abort(); clearTimeout(t) }
@@ -1136,8 +1187,17 @@ function ClientAutocomplete({
         placeholder="Syndic, société, M. Dupont…"
         className="w-full border-2 border-slate-200 focus:border-blue-500 outline-none rounded-lg px-3 py-2 mt-1"
       />
-      {open && results.length > 0 && (
+      {open && value.trim().length >= 2 && (loading || results.length > 0 || searchError) && (
         <div className="absolute z-30 left-0 right-0 mt-1 bg-white border-2 border-slate-200 rounded-xl shadow-2xl max-h-64 overflow-y-auto">
+          {loading && (
+            <div className="px-3 py-2 text-sm text-slate-500">Recherche…</div>
+          )}
+          {!loading && searchError && (
+            <div className="px-3 py-2 text-sm text-red-600">⚠ {searchError}</div>
+          )}
+          {!loading && !searchError && results.length === 0 && (
+            <div className="px-3 py-2 text-sm text-slate-500">Aucun client trouvé — tu peux saisir un nouveau nom.</div>
+          )}
           {results.map(c => (
             <button
               key={c.id}

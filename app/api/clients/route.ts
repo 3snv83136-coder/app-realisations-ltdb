@@ -3,6 +3,9 @@ import { getSupabaseOrNull } from "@/lib/supabase"
 
 export const dynamic = 'force-dynamic'
 
+/** Colonnes utilisées par l'autocomplete (sans siret : migration compta pas toujours appliquée). */
+const CLIENT_LIST_COLUMNS = 'id, nom, email, telephone, adresse, code_postal, ville'
+
 export async function GET(req: NextRequest) {
   const sb = getSupabaseOrNull()
   if (!sb) {
@@ -27,7 +30,7 @@ export async function GET(req: NextRequest) {
     }
     const { data: candidates, error: candErr } = await sb
       .from('clients')
-      .select('id, nom, email, telephone, adresse, code_postal, ville, siret')
+      .select(CLIENT_LIST_COLUMNS)
       .not('telephone', 'is', null)
       .order('nom', { ascending: true })
       .range(0, 999)
@@ -50,14 +53,16 @@ export async function GET(req: NextRequest) {
 
   let query = sb
     .from('clients')
-    .select('id, nom, email, telephone, adresse, code_postal, ville, siret')
+    .select(CLIENT_LIST_COLUMNS)
     .order('nom', { ascending: true })
     .range(0, limit - 1)
 
   if (q) {
-    // Recherche dans nom OU email OU ville (insensible à la casse)
+    // Recherche dans nom, email, ville ou téléphone (insensible à la casse)
     const safe = q.replace(/[%,]/g, ' ')
-    query = query.or(`nom.ilike.%${safe}%,email.ilike.%${safe}%,ville.ilike.%${safe}%`)
+    query = query.or(
+      `nom.ilike.%${safe}%,email.ilike.%${safe}%,ville.ilike.%${safe}%,telephone.ilike.%${safe}%`,
+    )
   }
 
   const { data, error } = await query

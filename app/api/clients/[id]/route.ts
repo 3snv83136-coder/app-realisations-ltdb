@@ -7,6 +7,8 @@ type Params = { params: { id: string } }
 
 const UPDATABLE = new Set(['nom', 'email', 'telephone', 'adresse', 'code_postal', 'ville'])
 
+const CLIENT_COLUMNS = 'id, nom, email, telephone, adresse, code_postal, ville'
+
 /** GET /api/clients/[id] — fiche client. */
 export async function GET(_req: NextRequest, { params }: Params) {
   const sb = getSupabaseOrNull()
@@ -14,7 +16,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
 
   const { data, error } = await sb
     .from('clients')
-    .select('id, nom, email, telephone, adresse, code_postal, ville, siret')
+    .select(CLIENT_COLUMNS)
     .eq('id', params.id)
     .maybeSingle()
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
@@ -64,7 +66,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     .from('clients')
     .update(update)
     .eq('id', params.id)
-    .select('id, nom, email, telephone, adresse, code_postal, ville, siret')
+    .select(CLIENT_COLUMNS)
     .maybeSingle()
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   if (!data) return NextResponse.json({ error: 'Client introuvable' }, { status: 404 })
