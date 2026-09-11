@@ -1,6 +1,7 @@
 'use client'
 import { useEffect, useMemo, useRef, useState } from "react"
 import Link from "next/link"
+import dynamic from "next/dynamic"
 import { useSession } from "next-auth/react"
 import AppTabs from "@/components/AppTabs"
 import TechNav from "@/components/TechNav"
@@ -16,6 +17,8 @@ import { errorMessage } from "@/lib/error-message"
 import { parseClientSms } from "@/lib/parse-client-sms"
 import { findVilleByName, searchVilles, VILLES_VAR } from "@/lib/villes-var"
 import LtdbLogoLink from "@/components/LtdbLogoLink"
+
+const PlanningMap = dynamic(() => import('@/components/PlanningMap'), { ssr: false })
 
 type Statut = 'planifiee' | 'en_cours' | 'terminee' | 'annulee'
 
@@ -126,6 +129,9 @@ export default function PlanningPage() {
   const [filterDate, setFilterDate] = useState<DateFilter>('week')
 
   const [showForm, setShowForm] = useState(false)
+  const [viewMode, setViewMode] = useState<'kanban' | 'map'>('kanban')
+  const [mapDate, setMapDate] = useState(() => new Date().toISOString().slice(0, 10))
+  const [mapTechFilter, setMapTechFilter] = useState<string>('all')
 
   async function loadAll() {
     setLoading(true); setError('')
@@ -215,7 +221,34 @@ export default function PlanningPage() {
       </nav>
 
       <main className="max-w-7xl mx-auto px-4 py-5 space-y-4">
-        {/* Filtres */}
+        {/* Vue Kanban / Carte */}
+        <div className="flex gap-1 bg-white rounded-xl border border-slate-200 p-1 w-fit">
+          <button
+            type="button"
+            onClick={() => setViewMode('kanban')}
+            className={`px-4 py-2 rounded-lg text-sm font-bold transition ${
+              viewMode === 'kanban'
+                ? 'bg-[#0e2a52] text-white shadow'
+                : 'text-slate-600 hover:bg-slate-50'
+            }`}
+          >
+            📋 Kanban
+          </button>
+          <button
+            type="button"
+            onClick={() => setViewMode('map')}
+            className={`px-4 py-2 rounded-lg text-sm font-bold transition ${
+              viewMode === 'map'
+                ? 'bg-[#0e2a52] text-white shadow'
+                : 'text-slate-600 hover:bg-slate-50'
+            }`}
+          >
+            🗺 Carte du jour
+          </button>
+        </div>
+
+        {/* Filtres kanban */}
+        {viewMode === 'kanban' && (
         <div className={`bg-white rounded-2xl shadow-sm border border-slate-200 p-4 grid gap-3 ${isTech ? 'grid-cols-2' : 'grid-cols-2 sm:grid-cols-4'}`}>
           <FilterSelect
             label="Statut"
@@ -263,6 +296,7 @@ export default function PlanningPage() {
             ]}
           />
         </div>
+        )}
 
         {error && (
           <div className="bg-red-50 border border-red-200 text-red-700 p-3 rounded-xl text-sm">{error}</div>
@@ -274,7 +308,19 @@ export default function PlanningPage() {
           </div>
         )}
 
-        {!loading && filtered.length === 0 && !error && (
+        {!loading && viewMode === 'map' && !error && (
+          <PlanningMap
+            interventions={interventions}
+            techniciens={techniciens.map(t => ({ id: t.id, nom: t.nom }))}
+            techFilter={isTech ? 'all' : mapTechFilter}
+            onTechFilterChange={setMapTechFilter}
+            mapDate={mapDate}
+            onMapDateChange={setMapDate}
+            showTechFilter={!isTech}
+          />
+        )}
+
+        {!loading && viewMode === 'kanban' && filtered.length === 0 && !error && (
           <div className="bg-white rounded-2xl border border-slate-200 p-10 text-center space-y-2">
             <div className="text-4xl">📅</div>
             <p className="text-slate-700 font-semibold">Aucune intervention pour ces filtres.</p>
@@ -284,7 +330,7 @@ export default function PlanningPage() {
           </div>
         )}
 
-        {!loading && filtered.length > 0 && (
+        {!loading && viewMode === 'kanban' && filtered.length > 0 && (
           <KanbanBoard
             interventions={filtered}
             filterStatut={filterStatut}
