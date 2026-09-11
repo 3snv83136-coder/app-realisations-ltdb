@@ -13,6 +13,8 @@ import { MODES_PAIEMENT, type ModePaiement, serializeModesPaiement } from "@/lib
 import { fmtDateFR, fmtEUR } from "@/lib/format"
 import { TYPES_INTERVENTION as TYPES } from "@/lib/types-intervention"
 import { errorMessage } from "@/lib/error-message"
+import { parseClientSms } from "@/lib/parse-client-sms"
+import { findVilleByName, searchVilles, VILLES_VAR } from "@/lib/villes-var"
 import LtdbLogoLink from "@/components/LtdbLogoLink"
 
 type Statut = 'planifiee' | 'en_cours' | 'terminee' | 'annulee'
@@ -572,6 +574,10 @@ function NouvelleInterventionModal({
   const [clientCP, setClientCP] = useState('')
   const [clientVille, setClientVille] = useState('')
 
+  // Collage SMS / texto → pré-remplissage des champs client
+  const [smsPaste, setSmsPaste] = useState('')
+  const [smsFeedback, setSmsFeedback] = useState('')
+
   // Reconnaissance par téléphone : dès que l'utilisateur saisit un numéro
   // assez long, on cherche un client existant pour proposer de pré-remplir.
   const [phoneMatches, setPhoneMatches] = useState<ClientRow[]>([])
@@ -586,6 +592,53 @@ function NouvelleInterventionModal({
     setClientCP(c.code_postal || '')
     setClientVille(c.ville || '')
     setPhoneMatches([])
+  }
+
+  function applySmsPaste(raw?: string) {
+    const text = (raw ?? smsPaste).trim()
+    if (text.length < 5) {
+      setSmsFeedback('Colle d’abord le texto (nom, téléphone, adresse…).')
+      return
+    }
+    const parsed = parseClientSms(text)
+    if (parsed.filled.length === 0) {
+      setSmsFeedback('Rien détecté — vérifie le texte ou remplis à la main.')
+      return
+    }
+
+    setClientId(null)
+    if (parsed.nom) setClientNom(parsed.nom)
+    if (parsed.telephone) setClientTel(parsed.telephone)
+    if (parsed.email) setClientEmail(parsed.email)
+    if (parsed.adresse) setClientAdresse(parsed.adresse)
+
+    let ville = parsed.ville
+    let cp = parsed.code_postal
+    if (ville) {
+      const exact = findVilleByName(ville)
+      const fuzzy = exact || searchVilles(ville, 1)[0]
+      if (fuzzy) {
+        ville = fuzzy.nom
+        if (!cp) cp = fuzzy.cp
+      }
+    }
+    if (cp && !ville) {
+      const byCp = VILLES_VAR.find(v => v.cp === cp)
+      if (byCp) ville = byCp.nom
+    }
+    if (cp) setClientCP(cp)
+    if (ville) setClientVille(ville)
+
+    const labels: Record<string, string> = {
+      nom: 'nom',
+      telephone: 'téléphone',
+      email: 'email',
+      adresse: 'adresse',
+      code_postal: 'CP',
+      ville: 'ville',
+    }
+    const found = parsed.filled.map(k => labels[k] || k)
+    setSmsFeedback(`✓ Rempli : ${found.join(', ')}. Vérifie puis complète si besoin.`)
   }
 
   useEffect(() => {
@@ -790,6 +843,53 @@ function NouvelleInterventionModal({
           {/* Client */}
           <section className="space-y-3">
             <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500">Client</h3>
+
+            <div className="bg-emerald-50 border-2 border-emerald-200 rounded-xl p-3 space-y-2">
+              <label className="block text-sm">
+                <span className="text-xs uppercase tracking-wide text-emerald-900 font-bold">
+                  📋 Coller le SMS / texto du client
+                </span>
+                <textarea
+                  value={smsPaste}
+                  onChange={e => { setSmsPaste(e.target.value); setSmsFeedback('') }}
+                  onPaste={e => {
+                    const pasted = e.clipboardData.getData('text')
+                    if (pasted.trim().length >= 5) {
+                      // Laisse le navigateur coller, puis parse juste après
+                      setTimeout(() => applySmsPaste(pasted), 0)
+                    }
+                  }}
+                  rows={3}
+                  placeholder={'Ex.\nMme Dupont\n06 12 34 56 78\n5 rue des Tombades\n83000 Toulon'}
+                  className="w-full border-2 border-emerald-300 focus:border-emerald-600 outline-none rounded-lg px-3 py-2 mt-1.5 text-sm bg-white font-mono"
+                />
+              </label>
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => applySmsPaste()}
+                  disabled={smsPaste.trim().length < 5}
+                  className="bg-emerald-700 hover:bg-emerald-800 text-white px-3 py-2 rounded-lg text-sm font-bold disabled:opacity-50"
+                >
+                  Remplir les champs
+                </button>
+                {smsPaste && (
+                  <button
+                    type="button"
+                    onClick={() => { setSmsPaste(''); setSmsFeedback('') }}
+                    className="text-xs font-semibold text-emerald-800 hover:underline"
+                  >
+                    Effacer
+                  </button>
+                )}
+              </div>
+              {smsFeedback && (
+                <p className={`text-xs font-semibold ${smsFeedback.startsWith('✓') ? 'text-emerald-800' : 'text-amber-800'}`}>
+                  {smsFeedback}
+                </p>
+              )}
+            </div>
+
             <SiretLookup
               onFound={(c) => {
                 setClientId(null)
