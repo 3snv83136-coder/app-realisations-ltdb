@@ -8,11 +8,13 @@ type SaveButtonProps = {
   className?: string
   label?: string
   disabled?: boolean
+  /** Si true, le bouton redevient cliquable après un succès (pour ré-enregistrer). */
+  allowResave?: boolean
   onSaved?: (id: string) => void
 }
 
 export default function SaveDocumentButton({
-  endpoint, body, className, label, disabled, onSaved,
+  endpoint, body, className, label, disabled, allowResave, onSaved,
 }: SaveButtonProps) {
   const [state, setState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
   const [error, setError] = useState('')
@@ -32,6 +34,9 @@ export default function SaveDocumentButton({
       setSavedId(data.id || '')
       setState('saved')
       onSaved?.(data.id || '')
+      if (allowResave) {
+        window.setTimeout(() => setState('idle'), 1800)
+      }
     } catch (e) {
       setError(errorMessage(e) || 'Erreur de sauvegarde')
       setState('error')
@@ -43,20 +48,20 @@ export default function SaveDocumentButton({
 
   let text = label || '💾 Enregistrer dans l\'historique'
   if (state === 'saving') text = 'Enregistrement…'
-  else if (state === 'saved') text = '✓ Enregistré dans l\'historique'
+  else if (state === 'saved') text = allowResave ? '✓ Mis à jour' : '✓ Enregistré dans l\'historique'
 
   return (
     <div className="flex flex-col gap-1">
       <button
         type="button"
         onClick={handleClick}
-        disabled={disabled || state === 'saving' || state === 'saved'}
+        disabled={disabled || state === 'saving' || (state === 'saved' && !allowResave)}
         className={baseClass}
         title="Sauvegarde le document dans la base sans envoyer d'email"
       >
         {text}
       </button>
-      {state === 'saved' && savedId && (
+      {state === 'saved' && savedId && !allowResave && (
         <a
           href="/historique"
           className="text-xs text-emerald-700 hover:underline self-end"

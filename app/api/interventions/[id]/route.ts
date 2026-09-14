@@ -108,6 +108,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
     client,
     technicien,
     has_devis: !!devisDoc?.id,
+    devis_id: devisDoc?.id || null,
     has_attestation: !!attestationDoc?.id,
   })
 }

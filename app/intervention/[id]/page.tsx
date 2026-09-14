@@ -148,6 +148,7 @@ export default function InterventionDetailPage({ params }: { params: { id: strin
   const [techniciensError, setTechniciensError] = useState('')
   const [hasFacture, setHasFacture] = useState(false)
   const [hasDevis, setHasDevis] = useState(false)
+  const [devisId, setDevisId] = useState<string | null>(null)
   const [form, setForm] = useState<Partial<InterventionDetail>>({})
   const [clientForm, setClientForm] = useState<Partial<ClientDetail>>({})
 
@@ -273,6 +274,7 @@ export default function InterventionDetailPage({ params }: { params: { id: strin
       setClient(data.client)
       setTechnicien(data.technicien)
       setHasDevis(!!data.has_devis)
+      setDevisId(typeof data.devis_id === 'string' ? data.devis_id : null)
       // Vérifie l'existence d'une facture liée via l'endpoint dédié (filtre côté
       // DB par intervention_id). Avant on listait /api/historique?limit=500 mais
       // le SELECT à 16 colonnes peut sauter une ligne sur Vercel (bug
@@ -548,14 +550,16 @@ export default function InterventionDetailPage({ params }: { params: { id: strin
 
         {isDevisIntervention(intervention.type_intervention) && intervention.statut !== 'annulee' && (
           <Link
-            href={`/devis?intervention=${intervention.id}`}
+            href={devisId ? `/devis?document=${devisId}` : `/devis?intervention=${intervention.id}`}
             className="block bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white rounded-2xl p-5 shadow-lg transition"
           >
             <div className="flex items-center justify-between gap-3">
               <div>
-                <div className="font-black text-lg">📋 {hasDevis ? 'Modifier / renvoyer le devis' : 'Générer le devis'}</div>
+                <div className="font-black text-lg">📋 {devisId ? 'Modifier / renvoyer le devis' : 'Générer le devis'}</div>
                 <div className="text-xs opacity-90 mt-1">
-                  Pas de mode terrain — établir le devis, envoi immédiat ou relances sur 3 semaines (-10 % semaine 3)
+                  {devisId
+                    ? 'Rouvre le devis enregistré, corrige les lignes, enregistre puis renvoie par mail'
+                    : 'Pas de mode terrain — établir le devis, envoi immédiat ou relances sur 3 semaines (-10 % semaine 3)'}
                 </div>
               </div>
               <div className="text-2xl">→</div>

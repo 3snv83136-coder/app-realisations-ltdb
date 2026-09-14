@@ -71,6 +71,9 @@ function DevisPageContent() {
   const [emailSent, setEmailSent] = useState(false)
   const [prefillLoading, setPrefillLoading] = useState(!!interventionId || !!editDocumentId)
   const [loadedInterventionId, setLoadedInterventionId] = useState<string | null>(interventionId)
+  /** ID document en cours d'édition (URL ?document= ou devis trouvé via intervention). */
+  const [editingDocumentId, setEditingDocumentId] = useState<string | null>(editDocumentId)
+  const isEditingExisting = !!editingDocumentId
 
   useUnsavedChangesWarning(
     (step === 'capture' && (transcription.trim() !== '' || clientNom.trim() !== '')) ||
@@ -100,6 +103,7 @@ function DevisPageContent() {
           setDateDevis(doc.payload.date_devis || doc.date_emission?.slice(0, 10) || new Date().toISOString().split('T')[0])
           setReferenceDossier(doc.payload.reference_dossier || (doc.numero ? `Devis ${doc.numero}` : ''))
           if (doc.intervention_id) setLoadedInterventionId(doc.intervention_id)
+          setEditingDocumentId(editDocumentId)
           setStep('preview')
         } catch (e) {
           if (!cancelled) {
@@ -136,6 +140,40 @@ function DevisPageContent() {
         if (itv?.code_postal && !c?.code_postal) setClientCP(itv.code_postal)
         setReferenceDossier(itv?.reference ? `Intervention ${itv.reference}` : '')
         setLoadedInterventionId(interventionId)
+
+        // Devis déjà lié → ouverture en édition (contenu + renvoyer)
+        const existingDevisId = typeof data.devis_id === 'string' ? data.devis_id : null
+        if (existingDevisId) {
+          const docRes = await fetch(`/api/historique/${existingDevisId}`, { cache: 'no-store' })
+          const docData = await docRes.json().catch(() => ({}))
+          const doc = docData.document
+          if (!cancelled && docRes.ok && doc?.payload?.lignes) {
+            setDevis(doc.payload as DevisData)
+            if (doc.client_nom) setClientNom(doc.client_nom)
+            if (doc.envoye_email || doc.client_email) {
+              setClientEmail(doc.envoye_email || doc.client_email || '')
+            }
+            if (doc.client_adresse) setClientAdresse(doc.client_adresse)
+            if (doc.client_code_postal) setClientCP(doc.client_code_postal)
+            if (doc.client_ville) setClientVille(doc.client_ville)
+            setDateDevis(
+              doc.payload.date_devis
+              || doc.date_emission?.slice(0, 10)
+              || new Date().toISOString().split('T')[0],
+            )
+            setReferenceDossier(
+              doc.payload.reference_dossier || (doc.numero ? `Devis ${doc.numero}` : ''),
+            )
+            setEditingDocumentId(existingDevisId)
+            if (typeof window !== 'undefined') {
+              const url = new URL(window.location.href)
+              url.searchParams.delete('intervention')
+              url.searchParams.set('document', existingDevisId)
+              window.history.replaceState({}, '', url.toString())
+            }
+            setStep('preview')
+          }
+        }
       } catch {
         /* best-effort */
       } finally {
@@ -458,7 +496,7 @@ function DevisPageContent() {
               <p className="text-sm text-slate-500">Établi le {fmtDateISOtoFR(devis.date_devis)} · valable {devis.validite_jours} jours</p>
             </div>
             <div className="flex flex-wrap gap-2">
-              {editDocumentId ? (
+              {isEditingExisting ? (
                 <Link
                   href="/devis/tous"
                   className="px-4 py-2 rounded-lg border border-slate-300 text-slate-700 text-sm font-semibold hover:bg-slate-50"
@@ -483,6 +521,8 @@ function DevisPageContent() {
               <SaveDocumentButton
                 endpoint="/api/save-devis"
                 className="bg-amber-500 text-white px-4 py-2 rounded-lg font-semibold text-sm hover:bg-amber-600 disabled:opacity-50 transition"
+                label={isEditingExisting ? '💾 Mettre à jour le devis' : undefined}
+                allowResave
                 body={() => ({
                   devis,
                   clientNom,
@@ -495,6 +535,7 @@ function DevisPageContent() {
                   totalTTC: ttc,
                   tvaTaux,
                   validiteJours: devis.validite_jours,
+                  interventionId: loadedInterventionId,
                 })}
               />
               <DevisDownloadButton {...pdfProps} />
@@ -516,9 +557,9 @@ function DevisPageContent() {
             </div>
           )}
 
-          {editDocumentId && (
+          {isEditingExisting && (
             <div className="bg-amber-50 border border-amber-200 text-amber-900 rounded-xl px-4 py-3 text-sm">
-              ✏ Modification du devis enregistré — enregistrez pour mettre à jour, puis renvoyez par mail si besoin.
+              ✏ Modification du devis enregistré — mets à jour si besoin, puis <strong>renvoie</strong> par mail ci-dessous.
             </div>
           )}
 
@@ -535,6 +576,7 @@ function DevisPageContent() {
             totalTTC={ttc}
             tvaTaux={tvaTaux}
             interventionId={loadedInterventionId}
+            resendMode={isEditingExisting}
             onSent={() => setEmailSent(true)}
           />
 

@@ -17,6 +17,8 @@ type Props = {
   totalTTC: number
   tvaTaux: number
   interventionId?: string | null
+  /** Mode modification d'un devis déjà envoyé / enregistré. */
+  resendMode?: boolean
   onSent?: () => void
 }
 
@@ -35,6 +37,7 @@ export default function DevisEnvoiPanel({
   totalTTC,
   tvaTaux,
   interventionId,
+  resendMode = false,
   onSent,
 }: Props) {
   const [mode, setMode] = useState<Mode>('now')
@@ -182,10 +185,13 @@ export default function DevisEnvoiPanel({
   return (
     <section className="bg-white rounded-2xl shadow-sm border border-amber-200 p-5 space-y-4">
       <div>
-        <h2 className="font-bold text-[#0e2a52] text-lg">Envoi du devis au client</h2>
+        <h2 className="font-bold text-[#0e2a52] text-lg">
+          {resendMode ? 'Renvoyer le devis au client' : 'Envoi du devis au client'}
+        </h2>
         <p className="text-xs text-slate-500 mt-1">
-          3 emails sur 3 semaines : présence dans le secteur (S1–S2), puis <strong>-10 %</strong> si accord immédiat (S3).
-          Les destinataires supplémentaires reçoivent uniquement le PDF initial.
+          {resendMode
+            ? 'Le PDF actuel (après tes modifications) sera envoyé. Relances hebdomadaires replanifiées pour le destinataire principal.'
+            : <>3 emails sur 3 semaines : présence dans le secteur (S1–S2), puis <strong>-10 %</strong> si accord immédiat (S3). Les destinataires supplémentaires reçoivent uniquement le PDF initial.</>}
         </p>
       </div>
 
@@ -197,7 +203,7 @@ export default function DevisEnvoiPanel({
             mode === 'now' ? 'border-amber-500 bg-amber-50 text-[#0e2a52]' : 'border-slate-200 text-slate-600'
           }`}
         >
-          ✉ Envoyer maintenant
+          ✉ {resendMode ? 'Renvoyer maintenant' : 'Envoyer maintenant'}
           <span className="block text-xs font-normal text-slate-500 mt-0.5">PDF + relances J+7 et J+14</span>
         </button>
         <button
@@ -300,12 +306,12 @@ export default function DevisEnvoiPanel({
         disabled={sending || !clientEmail}
         className="w-full bg-[#0e2a52] text-white font-bold rounded-lg px-5 py-2.5 text-sm hover:bg-[#0a2047] disabled:opacity-50"
       >
-        {sending ? 'Envoi…' : mode === 'now' ? 'Envoyer' : 'Programmer'}
+        {sending ? 'Envoi…' : mode === 'now' ? (resendMode ? 'Renvoyer le devis' : 'Envoyer') : 'Programmer'}
       </button>
 
       {sent && (
         <p className="text-sm text-emerald-700">
-          ✓ {mode === 'now' ? 'Devis envoyé' : 'Envoi programmé'}
+          ✓ {mode === 'now' ? (resendMode ? 'Devis renvoyé' : 'Devis envoyé') : 'Envoi programmé'}
           {extraEmails.length > 0 ? ` à ${1 + extraEmails.length} destinataires` : ''}
           {' '}— relances semaines 2 et 3 planifiées pour le destinataire principal.
         </p>
