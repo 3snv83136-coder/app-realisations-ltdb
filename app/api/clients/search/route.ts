@@ -27,7 +27,7 @@ export async function GET(req: NextRequest) {
   const filters = parseFilters(new URL(req.url))
   if (!hasClientSearchFilters(filters)) {
     return NextResponse.json({
-      error: 'Indique au moins un critère : nom, téléphone, email ou ville.',
+      error: 'Indique au moins un critère : nom, téléphone, email, ville ou adresse.',
       results: [],
     }, { status: 400 })
   }

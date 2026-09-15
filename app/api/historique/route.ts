@@ -1,9 +1,19 @@
 import { NextRequest, NextResponse } from "next/server"
+import { requireOwnerAdminApi } from "@/lib/require-owner-admin"
 import { getSupabaseOrNull } from "@/lib/supabase"
 
 export const dynamic = 'force-dynamic'
 
 export async function GET(req: NextRequest) {
+  const admin = await requireOwnerAdminApi()
+  if (!admin.ok) {
+    return NextResponse.json({
+      error: admin.error,
+      interventions: [],
+      documents: [],
+    }, { status: admin.status })
+  }
+
   const sb = getSupabaseOrNull()
   if (!sb) {
     return NextResponse.json({
@@ -150,8 +160,10 @@ export async function GET(req: NextRequest) {
     if (!search) return rows
     return rows.filter(r => {
       const blob = [
-        r.reference, r.numero, r.client_nom, r.client_email,
-        r.ville, r.client_ville, r.type_intervention, r.agence, r.publie_slug,
+        r.reference, r.numero, r.client_nom, r.client_email, r.client_final_nom,
+        r.ville, r.code_postal, r.client_ville, r.client_code_postal,
+        r.adresse_chantier, r.client_adresse,
+        r.type_intervention, r.agence, r.publie_slug,
       ].filter(Boolean).join(' ').toLowerCase()
       return blob.includes(search)
     })

@@ -59,9 +59,20 @@ type Document = {
   client_adresse: string | null
   client_code_postal: string | null
   client_ville: string | null
+  client_final_nom?: string | null
+  adresse_chantier?: string | null
   payload?: DocumentPayload | null
   pdf_url: string | null
   created_at: string
+}
+
+function formatLieu(
+  adresse?: string | null,
+  codePostal?: string | null,
+  ville?: string | null,
+): string {
+  const cpVille = [codePostal, ville].filter(Boolean).join(' ')
+  return [adresse?.trim(), cpVille].filter(Boolean).join(' · ') || '—'
 }
 
 const TABS = [
@@ -236,7 +247,7 @@ export default function HistoriquePage() {
           <input
             value={q}
             onChange={e => setQ(e.target.value)}
-            placeholder="Rechercher : nom client, ville, n° facture, référence…"
+            placeholder="Rechercher : nom client, adresse, ville, n° facture, référence…"
             className="w-full border-2 border-slate-200 focus:border-blue-500 outline-none rounded-xl px-4 py-3 text-base transition-colors"
           />
           <div className="flex flex-wrap gap-2">
@@ -292,7 +303,7 @@ export default function HistoriquePage() {
                     <th className="px-4 py-2 text-left">Date</th>
                     <th className="px-4 py-2 text-left">Référence</th>
                     <th className="px-4 py-2 text-left">Client</th>
-                    <th className="px-4 py-2 text-left">Ville</th>
+                    <th className="px-4 py-2 text-left">Adresse / ville</th>
                     <th className="px-4 py-2 text-left">Type</th>
                     <th className="px-4 py-2 text-left">Statut</th>
                     <th className="px-4 py-2 text-left">Page</th>
@@ -306,7 +317,11 @@ export default function HistoriquePage() {
                       <td className="px-4 py-3 text-slate-600">{fmtDateFR(i.date_realisee || i.date_prevue || i.created_at)}</td>
                       <td className="px-4 py-3 font-mono text-xs text-[#0e2a52] font-bold">{i.reference || '—'}</td>
                       <td className="px-4 py-3 font-semibold text-slate-700">{i.client_nom || '—'}</td>
-                      <td className="px-4 py-3 text-slate-600">{i.ville || '—'} {i.code_postal ? `(${i.code_postal})` : ''}</td>
+                      <td className="px-4 py-3 text-slate-600 max-w-[220px]">
+                        <div className="truncate" title={formatLieu(i.adresse_chantier || i.client_adresse, i.code_postal || i.client_code_postal, i.ville || i.client_ville)}>
+                          {formatLieu(i.adresse_chantier || i.client_adresse, i.code_postal || i.client_code_postal, i.ville || i.client_ville)}
+                        </div>
+                      </td>
                       <td className="px-4 py-3 text-slate-600">{i.type_intervention || '—'}</td>
                       <td className="px-4 py-3">
                         <span className={`inline-block px-2 py-0.5 rounded-full text-[11px] font-bold ${STATUT_BADGE[i.statut] || 'bg-slate-100 text-slate-600'}`}>
@@ -377,6 +392,7 @@ export default function HistoriquePage() {
                     <th className="px-4 py-2 text-left">N°</th>
                     <th className="px-4 py-2 text-left">Date</th>
                     <th className="px-4 py-2 text-left">Client</th>
+                    <th className="px-4 py-2 text-left">Adresse / ville</th>
                     <th className="px-4 py-2 text-left">Agence</th>
                     <th className="px-4 py-2 text-right">HT</th>
                     <th className="px-4 py-2 text-right">TTC</th>
@@ -396,6 +412,15 @@ export default function HistoriquePage() {
                       <td className="px-4 py-3 font-mono text-xs text-slate-700">{d.numero || '—'}</td>
                       <td className="px-4 py-3 text-slate-600">{fmtDateFR(d.date_emission)}</td>
                       <td className="px-4 py-3 font-semibold text-slate-700">{d.client_nom || '—'}</td>
+                      <td className="px-4 py-3 text-slate-600 text-xs max-w-[200px]">
+                        {(() => {
+                          const lieu = d.adresse_chantier
+                            || formatLieu(d.client_adresse, d.client_code_postal, d.client_ville)
+                          return (
+                            <div className="truncate" title={lieu}>{lieu}</div>
+                          )
+                        })()}
+                      </td>
                       <td className="px-4 py-3 text-slate-600 text-xs">{d.agence || '—'}</td>
                       <td className="px-4 py-3 text-right text-slate-600 tabular-nums">{fmtEUR(d.montant_ht)}</td>
                       <td className="px-4 py-3 text-right font-bold text-[#0e2a52] tabular-nums">{fmtEUR(d.montant_ttc)}</td>

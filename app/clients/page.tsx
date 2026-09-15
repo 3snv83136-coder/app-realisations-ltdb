@@ -313,7 +313,7 @@ export default function ClientsPage() {
   async function runSearch(e?: React.FormEvent) {
     e?.preventDefault()
     if (!hasFilters({ nom: filterNom, telephone: filterTelephone, email: filterEmail, ville: filterVille })) {
-      setError('Indique au moins un critère : nom, téléphone, email ou ville.')
+      setError('Indique au moins un critère : nom, téléphone, email, ville ou adresse.')
       setSearched(false)
       setSummaries([])
       setDossiersByKey({})
@@ -410,14 +410,15 @@ export default function ClientsPage() {
 
   function exportAllCsv() {
     const rows: (string | number | null | undefined)[][] = []
-    rows.push(['Client', 'Email', 'Téléphone', 'Ville', 'Dernière intervention', 'Nb interventions', 'Nb documents', 'Nb accords', 'CA total TTC', 'CA payé TTC', 'Dernière activité'])
+    rows.push(['Client', 'Email', 'Téléphone', 'Adresse', 'Ville', 'Dernière intervention', 'Nb interventions', 'Nb documents', 'Nb accords', 'CA total TTC', 'CA payé TTC', 'Dernière activité'])
     for (const s of summaries) {
       const d = dossiersByKey[s.key]
       rows.push([
         s.client.nom,
         s.client.email || '',
         s.client.telephone || '',
-        s.client.ville || '',
+        s.client.adresse || '',
+        [s.client.code_postal, s.client.ville].filter(Boolean).join(' '),
         s.derniereIntervention || '',
         d?.interventions.length ?? '',
         d?.documents.length ?? '',
@@ -515,7 +516,7 @@ export default function ClientsPage() {
         {/* Filtres */}
         <form onSubmit={runSearch} className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 space-y-3 shadow-sm">
           <p className="text-sm text-slate-600">
-            Recherche un client par <strong>nom</strong>, <strong>téléphone</strong>, <strong>email</strong> ou <strong>ville</strong> — clique sur une ligne pour charger le dossier complet (rapports, factures, devis, accords).
+            Recherche un client par <strong>nom</strong>, <strong>téléphone</strong>, <strong>email</strong>, <strong>ville</strong> ou <strong>adresse</strong> — clique sur une ligne pour charger le dossier complet (rapports, factures, devis, accords).
           </p>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
             <input
@@ -541,7 +542,7 @@ export default function ClientsPage() {
             />
             <input
               type="text"
-              placeholder="Ville"
+              placeholder="Ville ou adresse"
               value={filterVille}
               onChange={e => setFilterVille(e.target.value)}
               className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:border-[#0e2a52] outline-none text-sm"
@@ -599,8 +600,9 @@ export default function ClientsPage() {
             <div className="hidden sm:grid sm:grid-cols-12 gap-3 px-4 py-2.5 bg-slate-50 border-b border-slate-200 text-[10px] uppercase tracking-wider font-semibold text-slate-500">
               <div className="col-span-3">Nom</div>
               <div className="col-span-2">Téléphone</div>
-              <div className="col-span-3">Email</div>
-              <div className="col-span-3">Dernière intervention</div>
+              <div className="col-span-2">Email</div>
+              <div className="col-span-2">Adresse / ville</div>
+              <div className="col-span-2">Dernière intervention</div>
               <div className="col-span-1" />
             </div>
             <div className="divide-y divide-slate-100">
@@ -609,6 +611,7 @@ export default function ClientsPage() {
                 const d = dossiersByKey[s.key]
                 const isLoadingDetail = !!loadingDetail[s.key]
                 const errDetail = detailError[s.key]
+                const lieu = [s.client.adresse, [s.client.code_postal, s.client.ville].filter(Boolean).join(' ')].filter(Boolean).join(' · ') || '—'
                 return (
                   <div key={s.key}>
                     <button
@@ -621,11 +624,15 @@ export default function ClientsPage() {
                         <span className="sm:hidden text-slate-400 text-xs mr-1">Tél.</span>
                         {s.client.telephone || '—'}
                       </div>
-                      <div className="sm:col-span-3 text-sm text-slate-600 truncate">
+                      <div className="sm:col-span-2 text-sm text-slate-600 truncate">
                         <span className="sm:hidden text-slate-400 text-xs mr-1">Email</span>
                         {s.client.email || '—'}
                       </div>
-                      <div className="sm:col-span-3 text-sm text-slate-600 truncate">
+                      <div className="sm:col-span-2 text-sm text-slate-600 truncate" title={lieu}>
+                        <span className="sm:hidden text-slate-400 text-xs mr-1">Adresse</span>
+                        {lieu}
+                      </div>
+                      <div className="sm:col-span-2 text-sm text-slate-600 truncate">
                         <span className="sm:hidden text-slate-400 text-xs mr-1">Intervention</span>
                         {s.derniereIntervention || '—'}
                         {s.derniereInterventionDate && (
@@ -702,7 +709,10 @@ export default function ClientsPage() {
                                         <div className="flex-1 min-w-0">
                                           <span className="font-medium">{i.reference || i.id.slice(0, 8)}</span>
                                           {i.type_intervention && <span className="text-slate-500"> · {i.type_intervention}</span>}
-                                          {i.ville && <span className="text-slate-500"> · {i.ville}</span>}
+                                          {i.adresse_chantier && <span className="text-slate-500"> · {i.adresse_chantier}</span>}
+                                          {(i.ville || i.code_postal) && (
+                                            <span className="text-slate-500"> · {[i.code_postal, i.ville].filter(Boolean).join(' ')}</span>
+                                          )}
                                         </div>
                                         <div className="text-xs text-slate-600 shrink-0 flex items-center gap-3">
                                           <span className="text-slate-500">{fmtDate(i.date_realisee || i.date_prevue || i.created_at)}</span>
@@ -751,7 +761,10 @@ export default function ClientsPage() {
                                             <div className="flex-1 min-w-0">
                                               <span className="font-medium">{i.reference || i.id.slice(0, 8)}</span>
                                               {i.type_intervention && <span className="text-slate-500"> · {i.type_intervention}</span>}
-                                              {i.ville && <span className="text-slate-500"> · {i.ville}</span>}
+                                              {i.adresse_chantier && <span className="text-slate-500"> · {i.adresse_chantier}</span>}
+                                          {(i.ville || i.code_postal) && (
+                                            <span className="text-slate-500"> · {[i.code_postal, i.ville].filter(Boolean).join(' ')}</span>
+                                          )}
                                             </div>
                                             <div className="text-xs text-slate-500 shrink-0">
                                               {fmtDate(i.date_realisee || i.date_prevue || i.created_at)}

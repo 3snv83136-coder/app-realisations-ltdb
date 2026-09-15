@@ -46,7 +46,11 @@ function includesFold(hay: string | null | undefined, needle: string): boolean {
 export function clientMatchesFilters(client: ClientLike, filters: ClientSearchFilters): boolean {
   if (filters.nom?.trim() && !includesFold(client.nom, filters.nom)) return false
   if (filters.email?.trim() && !includesFold(client.email, filters.email)) return false
-  if (filters.ville?.trim() && !includesFold(client.ville, filters.ville)) return false
+  // Champ « ville » UI : matche aussi adresse / CP pour retrouver un client par rue.
+  if (filters.ville?.trim()) {
+    const lieu = [client.adresse, client.code_postal, client.ville].filter(Boolean).join(' ')
+    if (!includesFold(lieu, filters.ville)) return false
+  }
   if (filters.telephone?.trim() && !phonesMatch(filters.telephone, client.telephone)) return false
   return true
 }
