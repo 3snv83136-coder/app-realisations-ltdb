@@ -11,6 +11,7 @@ import { planifierAvisRelances } from "@/lib/avis-relance"
 import { buildRapportFactureHtml } from "@/lib/rapport-facture-message"
 import { getSupabaseOrNull } from "@/lib/supabase"
 import { getTelPrincipal } from "@/lib/parametres"
+import { getGoogleReviewUrl } from "@/lib/review-url"
 import { sendOwnerConfirmation } from "@/lib/owner-confirmation"
 import { fetchPdfAsBase64Robust, isValidPdfBase64 } from "@/lib/supabase-pdf-fetch"
 import { pdfBufferHasText } from "@/lib/pdf-text-check"
@@ -272,16 +273,7 @@ export async function POST(req: NextRequest) {
   const includeReview = false
   const skipAvisSms = body.skipReviews === true
 
-  let reviewUrl = process.env.GOOGLE_REVIEW_URL
-    || 'https://www.google.com/maps/place/Les+Techniciens+du+Débouchage'
-  try {
-    const { data: paramRow } = await sb
-      .from('parametres')
-      .select('valeur')
-      .eq('cle', 'google_review_url')
-      .maybeSingle()
-    if (paramRow?.valeur) reviewUrl = paramRow.valeur
-  } catch { /* best-effort */ }
+  const reviewUrl = await getGoogleReviewUrl()
 
   // Relances avis Google : mail 24 h, SMS 24 h après, mail 48 h après, mail final 72 h après.
   let relanceIds: string[] = []

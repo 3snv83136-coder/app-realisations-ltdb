@@ -6,7 +6,7 @@ const SAMPLE = {
   clientNom: "Mme Dupont",
   technicienNom: "Julien",
   ville: "Toulon",
-  reviewUrl: "https://www.google.com/maps/place/Les+Techniciens+du+Débouchage",
+  reviewUrl: "https://g.page/r/CascWzNKHgyEEAE/review",
   tel: "04 94 00 00 00",
   stopUrl: "https://app-realisations-ltdb.vercel.app/api/notify-client/stop-review?demo=1",
 }
