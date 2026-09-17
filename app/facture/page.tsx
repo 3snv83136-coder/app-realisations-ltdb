@@ -42,7 +42,17 @@ type FactureRow = {
   client_adresse: string | null
   client_code_postal: string | null
   client_ville: string | null
+  adresse_chantier?: string | null
   created_at: string
+}
+
+function formatLieuFacture(
+  adresse?: string | null,
+  codePostal?: string | null,
+  ville?: string | null,
+): string {
+  const cpVille = [codePostal, ville].filter(Boolean).join(' ')
+  return [adresse?.trim(), cpVille].filter(Boolean).join(' · ') || '—'
 }
 
 type StatutFiltre = 'all' | 'brouillon' | 'envoye' | 'paye' | 'retard' | 'annule'
@@ -377,7 +387,7 @@ export default function FactureConsolePage() {
             <input
               value={search}
               onChange={e => setSearch(e.target.value)}
-              placeholder="Rechercher : N° facture, client, ville…"
+              placeholder="Rechercher : N° facture, client, adresse, ville…"
               className="flex-1 min-w-[200px] border-2 border-slate-200 focus:border-blue-500 outline-none rounded-xl px-3 py-2 text-sm transition-colors"
             />
             <select
@@ -470,7 +480,7 @@ export default function FactureConsolePage() {
                     <th className="px-3 py-2 text-left">Émise</th>
                     <th className="px-3 py-2 text-left">Échéance</th>
                     <th className="px-3 py-2 text-left">Client</th>
-                    <th className="px-3 py-2 text-left">Ville</th>
+                    <th className="px-3 py-2 text-left">Adresse / ville</th>
                     <th className="px-3 py-2 text-right">TTC</th>
                     <th className="px-3 py-2 text-left">Statut</th>
                     <th className="px-3 py-2 text-left">Dernier envoi</th>
@@ -510,9 +520,14 @@ export default function FactureConsolePage() {
                           )}
                         </td>
                         <td className="px-3 py-3 font-semibold text-slate-700">{f.client_nom || '—'}</td>
-                        <td className="px-3 py-3 text-slate-600">
-                          {f.client_ville || '—'}
-                          {f.client_code_postal ? <span className="text-xs text-slate-400 ml-1">({f.client_code_postal})</span> : null}
+                        <td className="px-3 py-3 text-slate-600 text-xs max-w-[220px]">
+                          {(() => {
+                            const lieu = f.adresse_chantier
+                              || formatLieuFacture(f.client_adresse, f.client_code_postal, f.client_ville)
+                            return (
+                              <div className="truncate" title={lieu}>{lieu}</div>
+                            )
+                          })()}
                         </td>
                         <td className="px-3 py-3 text-right font-bold text-[#0e2a52] tabular-nums whitespace-nowrap">{fmtEUR(f.montant_ttc)}</td>
                         <td className="px-3 py-3">
