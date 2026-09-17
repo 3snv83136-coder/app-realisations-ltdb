@@ -11,7 +11,7 @@ function verifyCronAuth(req: NextRequest): boolean {
   return auth === `Bearer ${secret}`
 }
 
-/** Envoie le SMS avis Google J+1 (unique) dont la date est échue. */
+/** Envoie les SMS avis Google échus (mails déjà planifiés côté Resend). */
 export async function GET(req: NextRequest) {
   if (!verifyCronAuth(req)) {
     return NextResponse.json({ error: "Non autorisé" }, { status: 401 })

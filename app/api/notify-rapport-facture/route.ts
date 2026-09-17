@@ -268,7 +268,7 @@ export async function POST(req: NextRequest) {
   const dateFacture = facture.date_emission || dateInterv
 
   const tel = await getTelPrincipal()
-  // Mail sans CTA avis. Un seul SMS avis programmé à J+1 (pas de relances).
+  // Mail sans CTA avis. Relances avis planifiées à part (mail J+1 → SMS J+2 → mail J+4 → mail J+7).
   const includeReview = false
   const skipAvisSms = body.skipReviews === true
 
@@ -283,7 +283,7 @@ export async function POST(req: NextRequest) {
     if (paramRow?.valeur) reviewUrl = paramRow.valeur
   } catch { /* best-effort */ }
 
-  // SMS avis unique J+1 (24 h après envoi / fin d'intervention).
+  // Relances avis Google : mail 24 h, SMS 24 h après, mail 48 h après, mail final 72 h après.
   let relanceIds: string[] = []
   let smsPlanned = 0
   let avisRelanceErrors: string[] = []
@@ -313,7 +313,7 @@ export async function POST(req: NextRequest) {
       smsPlanned = rel.smsPlanned
       avisRelanceErrors = rel.errors
     } catch (e) {
-      console.error("[notify-rapport-facture] SMS avis J+1", e)
+      console.error("[notify-rapport-facture] relances avis Google", e)
       avisRelanceErrors.push(e instanceof Error ? e.message : String(e))
     }
   }

@@ -18,9 +18,15 @@ export type AvisSmsPlanItem = {
   resend_id?: string | null
 }
 
-/** Séquence avis Google : 1 seul SMS à J+1 — aucune relance mail/SMS. */
+/** Séquence avis Google :
+ *  Mail J+1 (24 h) → SMS J+2 (24 h après le mail) → Mail J+4 (48 h après le SMS)
+ *  → Mail J+7 (72 h après le dernier mail).
+ */
 export const AVIS_RELANCE_PLAN: ReadonlyArray<{ day: number; channel: AvisRelanceChannel }> = [
-  { day: 1, channel: "sms" },
+  { day: 1, channel: "email" },
+  { day: 2, channel: "sms" },
+  { day: 4, channel: "email" },
+  { day: 7, channel: "email" },
 ]
 
 export function avisItemChannel(item: AvisSmsPlanItem): AvisRelanceChannel {

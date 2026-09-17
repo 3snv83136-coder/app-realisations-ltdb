@@ -123,7 +123,7 @@ export default function InterventionActionsHub({
         <ActionTile
           icon="📧"
           title="Envoyer rapport + facture"
-          desc={sendDisabled ? sendDisabledReason : 'Email combiné + relances avis Google auto (J+1 SMS · J+2 mail · J+4 SMS · J+6 mail)'}
+          desc={sendDisabled ? sendDisabledReason : 'Email combiné + relances avis Google auto (mail J+1 · SMS J+2 · mail J+4 · mail J+7)'}
           accent="emerald"
           disabled={sendDisabled}
           onClick={() => setSendOpen(true)}
@@ -189,7 +189,7 @@ export default function InterventionActionsHub({
               <button onClick={() => { setSendOpen(false); setStatus(null) }} className="text-slate-400 hover:text-slate-700 text-xl leading-none">×</button>
             </div>
             <p className="text-xs text-slate-500 mb-3">
-              Un seul email avec les 2 PDFs en pièces jointes. Relances <strong>avis Google</strong> : J+1 SMS, J+2 mail, J+4 SMS, J+6 mail ; si facture impayée, relances <strong>paiement</strong> J+10/J+15/J+20.
+              Un seul email avec les 2 PDFs en pièces jointes. Relances <strong>avis Google</strong> : mail J+1, SMS J+2, mail J+4, mail J+7 ; si facture impayée, relances <strong>paiement</strong> J+10/J+15/J+20.
             </p>
             <label className="block text-xs font-medium text-slate-600 mb-1">Email destinataire</label>
             <input

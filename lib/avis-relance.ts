@@ -41,7 +41,8 @@ export function buildAvisStopUrl(
 }
 
 function relanceSubject(jour: number, prenom: string): string {
-  if (jour === 2) return `${prenom}, tout est rentré dans l'ordre ?`
+  if (jour === 1) return `${prenom}, votre avis nous aide beaucoup`
+  if (jour === 4) return `${prenom}, tout est rentré dans l'ordre ?`
   return `Dernière chance — partagez votre expérience`
 }
 
@@ -59,9 +60,11 @@ function emailRelanceAvis(opts: {
   const v = escapeHtml(opts.ville)
   const ru = encodeURI(opts.reviewUrl)
   const su = opts.stopUrl ? encodeURI(opts.stopUrl) : ""
-  const accroche = opts.jour === 2
-    ? `Nous espérons que tout est rentré dans l'ordre depuis notre intervention${v ? ` à ${v}` : ""}.`
-    : `Nous ne voudrions pas vous solliciter davantage — c'est la dernière fois.`
+  const accroche = opts.jour === 1
+    ? `Suite à notre intervention${v ? ` à ${v}` : ""}, nous serions ravis de connaître votre ressenti.`
+    : opts.jour === 4
+      ? `Nous espérons que tout est rentré dans l'ordre depuis notre intervention${v ? ` à ${v}` : ""}.`
+      : `Nous ne voudrions pas vous solliciter davantage — c'est la dernière fois.`
 
   return `<!doctype html>
 <html><body style="margin:0;padding:0;font-family:Arial,sans-serif;background:#f4f6fa">
@@ -94,7 +97,6 @@ function smsRelanceText(opts: {
   tel: string
   day: number
 }): string {
-  // Un seul SMS J+1 — texte unique, pas de « rappel ».
   void opts.day
   return buildReviewOnlySmsText({
     clientNom: opts.clientNom,

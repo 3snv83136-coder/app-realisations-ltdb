@@ -139,7 +139,7 @@ export default function RelanceAvisGooglePanel({ className = "" }: Props) {
             <span>Relance avis Google</span>
           </h2>
           <p className="text-sm text-[#3d2a10] mt-1 font-medium">
-            Historique des SMS et mails de demande d&apos;avis — arrête ou continue les relances.
+            Séquence auto : mail J+1 → SMS J+2 → mail J+4 → mail J+7. Arrête ou continue les relances.
           </p>
         </div>
         {totals.actives > 0 && (
