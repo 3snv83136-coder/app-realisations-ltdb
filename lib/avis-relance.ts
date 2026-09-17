@@ -41,12 +41,40 @@ export function buildAvisStopUrl(
 }
 
 function relanceSubject(jour: number, prenom: string): string {
-  if (jour === 1) return `${prenom}, votre avis nous aide beaucoup`
-  if (jour === 4) return `${prenom}, tout est rentré dans l'ordre ?`
-  return `Dernière chance — partagez votre expérience`
+  if (jour === 1) return `${prenom}, 30 secondes pour nous faire plaisir ⭐`
+  if (jour === 4) return `${prenom}, tout va bien de votre côté ?`
+  return `${prenom}, une dernière petite faveur…`
 }
 
-function emailRelanceAvis(opts: {
+/** Contenu éditorial selon le jour de relance. */
+function relanceCopy(jour: number, ville: string): { titre: string; accroche: string; cta: string } {
+  const lieu = ville ? ` à ${ville}` : ""
+  if (jour === 1) {
+    return {
+      titre: "Votre avis nous fait briller ✨",
+      accroche: `Merci pour votre confiance${lieu} ! Si l’intervention vous a plu, un petit avis Google (moins d’<strong>une minute</strong>) nous aide énormément à continuer.`,
+      cta: "⭐ Laisser 5 étoiles sur Google",
+    }
+  }
+  if (jour === 4) {
+    return {
+      titre: "Tout est rentré dans l’ordre ?",
+      accroche: `On espère que tout va parfaitement depuis notre passage${lieu}. Un petit mot sur Google, c’est le plus beau merci qu’on puisse recevoir.`,
+      cta: "⭐ Partager mon expérience",
+    }
+  }
+  return {
+    titre: "Dernière petite demande",
+    accroche: `On ne voudrait pas vous embêter — c’est vraiment la dernière fois. Si vous êtes satisfait${lieu ? ` de notre intervention${lieu}` : ""}, un avis Google change vraiment notre journée.`,
+    cta: "⭐ Oui, je laisse mon avis",
+  }
+}
+
+/**
+ * Mail de relance avis Google — HTML email-safe (tables + styles inline).
+ * Coloré, court, CTA dominant.
+ */
+export function buildEmailRelanceAvisHtml(opts: {
   clientNom: string
   technicienNom: string
   ville: string
@@ -56,39 +84,139 @@ function emailRelanceAvis(opts: {
   stopUrl?: string
 }): string {
   const cn = escapeHtml(opts.clientNom || "Madame, Monsieur")
-  const tn = escapeHtml(opts.technicienNom)
-  const v = escapeHtml(opts.ville)
+  const tn = escapeHtml(opts.technicienNom || "votre technicien")
+  const vEsc = escapeHtml(opts.ville)
   const ru = encodeURI(opts.reviewUrl)
   const su = opts.stopUrl ? encodeURI(opts.stopUrl) : ""
-  const accroche = opts.jour === 1
-    ? `Suite à notre intervention${v ? ` à ${v}` : ""}, nous serions ravis de connaître votre ressenti.`
-    : opts.jour === 4
-      ? `Nous espérons que tout est rentré dans l'ordre depuis notre intervention${v ? ` à ${v}` : ""}.`
-      : `Nous ne voudrions pas vous solliciter davantage — c'est la dernière fois.`
+  const tel = escapeHtml(opts.tel)
+  const copy = relanceCopy(opts.jour, vEsc)
+  const stepLabel =
+    opts.jour === 1 ? "Relance 1/3" : opts.jour === 4 ? "Relance 2/3" : "Dernière relance"
 
   return `<!doctype html>
-<html><body style="margin:0;padding:0;font-family:Arial,sans-serif;background:#f4f6fa">
-<table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f6fa;padding:30px 0">
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light">
+<title>${escapeHtml(copy.titre.replace(/[✨…]/g, "").trim()) || "Avis Google"}</title>
+</head>
+<body style="margin:0;padding:0;background:#eef3fb;font-family:Arial,Helvetica,sans-serif;-webkit-font-smoothing:antialiased;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#eef3fb;padding:28px 12px;">
 <tr><td align="center">
-<table width="560" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:8px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,.08)">
-<tr><td style="background:#0e2a52;padding:24px;color:#fff;text-align:center">
-<div style="font-size:36px">⭐⭐⭐⭐⭐</div>
-<h1 style="margin:10px 0 0;font-size:20px">Votre avis compte pour nous</h1>
-</td></tr>
-<tr><td style="padding:30px;color:#1a1a1a">
-<p>Bonjour ${cn},</p>
-<p>${accroche}</p>
-<p>Une petite étoile prend moins d'<strong>une minute</strong> et nous aide énormément.</p>
-<div style="text-align:center;margin:30px 0">
-<a href="${ru}" style="display:inline-block;background:#e67e22;color:#fff;padding:14px 32px;text-decoration:none;border-radius:8px;font-weight:bold;font-size:15px">⭐ Laisser un avis sur Google</a>
-</div>
-<p style="font-size:13px;color:#666">Cordialement,<br><strong>${tn}</strong><br>Les Techniciens du Débouchage · ${escapeHtml(opts.tel)}</p>
-${su ? `<p style="margin-top:16px;font-size:12px;color:#64748b">Vous avez déjà laissé un avis ? <a href="${su}" style="color:#2c5fa8">Cliquez ici pour ne plus recevoir de relance</a>.</p>` : ""}
-</td></tr>
+<table role="presentation" width="560" cellpadding="0" cellspacing="0" style="max-width:560px;width:100%;background:#ffffff;border-radius:18px;overflow:hidden;box-shadow:0 12px 40px rgba(14,42,82,0.12);">
+
+<!-- Bandeau coloré -->
+<tr>
+<td style="background-color:#0e2a52;padding:0;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+    <tr><td style="height:6px;background-color:#f5c542;font-size:0;line-height:0;">&nbsp;</td></tr>
+    <tr>
+      <td align="center" style="padding:28px 24px 10px;color:#ffffff;">
+        <div style="display:inline-block;background-color:#1a4a8a;color:#ffe9a8;font-size:11px;font-weight:bold;letter-spacing:0.08em;text-transform:uppercase;padding:6px 12px;border-radius:999px;margin-bottom:14px;">${escapeHtml(stepLabel)}</div>
+        <div style="font-size:34px;letter-spacing:4px;line-height:1;margin:0 0 12px;">⭐⭐⭐⭐⭐</div>
+        <h1 style="margin:0;font-size:24px;line-height:1.25;font-weight:800;color:#ffffff;">${escapeHtml(copy.titre)}</h1>
+        <p style="margin:10px 0 0;font-size:14px;line-height:1.45;color:#d7e6ff;">Les Techniciens du Débouchage</p>
+      </td>
+    </tr>
+    <tr><td style="height:10px;background-color:#e67e22;font-size:0;line-height:0;">&nbsp;</td></tr>
+  </table>
+</td>
+</tr>
+
+<!-- Corps -->
+<tr>
+<td style="padding:28px 28px 8px;color:#1a2433;">
+  <p style="margin:0 0 14px;font-size:17px;line-height:1.45;">Bonjour <strong style="color:#0e2a52;">${cn}</strong>,</p>
+  <p style="margin:0 0 18px;font-size:16px;line-height:1.55;color:#334155;">${copy.accroche}</p>
+
+  <!-- Pastilles avantages -->
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 22px;">
+    <tr>
+      <td width="33%" valign="top" align="center" style="padding:12px 6px;background-color:#fff7e8;border-radius:12px;">
+        <div style="font-size:20px;line-height:1;">⏱</div>
+        <div style="font-size:12px;font-weight:bold;color:#9a5b00;margin-top:6px;">&lt; 1 minute</div>
+      </td>
+      <td width="1%" style="font-size:0;width:8px;">&nbsp;</td>
+      <td width="33%" valign="top" align="center" style="padding:12px 6px;background-color:#e8f7ef;border-radius:12px;">
+        <div style="font-size:20px;line-height:1;">😊</div>
+        <div style="font-size:12px;font-weight:bold;color:#0f766e;margin-top:6px;">Super simple</div>
+      </td>
+      <td width="1%" style="font-size:0;width:8px;">&nbsp;</td>
+      <td width="33%" valign="top" align="center" style="padding:12px 6px;background-color:#eaf0ff;border-radius:12px;">
+        <div style="font-size:20px;line-height:1;">🚀</div>
+        <div style="font-size:12px;font-weight:bold;color:#1d4ed8;margin-top:6px;">Ça nous booste</div>
+      </td>
+    </tr>
+  </table>
+
+  <!-- CTA -->
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+    <tr>
+      <td align="center" style="padding:6px 0 18px;">
+        <a href="${ru}" style="display:inline-block;background-color:#e67e22;color:#ffffff;text-decoration:none;font-weight:800;font-size:16px;line-height:1.2;padding:16px 28px;border-radius:999px;">
+          ${escapeHtml(copy.cta)}
+        </a>
+      </td>
+    </tr>
+  </table>
+
+  <p style="margin:0 0 6px;text-align:center;font-size:12px;color:#94a3b8;">Un clic → Google → 5 étoiles. Merci infiniment 💛</p>
+</td>
+</tr>
+
+<!-- Signature -->
+<tr>
+<td style="padding:8px 28px 24px;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f8fafc;border:1px solid #e2e8f0;border-radius:14px;">
+    <tr>
+      <td style="padding:16px 18px;">
+        <p style="margin:0;font-size:14px;color:#475569;line-height:1.5;">
+          À très bientôt,<br>
+          <strong style="color:#0e2a52;font-size:15px;">${tn}</strong><br>
+          <span style="color:#64748b;">Les Techniciens du Débouchage</span>
+          ${tel ? `<br><a href="tel:${tel.replace(/\s+/g, "")}" style="color:#e67e22;text-decoration:none;font-weight:bold;">${tel}</a>` : ""}
+        </p>
+      </td>
+    </tr>
+  </table>
+</td>
+</tr>
+
+${su ? `<!-- Stop -->
+<tr>
+<td style="padding:0 28px 24px;text-align:center;">
+  <p style="margin:0;font-size:11px;line-height:1.5;color:#94a3b8;">
+    Déjà laissé un avis ? <a href="${su}" style="color:#64748b;text-decoration:underline;">Ne plus recevoir de relance</a>
+  </p>
+</td>
+</tr>` : ""}
+
+<!-- Pied -->
+<tr>
+<td style="background-color:#0e2a52;padding:14px 20px;text-align:center;">
+  <p style="margin:0;font-size:11px;color:#9fb4d4;letter-spacing:0.04em;">LES TECHNICIENS DU DÉBOUCHAGE · AVIS GOOGLE</p>
+</td>
+</tr>
+
 </table>
 </td></tr>
 </table>
-</body></html>`
+</body>
+</html>`
+}
+
+/** @deprecated alias — préférer buildEmailRelanceAvisHtml */
+function emailRelanceAvis(opts: {
+  clientNom: string
+  technicienNom: string
+  ville: string
+  reviewUrl: string
+  jour: number
+  tel: string
+  stopUrl?: string
+}): string {
+  return buildEmailRelanceAvisHtml(opts)
 }
 
 function smsRelanceText(opts: {
