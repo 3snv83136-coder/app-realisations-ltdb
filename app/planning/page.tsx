@@ -17,6 +17,10 @@ import { errorMessage } from "@/lib/error-message"
 import { parseClientSms } from "@/lib/parse-client-sms"
 import { findVilleByName, searchVilles, VILLES_VAR } from "@/lib/villes-var"
 import LtdbLogoLink from "@/components/LtdbLogoLink"
+import PlanningAgenda, {
+  agendaRangeFor,
+  type AgendaPeriod,
+} from "@/components/PlanningAgenda"
 
 const PlanningMap = dynamic(() => import('@/components/PlanningMap'), { ssr: false })
 
@@ -129,14 +133,23 @@ export default function PlanningPage() {
   const [filterDate, setFilterDate] = useState<DateFilter>('week')
 
   const [showForm, setShowForm] = useState(false)
-  const [viewMode, setViewMode] = useState<'kanban' | 'map'>('kanban')
+  const [viewMode, setViewMode] = useState<'agenda' | 'kanban' | 'map'>('agenda')
+  const [agendaPeriod, setAgendaPeriod] = useState<AgendaPeriod>('day')
+  const [agendaAnchor, setAgendaAnchor] = useState(() => new Date().toISOString().slice(0, 10))
   const [mapDate, setMapDate] = useState(() => new Date().toISOString().slice(0, 10))
   const [mapTechFilter, setMapTechFilter] = useState<string>('all')
 
   async function loadAll() {
     setLoading(true); setError('')
     try {
-      const intRes = await fetch('/api/interventions', { cache: 'no-store' })
+      const params = new URLSearchParams()
+      params.set('limit', '500')
+      if (viewMode === 'agenda') {
+        const range = agendaRangeFor(agendaPeriod, agendaAnchor)
+        params.set('from', range.from)
+        params.set('to', range.to)
+      }
+      const intRes = await fetch(`/api/interventions?${params}`, { cache: 'no-store' })
       const intData = await intRes.json()
       if (!intRes.ok) throw new Error(intData.error || 'Erreur interventions')
       setInterventions(intData.interventions || [])
@@ -157,9 +170,9 @@ export default function PlanningPage() {
     }
   }
 
-  useEffect(() => { loadAll() }, [isTech])
+  useEffect(() => { loadAll() }, [isTech, viewMode, agendaPeriod, agendaAnchor])
 
-  const filtered = useMemo(() => {
+  const filteredBase = useMemo(() => {
     let rows = [...interventions]
     if (filterStatut !== 'all') rows = rows.filter(i => i.statut === filterStatut)
     if (filterTech !== 'all') {
@@ -168,6 +181,12 @@ export default function PlanningPage() {
         : rows.filter(i => i.technicien_id === filterTech)
     }
     if (filterAgence !== 'all') rows = rows.filter(i => i.agence === filterAgence)
+    return rows
+  }, [interventions, filterStatut, filterTech, filterAgence])
+
+  const filtered = useMemo(() => {
+    let rows = [...filteredBase]
+    if (viewMode !== 'kanban') return rows
     if (filterDate === 'today') {
       const today = new Date().toISOString().slice(0, 10)
       rows = rows.filter(i => i.date_prevue === today)
@@ -176,16 +195,13 @@ export default function PlanningPage() {
       const start = startOfWeekISO(now)
       const end = endOfWeekISO(now)
       rows = rows.filter(i => {
-        // Une intervention compte dans la semaine si SA DATE PREVUE ou SA DATE REALISEE
-        // tombe dans la fenêtre. Sans le date_realisee fallback, une intervention finie
-        // aujourd'hui mais initialement planifiée la semaine d'avant disparaît du kanban.
         const ref = i.date_prevue || i.date_realisee
         if (!ref) return false
         return ref >= start && ref <= end
       })
     }
     return rows
-  }, [interventions, filterStatut, filterTech, filterAgence, filterDate])
+  }, [filteredBase, filterDate, viewMode])
 
   return (
     <div className="min-h-screen bg-slate-50 pb-20">
@@ -221,8 +237,19 @@ export default function PlanningPage() {
       </nav>
 
       <main className="max-w-7xl mx-auto px-4 py-5 space-y-4">
-        {/* Vue Kanban / Carte */}
-        <div className="flex gap-1 bg-white rounded-xl border border-slate-200 p-1 w-fit">
+        {/* Vue Agenda / Kanban / Carte */}
+        <div className="flex gap-1 bg-white rounded-xl border border-slate-200 p-1 w-fit flex-wrap">
+          <button
+            type="button"
+            onClick={() => setViewMode('agenda')}
+            className={`px-4 py-2 rounded-lg text-sm font-bold transition ${
+              viewMode === 'agenda'
+                ? 'bg-[#0e2a52] text-white shadow'
+                : 'text-slate-600 hover:bg-slate-50'
+            }`}
+          >
+            📅 Agenda
+          </button>
           <button
             type="button"
             onClick={() => setViewMode('kanban')}
@@ -247,9 +274,13 @@ export default function PlanningPage() {
           </button>
         </div>
 
-        {/* Filtres kanban */}
-        {viewMode === 'kanban' && (
-        <div className={`bg-white rounded-2xl shadow-sm border border-slate-200 p-4 grid gap-3 ${isTech ? 'grid-cols-2' : 'grid-cols-2 sm:grid-cols-4'}`}>
+        {/* Filtres (agenda + kanban) */}
+        {(viewMode === 'kanban' || viewMode === 'agenda') && (
+        <div className={`bg-white rounded-2xl shadow-sm border border-slate-200 p-4 grid gap-3 ${
+          isTech
+            ? (viewMode === 'kanban' ? 'grid-cols-2' : 'grid-cols-1')
+            : (viewMode === 'kanban' ? 'grid-cols-2 sm:grid-cols-4' : 'grid-cols-2 sm:grid-cols-3')
+        }`}>
           <FilterSelect
             label="Statut"
             value={filterStatut}
@@ -285,16 +316,18 @@ export default function PlanningPage() {
               />
             </>
           )}
-          <FilterSelect
-            label="Date"
-            value={filterDate}
-            onChange={v => setFilterDate(v as DateFilter)}
-            options={[
-              { value: 'week', label: 'Cette semaine' },
-              { value: 'today', label: "Aujourd'hui" },
-              { value: 'all', label: 'Tout' },
-            ]}
-          />
+          {viewMode === 'kanban' && (
+            <FilterSelect
+              label="Date"
+              value={filterDate}
+              onChange={v => setFilterDate(v as DateFilter)}
+              options={[
+                { value: 'week', label: 'Cette semaine' },
+                { value: 'today', label: "Aujourd'hui" },
+                { value: 'all', label: 'Tout' },
+              ]}
+            />
+          )}
         </div>
         )}
 
@@ -317,6 +350,17 @@ export default function PlanningPage() {
             mapDate={mapDate}
             onMapDateChange={setMapDate}
             showTechFilter={!isTech}
+          />
+        )}
+
+        {!loading && viewMode === 'agenda' && !error && (
+          <PlanningAgenda
+            interventions={filteredBase}
+            period={agendaPeriod}
+            onPeriodChange={setAgendaPeriod}
+            anchorDate={agendaAnchor}
+            onAnchorDateChange={setAgendaAnchor}
+            techMode={isTech}
           />
         )}
 
