@@ -37,12 +37,17 @@ const VARIANT_LABELS: Record<Variante, string> = {
   'tout-a-legout': "Tout-à-l'égout",
   'fosse-septique': 'Fosse septique',
   'non-conforme': 'Non-conforme',
+  'reseau-fonctionnel': 'Réseau fonctionnel',
 }
+
+const RESEAU_VARIANTS: Variante[] = ['reseau-fonctionnel', 'non-conforme']
+const CONFORMITE_VARIANTS: Variante[] = ['tout-a-legout', 'fosse-septique', 'non-conforme']
 
 export default function StepAttestationConformite({
   interv,
   client,
   technicienNom,
+  mode = 'conformite',
   onDone,
   onSkip,
   onError,
@@ -50,11 +55,17 @@ export default function StepAttestationConformite({
   interv: Interv
   client: Client
   technicienNom?: string
+  /** conformite = notaire ; reseau = inspection caméra client pro */
+  mode?: 'conformite' | 'reseau'
   onDone: () => void | Promise<void>
   onSkip: () => void | Promise<void>
   onError: (e: string) => void
 }) {
-  const varianteDefaut = attestationVarianteFromType(interv.type_intervention) || 'tout-a-legout'
+  const varianteDefaut: Variante =
+    mode === 'reseau'
+      ? 'reseau-fonctionnel'
+      : (attestationVarianteFromType(interv.type_intervention) || 'tout-a-legout')
+  const variantChoices = mode === 'reseau' ? RESEAU_VARIANTS : CONFORMITE_VARIANTS
   const { prenom: prenomDefaut, nomFamille: nomDefaut } = splitNomPrenom(client?.nom || '')
 
   const [variante, setVariante] = useState<Variante>(varianteDefaut)
@@ -278,16 +289,20 @@ export default function StepAttestationConformite({
     <section className="space-y-5">
       <header className="text-center">
         <div className="text-5xl mb-2">📜</div>
-        <h1 className="text-2xl font-black text-slate-800">Attestation de conformité</h1>
+        <h1 className="text-2xl font-black text-slate-800">
+          {mode === 'reseau' ? 'Attestation réseau fonctionnel' : 'Attestation de conformité'}
+        </h1>
         <p className="text-sm text-slate-600 mt-2">
-          Générer l&apos;attestation liée à cette intervention, ou passer si elle n&apos;est pas nécessaire.
+          {mode === 'reseau'
+            ? 'Pour un client professionnel : atteste que le réseau inspecté à la caméra est fonctionnel. Le PDF sera joint au mail avec le rapport et la facture.'
+            : 'Générer l\'attestation liée à cette intervention, ou passer si elle n\'est pas nécessaire.'}
         </p>
       </header>
 
       <div className="bg-white rounded-2xl border border-slate-200 p-4 space-y-3">
         <p className="text-xs font-bold text-slate-500 uppercase tracking-wide">Type</p>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-          {(Object.keys(VARIANT_LABELS) as Variante[]).map(key => (
+        <div className={`grid grid-cols-1 gap-2 ${variantChoices.length > 2 ? 'sm:grid-cols-3' : 'sm:grid-cols-2'}`}>
+          {variantChoices.map(key => (
             <button
               key={key}
               type="button"
@@ -304,8 +319,8 @@ export default function StepAttestationConformite({
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <Field label="Prénom" value={prenom} onChange={setPrenom} />
-          <Field label="Nom" value={nom} onChange={setNom} />
+          <Field label="Prénom / raison sociale (suite)" value={prenom} onChange={setPrenom} />
+          <Field label="Nom / société" value={nom} onChange={setNom} />
         </div>
         <Field label="Nom du technicien" value={techNom} onChange={setTechNom} />
         <Field label="Adresse du bien" value={adresse} onChange={setAdresse} />

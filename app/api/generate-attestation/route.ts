@@ -54,8 +54,8 @@ export async function POST(req: NextRequest) {
   if (!transcription || typeof transcription !== 'string' || transcription.trim().length < 15) {
     return NextResponse.json({ error: 'Dictée trop courte — décris l\'inspection, les constats et les conclusions.' }, { status: 400 })
   }
-  if (!['tout-a-legout', 'fosse-septique', 'non-conforme'].includes(variante)) {
-    return NextResponse.json({ error: 'Variante invalide (attendu: tout-a-legout | fosse-septique | non-conforme).' }, { status: 400 })
+  if (!['tout-a-legout', 'fosse-septique', 'non-conforme', 'reseau-fonctionnel'].includes(variante)) {
+    return NextResponse.json({ error: 'Variante invalide (attendu: tout-a-legout | fosse-septique | non-conforme | reseau-fonctionnel).' }, { status: 400 })
   }
   if (!process.env.ANTHROPIC_API_KEY) {
     return NextResponse.json({ error: 'ANTHROPIC_API_KEY non configurée' }, { status: 500 })
@@ -71,14 +71,19 @@ export async function POST(req: NextRequest) {
   const varianteLibelle =
     variante === 'tout-a-legout' ? 'Raccordement au tout-à-l\'égout (réseau public d\'assainissement collectif)' :
     variante === 'fosse-septique' ? 'Raccordement à une fosse septique (assainissement non collectif)' :
+    variante === 'reseau-fonctionnel' ? 'Bon fonctionnement du réseau d\'évacuation après inspection caméra (client professionnel)' :
     'Non-conformité du réseau d\'évacuation'
 
-  const prompt = `Tu es un rédacteur technique d'attestations d'inspection pour une société d'assainissement française (LTDB). À partir d'une dictée vocale du technicien, tu produis le contenu rédactionnel d'une attestation de conformité destinée à être jointe à un dossier notarial (vente immobilière).
+  const promptContext = variante === 'reseau-fonctionnel'
+    ? `Tu es un rédacteur technique d'attestations d'inspection pour une société d'assainissement française (LTDB). À partir d'une dictée vocale du technicien, tu produis le contenu rédactionnel d'une attestation de BON FONCTIONNEMENT du réseau destinée à un client professionnel (syndic, entreprise, collectivité, gestionnaire de site).`
+    : `Tu es un rédacteur technique d'attestations d'inspection pour une société d'assainissement française (LTDB). À partir d'une dictée vocale du technicien, tu produis le contenu rédactionnel d'une attestation de conformité destinée à être jointe à un dossier notarial (vente immobilière).`
+
+  const prompt = `${promptContext}
 
 Type d'attestation choisi manuellement : ${varianteLibelle}
 
-Propriétaire : ${prenom || ''} ${nom || ''}
-Adresse du bien : ${adresse || ''}, ${code_postal || ''} ${ville || ''}
+Propriétaire / client : ${prenom || ''} ${nom || ''}
+Adresse du bien / site : ${adresse || ''}, ${code_postal || ''} ${ville || ''}
 Date de l'inspection : ${dateFinal}
 Technicien intervenant : ${technicien_nom || '(non précisé)'}
 
@@ -87,23 +92,23 @@ Dictée technicien :
 ${transcription}
 """
 
-⛔ RÈGLES DE FIDÉLITÉ — ABSOLUES (c'est un document officiel pour un notaire)
+⛔ RÈGLES DE FIDÉLITÉ — ABSOLUES (document officiel)
 - N'invente AUCUN fait, matériel, mesure, état, diamètre, profondeur, longueur.
 - Reformule professionnellement, mais ne rajoute rien qui ne soit pas EXPRESSÉMENT dans la dictée.
 - Si un champ ne peut pas être rempli → chaîne vide "" ou tableau vide [].
-- Ne qualifie JAMAIS un élément de "conforme" s'il n'est pas affirmé par le technicien.
+- Ne qualifie JAMAIS un élément de "conforme" / "fonctionnel" s'il n'est pas affirmé par le technicien.
 - Le ton est sobre, technique, factuel. Pas de formule commerciale.
 
 📋 STRUCTURATION
 Produis un JSON avec :
-- "objet" : paragraphe court (2-3 phrases) qui décrit la mission confiée au technicien (ex: "Inspection du réseau d'évacuation des eaux usées en vue d'attester de son raccordement..."). Factuel, sans détails commerciaux.
-- "methode" : paragraphe (3-5 phrases) sur la méthodologie de l'inspection. Mentionne explicitement les moyens utilisés si la dictée les cite (caméra endoscopique, passage coloré, relevé de pente, ouverture de regard, etc.). Si la dictée ne cite pas de moyen particulier, reste générique et sobre ("inspection visuelle directe des regards accessibles et passage caméra du réseau").
-- "observations" : tableau de 4 à 8 lignes de relevés techniques strictement factuels, chaque ligne au format { "label": string, "valeur": string, "statut": "ok" | "ko" | "info" }.
-  • "ok" uniquement pour ce que le technicien confirme explicitement comme bon/conforme
-  • "ko" pour un constat d'anomalie explicite
-  • "info" par défaut pour les relevés neutres (diamètre, matière, présence d'un regard, etc.)
-- "conclusion" : paragraphe (3-5 phrases) qui synthétise ce que le technicien a constaté, sans formuler lui-même l'attestation légale (c'est le cadre du PDF qui la formule).
-- "reserves" : si le technicien formule une réserve/limite (accès impossible à tel endroit, inspection partielle, etc.), la reprendre en 1-2 phrases. Sinon chaîne vide.
+- "objet" : paragraphe court (2-3 phrases) qui décrit la mission (inspection caméra, tronçons concernés, objectif).
+- "methode" : paragraphe (3-5 phrases) sur la méthodologie. Mentionne les moyens cités dans la dictée (caméra endoscopique, regards, etc.).
+- "observations" : tableau de 4 à 8 lignes { "label", "valeur", "statut": "ok" | "ko" | "info" }.
+  • "ok" uniquement si le technicien confirme explicitement un bon état / bon écoulement
+  • "ko" pour une anomalie explicite
+  • "info" pour les relevés neutres
+- "conclusion" : paragraphe (3-5 phrases) synthétisant les constats${variante === 'reseau-fonctionnel' ? ', en vue d\'attester le bon fonctionnement si la dictée le permet' : ''}.
+- "reserves" : limites d'accès / inspection partielle si mentionnées, sinon "".
 
 ${variante === 'fosse-septique' ? `
 🔶 VARIANTE "FOSSE SEPTIQUE" — champs supplémentaires
@@ -114,8 +119,14 @@ Si une info n'est pas dans la dictée, mets une chaîne vide ("") ou "Non commun
 ${variante === 'non-conforme' ? `
 🔴 VARIANTE "NON-CONFORME" — champs supplémentaires
 Ajoute :
-- "anomalies" : tableau de 3 à 6 phrases qui listent PRÉCISÉMENT les non-conformités constatées (ex: "Fosse septique intermédiaire non déclarée à la vente", "Contre-pente de 2% sur 3 mètres entre le regard R1 et la sortie", etc.). Basé uniquement sur la dictée.
-- "recommandations" : tableau de 3 à 5 actions correctives à envisager, SANS les chiffrer (c'est une attestation, pas un devis). Ex: "Suppression de la fosse intermédiaire après autorisation du service assainissement", "Reprise de la pente du collecteur sur le tronçon incriminé".
+- "anomalies" : tableau de 3 à 6 phrases listant les non-conformités (basé uniquement sur la dictée).
+- "recommandations" : tableau de 3 à 5 actions correctives SANS les chiffrer.
+` : ''}
+
+${variante === 'reseau-fonctionnel' ? `
+🟢 VARIANTE "RÉSEAU FONCTIONNEL"
+Privilégie des observations orientées écoulement, absence d'obstruction, état intérieur des canalisations passées à la caméra, points de contrôle (regards).
+La conclusion doit rester factuelle : ne déclare le réseau "fonctionnel" que si la dictée le permet clairement.
 ` : ''}
 
 Réponds UNIQUEMENT avec ce JSON (sans markdown, sans backticks) :
@@ -123,7 +134,7 @@ Réponds UNIQUEMENT avec ce JSON (sans markdown, sans backticks) :
   "objet": "...",
   "methode": "...",
   "observations": [
-    { "label": "Ex: Diamètre du collecteur principal", "valeur": "Ex: PVC Ø100 mm", "statut": "info" }
+    { "label": "Ex: Tronçon inspecté", "valeur": "Ex: Regard R1 → R2, PVC Ø100", "statut": "info" }
   ],
   "conclusion": "...",
   "reserves": ""${variante === 'fosse-septique' ? `,

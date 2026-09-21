@@ -17,7 +17,7 @@ import { fetchPdfAsBase64Robust, isValidPdfBase64 } from "@/lib/supabase-pdf-fet
 import { pdfBufferHasText } from "@/lib/pdf-text-check"
 import { generateTerrainPdfsOnServer } from "@/lib/terrain-pdf-server"
 import { loadAttestationPdfBase64ForIntervention } from "@/lib/attestation-pdf-for-mail"
-import { isAttestationConformite } from "@/lib/types-intervention"
+import { isAttestationConformite, isInspectionCamera } from "@/lib/types-intervention"
 
 export const maxDuration = 120
 
@@ -446,8 +446,10 @@ export async function POST(req: NextRequest) {
     ...(!accordB64 ? {
       accord_warning: 'Accord signé introuvable ou PDF non archivé — mail envoyé sans pièce accord.',
     } : {}),
-    ...(!attestationB64 && isAttestationConformite(interv.type_intervention) ? {
-      attestation_warning: 'Attestation de conformité absente — génère-la à l\'étape Attestation avant l\'envoi.',
+    ...(!attestationB64 && (isAttestationConformite(interv.type_intervention) || isInspectionCamera(interv.type_intervention)) ? {
+      attestation_warning: isInspectionCamera(interv.type_intervention)
+        ? 'Attestation réseau absente — génère-la à l\'étape Attest. (avant facture) pour la joindre au mail.'
+        : 'Attestation de conformité absente — génère-la à l\'étape Attestation avant l\'envoi.',
     } : {}),
     ...(isResendTestMode() ? {
       test_mode_warning: `Mode test actif : le mail est redirigé vers ${recipient}, pas vers le client.`,

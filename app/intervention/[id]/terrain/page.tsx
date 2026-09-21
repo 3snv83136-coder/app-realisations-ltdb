@@ -21,7 +21,7 @@ import { fetchJsonWithRetry, fetchWithRetry } from "@/lib/fetchWithRetry"
 import { useWakeLock } from "@/lib/useWakeLock"
 import { proxyImageUrl } from "@/lib/proxyImageUrl"
 import { buildSmsUri, isMobileForSms, openNativeSms } from "@/lib/sms"
-import { isAttestationConformite, isDevisIntervention } from "@/lib/types-intervention"
+import { isAttestationConformite, isDevisIntervention, isInspectionCamera } from "@/lib/types-intervention"
 import { isAttestationConformiteResolved } from "@/lib/attestation-conformite"
 import { isAccordFinDeMois } from "@/lib/fin-de-mois"
 import { getTravauxSupplementaires } from "@/lib/travaux-supplementaires"
@@ -214,18 +214,22 @@ function TerrainPageBody({
   const { data: session } = useSession()
   const isTech = session?.user?.role === 'tech'
   const showAccordTab = isTech && isAccordFinDeMois()
-  const needsAttestation = isAttestationConformite(interv.type_intervention)
+  const needsConformiteAttestation = isAttestationConformite(interv.type_intervention)
+  const needsReseauAttestation = isInspectionCamera(interv.type_intervention)
+  const needsAttestation = needsConformiteAttestation || needsReseauAttestation
+  const attestationPlacement = needsReseauAttestation ? 'before-facture' : 'before-signature'
+  const attestationGateStep = needsReseauAttestation ? 5 : 6
   const attestationResolved = isAttestationConformiteResolved(interv.rapport_json, hasAttestationDoc)
   const [forceAttestationUi, setForceAttestationUi] = useState(false)
 
-  // Si on quitte l'étape 6, on ne force plus l'UI attestation
+  // Si on quitte l'étape porte d'attestation, on ne force plus l'UI
   useEffect(() => {
-    if (step !== 6) setForceAttestationUi(false)
-  }, [step])
+    if (step !== attestationGateStep) setForceAttestationUi(false)
+  }, [step, attestationGateStep])
 
   const showAttestationUi =
     needsAttestation
-    && step === 6
+    && step === attestationGateStep
     && (!attestationResolved || forceAttestationUi)
 
   // Écran allumé pendant tout le parcours terrain (dictée, génération, signature…)
@@ -275,16 +279,17 @@ function TerrainPageBody({
         <TerrainStepper
           current={step}
           onStepClick={(s) => {
-            if (s === 6) setForceAttestationUi(false)
+            if (s === attestationGateStep) setForceAttestationUi(false)
             void setStep(s)
           }}
           hiddenSteps={isTech ? [9] : []}
           showAttestationStep={needsAttestation}
+          attestationPlacement={attestationPlacement}
           attestationResolved={attestationResolved}
           attestationActive={showAttestationUi}
           onAttestationClick={() => {
             setForceAttestationUi(true)
-            if (step !== 6) void setStep(6)
+            if (step !== attestationGateStep) void setStep(attestationGateStep)
           }}
         />
 
@@ -322,12 +327,12 @@ function TerrainPageBody({
         )}
         {step === 3 && <StepRapport interv={interv} technicien={technicien} onSaved={load} onError={setError} />}
         {step === 4 && <StepGaranti interv={interv} onSaved={load} onError={setError} />}
-        {step === 5 && <StepFacture interv={interv} client={client} onCreated={load} onError={setError} />}
         {showAttestationUi && (
           <StepAttestationConformite
             interv={interv}
             client={client}
             technicienNom={technicien?.nom || undefined}
+            mode={needsReseauAttestation ? 'reseau' : 'conformite'}
             onDone={async () => {
               setForceAttestationUi(false)
               await load()
@@ -338,6 +343,9 @@ function TerrainPageBody({
             }}
             onError={setError}
           />
+        )}
+        {step === 5 && !showAttestationUi && (
+          <StepFacture interv={interv} client={client} onCreated={load} onError={setError} />
         )}
         {step === 6 && !showAttestationUi && (
           <StepSignatureAccord

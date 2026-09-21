@@ -26,11 +26,16 @@ interface TerrainStepperProps {
   onStepClick?: (step: number) => void
   /** Masquer certaines étapes (ex. « Réseaux » pour les techniciens). */
   hiddenSteps?: number[]
-  /** Affiche l'onglet Attestation entre Facture et Signature. */
+  /** Affiche l'onglet Attestation. */
   showAttestationStep?: boolean
+  /**
+   * before-facture : inspection caméra (entre Garanti et Facture)
+   * before-signature : conformité raccordement (entre Facture et Signature)
+   */
+  attestationPlacement?: 'before-facture' | 'before-signature'
   /** Attestation déjà générée ou passée. */
   attestationResolved?: boolean
-  /** true = on affiche actuellement l'UI attestation (pas encore Signature). */
+  /** true = on affiche actuellement l'UI attestation. */
   attestationActive?: boolean
   /** Revenir à l'écran attestation (si déjà traitée). */
   onAttestationClick?: () => void
@@ -41,15 +46,23 @@ export default function TerrainStepper({
   onStepClick,
   hiddenSteps = [],
   showAttestationStep = false,
+  attestationPlacement = 'before-signature',
   attestationResolved = false,
   attestationActive = false,
   onAttestationClick,
 }: TerrainStepperProps) {
+  const insertBeforeKey = attestationPlacement === 'before-facture' ? 5 : 6
+
   const steps: DisplayStep[] = []
   for (const s of TERRAIN_STEPS) {
     if (hiddenSteps.includes(s.key)) continue
-    if (showAttestationStep && s.key === 6) {
-      steps.push({ kind: 'attestation', key: 'attestation', label: 'Attestation', icon: '📜' })
+    if (showAttestationStep && s.key === insertBeforeKey) {
+      steps.push({
+        kind: 'attestation',
+        key: 'attestation',
+        label: attestationPlacement === 'before-facture' ? 'Attest.' : 'Attestation',
+        icon: '📜',
+      })
     }
     steps.push({ kind: 'db', key: s.key, label: s.label, icon: s.icon })
   }
@@ -64,6 +77,8 @@ export default function TerrainStepper({
     })
   }, [current, attestationActive, steps.length])
 
+  const gateStep = insertBeforeKey
+
   return (
     <div className="bg-white border border-slate-200 rounded-2xl shadow-sm sticky top-14 z-20 overflow-hidden">
       <div
@@ -76,17 +91,18 @@ export default function TerrainStepper({
           if (s.kind === 'attestation') {
             done = attestationResolved && !attestationActive
             active = attestationActive
-            // Si on est déjà passé à Signature+ sans forcer l'UI attestation
-            if (!attestationActive && (current > 6 || (current === 6 && attestationResolved))) {
-              done = true
-            }
-          } else if (s.key < 6) {
+            if (!attestationActive && current > gateStep) done = true
+            if (!attestationActive && current === gateStep && attestationResolved) done = true
+          } else if (s.key < gateStep) {
             done = current > s.key
             active = current === s.key
-          } else if (s.key === 6) {
-            // Signature : active seulement si step 6 et attestation résolue (ou pas d'étape att.)
-            done = current > 6
-            active = current === 6 && !attestationActive && (!showAttestationStep || attestationResolved)
+          } else if (s.key === gateStep) {
+            // Facture (ou Signature) : active seulement si attestation résolue
+            done = current > gateStep
+            active =
+              current === gateStep
+              && !attestationActive
+              && (!showAttestationStep || attestationResolved)
           } else {
             done = current > s.key
             active = current === s.key
@@ -118,25 +134,21 @@ export default function TerrainStepper({
                       ? 'bg-emerald-500 text-white'
                       : active
                       ? 'bg-blue-600 text-white shadow-lg ring-2 ring-blue-200'
-                      : 'bg-slate-200 text-slate-500'
+                      : 'bg-slate-100 text-slate-400'
                   }`}
                 >
                   {done ? '✓' : s.icon}
                 </div>
                 <span
-                  className={`text-[9px] sm:text-[10px] font-bold whitespace-nowrap max-w-[4.5rem] truncate ${
-                    active ? 'text-blue-700' : done ? 'text-emerald-600' : 'text-slate-400'
+                  className={`text-[9px] sm:text-[10px] font-semibold leading-tight text-center ${
+                    active ? 'text-blue-700' : done ? 'text-emerald-700' : 'text-slate-400'
                   }`}
                 >
                   {s.label}
                 </span>
               </button>
               {i < steps.length - 1 && (
-                <div
-                  className={`w-2 sm:w-3 h-0.5 mx-0.5 flex-shrink-0 ${
-                    done ? 'bg-emerald-400' : 'bg-slate-200'
-                  }`}
-                />
+                <div className={`w-3 sm:w-4 h-0.5 mx-0.5 rounded ${done ? 'bg-emerald-300' : 'bg-slate-200'}`} />
               )}
             </div>
           )

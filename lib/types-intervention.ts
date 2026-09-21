@@ -36,13 +36,25 @@ export function isAttestationConformite(type: string | null | undefined): boolea
   )
 }
 
+/** Inspection caméra (ou recherche de fuite caméra) — peut générer une attestation réseau. */
+export function isInspectionCamera(type: string | null | undefined): boolean {
+  const t = (type || '').trim().toLowerCase()
+  if (!t) return false
+  return (
+    t === 'inspection caméra'
+    || t === 'recherche de fuite par caméra'
+    || /inspection.*cam[ée]ra|cam[ée]ra.*inspection|recherche.*fuite.*cam[ée]ra/.test(t)
+  )
+}
+
 /** Variante PDF AttestationPDF dérivée du type d'intervention. */
 export function attestationVarianteFromType(
   type: string | null | undefined,
-): 'tout-a-legout' | 'fosse-septique' | null {
+): 'tout-a-legout' | 'fosse-septique' | 'reseau-fonctionnel' | null {
   const t = (type || '').trim()
   if (t === "Attestation de conformité tout-à-l'égout") return 'tout-a-legout'
   if (t === 'Attestation de conformité fosse septique') return 'fosse-septique'
+  if (isInspectionCamera(t)) return 'reseau-fonctionnel'
   return null
 }
 

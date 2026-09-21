@@ -154,7 +154,7 @@ const s = StyleSheet.create({
     padding: 16, marginBottom: 14,
     backgroundColor: '#fbfbfd',
   },
-  attestConform: { borderColor: C.green, backgroundColor: C.greenSoft },
+  attestConform: { borderColor: C.green, backgroundColor: C.greenSoft, borderWidth: 2.5 },
   attestNonConform: { borderColor: C.red, backgroundColor: C.redSoft },
   attestInternal: { borderColor: C.gold, backgroundColor: '#fdfaf3' },
   attestBadge: {
@@ -172,6 +172,32 @@ const s = StyleSheet.create({
   },
   attestStrong: { fontFamily: 'Helvetica-Bold', color: C.navy },
   attestPara: { marginBottom: 8 },
+
+  /* Encadré portée temporelle (réseau fonctionnel) */
+  temporalBox: {
+    borderWidth: 2.5,
+    borderColor: C.green,
+    backgroundColor: C.greenSoft,
+    padding: 14,
+    marginBottom: 14,
+  },
+  temporalTitle: {
+    color: C.green,
+    fontFamily: 'Helvetica-Bold',
+    fontSize: 10,
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
+    marginBottom: 8,
+  },
+  temporalText: {
+    color: C.text,
+    fontSize: 9.5,
+    lineHeight: 1.55,
+  },
+  temporalStrong: {
+    fontFamily: 'Helvetica-Bold',
+    color: C.navy,
+  },
 
   /* Paragraphe standard */
   para: { marginBottom: 7, fontSize: 9.5, lineHeight: 1.55 },
@@ -207,40 +233,40 @@ const s = StyleSheet.create({
   /* Signature — grand cadre officiel */
   sigBlock: {
     borderWidth: 1.5, borderColor: C.navy,
-    marginTop: 14, marginBottom: 12,
+    marginTop: 10, marginBottom: 8,
   },
   sigHead: {
     backgroundColor: C.navy,
-    paddingVertical: 8, paddingHorizontal: 14,
+    paddingVertical: 7, paddingHorizontal: 14,
     color: C.white, fontFamily: 'Helvetica-Bold', fontSize: 10,
     textTransform: 'uppercase', letterSpacing: 0.6,
   },
   sigBody: {
-    padding: 16,
+    padding: 12,
   },
   sigSworn: {
-    color: C.text, fontSize: 10, lineHeight: 1.55,
-    marginBottom: 14,
+    color: C.text, fontSize: 10, lineHeight: 1.5,
+    marginBottom: 10,
   },
   sigRow: {
     flexDirection: 'row', justifyContent: 'space-between',
-    marginTop: 20,
+    marginTop: 10,
   },
   sigCol: { flex: 1 },
   sigLabel: { color: C.muted, fontSize: 8, textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 2 },
   sigValue: { color: C.navy, fontFamily: 'Helvetica-Bold', fontSize: 10, marginBottom: 2 },
   sigArea: {
-    height: 78, marginTop: 6,
+    height: 64, marginTop: 4,
     borderWidth: 0.5, borderColor: C.borderDark,
     backgroundColor: '#fafbfc',
     justifyContent: 'center',
     alignItems: 'flex-start',
     paddingHorizontal: 8,
-    paddingVertical: 6,
+    paddingVertical: 4,
   },
   sigImg: {
-    height: 58,
-    maxWidth: 180,
+    height: 48,
+    maxWidth: 160,
     objectFit: 'contain',
   },
 
@@ -264,7 +290,7 @@ const s = StyleSheet.create({
 })
 
 /* ============ TYPES ============ */
-export type Variante = 'tout-a-legout' | 'fosse-septique' | 'non-conforme'
+export type Variante = 'tout-a-legout' | 'fosse-septique' | 'non-conforme' | 'reseau-fonctionnel'
 
 export interface AttestationObservation {
   label: string
@@ -370,6 +396,7 @@ const SolemnDivider = () => (
 function attestationLabel(v: Variante): string {
   if (v === 'tout-a-legout') return 'Raccordement au réseau public d\'assainissement collectif'
   if (v === 'fosse-septique') return 'Raccordement à un dispositif d\'assainissement non collectif (fosse septique)'
+  if (v === 'reseau-fonctionnel') return 'Bon fonctionnement du réseau d\'évacuation (inspection caméra)'
   return 'Non-conformité du réseau d\'évacuation'
 }
 
@@ -377,6 +404,27 @@ function attestationClause(data: AttestationData): { badge: string; wrapStyle: S
   const plein = `${data.prenom} ${data.nom}`.trim() || '—'
   const adresseComplete = [data.adresse, `${data.codePostal} ${data.ville}`].filter(Boolean).join(', ')
   const tech = data.technicienNom || '—'
+
+  if (data.variante === 'reseau-fonctionnel') {
+    return {
+      badge: 'ATTESTATION — RÉSEAU FONCTIONNEL',
+      wrapStyle: s.attestConform,
+      badgeStyle: s.attestBadgeConform,
+      content: (
+        <>
+          <Text style={[s.attestText, s.attestPara]}>
+            Je soussigné <Text style={s.attestStrong}>{tech}</Text>, technicien de la société <Text style={s.attestStrong}>{FIRM.raison}</Text> (SIRET {FIRM.siret}), après inspection caméra du réseau d&apos;évacuation du site appartenant à / exploité par <Text style={s.attestStrong}>{plein}</Text>, situé <Text style={s.attestStrong}>{adresseComplete}</Text>,
+          </Text>
+          <Text style={[s.attestText, s.attestPara]}>
+            <Text style={s.attestStrong}>atteste par la présente</Text> qu&apos;<Text style={s.attestStrong}>au jour du passage</Text> ({fmtDateFR(data.date)}), le réseau inspecté était <Text style={s.attestStrong}>fonctionnel</Text> : écoulement constaté, absence d&apos;obstruction bloquante sur les tronçons passés à la caméra, dans les limites des accès et de la longueur inspectée.
+          </Text>
+          <Text style={s.attestText}>
+            Cette attestation est établie sur la base des constats techniques du jour, documentés par les photographies et/ou captures vidéo annexées. Elle est délivrée à l&apos;attention du client professionnel et de tout tiers qu&apos;il souhaiterait en informer, pour faire valoir ce que de droit.
+          </Text>
+        </>
+      ),
+    }
+  }
 
   if (data.variante === 'tout-a-legout') {
     return {
@@ -457,8 +505,14 @@ export function AttestationDocument({ data, photos, signatureLtdbUrl }: Attestat
   const variantTitle = attestationLabel(data.variante)
 
   const idRows: Array<{ k: string; v: string }> = [
-    { k: 'Propriétaire', v: `${data.prenom} ${data.nom}`.trim() || '—' },
-    { k: 'Adresse du bien', v: [data.adresse, `${data.codePostal} ${data.ville}`].filter(Boolean).join(' — ') || '—' },
+    {
+      k: data.variante === 'reseau-fonctionnel' ? 'Client / exploitant' : 'Propriétaire',
+      v: `${data.prenom} ${data.nom}`.trim() || '—',
+    },
+    {
+      k: data.variante === 'reseau-fonctionnel' ? 'Adresse du site' : 'Adresse du bien',
+      v: [data.adresse, `${data.codePostal} ${data.ville}`].filter(Boolean).join(' — ') || '—',
+    },
     { k: 'Date de l\'inspection', v: fmtDateFR(data.date) },
     { k: 'Technicien intervenant', v: data.technicienNom || '—' },
     { k: 'Objet de l\'attestation', v: variantTitle },
@@ -474,9 +528,18 @@ export function AttestationDocument({ data, photos, signatureLtdbUrl }: Attestat
           {/* Titre solennel */}
           <View style={s.solemnTitle} wrap={false}>
             <Text style={s.solemnOverline}>Document technique probatoire</Text>
-            <Text style={s.solemnMain}>Attestation de conformité</Text>
-            <Text style={s.solemnMain}>de raccordement</Text>
-            <Text style={s.solemnSub}>{variantTitle}</Text>
+            {data.variante === 'reseau-fonctionnel' ? (
+              <>
+                <Text style={[s.solemnMain, { fontSize: 16 }]}>Attestation de bon fonctionnement</Text>
+                <Text style={[s.solemnSub, { marginTop: 8 }]}>{variantTitle}</Text>
+              </>
+            ) : (
+              <>
+                <Text style={s.solemnMain}>Attestation de conformité</Text>
+                <Text style={s.solemnMain}>de raccordement</Text>
+                <Text style={s.solemnSub}>{variantTitle}</Text>
+              </>
+            )}
             <SolemnDivider />
           </View>
 
@@ -506,6 +569,18 @@ export function AttestationDocument({ data, photos, signatureLtdbUrl }: Attestat
             <Text style={[s.attestBadge, clause.badgeStyle]}>{clause.badge}</Text>
             {clause.content}
           </View>
+
+          {data.variante === 'reseau-fonctionnel' ? (
+            <View style={s.temporalBox} wrap={false}>
+              <Text style={s.temporalTitle}>⚠ Portée de l&apos;attestation — au jour du passage uniquement</Text>
+              <Text style={s.temporalText}>
+                Les constats ci-dessus décrivent l&apos;état du réseau <Text style={s.temporalStrong}>uniquement au {fmtDateFR(data.date)}</Text>, jour de l&apos;intervention et de l&apos;inspection caméra.
+              </Text>
+              <Text style={[s.temporalText, { marginTop: 6 }]}>
+                <Text style={s.temporalStrong}>Ce document ne constitue pas une garantie dans le temps</Text> : un dysfonctionnement, un bouchon, une détérioration ou une utilisation ultérieure peuvent survenir après notre passage. Toute réclamation fondée sur un état constaté plusieurs semaines ou mois plus tard ne pourra être opposée à la présente attestation, qui certifie exclusivement la situation observée le jour J.
+              </Text>
+            </View>
+          ) : null}
 
           {/* Section 1 — Objet (bandeau + paragraphe solidaires) */}
           {data.objet ? (
@@ -614,7 +689,18 @@ export function AttestationDocument({ data, photos, signatureLtdbUrl }: Attestat
             <View>
               {/* bandeau + 1ʳᵉ ligne solidaires */}
               <View wrap={false}>
-                <SectionBand num={(photos?.length ?? 0) > 0 ? ((data.variante !== 'tout-a-legout') ? 6 : 5) : ((data.variante !== 'tout-a-legout') ? 5 : 4)} title="Conclusion technique" />
+                <SectionBand
+                  num={
+                    (photos?.length ?? 0) > 0
+                      ? data.variante === 'non-conforme' || (data.variante === 'fosse-septique' && data.fosse)
+                        ? 6
+                        : 5
+                      : data.variante === 'non-conforme' || (data.variante === 'fosse-septique' && data.fosse)
+                        ? 5
+                        : 4
+                  }
+                  title="Conclusion technique"
+                />
                 <Text style={s.para}>{data.conclusion}</Text>
               </View>
               {data.reserves ? (
@@ -626,33 +712,36 @@ export function AttestationDocument({ data, photos, signatureLtdbUrl }: Attestat
             </View>
           ) : null}
 
-          {/* Cadre de signature solennel */}
-          <View style={s.sigBlock} wrap={false}>
-            <Text style={s.sigHead}>Attestation signée</Text>
-            <View style={s.sigBody}>
-              <Text style={s.sigSworn}>
-                Fait à <Text style={{ fontFamily: 'Helvetica-Bold' }}>{data.ville || '—'}</Text>, le <Text style={{ fontFamily: 'Helvetica-Bold' }}>{fmtDateFR(data.date)}</Text>, pour servir et valoir ce que de droit.
-              </Text>
-              <View style={s.sigRow}>
-                <View style={s.sigCol}>
-                  <Text style={s.sigLabel}>Société</Text>
-                  <Text style={s.sigValue}>{FIRM.raison}</Text>
-                  <Text style={s.sigLabel}>Technicien intervenant</Text>
-                  <Text style={s.sigValue}>{data.technicienNom || '—'}</Text>
-                  <Text style={s.sigLabel}>Cachet & signature</Text>
-                  <View style={s.sigArea}>
-                    <Image style={s.sigImg} src={ltdbSigUrl} />
+          {/* Cadre de signature solennel + mentions (solidaires) */}
+          <View wrap={false}>
+            <View style={s.sigBlock}>
+              <Text style={s.sigHead}>Attestation signée</Text>
+              <View style={s.sigBody}>
+                <Text style={s.sigSworn}>
+                  Fait à <Text style={{ fontFamily: 'Helvetica-Bold' }}>{data.ville || '—'}</Text>, le <Text style={{ fontFamily: 'Helvetica-Bold' }}>{fmtDateFR(data.date)}</Text>, pour servir et valoir ce que de droit.
+                </Text>
+                <View style={s.sigRow}>
+                  <View style={s.sigCol}>
+                    <Text style={s.sigLabel}>Société</Text>
+                    <Text style={s.sigValue}>{FIRM.raison}</Text>
+                    <Text style={s.sigLabel}>Technicien intervenant</Text>
+                    <Text style={s.sigValue}>{data.technicienNom || '—'}</Text>
+                    <Text style={s.sigLabel}>Cachet & signature</Text>
+                    <View style={s.sigArea}>
+                      <Image style={s.sigImg} src={ltdbSigUrl} />
+                    </View>
                   </View>
                 </View>
               </View>
             </View>
-          </View>
 
-          {/* Mentions légales */}
-          <View style={s.legalBox}>
-            <Text>
-              Document établi à titre probatoire sur la base des constats physiques et vidéo réalisés le jour de l&apos;inspection. Il ne préjuge ni de la pérennité future du réseau ni de conformités réglementaires extérieures au périmètre d&apos;inspection. Tout usage auprès d&apos;un officier ministériel (notaire) ou d&apos;une administration relève de l&apos;appréciation du destinataire. Conservation recommandée dans le dossier de vente.
-            </Text>
+            <View style={s.legalBox}>
+              <Text>
+                {data.variante === 'reseau-fonctionnel'
+                  ? "Document établi à titre probatoire sur la base des constats techniques et vidéo réalisés le jour de l'inspection caméra. Il atteste exclusivement de l'état observé à cette date et ne constitue en aucun cas une garantie de fonctionnement ultérieur du réseau. Toute réclamation fondée sur un état constaté après le jour du passage ne pourra être opposée à la présente attestation."
+                  : "Document établi à titre probatoire sur la base des constats physiques et vidéo réalisés le jour de l'inspection. Il ne préjuge ni de la pérennité future du réseau ni de conformités réglementaires extérieures au périmètre d'inspection. Tout usage auprès d'un officier ministériel (notaire) ou d'une administration relève de l'appréciation du destinataire. Conservation recommandée dans le dossier de vente."}
+              </Text>
+            </View>
           </View>
         </View>
 
