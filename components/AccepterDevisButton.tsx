@@ -15,6 +15,7 @@ type Props = {
 
 /**
  * Marque un devis comme accepté, stoppe les relances et crée l'intervention au planning.
+ * Si déjà accepté sans fiche → propose de créer la fiche.
  */
 export default function AccepterDevisButton({
   devisId,
@@ -27,34 +28,8 @@ export default function AccepterDevisButton({
   const router = useRouter()
   const [busy, setBusy] = useState(false)
 
-  if (statut === 'accepte') {
-    if (interventionId) {
-      return (
-        <button
-          type="button"
-          onClick={() => router.push(`/intervention/${interventionId}`)}
-          className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-green-100 text-green-800 border border-green-300 text-[11px] font-bold hover:bg-green-200 transition ${className}`}
-          title="Ouvrir l'intervention liée"
-        >
-          📅 Voir planning
-        </button>
-      )
-    }
-    return (
-      <span className={`inline-flex items-center px-2.5 py-1.5 rounded-lg bg-green-600 text-white text-[11px] font-bold ${className}`}>
-        ✓ Accepté
-      </span>
-    )
-  }
-
-  async function handleClick() {
-    const ref = numero || devisId.slice(0, 8)
-    if (!confirm(
-      `Accepter le devis ${ref} et le mettre au planning ?\n\n`
-      + `• Les relances automatiques seront arrêtées.\n`
-      + `${interventionId ? '• L\'intervention liée sera mise à jour.' : '• Une intervention sera créée dans le planning.'}`,
-    )) return
-
+  async function callAccepter(confirmMsg: string) {
+    if (!confirm(confirmMsg)) return
     setBusy(true)
     try {
       const res = await fetch(`/api/devis/${devisId}/accepter`, { method: 'POST' })
@@ -80,10 +55,43 @@ export default function AccepterDevisButton({
     }
   }
 
+  if (statut === 'accepte' && interventionId) {
+    return (
+      <button
+        type="button"
+        onClick={() => router.push(`/intervention/${interventionId}`)}
+        className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-green-100 text-green-800 border border-green-300 text-[11px] font-bold hover:bg-green-200 transition ${className}`}
+        title="Ouvrir l'intervention liée"
+      >
+        📅 Voir planning
+      </button>
+    )
+  }
+
+  if (statut === 'accepte' && !interventionId) {
+    return (
+      <button
+        type="button"
+        onClick={() => void callAccepter(
+          `Le devis ${numero || devisId.slice(0, 8)} est accepté mais sans fiche.\n\nCréer l'intervention dans le planning maintenant ?`,
+        )}
+        disabled={busy}
+        className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 text-white text-[11px] font-bold transition disabled:opacity-50 shadow-sm ${className}`}
+        title="Créer la fiche d'intervention manquante"
+      >
+        {busy ? '…' : '📅 Créer la fiche'}
+      </button>
+    )
+  }
+
   return (
     <button
       type="button"
-      onClick={handleClick}
+      onClick={() => void callAccepter(
+        `Accepter le devis ${numero || devisId.slice(0, 8)} et le mettre au planning ?\n\n`
+        + `• Les relances automatiques seront arrêtées.\n`
+        + `${interventionId ? '• L\'intervention liée sera mise à jour.' : '• Une intervention sera créée dans le planning.'}`,
+      )}
       disabled={busy}
       className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-green-600 hover:bg-green-700 text-white text-[11px] font-bold transition disabled:opacity-50 disabled:cursor-wait shadow-sm ${className}`}
       title="Client a accepté : crée l'intervention dans le planning et arrête les relances"

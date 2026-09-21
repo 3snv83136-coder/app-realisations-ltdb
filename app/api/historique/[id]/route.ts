@@ -175,6 +175,38 @@ export async function PATCH(
     } catch (e) {
       console.error('[historique PATCH] annuler relances facture', e)
     }
+  } else if (update.statut === 'accepte') {
+    // Devis accepté via historique → même logique que le bouton Accepter (crée la fiche)
+    const { data: docType } = await sb
+      .from('documents')
+      .select('type, intervention_id')
+      .eq('id', id)
+      .maybeSingle()
+    if (docType?.type === 'devis') {
+      try {
+        const { accepterDevis } = await import('@/lib/devis-accepter')
+        const result = await accepterDevis(id)
+        if (result.ok) {
+          return NextResponse.json({
+            ok: true,
+            document: {
+              id,
+              statut: 'accepte',
+              intervention_id: result.interventionId,
+            },
+            interventionId: result.interventionId,
+            created: result.created,
+            warning: result.warning,
+          })
+        }
+        return NextResponse.json({ error: result.error }, { status: result.status })
+      } catch (e) {
+        console.error('[historique PATCH] accepter devis', e)
+        return NextResponse.json({
+          error: e instanceof Error ? e.message : 'Erreur acceptation devis',
+        }, { status: 500 })
+      }
+    }
   }
 
   if (Object.keys(update).length === 0) {
