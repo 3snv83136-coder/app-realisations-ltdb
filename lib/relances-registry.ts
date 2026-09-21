@@ -12,9 +12,11 @@ export type RegisterRelanceInput = {
   kind: RegisteredRelanceKind
   sourceType: string
   sourceId: string
+  /** Unique — Resend id ou clé synthétique SMS (ex. avis-sms:uuid:j2:…). */
   providerId: string
   channel?: string
   sendAt?: string | null
+  status?: "pending" | "sent" | "canceled"
   clientId?: string | null
   clientNom?: string | null
   clientEmail?: string | null
@@ -39,7 +41,7 @@ export async function registerRelances(inputs: RegisterRelanceInput[]): Promise<
     provider_id: input.providerId,
     channel: input.channel || "email",
     send_at: input.sendAt || null,
-    status: "pending",
+    status: input.status || "pending",
     client_id: input.clientId || null,
     client_nom: input.clientNom || null,
     client_email: input.clientEmail || null,
@@ -54,10 +56,36 @@ export async function registerRelances(inputs: RegisterRelanceInput[]): Promise<
 
   const { error } = await sb
     .from("relances_planifiees")
-    .upsert(rows, { onConflict: "provider_id", ignoreDuplicates: true })
+    .upsert(rows, { onConflict: "provider_id" })
 
   if (error) {
     console.error("[relances-registry] register", error.message)
+  }
+}
+
+/** Passe une relance en « sent » (après envoi réel mail/SMS). */
+export async function markRegisteredRelanceSent(
+  providerId: string,
+  patch?: { metadata?: Record<string, unknown>; sendAt?: string | null },
+): Promise<void> {
+  if (!providerId) return
+  const sb = getSupabaseOrNull()
+  if (!sb) return
+
+  const update: Record<string, unknown> = {
+    status: "sent",
+    updated_at: new Date().toISOString(),
+  }
+  if (patch?.sendAt) update.send_at = patch.sendAt
+  if (patch?.metadata) update.metadata = patch.metadata
+
+  const { error } = await sb
+    .from("relances_planifiees")
+    .update(update)
+    .eq("provider_id", providerId)
+
+  if (error) {
+    console.error("[relances-registry] mark sent", error.message)
   }
 }
 
@@ -89,6 +117,11 @@ export async function cancelRegisteredRelances(
     const resend = new Resend(resendKey)
     for (const row of rows) {
       if (!row.provider_id) continue
+      // Les SMS / mails hors Resend n'ont pas d'ID Resend — on ne tente pas cancel Resend
+      if (
+        String(row.provider_id).startsWith("avis-sms:")
+        || String(row.provider_id).startsWith("avis-email:")
+      ) continue
       try {
         const result = await resend.emails.cancel(row.provider_id)
         if (!result.error) canceled++
@@ -125,4 +158,22 @@ export async function cancelRegisteredRelancesByProviderIds(ids: string[]): Prom
   if (error) {
     console.error("[relances-registry] sync public stop", error.message)
   }
+}
+
+/** Clé stable pour un SMS avis (pas d'ID Resend). */
+export function avisSmsProviderId(
+  interventionId: string,
+  day: number,
+  sendAt: string,
+): string {
+  return `avis-sms:${interventionId}:j${day}:${sendAt}`
+}
+
+/** Clé de secours pour un mail avis sans ID Resend. */
+export function avisEmailProviderId(
+  interventionId: string,
+  day: number,
+  sendAt: string,
+): string {
+  return `avis-email:${interventionId}:j${day}:${sendAt}`
 }

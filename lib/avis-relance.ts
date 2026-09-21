@@ -241,6 +241,7 @@ export type PlanifierAvisRelancesInput = {
   recipient: string
   clientPhone?: string | null
   clientNom?: string
+  clientId?: string | null
   technicienNom: string
   ville?: string
   reviewUrl: string
@@ -263,7 +264,10 @@ export async function planifierAvisRelances(
   const emailIds: string[] = []
   const errors: string[] = []
   const smsPlan: AvisSmsPlanItem[] = []
-  const phone = (input.clientPhone || "").trim()
+  const { normalizePhoneForSmsUri } = await import("@/lib/sms")
+  const phoneRaw = (input.clientPhone || "").trim()
+  const phoneNorm = normalizePhoneForSmsUri(phoneRaw)
+  const phone = phoneNorm || phoneRaw
   const prenom = (input.clientNom || "Client").split(" ").slice(-1)[0]
   const stopUrl = buildAvisStopUrl(input.baseUrl, [], input.interventionId, input.signSecret)
 
@@ -305,8 +309,8 @@ export async function planifierAvisRelances(
       } catch (e) {
         errors.push(`J+${step.day} mail: ${e instanceof Error ? e.message : String(e)}`)
       }
-    } else if (phone.replace(/\D/g, "").length < 10) {
-      errors.push(`J+${step.day} SMS ignoré : numéro client manquant`)
+    } else if ((phone || "").replace(/\D/g, "").length < 10) {
+      errors.push(`J+${step.day} SMS ignoré : numéro client manquant ou invalide`)
     } else if (!isSmsConfigured()) {
       errors.push(`J+${step.day} SMS ignoré : Brevo/Twilio non configuré`)
     } else {
@@ -314,7 +318,7 @@ export async function planifierAvisRelances(
         day: step.day,
         channel: "sms",
         send_at: sendAt.toISOString(),
-        phone,
+        phone: phoneNorm || phone,
         message: smsRelanceText({
           clientNom: input.clientNom,
           reviewUrl: input.reviewUrl,
@@ -340,6 +344,45 @@ export async function planifierAvisRelances(
     } catch {
       /* colonne avis_sms_plan absente si migration non appliquée */
     }
+  }
+
+  // Journal Mail / hub : chaque envoi avis (mail + SMS) visible dans /mail onglet Google
+  try {
+    const { registerRelances, avisSmsProviderId, avisEmailProviderId } = await import("@/lib/relances-registry")
+    const href = `/intervention/${input.interventionId}`
+    await registerRelances(
+      smsPlan.map(item => {
+        const channel = item.channel === "email" ? "email" : "sms"
+        const providerId =
+          channel === "email"
+            ? (item.resend_id || avisEmailProviderId(input.interventionId, item.day, item.send_at))
+            : avisSmsProviderId(input.interventionId, item.day, item.send_at)
+        return {
+          kind: "avis" as const,
+          sourceType: "intervention_avis",
+          sourceId: input.interventionId,
+          providerId,
+          channel,
+          sendAt: item.send_at,
+          status: item.sent ? ("sent" as const) : item.canceled ? ("canceled" as const) : ("pending" as const),
+          clientId: input.clientId || null,
+          clientNom: input.clientNom || null,
+          clientEmail: channel === "email" ? (item.email || input.recipient) : null,
+          ville: input.ville || null,
+          label: channel === "email" ? `Avis Google — mail J+${item.day}` : `Avis Google — SMS J+${item.day}`,
+          interventionId: input.interventionId,
+          href,
+          metadata: {
+            day: item.day,
+            phone: item.phone || null,
+            email: item.email || input.recipient || null,
+            manual: false,
+          },
+        }
+      }),
+    )
+  } catch (e) {
+    console.error("[planifierAvisRelances] registerRelances", e)
   }
 
   return {
@@ -400,6 +443,11 @@ export async function annulerRelancesAvis(interventionId: string): Promise<{
     })
     .eq("id", interventionId)
 
+  try {
+    const { cancelRegisteredRelances } = await import("@/lib/relances-registry")
+    await cancelRegisteredRelances("intervention_avis", interventionId)
+  } catch { /* best-effort */ }
+
   return { emailsCanceled, smsCanceled }
 }
 
@@ -407,41 +455,63 @@ export async function annulerRelancesAvis(interventionId: string): Promise<{
 export async function envoyerSmsAvisEchus(): Promise<{
   scanned: number
   sent: number
+  skippedNoPhone: number
   errors: string[]
 }> {
   const sb = getSupabaseOrNull()
-  if (!sb) return { scanned: 0, sent: 0, errors: ["Supabase non configuré"] }
+  if (!sb) {
+    return { scanned: 0, sent: 0, skippedNoPhone: 0, errors: ["Supabase non configuré"] }
+  }
 
+  // Uniquement les dossiers avec un plan (évite de scanner toute la table)
   const { data: rows, error } = await sb
     .from("interventions")
-    .select("id, avis_sms_plan, avis_recu")
-    .eq("avis_recu", false)
+    .select("id, avis_sms_plan, avis_recu, client_id")
+    .or("avis_recu.eq.false,avis_recu.is.null")
+    .not("avis_sms_plan", "is", null)
+    .order("created_at", { ascending: false })
+    .limit(400)
 
-  if (error) return { scanned: 0, sent: 0, errors: [error.message] }
+  if (error) {
+    return { scanned: 0, sent: 0, skippedNoPhone: 0, errors: [error.message] }
+  }
+
+  const clientIds = Array.from(
+    new Set((rows || []).map(r => r.client_id).filter(Boolean) as string[]),
+  )
+  const phoneByClient = new Map<string, string>()
+  if (clientIds.length > 0) {
+    const { data: clients } = await sb
+      .from("clients")
+      .select("id, telephone")
+      .in("id", clientIds)
+    for (const c of clients || []) {
+      if (c.telephone) phoneByClient.set(c.id, c.telephone as string)
+    }
+  }
 
   const now = Date.now()
   let sent = 0
+  let skippedNoPhone = 0
   const errors: string[] = []
   let scanned = 0
 
   for (const row of rows || []) {
+    if (row.avis_recu === true) continue
     const plan = parseAvisSmsPlan(row.avis_sms_plan)
     if (plan.length === 0) continue
 
     let changed = false
     const updated = [...plan]
+    const fallbackPhone = row.client_id
+      ? (phoneByClient.get(row.client_id as string) || "")
+      : ""
 
     for (let i = 0; i < updated.length; i++) {
       const item = updated[i]
       if (item.sent || item.canceled) continue
       if (new Date(item.send_at).getTime() > now) continue
       scanned++
-
-      if (row.avis_recu) {
-        updated[i] = { ...item, canceled: true }
-        changed = true
-        continue
-      }
 
       // Mails Resend : déjà planifiés côté Resend — on marque juste « envoyé » à échéance
       if (item.channel === "email") {
@@ -453,13 +523,35 @@ export async function envoyerSmsAvisEchus(): Promise<{
         }
         sent++
         changed = true
+        if (item.resend_id) {
+          try {
+            const { markRegisteredRelanceSent } = await import("@/lib/relances-registry")
+            await markRegisteredRelanceSent(item.resend_id, { sendAt: new Date().toISOString() })
+          } catch { /* best-effort */ }
+        } else {
+          try {
+            const { markRegisteredRelanceSent, avisEmailProviderId } = await import("@/lib/relances-registry")
+            await markRegisteredRelanceSent(
+              avisEmailProviderId(row.id as string, item.day, item.send_at),
+              { sendAt: new Date().toISOString() },
+            )
+          } catch { /* best-effort */ }
+        }
         continue
       }
 
-      const r = await sendSms({ to: item.phone, content: item.message })
+      const phone = (item.phone || fallbackPhone || "").trim()
+      if (!phone) {
+        skippedNoPhone++
+        errors.push(`${row.id} J+${item.day}: numéro manquant`)
+        continue
+      }
+
+      const r = await sendSms({ to: phone, content: item.message })
       if (r.ok) {
         updated[i] = {
           ...item,
+          phone,
           sent: true,
           sent_at: new Date().toISOString(),
           provider: r.provider,
@@ -467,17 +559,31 @@ export async function envoyerSmsAvisEchus(): Promise<{
         }
         sent++
         changed = true
+        try {
+          const { markRegisteredRelanceSent, avisSmsProviderId } = await import("@/lib/relances-registry")
+          await markRegisteredRelanceSent(
+            avisSmsProviderId(row.id as string, item.day, item.send_at),
+            {
+              sendAt: new Date().toISOString(),
+              metadata: { day: item.day, phone, provider: r.provider, messageId: r.messageId },
+            },
+          )
+        } catch { /* best-effort journal */ }
       } else {
         errors.push(`${row.id} J+${item.day}: ${r.error}`)
       }
     }
 
     if (changed) {
-      await sb.from("interventions").update({ avis_sms_plan: updated }).eq("id", row.id)
+      const { error: upErr } = await sb
+        .from("interventions")
+        .update({ avis_sms_plan: updated })
+        .eq("id", row.id)
+      if (upErr) errors.push(`${row.id} update: ${upErr.message}`)
     }
   }
 
-  return { scanned, sent, errors }
+  return { scanned, sent, skippedNoPhone, errors }
 }
 
 export type AvisGoogleCampagne = {
@@ -510,6 +616,7 @@ export type AvisGoogleSnapshot = {
     reviewUrl: string
     sansTelephone: number
     sansEmail: number
+    cronSecretConfigured: boolean
   }
 }
 
@@ -523,6 +630,7 @@ export async function listAvisGoogleRelances(
     reviewUrl: "",
     sansTelephone: 0,
     sansEmail: 0,
+    cronSecretConfigured: !!(process.env.CRON_SECRET || "").trim(),
   }
   if (!sb) {
     return {
@@ -671,6 +779,7 @@ export async function listAvisGoogleRelances(
       reviewUrl,
       sansTelephone,
       sansEmail,
+      cronSecretConfigured: !!(process.env.CRON_SECRET || "").trim(),
     },
   }
 }
@@ -810,6 +919,7 @@ export async function reprendreRelancesAvis(
           recipient,
           clientPhone,
           clientNom,
+          clientId: (interv.client_id as string) || null,
           technicienNom: tech,
           ville: (interv.ville as string) || "",
           reviewUrl: deps.reviewUrl,
@@ -908,6 +1018,7 @@ export async function envoyerAvisManuel(opts: {
     if (r.error) {
       return { ok: false, error: r.error.message || "Erreur Resend" }
     }
+    const messageId = r.data?.id || null
     plan.push({
       day: 0,
       channel: "email",
@@ -915,14 +1026,34 @@ export async function envoyerAvisManuel(opts: {
       phone: "",
       email: to,
       message: "Envoi manuel mail avis",
-      resend_id: r.data?.id || null,
+      resend_id: messageId,
       sent: true,
       sent_at: nowIso,
       canceled: false,
       provider: "resend-manuel",
     })
     await sb.from("interventions").update({ avis_sms_plan: plan }).eq("id", opts.interventionId)
-    return { ok: true, messageId: r.data?.id || null, provider: "resend" }
+    try {
+      const { registerRelances, avisEmailProviderId } = await import("@/lib/relances-registry")
+      await registerRelances([{
+        kind: "avis",
+        sourceType: "intervention_avis",
+        sourceId: opts.interventionId,
+        providerId: messageId || avisEmailProviderId(opts.interventionId, 0, nowIso),
+        channel: "email",
+        sendAt: nowIso,
+        status: "sent",
+        clientId: (interv.client_id as string) || null,
+        clientNom,
+        clientEmail: to,
+        ville: (interv.ville as string) || null,
+        label: "Avis Google — mail manuel",
+        interventionId: opts.interventionId,
+        href: `/intervention/${opts.interventionId}`,
+        metadata: { day: 0, email: to, manual: true },
+      }])
+    } catch { /* best-effort journal */ }
+    return { ok: true, messageId, provider: "resend" }
   }
 
   const phone = (opts.phone || clientPhone || "").trim()
@@ -947,5 +1078,25 @@ export async function envoyerAvisManuel(opts: {
     message_id: sms.messageId ?? null,
   })
   await sb.from("interventions").update({ avis_sms_plan: plan }).eq("id", opts.interventionId)
+  try {
+    const { registerRelances, avisSmsProviderId } = await import("@/lib/relances-registry")
+    await registerRelances([{
+      kind: "avis",
+      sourceType: "intervention_avis",
+      sourceId: opts.interventionId,
+      providerId: avisSmsProviderId(opts.interventionId, 0, nowIso),
+      channel: "sms",
+      sendAt: nowIso,
+      status: "sent",
+      clientId: (interv.client_id as string) || null,
+      clientNom,
+      clientEmail: null,
+      ville: (interv.ville as string) || null,
+      label: "Avis Google — SMS manuel",
+      interventionId: opts.interventionId,
+      href: `/intervention/${opts.interventionId}`,
+      metadata: { day: 0, phone, manual: true, messageId: sms.messageId },
+    }])
+  } catch { /* best-effort journal */ }
   return { ok: true, messageId: sms.messageId ?? null, provider: sms.provider }
 }

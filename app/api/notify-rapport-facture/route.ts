@@ -292,6 +292,7 @@ export async function POST(req: NextRequest) {
         recipient,
         clientPhone,
         clientNom,
+        clientId: interv.client_id || null,
         technicienNom,
         ville,
         reviewUrl,

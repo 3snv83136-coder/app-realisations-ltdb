@@ -1,15 +1,9 @@
 import { NextRequest, NextResponse } from "next/server"
 import { envoyerSmsAvisEchus } from "@/lib/avis-relance"
+import { verifyCronAuth } from "@/lib/cron-auth"
 
 export const dynamic = "force-dynamic"
 export const maxDuration = 120
-
-function verifyCronAuth(req: NextRequest): boolean {
-  const secret = process.env.CRON_SECRET
-  if (!secret) return process.env.NODE_ENV !== "production"
-  const auth = req.headers.get("authorization") || ""
-  return auth === `Bearer ${secret}`
-}
 
 /** Envoie les SMS avis Google échus (mails déjà planifiés côté Resend). */
 export async function GET(req: NextRequest) {

@@ -3,16 +3,10 @@ import { escapeHtml, initResend } from "@/lib/email-utils"
 import { moisPrecedent, periodeLabel } from "@/lib/compta-kpis"
 import { getComptaAlertEmail, getTelPrincipal } from "@/lib/parametres"
 import { getSupabaseOrNull } from "@/lib/supabase"
+import { verifyCronAuth } from "@/lib/cron-auth"
 
 export const dynamic = "force-dynamic"
 export const maxDuration = 60
-
-function verifyCronAuth(req: NextRequest): boolean {
-  const secret = process.env.CRON_SECRET
-  if (!secret) return process.env.NODE_ENV !== "production"
-  const auth = req.headers.get("authorization") || ""
-  return auth === `Bearer ${secret}`
-}
 
 function emailAlerteReleve(input: {
   periodeLabel: string

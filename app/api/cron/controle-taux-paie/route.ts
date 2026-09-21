@@ -8,16 +8,10 @@ import {
   SMIC_MENSUEL,
   tauxPaieSignature,
 } from "@/lib/rh/taux-paie"
+import { verifyCronAuth } from "@/lib/cron-auth"
 
 export const dynamic = "force-dynamic"
 export const maxDuration = 60
-
-function verifyCronAuth(req: NextRequest): boolean {
-  const secret = process.env.CRON_SECRET
-  if (!secret) return process.env.NODE_ENV !== "production"
-  const auth = req.headers.get("authorization") || ""
-  return auth === `Bearer ${secret}`
-}
 
 /** Normalise le texte d'une page (espaces fines/insécables → espace simple). */
 function normalize(text: string): string {

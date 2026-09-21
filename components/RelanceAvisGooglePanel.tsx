@@ -52,6 +52,7 @@ export default function RelanceAvisGooglePanel({ className = "" }: Props) {
           reviewUrl: "",
           sansTelephone: 0,
           sansEmail: 0,
+          cronSecretConfigured: false,
         },
       })
     } catch (e) {
@@ -167,6 +168,30 @@ export default function RelanceAvisGooglePanel({ className = "" }: Props) {
     }
   }
 
+  async function runDueSms() {
+    setBusyKey("run-sms")
+    setInfo("")
+    setError("")
+    try {
+      const res = await fetch("/api/relances/avis/run-sms", { method: "POST" })
+      const j = await res.json()
+      if (!res.ok) throw new Error(j.error || `HTTP ${res.status}`)
+      const errN = Array.isArray(j.errors) ? j.errors.length : 0
+      setInfo(
+        `SMS dus : ${j.sent || 0} envoyé(s), ${j.scanned || 0} traité(s)`
+        + (j.skippedNoPhone ? `, ${j.skippedNoPhone} sans numéro` : "")
+        + (errN ? `, ${errN} erreur(s)` : "")
+        + ".",
+      )
+      if (errN && j.errors?.[0]) setError(String(j.errors[0]))
+      await load()
+    } catch (e) {
+      setError(errorMessage(e) || "Erreur déclenchement SMS")
+    } finally {
+      setBusyKey(null)
+    }
+  }
+
   const totals = data?.totals ?? { actives: 0, arretees: 0, pending: 0, sent: 0 }
   const health = data?.health
 
@@ -208,11 +233,29 @@ export default function RelanceAvisGooglePanel({ className = "" }: Props) {
 
       {health && (
         <div className="rounded-xl bg-white/80 border border-amber-700/25 px-3 py-2.5 text-xs text-[#3d2a10] space-y-1">
-          <p className="font-bold text-[#1a1208]">État du système</p>
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+            <p className="font-bold text-[#1a1208]">État du système</p>
+            <button
+              type="button"
+              disabled={!!busyKey}
+              onClick={() => void runDueSms()}
+              className="shrink-0 bg-[#0e2a52] hover:bg-[#163a6b] disabled:opacity-50 text-white text-xs font-bold rounded-lg px-3 py-2"
+            >
+              {busyKey === "run-sms" ? "Envoi…" : "📱 Envoyer les SMS dus maintenant"}
+            </button>
+          </div>
           <p>
             SMS auto :{" "}
             <strong className={health.smsConfigured ? "text-emerald-800" : "text-red-700"}>
               {health.smsConfigured ? "configuré (Brevo/Twilio)" : "non configuré — SMS J+2 ne partent pas"}
+            </strong>
+          </p>
+          <p>
+            Cron horaire :{" "}
+            <strong className={health.cronSecretConfigured ? "text-emerald-800" : "text-amber-800"}>
+              {health.cronSecretConfigured
+                ? "CRON_SECRET OK"
+                : "sans CRON_SECRET (utilise x-vercel-cron) — OK après ce correctif"}
             </strong>
           </p>
           {health.reviewUrl ? (
@@ -227,11 +270,11 @@ export default function RelanceAvisGooglePanel({ className = "" }: Props) {
             <p>
               Attention : {health.sansEmail > 0 ? `${health.sansEmail} sans email` : ""}
               {health.sansEmail > 0 && health.sansTelephone > 0 ? " · " : ""}
-              {health.sansTelephone > 0 ? `${health.sansTelephone} sans téléphone` : ""}
+              {health.sansTelephone > 0 ? `${health.sansTelephone} sans téléphone (SMS impossible)` : ""}
             </p>
           )}
           <p className="opacity-80">
-            Séquence : mail J+1 → SMS J+2 → mail J+4 → mail J+7 (cron SMS chaque heure).
+            Séquence : mail J+1 → SMS J+2 → mail J+4 → mail J+7.
           </p>
         </div>
       )}
