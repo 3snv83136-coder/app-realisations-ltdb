@@ -47,6 +47,12 @@ export default function RelanceAvisGooglePanel({ className = "" }: Props) {
       setData({
         campagnes: j.campagnes || [],
         totals: j.totals || { actives: 0, arretees: 0, pending: 0, sent: 0 },
+        health: j.health || {
+          smsConfigured: false,
+          reviewUrl: "",
+          sansTelephone: 0,
+          sansEmail: 0,
+        },
       })
     } catch (e) {
       setError(errorMessage(e) || "Erreur chargement")
@@ -126,7 +132,43 @@ export default function RelanceAvisGooglePanel({ className = "" }: Props) {
     }
   }
 
+  async function envoyerManuel(
+    interventionId: string,
+    channel: "email" | "sms",
+    campagne: AvisGoogleCampagne,
+  ) {
+    const key = `${channel}:${interventionId}`
+    setBusyKey(key)
+    setInfo("")
+    setError("")
+    try {
+      const res = await fetch("/api/relances/avis/envoyer", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          interventionId,
+          channel,
+          email: campagne.clientEmail || undefined,
+          phone: campagne.clientTelephone || undefined,
+        }),
+      })
+      const j = await res.json()
+      if (!res.ok) throw new Error(j.error || `HTTP ${res.status}`)
+      setInfo(
+        channel === "email"
+          ? `Mail avis envoyé à ${campagne.clientEmail || "client"}.`
+          : `SMS avis envoyé au ${campagne.clientTelephone || "client"}.`,
+      )
+      await load()
+    } catch (e) {
+      setError(errorMessage(e) || "Erreur envoi manuel")
+    } finally {
+      setBusyKey(null)
+    }
+  }
+
   const totals = data?.totals ?? { actives: 0, arretees: 0, pending: 0, sent: 0 }
+  const health = data?.health
 
   return (
     <section
@@ -163,6 +205,36 @@ export default function RelanceAvisGooglePanel({ className = "" }: Props) {
         <Kpi label="Envoyés" value={totals.sent} />
         <Kpi label="Arrêtées" value={totals.arretees} />
       </div>
+
+      {health && (
+        <div className="rounded-xl bg-white/80 border border-amber-700/25 px-3 py-2.5 text-xs text-[#3d2a10] space-y-1">
+          <p className="font-bold text-[#1a1208]">État du système</p>
+          <p>
+            SMS auto :{" "}
+            <strong className={health.smsConfigured ? "text-emerald-800" : "text-red-700"}>
+              {health.smsConfigured ? "configuré (Brevo/Twilio)" : "non configuré — SMS J+2 ne partent pas"}
+            </strong>
+          </p>
+          {health.reviewUrl ? (
+            <p className="truncate">
+              Lien avis :{" "}
+              <a href={health.reviewUrl} target="_blank" rel="noopener noreferrer" className="underline font-semibold">
+                {health.reviewUrl}
+              </a>
+            </p>
+          ) : null}
+          {(health.sansTelephone > 0 || health.sansEmail > 0) && (
+            <p>
+              Attention : {health.sansEmail > 0 ? `${health.sansEmail} sans email` : ""}
+              {health.sansEmail > 0 && health.sansTelephone > 0 ? " · " : ""}
+              {health.sansTelephone > 0 ? `${health.sansTelephone} sans téléphone` : ""}
+            </p>
+          )}
+          <p className="opacity-80">
+            Séquence : mail J+1 → SMS J+2 → mail J+4 → mail J+7 (cron SMS chaque heure).
+          </p>
+        </div>
+      )}
 
       <div className="flex flex-col sm:flex-row gap-2">
         <div className="flex rounded-xl overflow-hidden border-2 border-amber-700/30 bg-white/80">
@@ -232,6 +304,22 @@ export default function RelanceAvisGooglePanel({ className = "" }: Props) {
                 stop("item", c.interventionId)
               }}
               onReprendre={() => reprendre(c.interventionId)}
+              onMail={() => {
+                if (!c.clientEmail) {
+                  setError(`Pas d'email pour ${c.clientNom}`)
+                  return
+                }
+                if (!confirm(`Envoyer un mail avis Google maintenant à ${c.clientEmail} ?`)) return
+                void envoyerManuel(c.interventionId, "email", c)
+              }}
+              onSms={() => {
+                if (!c.clientTelephone) {
+                  setError(`Pas de téléphone pour ${c.clientNom}`)
+                  return
+                }
+                if (!confirm(`Envoyer un SMS avis Google maintenant au ${c.clientTelephone} ?`)) return
+                void envoyerManuel(c.interventionId, "sms", c)
+              }}
             />
           ))}
         </ul>
@@ -256,6 +344,8 @@ function CampagneCard({
   busyKey,
   onStop,
   onReprendre,
+  onMail,
+  onSms,
 }: {
   campagne: AvisGoogleCampagne
   open: boolean
@@ -263,9 +353,13 @@ function CampagneCard({
   busyKey: string | null
   onStop: () => void
   onReprendre: () => void
+  onMail: () => void
+  onSms: () => void
 }) {
   const stopBusy = busyKey === `stop:${c.interventionId}`
   const goBusy = busyKey === `go:${c.interventionId}`
+  const mailBusy = busyKey === `email:${c.interventionId}`
+  const smsBusy = busyKey === `sms:${c.interventionId}`
 
   return (
     <li className="bg-white rounded-xl border border-amber-700/20 overflow-hidden">
@@ -302,7 +396,25 @@ function CampagneCard({
           </p>
         </button>
 
-        <div className="flex items-center gap-1.5 shrink-0">
+        <div className="flex flex-wrap items-center gap-1.5 shrink-0">
+          <button
+            type="button"
+            disabled={!!busyKey || !c.clientEmail}
+            onClick={onMail}
+            className="bg-[#0e2a52] hover:bg-[#163a6b] disabled:opacity-40 text-white text-xs font-bold rounded-lg px-2.5 py-2"
+            title={c.clientEmail ? `Mail à ${c.clientEmail}` : "Email manquant"}
+          >
+            {mailBusy ? "…" : "✉ Mail"}
+          </button>
+          <button
+            type="button"
+            disabled={!!busyKey || !c.clientTelephone}
+            onClick={onSms}
+            className="bg-emerald-700 hover:bg-emerald-800 disabled:opacity-40 text-white text-xs font-bold rounded-lg px-2.5 py-2"
+            title={c.clientTelephone ? `SMS au ${c.clientTelephone}` : "Téléphone manquant"}
+          >
+            {smsBusy ? "…" : "📱 SMS"}
+          </button>
           <Link
             href={c.href}
             className="text-xs font-bold text-[#0e2a52] hover:underline px-2 py-1.5"
@@ -323,7 +435,7 @@ function CampagneCard({
               type="button"
               disabled={!!busyKey}
               onClick={onReprendre}
-              className="bg-emerald-700 hover:bg-emerald-800 disabled:opacity-50 text-white text-xs font-bold rounded-lg px-3 py-2"
+              className="bg-amber-700 hover:bg-amber-800 disabled:opacity-50 text-white text-xs font-bold rounded-lg px-3 py-2"
             >
               {goBusy ? "…" : "Continuer"}
             </button>

@@ -269,6 +269,7 @@ export async function planifierAvisRelances(
 
   for (const step of AVIS_RELANCE_PLAN) {
     const sendAt = new Date(anchor.getTime() + step.day * 24 * 60 * 60 * 1000)
+    const inFuture = sendAt.getTime() > Date.now() + 60_000
 
     if (step.channel === "email") {
       try {
@@ -285,7 +286,7 @@ export async function planifierAvisRelances(
             tel: input.tel,
             stopUrl,
           }),
-          scheduledAt: sendAt.toISOString(),
+          ...(inFuture ? { scheduledAt: sendAt.toISOString() } : {}),
         })
         if (r.data?.id) emailIds.push(r.data.id)
         if (r.error) errors.push(`J+${step.day} mail: ${r.error.message || "erreur"}`)
@@ -297,7 +298,8 @@ export async function planifierAvisRelances(
           email: input.recipient,
           message: relanceSubject(step.day, prenom),
           resend_id: r.data?.id || null,
-          sent: false,
+          sent: !inFuture && !!r.data?.id,
+          sent_at: !inFuture && r.data?.id ? new Date().toISOString() : null,
           canceled: false,
         })
       } catch (e) {
@@ -503,6 +505,12 @@ export type AvisGoogleSnapshot = {
     pending: number
     sent: number
   }
+  health: {
+    smsConfigured: boolean
+    reviewUrl: string
+    sansTelephone: number
+    sansEmail: number
+  }
 }
 
 /** Liste les campagnes de relances avis Google (actives + historique). */
@@ -510,12 +518,28 @@ export async function listAvisGoogleRelances(
   technicienId: string | null,
 ): Promise<AvisGoogleSnapshot> {
   const sb = getSupabaseOrNull()
+  const emptyHealth = {
+    smsConfigured: isSmsConfigured(),
+    reviewUrl: "",
+    sansTelephone: 0,
+    sansEmail: 0,
+  }
   if (!sb) {
     return {
       campagnes: [],
       totals: { actives: 0, arretees: 0, pending: 0, sent: 0 },
+      health: emptyHealth,
     }
   }
+
+  const reviewUrl = await (async () => {
+    try {
+      const { getGoogleReviewUrl } = await import("@/lib/review-url")
+      return await getGoogleReviewUrl()
+    } catch {
+      return ""
+    }
+  })()
 
   let query = sb
     .from("interventions")
@@ -523,7 +547,7 @@ export async function listAvisGoogleRelances(
       "id, reference, ville, client_id, technicien_id, avis_recu, avis_relance_ids, avis_sms_plan, mail_envoye_at",
     )
     .order("mail_envoye_at", { ascending: false })
-    .limit(150)
+    .limit(200)
 
   if (technicienId) query = query.eq("technicien_id", technicienId)
 
@@ -550,19 +574,24 @@ export async function listAvisGoogleRelances(
   }
 
   const campagnes: AvisGoogleCampagne[] = []
+  let sansTelephone = 0
+  let sansEmail = 0
 
   for (const row of rows || []) {
     const plan = parseAvisSmsPlan(row.avis_sms_plan)
     const emailIds = Array.isArray(row.avis_relance_ids)
       ? (row.avis_relance_ids as string[]).filter(Boolean)
       : []
-    const hasActivity =
+    const hasAvisTrail =
       plan.length > 0
       || emailIds.length > 0
-      || !!row.mail_envoye_at
       || !!row.avis_recu
 
-    if (!hasActivity) continue
+    // Ignore les dossiers sans aucune trace d'avis (évite le bruit)
+    if (!hasAvisTrail && !row.mail_envoye_at) continue
+    if (!hasAvisTrail && row.mail_envoye_at) {
+      // Mail rapport envoyé mais aucune relance planifiée → visible pour diagnostic
+    }
 
     const client = row.client_id ? clientMap.get(row.client_id as string) : null
     const envois = buildAvisEnvoisTimeline(plan, emailIds)
@@ -572,8 +601,12 @@ export async function listAvisGoogleRelances(
     const avisRecu = !!row.avis_recu
     const active = !avisRecu && pendingCount > 0
 
-    // Si aucune ligne d'envoi mais mail rapport envoyé → entrée minimale
-    if (envois.length === 0 && row.mail_envoye_at) {
+    if (hasAvisTrail || active) {
+      if (!client?.telephone) sansTelephone++
+      if (!client?.email) sansEmail++
+    }
+
+    if (envois.length === 0 && row.mail_envoye_at && !hasAvisTrail) {
       envois.push({
         day: 0,
         channel: "email",
@@ -581,9 +614,11 @@ export async function listAvisGoogleRelances(
         status: "sent",
         sentAt: row.mail_envoye_at as string,
         destinataire: client?.email || null,
-        label: "Mail rapport + facture (lien avis)",
+        label: "Mail rapport + facture (sans séquence avis)",
       })
     }
+
+    if (!hasAvisTrail && envois.length === 0) continue
 
     campagnes.push({
       interventionId: row.id as string,
@@ -596,14 +631,13 @@ export async function listAvisGoogleRelances(
       avisRecu,
       active,
       pendingCount,
-      sentCount: sentCount || (row.mail_envoye_at ? 1 : 0),
+      sentCount: sentCount || (row.mail_envoye_at && !hasAvisTrail ? 1 : sentCount),
       canceledCount,
       envois,
       href: `/intervention/${row.id}`,
     })
   }
 
-  // Actives d'abord, puis par date mail
   campagnes.sort((a, b) => {
     if (a.active !== b.active) return a.active ? -1 : 1
     return (b.mailEnvoyeAt || "").localeCompare(a.mailEnvoyeAt || "")
@@ -616,6 +650,12 @@ export async function listAvisGoogleRelances(
       arretees: campagnes.filter(c => c.avisRecu).length,
       pending: campagnes.reduce((s, c) => s + c.pendingCount, 0),
       sent: campagnes.reduce((s, c) => s + c.sentCount, 0),
+    },
+    health: {
+      smsConfigured: isSmsConfigured(),
+      reviewUrl,
+      sansTelephone,
+      sansEmail,
     },
   }
 }
@@ -783,4 +823,114 @@ export async function reprendreRelancesAvis(
     .eq("id", interventionId)
 
   return { resumed, errors }
+}
+
+/**
+ * Envoi manuel immédiat d'un avis Google (mail ou SMS) + journalisation dans avis_sms_plan.
+ */
+export async function envoyerAvisManuel(opts: {
+  interventionId: string
+  channel: "email" | "sms"
+  email?: string | null
+  phone?: string | null
+  resend?: Resend
+  fromEmail?: string
+}): Promise<{ ok: true; messageId?: string | number | null; provider?: string } | { ok: false; error: string }> {
+  const sb = getSupabaseOrNull()
+  if (!sb) return { ok: false, error: "Supabase non configuré" }
+
+  const { data: interv } = await sb
+    .from("interventions")
+    .select("id, reference, ville, client_id, avis_sms_plan")
+    .eq("id", opts.interventionId)
+    .maybeSingle()
+
+  if (!interv) return { ok: false, error: "Intervention introuvable" }
+
+  let clientNom = "Client"
+  let clientEmail: string | null = null
+  let clientPhone: string | null = null
+  if (interv.client_id) {
+    const { data: client } = await sb
+      .from("clients")
+      .select("nom, email, telephone")
+      .eq("id", interv.client_id)
+      .maybeSingle()
+    if (client) {
+      clientNom = client.nom || clientNom
+      clientEmail = client.email || null
+      clientPhone = client.telephone || null
+    }
+  }
+
+  const { getGoogleReviewUrl } = await import("@/lib/review-url")
+  const { getTelPrincipal } = await import("@/lib/parametres")
+  const [reviewUrl, tel] = await Promise.all([getGoogleReviewUrl(), getTelPrincipal()])
+  const nowIso = new Date().toISOString()
+  const plan = parseAvisSmsPlan(interv.avis_sms_plan)
+
+  if (opts.channel === "email") {
+    const to = (opts.email || clientEmail || "").trim()
+    if (!to) return { ok: false, error: "Email client manquant" }
+    if (!opts.resend || !opts.fromEmail) {
+      return { ok: false, error: "Resend non configuré" }
+    }
+    const { getResendRecipient } = await import("@/lib/email-utils")
+    const recipient = getResendRecipient(to)
+    const r = await opts.resend.emails.send({
+      from: `Les Techniciens du Débouchage <${opts.fromEmail}>`,
+      to: recipient,
+      subject: `${clientNom.split(" ").slice(-1)[0]}, votre avis nous serait précieux ⭐`,
+      html: emailRelanceAvis({
+        clientNom,
+        technicienNom: "votre technicien",
+        ville: (interv.ville as string) || "",
+        reviewUrl,
+        jour: 1,
+        tel,
+      }),
+    })
+    if (r.error) {
+      return { ok: false, error: r.error.message || "Erreur Resend" }
+    }
+    plan.push({
+      day: 0,
+      channel: "email",
+      send_at: nowIso,
+      phone: "",
+      email: to,
+      message: "Envoi manuel mail avis",
+      resend_id: r.data?.id || null,
+      sent: true,
+      sent_at: nowIso,
+      canceled: false,
+      provider: "resend-manuel",
+    })
+    await sb.from("interventions").update({ avis_sms_plan: plan }).eq("id", opts.interventionId)
+    return { ok: true, messageId: r.data?.id || null, provider: "resend" }
+  }
+
+  const phone = (opts.phone || clientPhone || "").trim()
+  if (!phone) return { ok: false, error: "Téléphone client manquant" }
+  if (!isSmsConfigured()) {
+    return { ok: false, error: "SMS non configuré (Brevo / Twilio)" }
+  }
+  const message = buildReviewOnlySmsText({ clientNom, reviewUrl, tel })
+  const sms = await sendSms({ to: phone, content: message })
+  if (!sms.ok) return { ok: false, error: sms.error || "Erreur SMS" }
+
+  plan.push({
+    day: 0,
+    channel: "sms",
+    send_at: nowIso,
+    phone,
+    message,
+    sent: true,
+    sent_at: nowIso,
+    canceled: false,
+    provider: `${sms.provider || "sms"}-manuel`,
+    message_id: sms.messageId ?? null,
+  })
+  await sb.from("interventions").update({ avis_sms_plan: plan }).eq("id", opts.interventionId)
+  return { ok: true, messageId: sms.messageId ?? null, provider: sms.provider }
 }

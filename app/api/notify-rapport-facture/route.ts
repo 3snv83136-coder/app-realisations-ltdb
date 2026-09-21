@@ -275,7 +275,8 @@ export async function POST(req: NextRequest) {
 
   const reviewUrl = await getGoogleReviewUrl()
 
-  // Relances avis Google : mail 24 h, SMS 24 h après, mail 48 h après, mail final 72 h après.
+  // Relances avis Google : ancrées sur l'instant d'envoi du mail (pas la date
+  // d'intervention — sinon J+1…J+7 sont déjà dans le passé et Resend n'envoie rien).
   let relanceIds: string[] = []
   let smsPlanned = 0
   let avisRelanceErrors: string[] = []
@@ -283,9 +284,6 @@ export async function POST(req: NextRequest) {
   if (!skipAvisSms) {
     try {
       const signSecret = process.env.REVIEW_STOP_SECRET || process.env.NEXTAUTH_SECRET || process.env.RESEND_API_KEY || ''
-      const anchorAt = dateInterv
-        ? `${String(dateInterv).slice(0, 10)}T12:00:00.000Z`
-        : new Date().toISOString()
       const rel = await planifierAvisRelances({
         interventionId,
         baseUrl: getBaseUrl(req),
@@ -299,7 +297,7 @@ export async function POST(req: NextRequest) {
         reviewUrl,
         tel,
         signSecret,
-        anchorAt,
+        anchorAt: new Date().toISOString(),
       })
       relanceIds = rel.emailIds
       smsPlanned = rel.smsPlanned

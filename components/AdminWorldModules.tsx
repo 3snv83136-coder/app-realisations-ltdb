@@ -62,6 +62,7 @@ export const ADMIN_TOOLS: HubTool[] = [
   { href: '/accord',           emoji: '🤝', label: 'Accords',       desc: 'Liste signés',        bg: 'bg-gradient-to-br from-red-500 to-red-700',       text: 'white' },
   { href: '/accord/nouveau',   emoji: '✍️', label: 'Nouvel accord', desc: 'Créer',               bg: 'bg-gradient-to-br from-red-400 to-rose-600',      text: 'white' },
   { href: '/relances',         emoji: '🔔', label: 'Relances',      desc: 'Stop avis/devis',     bg: 'bg-gradient-to-br from-orange-500 to-red-600',    text: 'white' },
+  { href: '/avis-google',      emoji: '⭐', label: 'Avis Google',   desc: 'Stats & renvoi',      bg: 'bg-gradient-to-br from-amber-400 to-orange-600',  text: 'black' },
   { href: '/inspection',       emoji: '📹', label: 'Caméra',        desc: 'Inspection NF',       bg: 'bg-gradient-to-br from-sky-400 to-sky-600',       text: 'white' },
   { href: '/attestation',      emoji: '✅', label: 'Attestation',   desc: 'SPANC',               bg: 'bg-gradient-to-br from-[#a18249] to-[#6e5530]',   text: 'white' },
   { href: '/historique',       emoji: '📚', label: 'Historique',    desc: 'Interventions',       bg: 'bg-gradient-to-br from-slate-400 to-slate-600',   text: 'white' },
