@@ -541,20 +541,39 @@ export async function listAvisGoogleRelances(
     }
   })()
 
-  let query = sb
+  // IMPORTANT : ne pas `.order(mail_envoye_at).limit(200)` seul —
+  // en Postgres DESC, les NULL passent en premier → 200 lignes sans mail → liste vide.
+  const selectCols =
+    "id, reference, ville, client_id, technicien_id, avis_recu, avis_relance_ids, avis_sms_plan, mail_envoye_at, created_at"
+
+  let qMail = sb
     .from("interventions")
-    .select(
-      "id, reference, ville, client_id, technicien_id, avis_recu, avis_relance_ids, avis_sms_plan, mail_envoye_at",
-    )
+    .select(selectCols)
+    .not("mail_envoye_at", "is", null)
     .order("mail_envoye_at", { ascending: false })
-    .limit(200)
+    .limit(150)
 
-  if (technicienId) query = query.eq("technicien_id", technicienId)
+  let qAvis = sb
+    .from("interventions")
+    .select(selectCols)
+    .or("avis_recu.eq.true,avis_sms_plan.not.is.null")
+    .order("created_at", { ascending: false })
+    .limit(150)
 
-  const { data: rows } = await query
+  if (technicienId) {
+    qMail = qMail.eq("technicien_id", technicienId)
+    qAvis = qAvis.eq("technicien_id", technicienId)
+  }
+
+  const [mailRes, avisRes] = await Promise.all([qMail, qAvis])
+  const byId = new Map<string, Record<string, unknown>>()
+  for (const row of [...(mailRes.data || []), ...(avisRes.data || [])]) {
+    byId.set(row.id as string, row as Record<string, unknown>)
+  }
+  const rows = Array.from(byId.values())
 
   const clientIds = new Set<string>()
-  for (const row of rows || []) {
+  for (const row of rows) {
     if (row.client_id) clientIds.add(row.client_id as string)
   }
 
@@ -577,7 +596,7 @@ export async function listAvisGoogleRelances(
   let sansTelephone = 0
   let sansEmail = 0
 
-  for (const row of rows || []) {
+  for (const row of rows) {
     const plan = parseAvisSmsPlan(row.avis_sms_plan)
     const emailIds = Array.isArray(row.avis_relance_ids)
       ? (row.avis_relance_ids as string[]).filter(Boolean)
@@ -586,12 +605,10 @@ export async function listAvisGoogleRelances(
       plan.length > 0
       || emailIds.length > 0
       || !!row.avis_recu
+    const mailEnvoyeAt = (row.mail_envoye_at as string | null) || null
 
-    // Ignore les dossiers sans aucune trace d'avis (évite le bruit)
-    if (!hasAvisTrail && !row.mail_envoye_at) continue
-    if (!hasAvisTrail && row.mail_envoye_at) {
-      // Mail rapport envoyé mais aucune relance planifiée → visible pour diagnostic
-    }
+    // Afficher : séquence avis OU mail rapport déjà parti (pour renvoi manuel)
+    if (!hasAvisTrail && !mailEnvoyeAt) continue
 
     const client = row.client_id ? clientMap.get(row.client_id as string) : null
     const envois = buildAvisEnvoisTimeline(plan, emailIds)
@@ -601,24 +618,22 @@ export async function listAvisGoogleRelances(
     const avisRecu = !!row.avis_recu
     const active = !avisRecu && pendingCount > 0
 
-    if (hasAvisTrail || active) {
-      if (!client?.telephone) sansTelephone++
-      if (!client?.email) sansEmail++
-    }
+    if (!client?.telephone) sansTelephone++
+    if (!client?.email) sansEmail++
 
-    if (envois.length === 0 && row.mail_envoye_at && !hasAvisTrail) {
+    if (envois.length === 0 && mailEnvoyeAt) {
       envois.push({
         day: 0,
         channel: "email",
-        sendAt: row.mail_envoye_at as string,
+        sendAt: mailEnvoyeAt,
         status: "sent",
-        sentAt: row.mail_envoye_at as string,
+        sentAt: mailEnvoyeAt,
         destinataire: client?.email || null,
-        label: "Mail rapport + facture (sans séquence avis)",
+        label: hasAvisTrail
+          ? "Mail rapport + facture"
+          : "Mail rapport + facture (pas encore de séquence avis — renvoie via ✉ / 📱)",
       })
     }
-
-    if (!hasAvisTrail && envois.length === 0) continue
 
     campagnes.push({
       interventionId: row.id as string,
@@ -627,11 +642,11 @@ export async function listAvisGoogleRelances(
       clientEmail: client?.email || null,
       clientTelephone: client?.telephone || null,
       ville: (row.ville as string) || null,
-      mailEnvoyeAt: (row.mail_envoye_at as string) || null,
+      mailEnvoyeAt,
       avisRecu,
       active,
       pendingCount,
-      sentCount: sentCount || (row.mail_envoye_at && !hasAvisTrail ? 1 : sentCount),
+      sentCount: sentCount || (mailEnvoyeAt ? Math.max(1, sentCount) : sentCount),
       canceledCount,
       envois,
       href: `/intervention/${row.id}`,
