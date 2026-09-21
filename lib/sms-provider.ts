@@ -18,7 +18,7 @@ export function smsProviderName(): "brevo" | "twilio" | null {
 
 export async function sendSms({ to, content }: { to: string; content: string }): Promise<SmsSendResult> {
   if (isBrevoSmsConfigured()) {
-    const r = await sendSmsBrevo({ to, content })
+    const r = await sendSmsBrevo({ to, content, tag: "avis-google" })
     if (r.ok) return { ok: true, messageId: r.messageId, provider: "brevo" }
     return { ok: false, error: r.error, disabled: r.disabled }
   }

@@ -5,6 +5,8 @@ import { getTelPrincipal } from "@/lib/parametres"
 import { normalizePhoneForSmsUri } from "@/lib/sms"
 import { isSmsConfigured, sendSms } from "@/lib/sms-provider"
 import { getSupabaseOrNull, patchClient } from "@/lib/supabase"
+import { avisSmsProviderId, registerRelances } from "@/lib/relances-registry"
+import { getBrevoSender, toBrevoRecipient } from "@/lib/sms-brevo"
 
 export const dynamic = "force-dynamic"
 export const maxDuration = 30
@@ -38,7 +40,8 @@ export async function POST(req: NextRequest, { params }: Params) {
   }
 
   const clientPhone = (body.clientPhone || "").trim()
-  if (!clientPhone || !normalizePhoneForSmsUri(clientPhone)) {
+  const e164 = normalizePhoneForSmsUri(clientPhone)
+  if (!clientPhone || !e164) {
     return NextResponse.json({ error: "Numéro de téléphone client invalide" }, { status: 400 })
   }
 
@@ -69,9 +72,40 @@ export async function POST(req: NextRequest, { params }: Params) {
     return NextResponse.json({ error: r.error }, { status: 500 })
   }
 
+  const nowIso = new Date().toISOString()
+  const recipient = toBrevoRecipient(clientPhone) || e164
+  try {
+    await registerRelances([{
+      kind: "avis",
+      sourceType: "intervention_avis",
+      sourceId: interventionId,
+      providerId: avisSmsProviderId(interventionId, 0, nowIso),
+      channel: "sms",
+      sendAt: nowIso,
+      status: "sent",
+      clientNom: body.clientNom?.trim() || null,
+      label: "Avis Google — SMS manuel",
+      interventionId,
+      href: `/intervention/${interventionId}`,
+      metadata: {
+        day: 0,
+        phone: recipient,
+        manual: true,
+        messageId: r.messageId ?? null,
+        provider: r.provider,
+        sender: getBrevoSender(),
+      },
+    }])
+  } catch (e) {
+    console.error("[send-review-sms] journal", e)
+  }
+
   return NextResponse.json({
     ok: true,
     messageId: r.messageId,
     provider: r.provider,
+    to: e164,
+    toDigits: recipient,
+    sender: getBrevoSender(),
   })
 }

@@ -30,6 +30,12 @@ export default function EnvoyerAvisSmsPanel({
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [apiConfigured, setApiConfigured] = useState(true)
+  const [lastSend, setLastSend] = useState<{
+    to?: string
+    messageId?: string | number
+    sender?: string
+    provider?: string
+  } | null>(null)
 
   useEffect(() => {
     setTelephone(clientTelephone || '')
@@ -55,6 +61,7 @@ export default function EnvoyerAvisSmsPanel({
     setBusy(true)
     setError('')
     setSmsOk(false)
+    setLastSend(null)
     try {
       const url = interventionId
         ? `/api/interventions/${interventionId}/send-review-sms`
@@ -70,6 +77,12 @@ export default function EnvoyerAvisSmsPanel({
       const data = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`)
       setSmsOk(true)
+      setLastSend({
+        to: data.to || phone,
+        messageId: data.messageId,
+        sender: data.sender || 'LTDB',
+        provider: data.provider || 'brevo',
+      })
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
     } finally {
@@ -91,6 +104,7 @@ export default function EnvoyerAvisSmsPanel({
         </h2>
         <p className="text-sm text-[#3d2a10] mt-1 font-medium">
           Envoie immédiatement le lien Google avis au client (Brevo) — sans rapport ni facture.
+          Expéditeur affiché : <strong>LTDB</strong> · mobile 06/07 uniquement.
         </p>
       </header>
 
@@ -141,8 +155,19 @@ export default function EnvoyerAvisSmsPanel({
       )}
 
       {smsOk && (
-        <div className="bg-emerald-700 text-white rounded-xl px-3 py-2 text-sm font-semibold">
-          ✓ SMS avis Google envoyé
+        <div className="bg-emerald-700 text-white rounded-xl px-3 py-2 text-sm font-semibold space-y-1">
+          <div>✓ SMS accepté par Brevo{lastSend?.to ? ` → ${lastSend.to}` : ''}</div>
+          {lastSend?.sender && (
+            <div className="text-xs font-medium opacity-90">
+              Cherche un SMS de l’expéditeur « {lastSend.sender} » (pas LTDB en toutes lettres).
+            </div>
+          )}
+          {lastSend?.messageId != null && (
+            <div className="text-xs font-medium opacity-80">ID Brevo : {String(lastSend.messageId)}</div>
+          )}
+          <div className="text-xs font-medium opacity-90">
+            Historique aussi dans <a href="/mail" className="underline">Mail → Avis Google</a>
+          </div>
         </div>
       )}
 
