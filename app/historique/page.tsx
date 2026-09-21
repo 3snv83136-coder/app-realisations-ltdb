@@ -90,12 +90,26 @@ const STATUT_BADGE: Record<string, string> = {
   terminee: 'bg-emerald-100 text-emerald-700',
   annulee: 'bg-slate-200 text-slate-600',
   brouillon: 'bg-slate-200 text-slate-600',
-  envoye: 'bg-blue-100 text-blue-700',
+  envoye: 'bg-emerald-100 text-emerald-800',
   paye: 'bg-emerald-100 text-emerald-700',
   accepte: 'bg-emerald-100 text-emerald-700',
   refuse: 'bg-red-100 text-red-700',
   expire: 'bg-amber-100 text-amber-700',
   annule: 'bg-slate-200 text-slate-600',
+}
+
+const STATUT_LABEL: Record<string, string> = {
+  planifiee: 'Planifiée',
+  en_cours: 'En cours',
+  terminee: 'Terminée',
+  annulee: 'Annulée',
+  brouillon: 'Brouillon',
+  envoye: 'Envoyé',
+  paye: 'Payé',
+  accepte: 'Accepté',
+  refuse: 'Refusé',
+  expire: 'Expiré',
+  annule: 'Annulé',
 }
 
 const TYPE_ICON: Record<string, string> = {
@@ -325,7 +339,7 @@ export default function HistoriquePage() {
                       <td className="px-4 py-3 text-slate-600">{i.type_intervention || '—'}</td>
                       <td className="px-4 py-3">
                         <span className={`inline-block px-2 py-0.5 rounded-full text-[11px] font-bold ${STATUT_BADGE[i.statut] || 'bg-slate-100 text-slate-600'}`}>
-                          {i.statut}
+                          {STATUT_LABEL[i.statut] || i.statut}
                         </span>
                       </td>
                       <td className="px-4 py-3">
@@ -426,7 +440,7 @@ export default function HistoriquePage() {
                       <td className="px-4 py-3 text-right font-bold text-[#0e2a52] tabular-nums">{fmtEUR(d.montant_ttc)}</td>
                       <td className="px-4 py-3">
                         <span className={`inline-block px-2 py-0.5 rounded-full text-[11px] font-bold ${STATUT_BADGE[d.statut] || 'bg-slate-100 text-slate-600'}`}>
-                          {d.statut}
+                          {STATUT_LABEL[d.statut] || d.statut}
                         </span>
                       </td>
                       <td className="px-4 py-3 text-xs text-slate-500">{d.envoye_email || '—'}</td>

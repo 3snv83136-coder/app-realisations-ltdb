@@ -10,6 +10,7 @@ const VARIANT_LABELS: Record<string, string> = {
   'tout-a-legout': 'Tout-à-l\'égout',
   'fosse-septique': 'Fosse septique',
   'non-conforme': 'Non-conforme',
+  'reseau-fonctionnel': 'Réseau fonctionnel',
 }
 
 interface NotifyAttestationBody extends Partial<PersistAttestationInput> {

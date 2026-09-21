@@ -6,6 +6,8 @@ import Link from "next/link"
 import VoiceRecorder from "@/components/VoiceRecorder"
 import VilleCombobox from "@/components/VilleCombobox"
 import ClientAutocomplete from "@/components/ClientAutocomplete"
+import AppTabs from "@/components/AppTabs"
+import AttestationsRecentes from "@/components/AttestationsRecentes"
 import { useUnsavedChangesWarning } from "@/lib/useUnsavedChangesWarning"
 import type { AttestationData, AttestationObservation, Variante } from "@/components/AttestationPDF"
 import { errorMessage } from "@/lib/error-message"
@@ -34,6 +36,12 @@ const VARIANT_OPTIONS: { key: Variante; label: string; desc: string; color: stri
     label: 'Non-conforme',
     desc: 'Réseau non conforme — vice caché, anomalies structurelles',
     color: 'border-red-500 bg-red-50 text-red-900',
+  },
+  {
+    key: 'reseau-fonctionnel',
+    label: 'Réseau fonctionnel',
+    desc: 'Inspection caméra — bon fonctionnement au jour du passage (clients pro)',
+    color: 'border-teal-500 bg-teal-50 text-teal-900',
   },
 ]
 
@@ -464,6 +472,7 @@ export default function AttestationPage() {
   /* ===== STEP: CAPTURE ===== */
   return (
     <div className="min-h-screen bg-slate-50 pb-20">
+      <AppTabs />
       <header className="bg-white border-b-2 border-[#0f2e5c] sticky top-0 z-10">
         <div className="max-w-3xl mx-auto px-4 py-3 flex justify-between items-center">
           <Link href="/" className="text-sm text-slate-500 hover:text-[#0f2e5c]">← Accueil</Link>
@@ -472,16 +481,19 @@ export default function AttestationPage() {
       </header>
 
       <main className="max-w-3xl mx-auto px-4 py-5 space-y-4">
-        <div className="text-center">
-          <div className="text-[10px] uppercase tracking-[0.4em] text-[#a78346] font-bold mb-2">Document probatoire · Notaires &amp; ventes immobilières</div>
-          <h1 className="text-2xl sm:text-3xl font-black text-[#0f2e5c]">Attestation de conformité de raccordement</h1>
+        <AttestationsRecentes limit={30} />
+
+        <div className="text-center pt-2">
+          <div className="text-[10px] uppercase tracking-[0.4em] text-[#a78346] font-bold mb-2">Nouvelle attestation</div>
+          <h1 className="text-2xl sm:text-3xl font-black text-[#0f2e5c]">Créer une attestation</h1>
+          <p className="text-sm text-slate-500 mt-2">Conformité notaire, fosse, non-conforme, ou réseau fonctionnel (caméra pro).</p>
           <div className="mx-auto mt-3 w-16 h-0.5 bg-[#a78346]" />
         </div>
 
         {/* Variante */}
         <section className="bg-white rounded-2xl border border-slate-200 p-5 space-y-3">
           <h2 className="font-bold text-[#0f2e5c]">Type d&apos;attestation</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             {VARIANT_OPTIONS.map(opt => (
               <button
                 key={opt.key}

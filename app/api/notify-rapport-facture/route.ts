@@ -412,6 +412,23 @@ export async function POST(req: NextRequest) {
       .eq('id', facture.id)
   } catch {}
 
+  // Marque l'attestation jointe comme envoyée (historique + rubrique Attestation)
+  if (attestationPdf?.documentId) {
+    try {
+      await sb
+        .from('documents')
+        .update({
+          envoye_email: clientEmail,
+          envoye_at: new Date().toISOString(),
+          statut: 'envoye',
+        })
+        .eq('id', attestationPdf.documentId)
+        .eq('type', 'attestation')
+    } catch (e) {
+      console.error('[notify-rapport-facture] attestation statut envoye', e)
+    }
+  }
+
   // Marque l'intervention : mail envoyé + bump terrain_step à 9 (= diffusion OK, étape réseaux)
   // + stocke les IDs des relances avis pour pouvoir les stopper depuis l'app.
   try {
