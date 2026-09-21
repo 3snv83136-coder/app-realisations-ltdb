@@ -333,16 +333,27 @@ export async function planifierAvisRelances(
 
   const sb = getSupabaseOrNull()
   if (sb) {
-    try {
-      await sb
+    // Toujours sauver les IDs Resend même si avis_sms_plan n'existe pas encore en base
+    const { error: fullErr } = await sb
+      .from("interventions")
+      .update({
+        avis_relance_ids: emailIds,
+        avis_sms_plan: smsPlan,
+      })
+      .eq("id", input.interventionId)
+
+    if (fullErr) {
+      const { error: idsErr } = await sb
         .from("interventions")
-        .update({
-          avis_relance_ids: emailIds,
-          avis_sms_plan: smsPlan,
-        })
+        .update({ avis_relance_ids: emailIds })
         .eq("id", input.interventionId)
-    } catch {
-      /* colonne avis_sms_plan absente si migration non appliquée */
+      if (idsErr) {
+        console.error("[planifierAvisRelances] update avis_relance_ids", idsErr.message)
+      } else {
+        console.warn(
+          "[planifierAvisRelances] avis_sms_plan absente — mails OK, SMS non stockés. Appliquer migration 021.",
+        )
+      }
     }
   }
 

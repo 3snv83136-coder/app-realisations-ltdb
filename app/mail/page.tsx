@@ -32,7 +32,7 @@ type Document = {
 type AvisGoogleItem = {
   id: string
   channel: 'email' | 'sms'
-  status: 'pending' | 'sent' | 'canceled'
+  status: 'pending' | 'sent' | 'canceled' | 'missing'
   label: string
   clientNom: string | null
   destinataire: string | null
@@ -51,6 +51,20 @@ type AvisStats = {
   sentSms: number
   pending: number
   canceled: number
+  missing?: number
+}
+
+type SeptSummary = {
+  dossiersMailEnvoye: number
+  avecRelancesResend: number
+  sansRelances: number
+  idsResendStockes: number
+  avisRecu: number
+  brevoSmsRequests: number | null
+  brevoSmsDelivered: number | null
+  brevoSmsSoftBounces: number | null
+  avisSmsPlanColumn: boolean
+  registryCount: number
 }
 
 const DOC_FILTERS = [
@@ -67,6 +81,7 @@ const AVIS_FILTERS = [
   { key: 'sms', label: 'SMS' },
   { key: 'sent', label: 'Envoyés' },
   { key: 'pending', label: 'Planifiés' },
+  { key: 'missing', label: 'Manquants' },
 ] as const
 
 const TYPE_BADGE: Record<string, string> = {
@@ -96,8 +111,10 @@ export default function MailPage() {
   const [documents, setDocuments] = useState<Document[]>([])
   const [avisItems, setAvisItems] = useState<AvisGoogleItem[]>([])
   const [avisStats, setAvisStats] = useState<AvisStats>({
-    total: 0, sentMail: 0, sentSms: 0, pending: 0, canceled: 0,
+    total: 0, sentMail: 0, sentSms: 0, pending: 0, canceled: 0, missing: 0,
   })
+  const [september, setSeptember] = useState<SeptSummary | null>(null)
+  const [diagHint, setDiagHint] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [docFilter, setDocFilter] = useState<string>('all')
@@ -116,6 +133,8 @@ export default function MailPage() {
     if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`)
     setAvisItems(data.items || [])
     if (data.stats) setAvisStats(data.stats)
+    setSeptember(data.september || null)
+    setDiagHint(data.diagnostics?.hint || null)
   }, [])
 
   const load = useCallback(async () => {
@@ -153,6 +172,7 @@ export default function MailPage() {
       if (avisFilter === 'sms') return item.channel === 'sms'
       if (avisFilter === 'sent') return item.status === 'sent'
       if (avisFilter === 'pending') return item.status === 'pending'
+      if (avisFilter === 'missing') return item.status === 'missing'
       return true
     })
   }, [avisItems, avisFilter])
@@ -215,6 +235,8 @@ export default function MailPage() {
             setFilter={setAvisFilter}
             onRefresh={load}
             stats={avisStats}
+            september={september}
+            diagHint={diagHint}
             error={error}
             filtered={filteredAvis}
           />
@@ -365,20 +387,48 @@ function DocumentsPanel({
 }
 
 function AvisGooglePanel({
-  filter, setFilter, onRefresh, stats, error, filtered,
+  filter, setFilter, onRefresh, stats, september, diagHint, error, filtered,
 }: {
   filter: string
   setFilter: (k: string) => void
   onRefresh: () => void
   stats: AvisStats
+  september: SeptSummary | null
+  diagHint: string | null
   error: string
   filtered: AvisGoogleItem[]
 }) {
   return (
     <>
+      {september && (
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 space-y-2">
+          <h3 className="text-sm font-black text-[#0e2a52]">Bilan septembre 2026 — avis Google</h3>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-sm">
+            <div><span className="text-slate-500">Dossiers mailés</span><div className="text-xl font-black">{september.dossiersMailEnvoye}</div></div>
+            <div><span className="text-slate-500">Avec relances mail</span><div className="text-xl font-black text-emerald-600">{september.avecRelancesResend}</div></div>
+            <div><span className="text-slate-500">Sans relance</span><div className="text-xl font-black text-red-600">{september.sansRelances}</div></div>
+            <div><span className="text-slate-500">SMS Brevo livrés</span><div className="text-xl font-black">{september.brevoSmsDelivered ?? '—'}</div></div>
+          </div>
+          <p className="text-xs text-slate-600">
+            {september.idsResendStockes} mail(s) Resend planifiés · {september.brevoSmsRequests ?? 0} SMS demandés · {september.brevoSmsSoftBounces ?? 0} soft bounce
+            {!september.avisSmsPlanColumn && (
+              <span className="block mt-1 text-red-700 font-semibold">
+                Colonne avis_sms_plan absente en base → les SMS auto J+2 n’ont pas pu être stockés. À corriger dans Supabase (migration 021).
+              </span>
+            )}
+          </p>
+        </div>
+      )}
+
+      {diagHint && (
+        <div className="bg-amber-50 border border-amber-200 text-amber-900 p-3 rounded-xl text-sm font-medium">
+          ⚠ {diagHint}
+        </div>
+      )}
+
       <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4">
         <p className="text-sm text-slate-600 mb-3">
-          Historique des relances avis Google : mails Resend et SMS Brevo (planifiés, envoyés, annulés).
+          Historique des relances avis Google : mails Resend et SMS Brevo (planifiés, envoyés, annulés, manquants).
         </p>
         <div className="flex flex-wrap gap-2 items-center">
           {AVIS_FILTERS.map(f => (
@@ -400,10 +450,11 @@ function AvisGooglePanel({
         </div>
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 sm:gap-3">
         <StatCard label="Mails envoyés" value={stats.sentMail} color="text-[#1a73e8]" />
         <StatCard label="SMS envoyés" value={stats.sentSms} color="text-emerald-600" />
         <StatCard label="Planifiés" value={stats.pending} color="text-amber-500" />
+        <StatCard label="Manquants" value={stats.missing || 0} color="text-red-600" />
         <StatCard label="Annulés" value={stats.canceled} color="text-slate-500" />
       </div>
 
@@ -438,11 +489,13 @@ function AvisGooglePanel({
                   <tr key={item.id} className="hover:bg-slate-50 transition-colors">
                     <td className="px-4 py-3">
                       <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold ${
-                        item.channel === 'sms'
-                          ? 'bg-emerald-100 text-emerald-800'
-                          : 'bg-blue-100 text-blue-800'
+                        item.status === 'missing'
+                          ? 'bg-red-100 text-red-800'
+                          : item.channel === 'sms'
+                            ? 'bg-emerald-100 text-emerald-800'
+                            : 'bg-blue-100 text-blue-800'
                       }`}>
-                        {item.channel === 'sms' ? 'SMS' : 'Mail'}
+                        {item.status === 'missing' ? 'Manquant' : item.channel === 'sms' ? 'SMS' : 'Mail'}
                         {item.day != null && item.day > 0 ? ` J+${item.day}` : item.manual ? ' manuel' : ''}
                       </span>
                     </td>
@@ -495,6 +548,13 @@ function AvisStatusBadge({ status }: { status: AvisGoogleItem['status'] }) {
     return (
       <span className="inline-flex items-center gap-1 text-xs font-semibold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">
         Annulé
+      </span>
+    )
+  }
+  if (status === 'missing') {
+    return (
+      <span className="inline-flex items-center gap-1 text-xs font-semibold text-red-700 bg-red-50 px-2 py-0.5 rounded-full">
+        Pas planifié
       </span>
     )
   }
