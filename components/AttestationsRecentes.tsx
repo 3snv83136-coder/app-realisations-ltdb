@@ -50,7 +50,11 @@ function varianteLabel(payload: Record<string, unknown> | null | undefined): str
   return v || '—'
 }
 
-function toHistoriqueDoc(d: AttestationRow): HistoriqueDocument & { envoye_email?: string | null; client_email?: string | null } {
+function toHistoriqueDoc(d: AttestationRow): HistoriqueDocument & {
+  envoye_email?: string | null
+  client_email?: string | null
+  intervention_id?: string | null
+} {
   return {
     id: d.id,
     type: 'attestation',
@@ -62,6 +66,7 @@ function toHistoriqueDoc(d: AttestationRow): HistoriqueDocument & { envoye_email
     client_ville: d.client_ville,
     envoye_email: d.envoye_email,
     client_email: d.client_email,
+    intervention_id: d.intervention_id,
     payload: d.payload as HistoriqueDocument['payload'],
   }
 }
@@ -100,6 +105,18 @@ export default function AttestationsRecentes({ limit = 40 }: { limit?: number })
       alive = false
     }
   }, [limit])
+
+  async function reload() {
+    setError(null)
+    try {
+      const res = await fetch(`/api/attestations?limit=200`, { cache: 'no-store' })
+      const json = await res.json()
+      if (json.error) throw new Error(json.error)
+      setRows(json.documents || [])
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Erreur de chargement')
+    }
+  }
 
   const filtered = useMemo(() => {
     const s = search.trim().toLowerCase()
@@ -225,19 +242,8 @@ export default function AttestationsRecentes({ limit = 40 }: { limit?: number })
                           Dossier
                         </Link>
                       ) : null}
-                      {d.pdf_url ? (
-                        <a
-                          href={d.pdf_url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center px-2.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold"
-                        >
-                          PDF
-                        </a>
-                      ) : (
-                        <DocumentDownloadButton doc={toHistoriqueDoc(d)} />
-                      )}
-                      <ResendEmailButton doc={toHistoriqueDoc(d)} />
+                      <DocumentDownloadButton doc={toHistoriqueDoc(d)} />
+                      <ResendEmailButton doc={toHistoriqueDoc(d)} onSent={reload} />
                     </div>
                   </td>
                 </tr>

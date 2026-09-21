@@ -59,6 +59,40 @@ export async function GET(req: NextRequest) {
     }
   }
 
+  // Backfill : attestations liées à un mail terrain déjà parti
+  const intervIds = Array.from(new Set(
+    rows.filter(r => r.statut === 'brouillon' && r.intervention_id).map(r => r.intervention_id as string),
+  ))
+  if (intervIds.length > 0) {
+    const { data: intervRows } = await sb
+      .from('interventions')
+      .select('id, mail_envoye_at')
+      .in('id', intervIds)
+      .not('mail_envoye_at', 'is', null)
+    const mailById = Object.fromEntries(
+      (intervRows || []).map(i => [i.id, i.mail_envoye_at as string]),
+    )
+    await Promise.all(rows.map(async d => {
+      if (d.statut !== 'brouillon' || !d.intervention_id) return
+      const mailAt = mailById[d.intervention_id as string]
+      if (!mailAt) return
+      const c = d.client_id ? clients[d.client_id as string] : null
+      const { error: upErr } = await sb
+        .from('documents')
+        .update({
+          statut: 'envoye',
+          envoye_at: mailAt,
+          envoye_email: d.envoye_email || c?.email || null,
+        })
+        .eq('id', d.id)
+      if (!upErr) {
+        d.statut = 'envoye'
+        d.envoye_at = mailAt
+        if (!d.envoye_email && c?.email) d.envoye_email = c.email
+      }
+    }))
+  }
+
   const documents = rows.map(d => {
     const c = d.client_id ? clients[d.client_id] : null
     return {

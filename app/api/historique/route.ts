@@ -95,16 +95,17 @@ export async function GET(req: NextRequest) {
     if (d.type === 'facture' && d.intervention_id) factureByIntervention.add(d.intervention_id as string)
   })
 
-  // client_final_nom (occupant) porté par l'intervention liée au document
+  // client_final_nom (occupant) + mail_envoye_at pour backfill statut attestation
   const intervIds = Array.from(new Set(
     rawDocuments.map(d => d.intervention_id).filter(Boolean) as string[],
   ))
   let finalNomByIntervention: Record<string, string | null> = {}
   let chantierByIntervention: Record<string, string | null> = {}
+  let mailEnvoyeByIntervention: Record<string, string | null> = {}
   if (intervIds.length > 0) {
     const { data: intervRows } = await sb
       .from('interventions')
-      .select('id, client_final_nom, adresse_chantier, ville, code_postal')
+      .select('id, client_final_nom, adresse_chantier, ville, code_postal, mail_envoye_at')
       .in('id', intervIds)
     if (intervRows) {
       finalNomByIntervention = Object.fromEntries(
@@ -118,7 +119,41 @@ export async function GET(req: NextRequest) {
           return [i.id, [rue, cpVille].filter(Boolean).join(', ')]
         }),
       )
+      mailEnvoyeByIntervention = Object.fromEntries(
+        intervRows.map(i => [i.id, (i.mail_envoye_at as string | null) || null]),
+      )
     }
+  }
+
+  // Attestations terrain déjà jointes au mail mais restées en brouillon → Envoyé
+  const attestationFixes = rawDocuments.filter(d =>
+    d.type === 'attestation'
+    && d.statut === 'brouillon'
+    && d.intervention_id
+    && mailEnvoyeByIntervention[d.intervention_id as string],
+  )
+  if (attestationFixes.length > 0) {
+    await Promise.all(attestationFixes.map(async d => {
+      const intervId = d.intervention_id as string
+      const mailAt = mailEnvoyeByIntervention[intervId]
+      const c = d.client_id ? clients[d.client_id as string] : null
+      const { error: upErr } = await sb
+        .from('documents')
+        .update({
+          statut: 'envoye',
+          envoye_at: mailAt || new Date().toISOString(),
+          envoye_email: d.envoye_email || c?.email || null,
+        })
+        .eq('id', d.id)
+        .eq('type', 'attestation')
+      if (!upErr) {
+        d.statut = 'envoye'
+        d.envoye_at = mailAt || d.envoye_at
+        if (!d.envoye_email && c?.email) d.envoye_email = c.email
+      } else {
+        console.error('[historique] backfill attestation envoye', d.id, upErr)
+      }
+    }))
   }
 
   const decoratedInterventions = rawInterventions.map(i => {

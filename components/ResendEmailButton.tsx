@@ -201,7 +201,13 @@ async function buildSendBody(
   return null
 }
 
-export default function ResendEmailButton({ doc }: { doc: DocWithEmail }) {
+export default function ResendEmailButton({
+  doc,
+  onSent,
+}: {
+  doc: DocWithEmail & { intervention_id?: string | null }
+  onSent?: () => void | Promise<void>
+}) {
   const [open, setOpen] = useState(false)
   const [email, setEmail] = useState(doc.envoye_email || doc.client_email || '')
   const [sending, setSending] = useState(false)
@@ -224,11 +230,29 @@ export default function ResendEmailButton({ doc }: { doc: DocWithEmail }) {
       const res = await fetch(built.endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(built.body),
+        body: JSON.stringify({
+          ...built.body,
+          ...(doc.intervention_id ? { interventionId: doc.intervention_id } : {}),
+        }),
       })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`)
+
+      // Assure le statut Envoyé côté historique (idempotent)
+      try {
+        await fetch(`/api/historique/${doc.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            statut: 'envoye',
+            envoye_email: email.trim(),
+            envoye_at: new Date().toISOString(),
+          }),
+        })
+      } catch { /* best-effort */ }
+
       setSent(true)
+      if (onSent) await onSent()
       setTimeout(() => { setOpen(false); setSent(false) }, 1500)
     } catch (e) {
       setError(errorMessage(e) || 'Erreur envoi')

@@ -56,6 +56,7 @@ type Document = {
   intervention_id: string | null
   client_id: string | null
   client_nom: string | null
+  client_email?: string | null
   client_adresse: string | null
   client_code_postal: string | null
   client_ville: string | null
@@ -168,6 +169,26 @@ export default function HistoriquePage() {
       setError(`Erreur suppression : ${errorMessage(e)}`)
     } finally {
       setDeletingId(null)
+    }
+  }
+
+  async function handleMarquerEnvoye(d: Document) {
+    setError('')
+    try {
+      const res = await fetch(`/api/historique/${d.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          statut: 'envoye',
+          envoye_email: d.envoye_email || d.client_email || null,
+          envoye_at: d.envoye_at || new Date().toISOString(),
+        }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`)
+      await load()
+    } catch (e) {
+      setError(`Impossible de marquer envoyé : ${errorMessage(e)}`)
     }
   }
 
@@ -455,7 +476,23 @@ export default function HistoriquePage() {
                               onAccepted={load}
                             />
                           )}
-                          {d.pdf_url ? (
+                          {/* Attestation : toujours Voir + PDF (payload) ; lien Storage en plus si présent */}
+                          {d.type === 'attestation' ? (
+                            <>
+                              <DocumentDownloadButton doc={d} />
+                              {d.pdf_url ? (
+                                <a
+                                  href={d.pdf_url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-slate-700 hover:bg-slate-800 text-white text-xs font-bold transition"
+                                  title="Ouvrir le PDF stocké"
+                                >
+                                  ⬇ Stocké
+                                </a>
+                              ) : null}
+                            </>
+                          ) : d.pdf_url ? (
                             <a
                               href={d.pdf_url}
                               target="_blank"
@@ -469,8 +506,18 @@ export default function HistoriquePage() {
                             <DocumentDownloadButton doc={d} />
                           )}
                           {(d.type === 'facture' || d.type === 'devis' || d.type === 'attestation' || d.type === 'inspection') && (
-                            <ResendEmailButton doc={d} />
+                            <ResendEmailButton doc={d} onSent={load} />
                           )}
+                          {d.type === 'attestation' && d.statut === 'brouillon' ? (
+                            <button
+                              type="button"
+                              onClick={() => void handleMarquerEnvoye(d)}
+                              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-emerald-300 text-emerald-800 hover:bg-emerald-50 text-xs font-bold transition"
+                              title="Passer le statut en Envoyé"
+                            >
+                              → Envoyé
+                            </button>
+                          ) : null}
                         </div>
                       </td>
                       <td className="px-2 py-3 text-center">
