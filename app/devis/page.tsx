@@ -801,7 +801,7 @@ function DevisPageContent() {
                 <thead>
                   <tr className="text-left text-xs uppercase tracking-wide text-slate-500 border-b border-slate-200">
                     <th className="py-2 pr-2">Section</th>
-                    <th className="py-2 pr-2">Désignation</th>
+                    <th className="py-2 pr-2">Désignation + photo</th>
                     <th className="py-2 pr-2 w-16">Qté</th>
                     <th className="py-2 pr-2 w-24">Unité</th>
                     <th className="py-2 pr-2 w-28 text-right">P.U. HT €</th>
@@ -831,41 +831,48 @@ function DevisPageContent() {
                           placeholder="précisions (optionnel)"
                           className="w-full border border-slate-200 rounded px-2 py-1 text-xs text-slate-500"
                         />
-                        {(isTravaux || /pompe|relevage|assain|terrass|regard/i.test(l.designation + (l.section || ''))) && (
-                          <div className="mt-2 space-y-1.5">
-                            <div className="flex flex-wrap gap-2 items-center">
-                              {(l.photos || []).map((src, pi) => (
-                                <div key={pi} className="relative w-16 h-16 rounded-lg overflow-hidden border border-slate-200">
-                                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                                  <img src={src} alt="" className="w-full h-full object-cover" />
-                                  <button
-                                    type="button"
-                                    onClick={() => removeLinePhoto(i, pi)}
-                                    className="absolute top-0 right-0 bg-red-600 text-white text-[10px] leading-none px-1 py-0.5"
-                                    aria-label="Retirer la photo"
-                                  >×</button>
-                                </div>
-                              ))}
-                              <label className={`text-[11px] font-bold cursor-pointer px-2 py-1.5 rounded-lg border border-dashed ${
-                                photoBusy ? 'text-slate-400 border-slate-200' : 'text-blue-700 border-blue-300 hover:bg-blue-50'
-                              }`}>
-                                {photoBusy ? '…' : '+ Photo'}
-                                <input
-                                  type="file"
-                                  accept="image/*"
-                                  multiple
-                                  className="hidden"
-                                  disabled={photoBusy}
-                                  onChange={e => {
-                                    void addPhotosToLine(i, e.target.files)
-                                    e.target.value = ''
-                                  }}
-                                />
-                              </label>
+                        <div className="mt-2 flex flex-wrap items-start gap-2">
+                          {(l.photos || []).map((src, pi) => (
+                            <div key={pi} className="relative w-[72px] h-[72px] rounded-xl overflow-hidden border-2 border-[#0e2a52]/20 shadow-sm">
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img src={src} alt={`Illustration ligne ${i + 1}`} className="w-full h-full object-cover" />
+                              <button
+                                type="button"
+                                onClick={() => removeLinePhoto(i, pi)}
+                                className="absolute top-0.5 right-0.5 bg-red-600 text-white text-[11px] leading-none w-5 h-5 rounded-full"
+                                aria-label="Retirer la photo"
+                              >×</button>
                             </div>
-                            <p className="text-[10px] text-slate-400">Photo de la prestation (avant/après, détail) — visible sur le PDF.</p>
-                          </div>
-                        )}
+                          ))}
+                          {(l.photos || []).length < 6 && (
+                            <label
+                              className={`flex flex-col items-center justify-center w-[72px] h-[72px] rounded-xl border-2 border-dashed cursor-pointer transition ${
+                                photoBusy
+                                  ? 'border-slate-200 text-slate-400'
+                                  : 'border-blue-400 text-blue-700 bg-blue-50/60 hover:bg-blue-50'
+                              }`}
+                              title="Ajouter la photo qui illustre cet article"
+                            >
+                              <span className="text-lg leading-none">📷</span>
+                              <span className="text-[10px] font-bold mt-0.5">Photo</span>
+                              <input
+                                type="file"
+                                accept="image/*"
+                                capture="environment"
+                                multiple
+                                className="hidden"
+                                disabled={photoBusy}
+                                onChange={e => {
+                                  void addPhotosToLine(i, e.target.files)
+                                  e.target.value = ''
+                                }}
+                              />
+                            </label>
+                          )}
+                        </div>
+                        <p className="text-[10px] text-slate-400 mt-1">
+                          Photo liée à cet article — affichée à côté du texte sur le PDF.
+                        </p>
                       </td>
                       <td className="py-1 pr-2">
                         <input
