@@ -102,6 +102,7 @@ export default function TerrainPage({ params }: { params: { id: string } }) {
       const res = await fetch(`/api/interventions/${params.id}`, { cache: 'no-store' })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`)
+      // Après promote éventuel côté API, ne redirige plus vers /devis
       if (isDevisIntervention(data.intervention?.type_intervention)) {
         router.replace(`/devis?intervention=${params.id}`)
         return

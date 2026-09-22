@@ -104,7 +104,15 @@ N'utilise JAMAIS "statut": "ok" (qui affichera "CONFORME" dans le rapport) par d
 - Vocabulaire métier : utilise les termes techniques UNIQUEMENT s'ils figurent dans la dictée (EU, EP, colonne, etc.) — ne pas en ajouter d'autres par habitude.
 - Structure : chaque section doit être autonome et compréhensible isolément
 - Développe le contexte, la méthodologie, les résultats intermédiaires, sans inventer de données chiffrées
-
+${/travaux assainissement|pompe de relevage|curage canalisation|terrassement/i.test(String(type_intervention)) ? `
+📐 SPÉCIAL TRAVAUX D'ASSAINISSEMENT / POMPE — CLARTÉ CLIENT
+Le PDF sera lu par un client non technicien. Priorité : ULTRA LISIBLE.
+- "travaux_realises" : raconte le chantier comme une histoire claire en étapes numérotables (préparation → fouille/accès → pose/remplacement → essais → remise en état). Phrases courtes.
+- "phases" : une phase = une étape VISUELLE (ce qu'on voit sur les photos). Titres du type « Ouverture de la tranchée », « Pose du regard », « Essai de fonctionnement ». Dans contexte/action/resultat : expliquer en français simple ce qui a été fait et pourquoi.
+- "analyse_table" : constats concrêts (ex. regard fissuré, contre-pente) avec localisation claire (ex. « à 7 m du regard intérieur »).
+- "diagnostic" : 1 paragraphe qui répond à « quel était le problème ? » sans jargon inutile.
+- Évite les pavés : mieux vaut 5 phases nettes qu'un seul bloc opaque.
+` : ''}
 Réponds UNIQUEMENT avec ce JSON (sans markdown, sans backticks) :
 {
   "objet": "objet complet et explicite du rapport (ex: 'Débouchage d'une colonne d'eaux usées et diagnostic réseau — Immeuble collectif')",

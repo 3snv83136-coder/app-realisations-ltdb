@@ -115,14 +115,20 @@ export async function accepterDevis(devisId: string): Promise<AccepterDevisResul
   const payloadCp = typeof payload.code_postal === "string" ? (payload.code_postal as string).trim() : ""
 
   const objet = typeof payload.objet === "string" ? (payload.objet as string) : ""
+  const variant = typeof payload.variant === "string" ? payload.variant : ""
   const detected = detectTypeIntervention(objet)
   // Ne jamais créer une fiche type « Devis » (pas de mode terrain).
-  // « Remplacement de canalisation… » → Curage / Débouchage, pas le mot « devis ».
-  let realType = "Débouchage canalisation"
-  if (detected && detected !== "Devis") {
+  let realType = "Travaux assainissement"
+  if (variant === "travaux-assainissement") {
+    realType = "Travaux assainissement"
+  } else if (detected && detected !== "Devis") {
     realType = detected
-  } else if (/remplacement|canalisation|regard|pvc|terrass/i.test(objet)) {
-    realType = "Curage canalisation"
+  } else if (/pompe|relevage/i.test(objet)) {
+    realType = "Pompe de relevage"
+  } else if (/remplacement|canalisation|regard|pvc|terrass|assain/i.test(objet)) {
+    realType = "Travaux assainissement"
+  } else {
+    realType = "Débouchage canalisation"
   }
 
   let interventionId: string | null = doc.intervention_id || null

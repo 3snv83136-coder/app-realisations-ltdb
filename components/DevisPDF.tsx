@@ -73,6 +73,16 @@ const s = StyleSheet.create({
     width: '100%', height: 150, objectFit: 'cover',
     borderRadius: 6, borderWidth: 1, borderColor: C.line,
   },
+  linePhotos: {
+    flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 6,
+  },
+  linePhoto: {
+    width: 110, height: 78, objectFit: 'cover',
+    borderRadius: 4, borderWidth: 1, borderColor: C.line,
+  },
+  linePhotoCaption: {
+    fontSize: 7.5, color: C.muted, marginTop: 2, width: 110,
+  },
 
   constatItem: {
     borderWidth: 1, borderColor: C.line, borderRadius: 6,
@@ -182,6 +192,8 @@ export interface DevisLineData {
   qte: number
   unite?: string
   pu_ht: number
+  /** Photos illustrant cette ligne (travaux assainissement / pompe) — data URI ou URL. */
+  photos?: string[]
 }
 
 export interface DevisConditions {
@@ -459,6 +471,15 @@ export function DevisDocument({ emetteur, client, devis, phone }: DevisPDFProps)
                   <View style={s.cDesig}>
                     <Text style={s.cDesigName}>{l.designation}</Text>
                     {l.description ? <Text style={s.cDesigDesc}>{l.description}</Text> : null}
+                    {(l.photos?.length ?? 0) > 0 ? (
+                      <View style={s.linePhotos}>
+                        {l.photos!.slice(0, 4).map((src, pi) => (
+                          <View key={pi}>
+                            <Image src={src} style={s.linePhoto} />
+                          </View>
+                        ))}
+                      </View>
+                    ) : null}
                   </View>
                   <Text style={s.cPu}>{fmtEur(l.pu_ht)}</Text>
                   <Text style={s.cQte}>{l.qte}{l.unite ? ` ${l.unite}` : ''}</Text>

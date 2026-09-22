@@ -247,6 +247,35 @@ function DevisPageContent() {
     setDevis({ ...devis, lignes })
   }
 
+  async function addPhotosToLine(index: number, files: FileList | null) {
+    if (!devis || !files?.length) return
+    setPhotoBusy(true)
+    try {
+      const encoded: string[] = []
+      for (const file of Array.from(files)) {
+        if (!file.type.startsWith('image/')) continue
+        encoded.push(await compressToDataUrl(file))
+      }
+      if (encoded.length === 0) return
+      const lignes = [...devis.lignes]
+      const prev = lignes[index]?.photos || []
+      lignes[index] = { ...lignes[index], photos: [...prev, ...encoded].slice(0, 6) }
+      setDevis({ ...devis, lignes })
+    } catch {
+      /* ignore */
+    } finally {
+      setPhotoBusy(false)
+    }
+  }
+
+  function removeLinePhoto(lineIndex: number, photoIndex: number) {
+    if (!devis) return
+    const lignes = [...devis.lignes]
+    const photos = (lignes[lineIndex].photos || []).filter((_, i) => i !== photoIndex)
+    lignes[lineIndex] = { ...lignes[lineIndex], photos }
+    setDevis({ ...devis, lignes })
+  }
+
   function removeLine(index: number) {
     if (!devis) return
     setDevis({ ...devis, lignes: devis.lignes.filter((_, i) => i !== index) })
@@ -802,6 +831,41 @@ function DevisPageContent() {
                           placeholder="précisions (optionnel)"
                           className="w-full border border-slate-200 rounded px-2 py-1 text-xs text-slate-500"
                         />
+                        {(isTravaux || /pompe|relevage|assain|terrass|regard/i.test(l.designation + (l.section || ''))) && (
+                          <div className="mt-2 space-y-1.5">
+                            <div className="flex flex-wrap gap-2 items-center">
+                              {(l.photos || []).map((src, pi) => (
+                                <div key={pi} className="relative w-16 h-16 rounded-lg overflow-hidden border border-slate-200">
+                                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                                  <img src={src} alt="" className="w-full h-full object-cover" />
+                                  <button
+                                    type="button"
+                                    onClick={() => removeLinePhoto(i, pi)}
+                                    className="absolute top-0 right-0 bg-red-600 text-white text-[10px] leading-none px-1 py-0.5"
+                                    aria-label="Retirer la photo"
+                                  >×</button>
+                                </div>
+                              ))}
+                              <label className={`text-[11px] font-bold cursor-pointer px-2 py-1.5 rounded-lg border border-dashed ${
+                                photoBusy ? 'text-slate-400 border-slate-200' : 'text-blue-700 border-blue-300 hover:bg-blue-50'
+                              }`}>
+                                {photoBusy ? '…' : '+ Photo'}
+                                <input
+                                  type="file"
+                                  accept="image/*"
+                                  multiple
+                                  className="hidden"
+                                  disabled={photoBusy}
+                                  onChange={e => {
+                                    void addPhotosToLine(i, e.target.files)
+                                    e.target.value = ''
+                                  }}
+                                />
+                              </label>
+                            </div>
+                            <p className="text-[10px] text-slate-400">Photo de la prestation (avant/après, détail) — visible sur le PDF.</p>
+                          </div>
+                        )}
                       </td>
                       <td className="py-1 pr-2">
                         <input

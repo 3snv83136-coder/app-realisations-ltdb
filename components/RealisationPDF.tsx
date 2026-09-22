@@ -770,9 +770,18 @@ export function RealisationDocument({
 
           {/* Section — PHOTOS */}
           {hasPhotos && (
-            <SectionCard num={numOf('photos')} title="Documents photographiques" splitable minPresenceAhead={120}>
+            <SectionCard
+              num={numOf('photos')}
+              title={/travaux|pompe|curage|assain/i.test(typeIntervention || '')
+                ? 'Photos du chantier — ce qui a été fait'
+                : 'Documents photographiques'}
+              splitable
+              minPresenceAhead={120}
+            >
               <Text style={s.photosIntro}>
-                Clichés pris lors de l&apos;intervention, annexés au présent rapport à titre de constat :
+                {/travaux|pompe|curage|assain/i.test(typeIntervention || '')
+                  ? 'Chaque photo illustre une étape du chantier. Lisez la légende sous le cliché pour comprendre ce qui a été réalisé.'
+                  : "Clichés pris lors de l'intervention, annexés au présent rapport à titre de constat :"}
               </Text>
               <View style={s.photosGrid}>
                 {photos!.map((p, i) => (
@@ -781,7 +790,9 @@ export function RealisationDocument({
                       {/* eslint-disable-next-line jsx-a11y/alt-text */}
                       <Image src={p.url} style={s.photoImg} />
                       <Text style={s.photoCap}>
-                        Photo nº {i + 1}{p.legende ? ` — ${p.legende}` : ''}
+                        {p.legende
+                          ? p.legende
+                          : `Étape ${i + 1} — photo chantier`}
                       </Text>
                     </View>
                   </View>

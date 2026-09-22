@@ -62,6 +62,25 @@ export async function GET(_req: NextRequest, { params }: Params) {
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   if (!intervention) return NextResponse.json({ error: 'Intervention introuvable' }, { status: 404 })
 
+  // Fiche « Devis » + devis accepté/travaux → bascule auto en mode terrain
+  try {
+    const { promoteDevisFicheToTravaux } = await import('@/lib/promote-devis-fiche')
+    const nextType = await promoteDevisFicheToTravaux(
+      sb,
+      id,
+      intervention.type_intervention as string | null,
+    )
+    if (nextType && nextType !== intervention.type_intervention) {
+      intervention.type_intervention = nextType
+      intervention.terrain_step = 0
+      if (intervention.statut === 'planifiee' || !intervention.statut) {
+        intervention.statut = 'planifiee'
+      }
+    }
+  } catch (e) {
+    console.error('[interventions GET] promote devis', e)
+  }
+
   let client = null
   if (intervention.client_id) {
     const { data: c } = await sb
