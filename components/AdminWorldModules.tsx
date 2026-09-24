@@ -23,6 +23,18 @@ export type HubGroup = {
 
 export const ADMIN_HUBS: HubGroup[] = [
   {
+    id: 'interventions',
+    title: 'Fiche intervention',
+    desc: 'Ouvrir & suivre',
+    bg: 'bg-gradient-to-br from-[#0e2a52] to-[#1a4a8a]',
+    emoji: '🗂️',
+    links: [
+      { href: '/historique', label: 'Toutes les fiches', sub: 'Liste' },
+      { href: '/planning', label: 'Planning', sub: 'Agenda' },
+      { href: '/nouveau', label: 'Nouvelle fiche', sub: 'Créer' },
+    ],
+  },
+  {
     id: 'rapports',
     title: 'Rapports',
     desc: 'Terrain & publication',
@@ -172,7 +184,7 @@ export default function AdminWorldModules() {
         </Link>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3">
         {ADMIN_HUBS.map(hub => (
           <HubTile key={hub.id} hub={hub} />
         ))}

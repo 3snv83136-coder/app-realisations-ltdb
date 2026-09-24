@@ -550,7 +550,8 @@ function AgendaCard({
   size: 'large' | 'compact' | 'chip'
   techMode: boolean
 }) {
-  const href = `/intervention/${i.id}/terrain`
+  // Admin → fiche ; tech → middleware redirige vers /terrain
+  const href = `/intervention/${i.id}`
   const villeLabel = [i.code_postal, i.ville].filter(Boolean).join(' ') || i.ville || '—'
   const heure = formatCreneau(i.heure_prevue, i.heure_fin_prevue) || fmtHeure(i.heure_prevue) || '—'
 
