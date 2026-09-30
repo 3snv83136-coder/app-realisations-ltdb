@@ -1,6 +1,5 @@
 import type { DevisData, DevisLineData } from "@/components/DevisPDF"
 import type { FactureData } from "@/components/FacturePDF"
-import { detectTypeIntervention } from "@/lib/types-intervention"
 import type { RapportToFacturePrefill } from "@/lib/rapportToFacture"
 
 function todayISO(): string {
@@ -29,26 +28,20 @@ export type DevisToFactureSource = {
 }
 
 /**
- * Payload sessionStorage `ltdb_devis_to_facture` — même forme que
- * la preview devis → /facture/nouvelle.
+ * Payload sessionStorage `ltdb_devis_to_facture`.
+ * Les désignations / lignes / objet sont recopiés à l'identique du devis.
  */
 export function buildFactureFromDevis(src: DevisToFactureSource): RapportToFacturePrefill {
   const devis = src.devis || {}
   const numeroDevis = src.numero || devis.numero || ""
   const lignesSrc = Array.isArray(devis.lignes) ? devis.lignes : []
 
-  const objetCourt =
-    detectTypeIntervention(devis.objet || "") ||
-    detectTypeIntervention(lignesSrc.map((l) => l.designation || "").join(" ")) ||
-    "Intervention"
+  const objet = (devis.objet || "").trim() || "Intervention"
 
   const lignes = lignesSrc.length
     ? lignesSrc.map((l) => ({
-        designation:
-          detectTypeIntervention(l.designation || "") ||
-          detectTypeIntervention(l.section || "") ||
-          objetCourt,
-        description: "",
+        designation: (l.designation || "").trim() || objet,
+        description: (l.description || "").trim(),
         qte: Number.isFinite(Number(l.qte)) ? Number(l.qte) : 1,
         unite: l.unite || "forfait",
         pu_ht: Number.isFinite(Number(l.pu_ht)) ? Number(l.pu_ht) : 0,
@@ -56,7 +49,7 @@ export function buildFactureFromDevis(src: DevisToFactureSource): RapportToFactu
       }))
     : [
         {
-          designation: objetCourt,
+          designation: objet,
           description: "",
           qte: 1,
           unite: "forfait",
@@ -78,7 +71,7 @@ export function buildFactureFromDevis(src: DevisToFactureSource): RapportToFactu
     numero: nextNumeroFacture(),
     date_facture: todayISO(),
     echeance: "À réception",
-    objet: objetCourt,
+    objet,
     reference_dossier,
     lignes,
     tva_taux: tva,
