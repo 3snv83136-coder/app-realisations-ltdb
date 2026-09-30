@@ -5,6 +5,7 @@ import dynamic from "next/dynamic"
 import AppTabs from "@/components/AppTabs"
 import DevisTabs from "@/components/DevisTabs"
 import AccepterDevisButton from "@/components/AccepterDevisButton"
+import TransformDevisToFactureButton from "@/components/TransformDevisToFactureButton"
 import { fmtDateFR } from "@/lib/format"
 import type { HistoriqueDocument } from "@/components/DocumentDownloadButton"
 
@@ -156,9 +157,9 @@ export default function TousLesDevisPage() {
 
       <main className="max-w-6xl mx-auto px-4 py-5 space-y-4">
         <div className="bg-green-50 border border-green-200 rounded-xl px-4 py-3 text-sm text-green-900">
-          <strong>Devis accepté par le client ?</strong> Clique sur le bouton vert{' '}
-          <strong>« 📅 Accepter → Planning »</strong> : cela crée l&apos;intervention, l&apos;arrête les relances
-          et te propose d&apos;ouvrir la fiche pour fixer la date et le technicien.
+          <strong>Devis accepté ?</strong> Clique sur{' '}
+          <strong>« 📅 Accepter → Planning »</strong> pour créer l&apos;intervention.
+          {' '}Pour facturer : <strong>« 💶 Facture »</strong> ouvre une facture pré-remplie.
         </div>
 
         {/* Filtres */}
@@ -269,6 +270,10 @@ export default function TousLesDevisPage() {
                             statut={d.statut}
                             interventionId={d.intervention_id}
                             onAccepted={reload}
+                          />
+                          <TransformDevisToFactureButton
+                            devisId={d.id}
+                            numero={d.numero}
                           />
                           <DocumentDownloadButton doc={toHistoriqueDoc(d)} label="PDF" />
                           {d.pdf_url && (

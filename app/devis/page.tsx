@@ -14,7 +14,7 @@ import { useUnsavedChangesWarning } from "@/lib/useUnsavedChangesWarning"
 import type { DevisPDFProps, DevisLineData, DevisConstatItem, ClientData, DevisData } from "@/components/DevisPDF"
 import { LTDB_EMETTEUR } from "@/lib/emetteur"
 import { fmtDateISOtoFR } from "@/lib/format"
-import { detectTypeIntervention } from "@/lib/types-intervention"
+import { buildFactureFromDevis } from "@/lib/devisToFacture"
 import DevisEnvoiPanel from "@/components/DevisEnvoiPanel"
 import { errorMessage } from "@/lib/error-message"
 import {
@@ -387,48 +387,17 @@ function DevisPageContent() {
 
   function handleTransformToFacture() {
     if (!devis) return
-    const today = new Date()
-    const seq = String(today.getHours()).padStart(2, '0') + String(today.getMinutes()).padStart(2, '0')
-    const numeroFA = `FA-${today.getFullYear()}${String(today.getMonth() + 1).padStart(2, '0')}${String(today.getDate()).padStart(2, '0')}-${seq}`
-
-    const payload = {
+    const payload = buildFactureFromDevis({
+      devis,
+      numero: devis.numero,
       client_nom: clientNom,
+      client_email: clientEmail,
       client_adresse: clientAdresse,
-      client_cp: clientCP,
+      client_code_postal: clientCP,
       client_ville: clientVille,
       adresse_chantier: adresseChantier,
-      reference_dossier: `Devis ${devis.numero}`,
-      client_email: clientEmail,
-      // Libellé court inféré (ex: "Débouchage canalisation") pour rester
-      // propre sur la facture — pas la longue description du devis.
-      facture: (() => {
-        const objetCourt = detectTypeIntervention(devis.objet)
-          || detectTypeIntervention(devis.lignes.map(l => l.designation).join(' '))
-          || 'Intervention'
-        return {
-          numero: numeroFA,
-          date_facture: today.toISOString().split('T')[0],
-          echeance: 'À réception',
-          objet: objetCourt,
-          reference_dossier: `Devis ${devis.numero}`,
-          lignes: devis.lignes.map(l => ({
-            // Idem : on simplifie chaque ligne en un libellé standardisé
-            designation: detectTypeIntervention(l.designation)
-              || detectTypeIntervention(l.section || '')
-              || objetCourt,
-            description: '',
-            qte: l.qte,
-            unite: l.unite || 'forfait',
-            pu_ht: l.pu_ht,
-            inclus: false,
-          })),
-          tva_taux: devis.tva_taux ?? 10,
-          mode_reglement: '',
-          observations: '',
-          recommandation: '',
-        }
-      })(),
-    }
+      tva_taux: devis.tva_taux ?? 10,
+    })
     sessionStorage.setItem('ltdb_devis_to_facture', JSON.stringify(payload))
     router.push('/facture/nouvelle')
   }
