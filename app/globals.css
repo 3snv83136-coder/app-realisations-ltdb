@@ -5,6 +5,15 @@
 :root {
   --background: #ffffff;
   --foreground: #171717;
+  --ltdb-safe-top: env(safe-area-inset-top, 0px);
+  --ltdb-safe-bottom: env(safe-area-inset-bottom, 0px);
+  --ltdb-safe-left: env(safe-area-inset-left, 0px);
+  --ltdb-safe-right: env(safe-area-inset-right, 0px);
+}
+
+/* Fond sous l’encoche / Dynamic Island (PWA black-translucent) */
+html {
+  background-color: #0e2a52;
 }
 
 body {
@@ -12,6 +21,10 @@ body {
   background: var(--background);
   font-family: Arial, Helvetica, sans-serif;
   -webkit-text-size-adjust: 100%;
+  /* Décale tout le contenu sous l’heure, le réseau et l’encoche iPhone */
+  padding-top: var(--ltdb-safe-top);
+  padding-left: var(--ltdb-safe-left);
+  padding-right: var(--ltdb-safe-right);
 }
 
 /* Anti-zoom iOS sur focus input (font-size < 16px déclenche le zoom auto Safari) */
@@ -29,5 +42,16 @@ input, select, textarea {
   }
   .scrollbar-hide::-webkit-scrollbar {
     display: none;
+  }
+  /* Sticky / fixed : restent sous l’encoche au scroll */
+  .sticky-safe {
+    position: sticky;
+    top: var(--ltdb-safe-top);
+  }
+  .fixed-safe-top {
+    padding-top: var(--ltdb-safe-top);
+  }
+  .safe-pb {
+    padding-bottom: max(0.75rem, var(--ltdb-safe-bottom));
   }
 }

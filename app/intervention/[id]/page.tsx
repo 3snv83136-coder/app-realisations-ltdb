@@ -1043,7 +1043,7 @@ export default function InterventionDetailPage({ params }: { params: { id: strin
       </main>
 
       {editing && (
-        <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 shadow-[0_-4px_20px_rgba(0,0,0,0.08)] p-3 z-30">
+        <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 shadow-[0_-4px_20px_rgba(0,0,0,0.08)] p-3 safe-pb z-30">
           <div className="max-w-4xl mx-auto flex gap-3">
             <button
               onClick={cancelEdit}

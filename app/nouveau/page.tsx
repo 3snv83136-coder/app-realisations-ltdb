@@ -904,7 +904,7 @@ export default function NouveauPage() {
         </div>
       </div>
       {/* Header */}
-      <nav className="bg-[#0e2a52] text-white px-4 py-3 sm:px-6 sm:py-4 shadow-lg sticky top-0 z-30">
+      <nav className="bg-[#0e2a52] text-white px-4 py-3 sm:px-6 sm:py-4 shadow-lg sticky-safe z-30">
         <div className="max-w-3xl mx-auto flex justify-between items-center gap-3">
           <div>
             <LtdbLogoLink variant="nav" />
@@ -1328,7 +1328,7 @@ export default function NouveauPage() {
 
       {/* ═══════════ BARRE D'ACTION BOTTOM ═══════════ */}
       {(['capture', 'validate'] as Step[]).includes(step) && (
-        <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 shadow-[0_-4px_20px_rgba(0,0,0,0.08)] p-3 z-30">
+        <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 shadow-[0_-4px_20px_rgba(0,0,0,0.08)] p-3 safe-pb z-30">
           <div className="max-w-3xl mx-auto">
             {error && <div className="text-red-600 text-sm font-semibold mb-2 text-center">{error}</div>}
             <div className="flex gap-3">
@@ -1353,7 +1353,7 @@ export default function NouveauPage() {
       )}
 
       {(['preview', 'publishing'] as Step[]).includes(step) && (
-        <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 shadow-[0_-4px_20px_rgba(0,0,0,0.08)] p-3 z-30">
+        <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 shadow-[0_-4px_20px_rgba(0,0,0,0.08)] p-3 safe-pb z-30">
           <div className="max-w-3xl mx-auto">
             <button onClick={() => setStep('validate')} className="w-full bg-slate-100 text-slate-600 py-3 rounded-xl font-bold text-sm active:scale-95 transition-all">
               ← Modifier les informations

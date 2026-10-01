@@ -257,7 +257,7 @@ export default function AttestationPage() {
 
     return (
       <div className="min-h-screen bg-slate-50">
-        <header className="bg-white border-b-2 border-[#0f2e5c] sticky top-0 z-10">
+        <header className="bg-white border-b-2 border-[#0f2e5c] sticky-safe z-10">
           <div className="max-w-4xl mx-auto px-4 py-3 flex justify-between items-center">
             <Link href="/" className="text-sm text-slate-500 hover:text-[#0f2e5c]">← Accueil</Link>
             <div className="text-xs uppercase tracking-widest text-[#a78346] font-bold">Attestation officielle</div>
@@ -473,7 +473,7 @@ export default function AttestationPage() {
   return (
     <div className="min-h-screen bg-slate-50 pb-20">
       <AppTabs />
-      <header className="bg-white border-b-2 border-[#0f2e5c] sticky top-0 z-10">
+      <header className="bg-white border-b-2 border-[#0f2e5c] sticky-safe z-10">
         <div className="max-w-3xl mx-auto px-4 py-3 flex justify-between items-center">
           <Link href="/" className="text-sm text-slate-500 hover:text-[#0f2e5c]">← Accueil</Link>
           <div className="text-xs uppercase tracking-widest text-[#a78346] font-bold">Attestation officielle</div>

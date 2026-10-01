@@ -138,7 +138,7 @@ export default function AppTabs() {
               role="dialog"
               aria-modal="true"
               aria-label="Menu de navigation"
-              className="fixed inset-x-0 top-0 z-50 max-h-[min(88vh,640px)] flex flex-col bg-white rounded-b-3xl shadow-2xl border-b border-slate-200"
+              className="fixed inset-x-0 top-0 z-50 max-h-[min(88vh,640px)] flex flex-col bg-white rounded-b-3xl shadow-2xl border-b border-slate-200 fixed-safe-top"
             >
               <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-slate-100 shrink-0">
                 <div>

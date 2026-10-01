@@ -216,22 +216,21 @@ export default function PlanningPage() {
       )}
 
       <nav className="bg-[#0e2a52] text-white px-4 py-3 sm:px-6 sm:py-4 shadow-lg">
-        <div className="max-w-7xl mx-auto flex items-center justify-between gap-3">
-          <div>
+        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div className="min-w-0">
             <LtdbLogoLink variant="nav" />
             <div className="text-[11px] opacity-70">
               {isTech ? `Mon planning — ${session?.user?.name || 'Technicien'}` : 'Planning & dispatch'}
             </div>
           </div>
           {!isTech && (
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => setShowForm(true)}
-                className="bg-white text-[#0e2a52] px-4 py-2 rounded-xl font-bold text-sm hover:bg-slate-100 transition shadow"
-              >
-                + Nouvelle intervention
-              </button>
-            </div>
+            <button
+              type="button"
+              onClick={() => setShowForm(true)}
+              className="w-full sm:w-auto bg-white text-[#0e2a52] px-4 py-3 sm:py-2 rounded-xl font-bold text-sm hover:bg-slate-100 transition shadow text-center min-h-[44px]"
+            >
+              + Nouvelle intervention
+            </button>
           )}
         </div>
       </nav>
@@ -923,9 +922,9 @@ function NouvelleInterventionModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/50 flex items-start justify-center overflow-y-auto p-4">
-      <div className="bg-white rounded-2xl shadow-2xl max-w-3xl w-full my-8">
-        <div className="sticky top-0 bg-white border-b border-slate-200 px-5 py-4 flex justify-between items-center rounded-t-2xl">
+    <div className="fixed inset-0 z-50 bg-black/50 flex items-start justify-center overflow-y-auto p-4 pt-[max(1rem,var(--ltdb-safe-top))]">
+      <div className="bg-white rounded-2xl shadow-2xl max-w-3xl w-full my-4 sm:my-8">
+        <div className="sticky top-0 bg-white border-b border-slate-200 px-5 py-4 flex justify-between items-center rounded-t-2xl z-10">
           <h2 className="text-lg font-black text-[#0e2a52]">Nouvelle intervention</h2>
           <button onClick={onClose} className="text-slate-400 hover:text-slate-700 text-2xl leading-none">×</button>
         </div>

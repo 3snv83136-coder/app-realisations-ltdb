@@ -6,7 +6,7 @@ import AppTabs from "@/components/AppTabs"
 export default function AdminWorldPage() {
   return (
     <main className="min-h-dvh bg-[#0a1f3d] text-slate-100 pb-[max(1rem,env(safe-area-inset-bottom))]">
-      <header className="sticky top-0 z-20 bg-[#0e2a52]/95 backdrop-blur-md text-white border-b border-white/10 pt-[env(safe-area-inset-top)]">
+      <header className="sticky-safe z-20 bg-[#0e2a52]/95 backdrop-blur-md text-white border-b border-white/10">
         <div className="max-w-6xl mx-auto px-3 sm:px-5 py-3 sm:py-4 flex items-center justify-between gap-3">
           <div className="flex items-baseline gap-2 sm:gap-3">
             <LtdbLogoLink variant="header" />
