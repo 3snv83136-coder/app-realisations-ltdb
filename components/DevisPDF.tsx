@@ -29,7 +29,7 @@ const s = StyleSheet.create({
     backgroundColor: C.white,
     lineHeight: 1.45,
   },
-  content: { paddingHorizontal: 40, paddingTop: 16, paddingBottom: 10, flexGrow: 1 },
+  content: { paddingHorizontal: 40, paddingTop: 16, paddingBottom: 28, flexGrow: 1 },
 
   /* Client + métadonnées */
   infoRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 14 },
@@ -303,6 +303,69 @@ const Footer = ({ emetteur }: { emetteur: EmetteurData }) => {
   )
 }
 
+/**
+ * Bloc harmonieux : titre + contenu restent ensemble.
+ * - non splitable → le bloc entier saute de page s'il ne tient pas
+ * - splitable → le début (bandeau) ne reste pas orphelin en bas de page
+ */
+function DevisBlock({
+  children,
+  minPresenceAhead = 88,
+  splitable = false,
+}: {
+  children: React.ReactNode
+  minPresenceAhead?: number
+  splitable?: boolean
+}) {
+  return (
+    <View
+      wrap={splitable ? undefined : false}
+      minPresenceAhead={minPresenceAhead}
+      style={{ marginBottom: 4 }}
+    >
+      {children}
+    </View>
+  )
+}
+
+function Band({
+  label,
+  tone = 'navy',
+}: {
+  label: string
+  tone?: 'navy' | 'red' | 'teal'
+}) {
+  const style = tone === 'red' ? s.bandRed : tone === 'teal' ? s.bandTeal : s.bandNavy
+  return (
+    <View style={style} wrap={false}>
+      <Text style={s.bandTxt}>{label}</Text>
+    </View>
+  )
+}
+
+function PrestationsLine({ l }: { l: DevisLineData }) {
+  return (
+    <View style={s.itemsRow} wrap={false} minPresenceAhead={48}>
+      <View style={s.cDesig}>
+        <Text style={s.cDesigName}>{l.designation}</Text>
+        {l.description ? <Text style={s.cDesigDesc}>{l.description}</Text> : null}
+        {(l.photos?.length ?? 0) > 0 ? (
+          <View style={s.linePhotos}>
+            {l.photos!.slice(0, 4).map((src, pi) => (
+              <View key={pi} wrap={false}>
+                <Image src={src} style={s.linePhoto} />
+              </View>
+            ))}
+          </View>
+        ) : null}
+      </View>
+      <Text style={s.cPu}>{fmtEur(l.pu_ht)}</Text>
+      <Text style={s.cQte}>{l.qte}{l.unite ? ` ${l.unite}` : ''}</Text>
+      <Text style={s.cTot}>{fmtEur(l.pu_ht * l.qte)}</Text>
+    </View>
+  )
+}
+
 /* ============ DOCUMENT ============ */
 export function DevisDocument({ emetteur, client, devis, phone }: DevisPDFProps) {
   const validite = devis.validite_jours ?? 30
@@ -330,9 +393,20 @@ export function DevisDocument({ emetteur, client, devis, phone }: DevisPDFProps)
     devis.majoration_note ? `majoration ${devis.majoration_note}` : '',
   ].filter(Boolean).join(' · ')
 
+  const conditionRows = devis.conditions
+    ? [
+        { k: 'Validité du devis', v: devis.conditions.validite || `${validite} jours à compter de la date d'établissement` },
+        { k: "Délai d'exécution", v: devis.conditions.delai_execution || '—' },
+        { k: 'Durée estimée du chantier', v: devis.conditions.duree_chantier || '—' },
+        { k: 'Garanties', v: devis.conditions.garanties || '—' },
+        { k: 'Assurance', v: devis.conditions.assurance || '—' },
+        { k: 'Conditions particulières', v: devis.conditions.particulieres || '—' },
+      ]
+    : []
+
   return (
     <Document>
-      <Page size="A4" style={s.page}>
+      <Page size="A4" style={s.page} wrap>
         <View fixed>
           <PdfBanner
             title="DEVIS"
@@ -345,197 +419,200 @@ export function DevisDocument({ emetteur, client, devis, phone }: DevisPDFProps)
 
         <View style={s.content}>
           {/* ===== Client + métadonnées ===== */}
-          <View style={s.infoRow} wrap={false}>
-            <View style={s.billTo}>
-              <Text style={s.sectionLabel}>Devis pour</Text>
-              <Text style={s.clientName}>{client.nom}</Text>
-              {client.nomFinal ? (
-                <Text style={s.clientLine}>Client concerné : {client.nomFinal}</Text>
-              ) : null}
-              {client.adresseLignes.map((l, i) => (
-                <Text key={i} style={s.clientLine}>{l}</Text>
-              ))}
-              {client.siret ? <Text style={s.clientLine}>SIRET {client.siret}</Text> : null}
-              {client.adresseChantier ? (
-                <>
-                  <Text style={s.clientLabel}>Adresse du chantier :</Text>
-                  <Text style={s.clientLine}>{client.adresseChantier}</Text>
-                </>
-              ) : null}
-            </View>
-            <View style={s.metaBox}>
-              <View style={s.metaRow}>
-                <Text style={s.metaK}>Date</Text>
-                <Text style={s.metaV}>{dateFmt}</Text>
+          <DevisBlock minPresenceAhead={110}>
+            <View style={s.infoRow}>
+              <View style={s.billTo}>
+                <Text style={s.sectionLabel}>Devis pour</Text>
+                <Text style={s.clientName}>{client.nom}</Text>
+                {client.nomFinal ? (
+                  <Text style={s.clientLine}>Client concerné : {client.nomFinal}</Text>
+                ) : null}
+                {client.adresseLignes.map((l, i) => (
+                  <Text key={i} style={s.clientLine}>{l}</Text>
+                ))}
+                {client.siret ? <Text style={s.clientLine}>SIRET {client.siret}</Text> : null}
+                {client.adresseChantier ? (
+                  <>
+                    <Text style={s.clientLabel}>Adresse du chantier :</Text>
+                    <Text style={s.clientLine}>{client.adresseChantier}</Text>
+                  </>
+                ) : null}
               </View>
-              <View style={s.metaRow}>
-                <Text style={s.metaK}>Validité</Text>
-                <Text style={s.metaV}>{validite} jours</Text>
-              </View>
-              {devis.reference_dossier ? (
-                <View style={[s.metaRow, s.metaRowLast]}>
-                  <Text style={s.metaK}>Réf.</Text>
-                  <Text style={s.metaV}>{devis.reference_dossier}</Text>
+              <View style={s.metaBox}>
+                <View style={s.metaRow}>
+                  <Text style={s.metaK}>Date</Text>
+                  <Text style={s.metaV}>{dateFmt}</Text>
                 </View>
-              ) : null}
+                <View style={s.metaRow}>
+                  <Text style={s.metaK}>Validité</Text>
+                  <Text style={s.metaV}>{validite} jours</Text>
+                </View>
+                {devis.reference_dossier ? (
+                  <View style={[s.metaRow, s.metaRowLast]}>
+                    <Text style={s.metaK}>Réf.</Text>
+                    <Text style={s.metaV}>{devis.reference_dossier}</Text>
+                  </View>
+                ) : null}
+              </View>
             </View>
-          </View>
+          </DevisBlock>
 
           {/* ===== Objet ===== */}
           {devis.objet ? (
-            <View>
-              <View style={s.bandNavy} wrap={false}>
-                <Text style={s.bandTxt}>Objet du devis</Text>
-              </View>
+            <DevisBlock minPresenceAhead={72}>
+              <Band label="Objet du devis" />
               <View style={s.objetBox}>
                 <Text style={s.objetText}>{devis.objet}</Text>
               </View>
-            </View>
+            </DevisBlock>
           ) : null}
 
           {/* ===== Constats conformes ===== */}
           {(devis.constats_conformes?.length ?? 0) > 0 ? (
-            <View>
-              <View style={s.bandTeal} wrap={false}>
-                <Text style={s.bandTxt}>Conforme</Text>
+            <DevisBlock splitable minPresenceAhead={96}>
+              <View wrap={false} minPresenceAhead={64}>
+                <Band label="Conforme" tone="teal" />
+                <View style={s.constatItem}>
+                  <Text style={s.constatTitle}>{devis.constats_conformes![0].intitule}</Text>
+                  {devis.constats_conformes![0].localisation
+                    ? <Text style={s.constatLoc}>{devis.constats_conformes![0].localisation}</Text>
+                    : null}
+                  <Text style={s.constatDesc}>{devis.constats_conformes![0].description}</Text>
+                </View>
               </View>
-              {devis.constats_conformes!.map((row, i) => (
-                <View key={i} style={s.constatItem}>
+              {devis.constats_conformes!.slice(1).map((row, i) => (
+                <View key={i} style={s.constatItem} wrap={false} minPresenceAhead={56}>
                   <Text style={s.constatTitle}>{row.intitule}</Text>
                   {row.localisation ? <Text style={s.constatLoc}>{row.localisation}</Text> : null}
                   <Text style={s.constatDesc}>{row.description}</Text>
                 </View>
               ))}
-            </View>
+            </DevisBlock>
           ) : null}
 
           {/* ===== Constats critiques ===== */}
           {(devis.constats_critiques?.length ?? 0) > 0 ? (
-            <View>
-              <View style={s.bandRed} wrap={false}>
-                <Text style={s.bandTxt}>Critique</Text>
+            <DevisBlock splitable minPresenceAhead={96}>
+              <View wrap={false} minPresenceAhead={64}>
+                <Band label="Critique" tone="red" />
+                <View style={s.constatItem}>
+                  <Text style={s.constatTitle}>{devis.constats_critiques![0].intitule}</Text>
+                  {devis.constats_critiques![0].localisation
+                    ? <Text style={s.constatLoc}>{devis.constats_critiques![0].localisation}</Text>
+                    : null}
+                  <Text style={s.constatDesc}>{devis.constats_critiques![0].description}</Text>
+                </View>
               </View>
-              {devis.constats_critiques!.map((row, i) => (
-                <View key={i} style={s.constatItem}>
+              {devis.constats_critiques!.slice(1).map((row, i) => (
+                <View key={i} style={s.constatItem} wrap={false} minPresenceAhead={56}>
                   <Text style={s.constatTitle}>{row.intitule}</Text>
                   {row.localisation ? <Text style={s.constatLoc}>{row.localisation}</Text> : null}
                   <Text style={s.constatDesc}>{row.description}</Text>
                 </View>
               ))}
-            </View>
+            </DevisBlock>
           ) : null}
 
           {/* ===== Non garantie ===== */}
           {devis.non_garantie ? (
-            <View>
-              <View style={s.bandNavy} wrap={false}>
-                <Text style={s.bandTxt}>Non garantie suite à notre intervention</Text>
-              </View>
+            <DevisBlock minPresenceAhead={80}>
+              <Band label="Non garantie suite à notre intervention" />
               <View style={s.objetBox}>
                 <Text style={s.objetText}>{devis.non_garantie}</Text>
               </View>
-            </View>
+            </DevisBlock>
           ) : null}
 
           {/* ===== Photos (optionnel) ===== */}
           {(devis.photos?.length ?? 0) > 0 ? (
-            <View>
-              <View style={s.bandNavy} wrap={false}>
-                <Text style={s.bandTxt}>Photos</Text>
+            <DevisBlock splitable minPresenceAhead={160}>
+              <View wrap={false} minPresenceAhead={120}>
+                <Band label="Photos" />
+                <View style={s.photosGrid}>
+                  {devis.photos!.slice(0, 2).map((src, i) => (
+                    <View key={i} style={s.photoCell} wrap={false}>
+                      <Image src={src} style={s.photoImg} />
+                    </View>
+                  ))}
+                </View>
               </View>
-              <View style={s.photosGrid}>
-                {devis.photos!.map((src, i) => (
-                  <View key={i} style={s.photoCell} wrap={false}>
-                    <Image src={src} style={s.photoImg} />
-                  </View>
-                ))}
-              </View>
-            </View>
+              {(devis.photos!.length > 2) ? (
+                <View style={s.photosGrid}>
+                  {devis.photos!.slice(2).map((src, i) => (
+                    <View key={i} style={s.photoCell} wrap={false} minPresenceAhead={140}>
+                      <Image src={src} style={s.photoImg} />
+                    </View>
+                  ))}
+                </View>
+              ) : null}
+            </DevisBlock>
           ) : null}
 
           {/* ===== Tableau prestations ===== */}
-          <View style={s.itemsHead}>
-            <Text style={[s.itemsHeadCell, { width: '50%' }]}>Description</Text>
-            <Text style={[s.itemsHeadCell, { width: '18%', textAlign: 'right' }]}>Prix unitaire</Text>
-            <Text style={[s.itemsHeadCell, { width: '14%', textAlign: 'center' }]}>Quantité</Text>
-            <Text style={[s.itemsHeadCell, { width: '18%', textAlign: 'right' }]}>Total HT</Text>
-          </View>
+          <DevisBlock splitable minPresenceAhead={100}>
+            <View style={s.itemsHead} wrap={false} minPresenceAhead={72}>
+              <Text style={[s.itemsHeadCell, { width: '50%' }]}>Description</Text>
+              <Text style={[s.itemsHeadCell, { width: '18%', textAlign: 'right' }]}>Prix unitaire</Text>
+              <Text style={[s.itemsHeadCell, { width: '14%', textAlign: 'center' }]}>Quantité</Text>
+              <Text style={[s.itemsHeadCell, { width: '18%', textAlign: 'right' }]}>Total HT</Text>
+            </View>
 
-          {sections.map((sec, si) => (
-            <View key={si}>
-              <View style={s.sectionRow}>
-                <Text style={s.sectionRowTxt}>{sec.section}</Text>
-              </View>
-              {sec.items.map((l, li) => (
-                <View key={li} style={s.itemsRow} wrap={false}>
-                  <View style={s.cDesig}>
-                    <Text style={s.cDesigName}>{l.designation}</Text>
-                    {l.description ? <Text style={s.cDesigDesc}>{l.description}</Text> : null}
-                    {(l.photos?.length ?? 0) > 0 ? (
-                      <View style={s.linePhotos}>
-                        {l.photos!.slice(0, 4).map((src, pi) => (
-                          <View key={pi}>
-                            <Image src={src} style={s.linePhoto} />
-                          </View>
-                        ))}
-                      </View>
-                    ) : null}
+            {sections.map((sec, si) => {
+              const [first, ...rest] = sec.items
+              return (
+                <View key={si} minPresenceAhead={64}>
+                  <View wrap={false} minPresenceAhead={56}>
+                    <View style={s.sectionRow}>
+                      <Text style={s.sectionRowTxt}>{sec.section}</Text>
+                    </View>
+                    {first ? <PrestationsLine l={first} /> : null}
                   </View>
-                  <Text style={s.cPu}>{fmtEur(l.pu_ht)}</Text>
-                  <Text style={s.cQte}>{l.qte}{l.unite ? ` ${l.unite}` : ''}</Text>
-                  <Text style={s.cTot}>{fmtEur(l.pu_ht * l.qte)}</Text>
+                  {rest.map((l, li) => (
+                    <PrestationsLine key={li} l={l} />
+                  ))}
                 </View>
-              ))}
-            </View>
-          ))}
+              )
+            })}
+          </DevisBlock>
 
-          {/* ===== Totaux ===== */}
-          <View style={s.totalsMini} wrap={false}>
-            <View style={s.totalsMiniRow}>
-              <Text style={s.totalsMiniLbl}>Sous-total HT</Text>
-              <Text style={s.totalsMiniVal}>{fmtEur(totalHT)}</Text>
+          {/* ===== Totaux (toujours ensemble) ===== */}
+          <DevisBlock minPresenceAhead={110}>
+            <View style={s.totalsMini}>
+              <View style={s.totalsMiniRow}>
+                <Text style={s.totalsMiniLbl}>Sous-total HT</Text>
+                <Text style={s.totalsMiniVal}>{fmtEur(totalHT)}</Text>
+              </View>
+              <View style={s.totalsMiniRow}>
+                <Text style={s.totalsMiniLbl}>
+                  TVA ({tvaTaux} %){devis.tva_reduite_attestation ? ' — taux réduit' : ''}
+                </Text>
+                <Text style={s.totalsMiniVal}>{tvaTaux === 0 ? '—' : fmtEur(tva)}</Text>
+              </View>
             </View>
-            <View style={s.totalsMiniRow}>
-              <Text style={s.totalsMiniLbl}>
-                TVA ({tvaTaux} %){devis.tva_reduite_attestation ? ' — taux réduit' : ''}
-              </Text>
-              <Text style={s.totalsMiniVal}>{tvaTaux === 0 ? '—' : fmtEur(tva)}</Text>
+            <View style={s.totalBar}>
+              <Text style={s.totalBarLbl}>TOTAL TTC</Text>
+              <Text style={s.totalBarVal}>{fmtEur(totalTTC)}</Text>
             </View>
-          </View>
-          <View style={s.totalBar} wrap={false}>
-            <Text style={s.totalBarLbl}>TOTAL TTC</Text>
-            <Text style={s.totalBarVal}>{fmtEur(totalTTC)}</Text>
-          </View>
+          </DevisBlock>
 
           {/* ===== Conditions d'exécution ===== */}
           {devis.conditions ? (
-            <View>
-              <View style={s.bandNavy} wrap={false}>
-                <Text style={s.bandTxt}>Conditions d&apos;exécution</Text>
-              </View>
+            <DevisBlock minPresenceAhead={160}>
+              <Band label="Conditions d'exécution" />
               <View style={s.condTable}>
-                {[
-                  { k: 'Validité du devis', v: devis.conditions.validite || `${validite} jours à compter de la date d'établissement` },
-                  { k: "Délai d'exécution", v: devis.conditions.delai_execution || '—' },
-                  { k: 'Durée estimée du chantier', v: devis.conditions.duree_chantier || '—' },
-                  { k: 'Garanties', v: devis.conditions.garanties || '—' },
-                  { k: 'Assurance', v: devis.conditions.assurance || '—' },
-                  { k: 'Conditions particulières', v: devis.conditions.particulieres || '—' },
-                ].map((row, i, arr) => (
+                {conditionRows.map((row, i, arr) => (
                   <View key={i} style={[s.condRow, i === arr.length - 1 ? s.condRowLast : {}]} wrap={false}>
                     <Text style={s.condLabel}>{row.k}</Text>
                     <Text style={s.condValue}>{row.v}</Text>
                   </View>
                 ))}
               </View>
-            </View>
+            </DevisBlock>
           ) : null}
 
           {/* ===== Modalités de règlement ===== */}
-          <View>
-            <View style={s.bandRed} wrap={false}>
-              <Text style={s.bandTxt}>Modalités de règlement</Text>
-            </View>
+          <DevisBlock minPresenceAhead={140}>
+            <Band label="Modalités de règlement" tone="red" />
             <View style={s.modalitesBox}>
               <Text style={s.modalitesP}>
                 <Text style={s.modalitesStrong}>Acompte à la commande : </Text>
@@ -553,48 +630,58 @@ export function DevisDocument({ emetteur, client, devis, phone }: DevisPDFProps)
                 Indemnité forfaitaire de recouvrement en cas de retard de paiement : 40 € (art. L441-10 C. com.) · Pas d&apos;escompte pour règlement anticipé.
               </Text>
             </View>
-          </View>
+          </DevisBlock>
 
           {/* ===== Mentions légales (devis travaux) ===== */}
           {isDevisTravauxVariant(devis.variant) && devis.mentions_legales && devis.mentions_legales.length > 0 ? (
-            <View>
-              <View style={s.bandNavy} wrap={false}>
-                <Text style={s.bandTxt}>Mentions légales &amp; réglementaires</Text>
+            <DevisBlock splitable minPresenceAhead={120}>
+              <View wrap={false} minPresenceAhead={80}>
+                <Band label="Mentions légales & réglementaires" />
+                <View style={[s.modalitesBox, { borderLeftColor: C.navy, marginBottom: 4 }]}>
+                  <Text style={s.legalItem}>
+                    <Text style={s.legalBullet}>1. </Text>
+                    {devis.mentions_legales[0]}
+                  </Text>
+                </View>
               </View>
-              <View style={[s.modalitesBox, { borderLeftColor: C.navy, marginBottom: 10 }]}>
-                {devis.mentions_legales.map((mention, i) => (
-                  <Text key={i} style={s.legalItem}>
-                    <Text style={s.legalBullet}>{i + 1}. </Text>
+              <View style={[s.modalitesBox, { borderLeftColor: C.navy, marginBottom: 10, marginTop: 0 }]}>
+                {devis.mentions_legales.slice(1).map((mention, i) => (
+                  <Text key={i} style={s.legalItem} wrap={false} minPresenceAhead={36}>
+                    <Text style={s.legalBullet}>{i + 2}. </Text>
                     {mention}
                   </Text>
                 ))}
               </View>
-            </View>
+            </DevisBlock>
           ) : null}
 
           {/* ===== Attestation TVA 10% ===== */}
           {devis.tva_reduite_attestation ? (
-            <Text style={s.attestation}>
-              Je soussigné <Text style={s.attestationStrong}>{client.nom}</Text> atteste par la présente que les travaux qui font l&apos;objet du présent devis sont réalisés à l&apos;adresse précitée, à usage d&apos;habitation à plus de 50 % et que la construction est achevée depuis plus de 2 ans (attestation permettant l&apos;application du taux réduit de TVA à 10 %, art. 279-0 bis du CGI).
-            </Text>
+            <DevisBlock minPresenceAhead={72}>
+              <Text style={s.attestation}>
+                Je soussigné <Text style={s.attestationStrong}>{client.nom}</Text> atteste par la présente que les travaux qui font l&apos;objet du présent devis sont réalisés à l&apos;adresse précitée, à usage d&apos;habitation à plus de 50 % et que la construction est achevée depuis plus de 2 ans (attestation permettant l&apos;application du taux réduit de TVA à 10 %, art. 279-0 bis du CGI).
+              </Text>
+            </DevisBlock>
           ) : null}
 
           {/* ===== Signatures ===== */}
-          <View style={s.sigRow} wrap={false}>
-            <View style={s.sigCard}>
-              <Text style={s.sigHeadTxt}>{emetteur.raisonSociale}</Text>
-              <Text style={s.sigLine}>Date : {dateFmt}</Text>
-              <Text style={s.sigLine}>Cachet &amp; signature :</Text>
+          <DevisBlock minPresenceAhead={150}>
+            <View style={s.sigRow}>
+              <View style={s.sigCard}>
+                <Text style={s.sigHeadTxt}>{emetteur.raisonSociale}</Text>
+                <Text style={s.sigLine}>Date : {dateFmt}</Text>
+                <Text style={s.sigLine}>Cachet &amp; signature :</Text>
+              </View>
+              <View style={[s.sigCard, s.sigCardClient]}>
+                <Text style={s.sigHeadTxt}>Client — Bon pour accord, devis approuvé</Text>
+                <Text style={s.sigMention}><Text style={s.sigMentionStrong}>{client.nom}</Text></Text>
+                <Text style={s.sigLine}>Date : ______________________</Text>
+                <Text style={s.sigMention}>
+                  Mention « <Text style={s.sigMentionStrong}>Bon pour accord</Text> » + signature :
+                </Text>
+              </View>
             </View>
-            <View style={[s.sigCard, s.sigCardClient]}>
-              <Text style={s.sigHeadTxt}>Client — Bon pour accord, devis approuvé</Text>
-              <Text style={s.sigMention}><Text style={s.sigMentionStrong}>{client.nom}</Text></Text>
-              <Text style={s.sigLine}>Date : ______________________</Text>
-              <Text style={s.sigMention}>
-                Mention « <Text style={s.sigMentionStrong}>Bon pour accord</Text> » + signature :
-              </Text>
-            </View>
-          </View>
+          </DevisBlock>
         </View>
 
         <Footer emetteur={emetteur} />
