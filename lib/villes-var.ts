@@ -1,4 +1,4 @@
-// 101 communes du Var (83) — source : /zones du site LTDB
+// Communes du Var (83) — source : /zones du site LTDB
 // Format: nom affiché + code postal
 export interface VilleVar { nom: string; cp: string }
 
@@ -83,6 +83,7 @@ export const VILLES_VAR: VilleVar[] = [
   { nom: "Roquebrune-sur-Argens", cp: "83520" },
   { nom: "Rougiers", cp: "83170" },
   { nom: "Saint-Cyr-sur-Mer", cp: "83270" },
+  { nom: "Saint-Mandrier-sur-Mer", cp: "83430" },
   { nom: "Saint-Maximin-la-Sainte-Baume", cp: "83470" },
   { nom: "Saint-Raphaël", cp: "83700" },
   { nom: "Saint-Tropez", cp: "83990" },
@@ -131,5 +132,11 @@ export function searchVilles(query: string, limit = 8): VilleVar[] {
 
 export function findVilleByName(name: string): VilleVar | undefined {
   const q = normalize(name)
-  return VILLES_VAR.find(v => normalize(v.nom) === q)
+  if (!q) return undefined
+  const exact = VILLES_VAR.find(v => normalize(v.nom) === q)
+  if (exact) return exact
+  // Ex. « Saint-Mandrier » → « Saint-Mandrier-sur-Mer »
+  const starts = VILLES_VAR.filter(v => normalize(v.nom).startsWith(q))
+  if (starts.length === 1) return starts[0]
+  return searchVilles(name, 1)[0]
 }
