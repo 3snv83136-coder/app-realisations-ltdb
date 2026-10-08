@@ -85,6 +85,7 @@ Date: ${today.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year:
 - Si le technicien ne dit pas « furet » → n'écris JAMAIS « furet ». Idem pour hydrocurage, caméra, mécanique, pression en bars, durée, etc.
 - N'invente AUCUN fait, action, mesure, prix explicite, matériel, durée qui n'est pas dans la dictée.
 - Tu peux REFORMULER en langage professionnel UNIQUEMENT ce qui est déjà dit — pas compléter par déduction métier.
+- "resultat" : uniquement un constat final explicitement dicté. Aucune réussite déduite des travaux, des photos ou du type de prestation. Sépare les travaux à prévoir dans "recommandations". Si le résultat est absent, laisse "".
 - "materiel_utilise" : UNIQUEMENT les outils/matériels nommés explicitement dans la dictée, sinon [].
 - "phases" : une phase par étape RÉELLEMENT décrite ; pas de phase inventée pour « faire joli ».
 - "analyse_table" : une ligne par problème/constat EXPLICITE ; pas de ligne pour combler.
@@ -100,7 +101,7 @@ N'utilise JAMAIS "statut": "ok" (qui affichera "CONFORME" dans le rapport) par d
 
 📝 RÈGLES DE RÉDACTION — RAPPORT ÉTOFFÉ
 - Ton : professionnel, technique, précis (éviter le langage parlé)
-- Paragraphes développés : chaque champ texte doit contenir 4-6 phrases complètes minimum (sauf commentaire_technicien qui reste court)
+- Paragraphes développés : chaque champ texte doit contenir 4-6 phrases complètes minimum (sauf resultat et commentaire_technicien qui restent courts)
 - Vocabulaire métier : utilise les termes techniques UNIQUEMENT s'ils figurent dans la dictée (EU, EP, colonne, etc.) — ne pas en ajouter d'autres par habitude.
 - Structure : chaque section doit être autonome et compréhensible isolément
 - Développe le contexte, la méthodologie, les résultats intermédiaires, sans inventer de données chiffrées
@@ -126,6 +127,7 @@ Réponds UNIQUEMENT avec ce JSON (sans markdown, sans backticks) :
   "materiel_utilise": ["liste du matériel effectivement utilisé ou cité", "sinon tableau vide"],
   "duree_intervention": "durée si mentionnée, sinon \\"\\"",
   "conditions_intervention": "conditions particulières rencontrées (accès, contraintes, présence client, difficultés) — 2-3 phrases si pertinent, sinon \\"\\"",
+  "resultat": "résultat final effectivement constaté et explicitement dicté par le technicien, en 1-2 phrases : état après intervention et contrôle réalisé ; vide si absent. Ne pas confondre avec une recommandation ou annoncer une réussite supposée",
   "recommandations": "préconisations préventives détaillées en 3-5 phrases — si le technicien n'en a pas donné, laisse vide",
   "commentaire_technicien": "note interne courte — 1 phrase",
   "phases": [
@@ -345,6 +347,7 @@ sont placés avant pour ne jamais être perdus si la réponse est longue.
   // Normalisation : garantit que la sortie a toujours la forme attendue
   // côté UI/publish, même si le LLM tronque ou omet une clé.
   rapport = rapport && typeof rapport === 'object' ? rapport : {}
+  rapport.resultat = typeof rapport.resultat === 'string' ? rapport.resultat.trim() : ''
   rapport.diagnostic = typeof rapport.diagnostic === 'string' ? rapport.diagnostic : ''
   rapport.travaux_realises = typeof rapport.travaux_realises === 'string' ? rapport.travaux_realises : ''
   rapport.recommandations = typeof rapport.recommandations === 'string' ? rapport.recommandations : ''

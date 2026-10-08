@@ -1,7 +1,7 @@
 'use client'
 import type { RapportData, SeoData } from "@/lib/types-documents"
 
-type RapportTextField = 'diagnostic' | 'travaux_realises' | 'recommandations' | 'commentaire_technicien'
+type RapportTextField = 'resultat' | 'diagnostic' | 'travaux_realises' | 'recommandations' | 'commentaire_technicien'
 type SeoTextField = 'titre_h1' | 'meta_description' | 'contenu_principal'
 
 interface Props {
@@ -52,10 +52,14 @@ export default function GenerationPreview({ rapport, seo, onRapportChange, onSeo
       <section>
         <h3 className="font-bold text-gray-800 mb-3 text-lg">Rapport technique</h3>
         <div className="space-y-3">
-          {(['diagnostic', 'travaux_realises', 'recommandations', 'commentaire_technicien'] as const).map(field => (
+          {(['diagnostic', 'travaux_realises', 'resultat', 'recommandations', 'commentaire_technicien'] as const).map(field => (
             <div key={field}>
-              <label className={labelClass}>{field.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}</label>
+              <label htmlFor={`rapport-${field}`} className={labelClass}>{field === 'resultat' ? 'Résultat constaté' : field.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}</label>
+              {field === 'resultat' && <p id="rapport-resultat-aide" className="text-xs text-gray-500 mb-2">Décrivez ce qui a été constaté après intervention : écoulement vérifié, fuite persistante, diagnostic réalisé… Les travaux à prévoir vont dans « Recommandations ». Laissez vide si le résultat n’a pas été vérifié.</p>}
               <textarea
+                id={`rapport-${field}`}
+                aria-describedby={field === 'resultat' ? 'rapport-resultat-aide' : undefined}
+                placeholder={field === 'resultat' ? 'Ex. : Après essai, les deux éviers s’évacuent normalement.' : undefined}
                 value={rapport?.[field] ?? ''}
                 onChange={e => updateRapport(field, e.target.value)}
                 rows={3}

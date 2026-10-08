@@ -73,6 +73,8 @@ export interface RapportGarantie {
 }
 
 export interface RapportData {
+  /** Résultat effectivement constaté ; vide si non renseigné. */
+  resultat?: string
   diagnostic: string
   travaux_realises: string
   recommandations: string
