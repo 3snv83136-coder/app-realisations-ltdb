@@ -242,7 +242,7 @@ export default function PlanningAgenda({
           ))}
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center justify-center gap-2 min-w-0">
           <button
             type="button"
             onClick={() => shiftAnchor(-1)}
@@ -251,7 +251,7 @@ export default function PlanningAgenda({
           >
             ←
           </button>
-          <div className="min-w-[10rem] text-center text-sm font-bold text-[#0e2a52] capitalize">
+          <div className="min-w-0 flex-1 basis-32 text-center text-sm font-bold text-[#0e2a52] capitalize">
             {periodLabel}
           </div>
           <button
@@ -550,8 +550,8 @@ function AgendaCard({
   size: 'large' | 'compact' | 'chip'
   techMode: boolean
 }) {
-  // Admin → fiche ; tech → middleware redirige vers /terrain
-  const href = `/intervention/${i.id}`
+  // Accès direct au terrain ; la fiche reste disponible depuis son en-tête.
+  const href = `/intervention/${i.id}/terrain`
   const villeLabel = [i.code_postal, i.ville].filter(Boolean).join(' ') || i.ville || '—'
   const heure = formatCreneau(i.heure_prevue, i.heure_fin_prevue) || fmtHeure(i.heure_prevue) || '—'
 

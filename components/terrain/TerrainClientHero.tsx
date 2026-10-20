@@ -1,6 +1,7 @@
 'use client'
 
 import dynamic from 'next/dynamic'
+import { useState } from 'react'
 import {
   buildChantierAddress,
   googleMapsDirectionsUrl,
@@ -32,7 +33,9 @@ export default function TerrainClientHero({
   ville,
   codePostal,
   typeIntervention,
+  showMapInitially = true,
 }: {
+  showMapInitially?: boolean
   statut: Statut
   clientNom?: string | null
   clientTelephone?: string | null
@@ -42,6 +45,7 @@ export default function TerrainClientHero({
   codePostal?: string | null
   typeIntervention?: string | null
 }) {
+  const [mapOpen, setMapOpen] = useState(showMapInitially)
   const style = heroStyle(statut)
   const villeLabel = [codePostal, ville].filter(Boolean).join(' ') || ville || '—'
   const adresseLine = (adresseChantier || clientAdresse || '').trim()
@@ -56,10 +60,10 @@ export default function TerrainClientHero({
     <section className={`rounded-2xl border-2 shadow-sm overflow-hidden ${style.card}`}>
       <div className="p-4 sm:p-5 space-y-3">
         <div>
-          <div className="text-2xl sm:text-3xl font-black leading-tight tracking-tight">
+          <div className="text-2xl sm:text-3xl font-black leading-tight tracking-tight break-words">
             {villeLabel}
           </div>
-          <div className="text-lg sm:text-xl font-bold mt-1 truncate">
+          <div className="text-lg sm:text-xl font-bold mt-1 break-words">
             {clientNom || 'Client —'}
           </div>
           {clientTelephone ? (
@@ -73,7 +77,7 @@ export default function TerrainClientHero({
             <p className={`mt-2 text-sm font-semibold ${style.muted}`}>Téléphone non renseigné</p>
           )}
           {adresseLine && (
-            <p className={`mt-2 text-sm font-medium ${style.muted}`}>📍 {adresseLine}</p>
+            <p className={`mt-2 text-sm font-medium break-words ${style.muted}`}>📍 {adresseLine}</p>
           )}
           {typeIntervention && (
             <p className={`mt-1 text-xs font-semibold uppercase tracking-wide ${style.muted}`}>
@@ -84,13 +88,21 @@ export default function TerrainClientHero({
 
         {gpsQuery && (
           <>
-            <InterventionMap
+            <button
+              type="button"
+              aria-expanded={mapOpen}
+              onClick={() => setMapOpen(open => !open)}
+              className="min-h-[44px] text-sm font-bold underline underline-offset-2"
+            >
+              {mapOpen ? 'Masquer la carte' : 'Afficher la carte'}
+            </button>
+            {mapOpen && <InterventionMap
               adresse={adresseChantier || clientAdresse || undefined}
               ville={ville || undefined}
               codePostal={codePostal || undefined}
               className="h-44 sm:h-52 rounded-xl overflow-hidden border-2 border-black/10 shadow-inner"
               zoom={15}
-            />
+            />}
             <div className="grid grid-cols-3 gap-2">
               <a
                 href={googleMapsDirectionsUrl(gpsQuery)}

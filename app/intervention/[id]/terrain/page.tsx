@@ -7,13 +7,13 @@ import dynamic from "next/dynamic"
 import TerrainStepper from "@/components/terrain/TerrainStepper"
 import TerrainPhotoCapture from "@/components/terrain/TerrainPhotoCapture"
 import TerrainExtraPhotos from "@/components/terrain/TerrainExtraPhotos"
-import StepTravauxSupplementaires from "@/components/terrain/StepTravauxSupplementaires"
-import StepGaranti from "@/components/terrain/StepGaranti"
-import StepSignatureAccord from "@/components/terrain/StepSignatureAccord"
-import StepAttestationConformite from "@/components/terrain/StepAttestationConformite"
+const StepTravauxSupplementaires = dynamic(() => import("@/components/terrain/StepTravauxSupplementaires"))
+const StepGaranti = dynamic(() => import("@/components/terrain/StepGaranti"))
+const StepSignatureAccord = dynamic(() => import("@/components/terrain/StepSignatureAccord"))
+const StepAttestationConformite = dynamic(() => import("@/components/terrain/StepAttestationConformite"))
 import TerrainOceanLoader from "@/components/terrain/TerrainOceanLoader"
 import TerrainClientHero from "@/components/terrain/TerrainClientHero"
-import DevisEnvoiPanel from "@/components/DevisEnvoiPanel"
+const DevisEnvoiPanel = dynamic(() => import("@/components/DevisEnvoiPanel"))
 import type { DevisData, DevisLineData } from "@/components/DevisPDF"
 import type { RapportData, SeoData, FactureData } from "@/lib/types-documents"
 import { joinNomPrenom } from "@/lib/rapportToDevis"
@@ -26,9 +26,9 @@ import { isAttestationConformiteResolved } from "@/lib/attestation-conformite"
 import { isAccordFinDeMois } from "@/lib/fin-de-mois"
 import { getTravauxSupplementaires } from "@/lib/travaux-supplementaires"
 import RapportOfflineBanner from "@/components/rapport/RapportOfflineBanner"
-import VideoUploadPanel from "@/components/VideoUploadPanel"
+const VideoUploadPanel = dynamic(() => import("@/components/VideoUploadPanel"))
 import { CATALOGUE_PRESTATIONS, fetchCataloguePrestations, type PrestationCatalogue } from "@/lib/catalogue-prestations"
-import FactureRemiseButton from "@/components/FactureRemiseButton"
+const FactureRemiseButton = dynamic(() => import("@/components/FactureRemiseButton"))
 import {
   clearRapportDraft,
   getRapportDraft,
@@ -56,6 +56,7 @@ type Intervention = {
   heure_fin_reelle: string | null
   mail_envoye_at: string | null
   sms_envoye_at: string | null
+  seo_json?: SeoData | null
   rapport_json: RapportData | null
   photos_urls: string[] | null
   photos_legendes: string[] | null
@@ -244,7 +245,7 @@ function TerrainPageBody({
             href={isTech ? '/planning' : `/intervention/${interv.id}`}
             className="text-sm font-bold text-[#0e2a52] hover:underline shrink-0 min-h-[44px] inline-flex items-center"
           >
-            ← {isTech ? 'Planning' : 'Fiche'}
+            ← {isTech ? 'Planning' : 'Modifier la fiche'}
           </Link>
           <div className="flex items-center gap-2 shrink-0">
             {showAccordTab && (
@@ -265,8 +266,10 @@ function TerrainPageBody({
         </div>
       </nav>
 
-      <main className="max-w-2xl mx-auto px-3 sm:px-4 py-3 sm:py-4 space-y-3 sm:space-y-4 w-full">
+      <main className="max-w-2xl mx-auto px-3 sm:px-4 py-3 sm:py-4 space-y-3 sm:space-y-4 w-full min-w-0 break-words">
         <TerrainClientHero
+          key={step <= 1 ? 'arrival' : 'work'}
+          showMapInitially={step <= 1}
           statut={interv.statut}
           clientNom={client?.nom}
           clientTelephone={client?.telephone}
@@ -658,7 +661,7 @@ function StepRapport({ interv, technicien, onSaved, onError }: {
   onSaved: () => void
   onError: (e: string) => void
 }) {
-  const [transcription, setTranscription] = useState('')
+  const [transcription, setTranscription] = useState(interv.transcription || '')
   const [generating, setGenerating] = useState(false)
   const [genDone, setGenDone] = useState(false)
   const [rapportPreview, setRapportPreview] = useState<RapportData | null>(null)
@@ -747,6 +750,7 @@ function StepRapport({ interv, technicien, onSaved, onError }: {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           transcription,
+          mode: 'rapport',
           type_intervention: interv.type_intervention || 'Intervention',
           ville: interv.ville || '',
           code_postal: interv.code_postal || '',
@@ -759,8 +763,6 @@ function StepRapport({ interv, technicien, onSaved, onError }: {
       const genData = await genRes.json()
       if (!genRes.ok) throw new Error(genData.error || 'Génération échouée')
 
-      setGenDone(true)
-      await new Promise(r => setTimeout(r, 500))
 
       setRapportPreview(genData.rapport)
       setSeoPreview(genData.seo)
@@ -803,12 +805,13 @@ function StepRapport({ interv, technicien, onSaved, onError }: {
       const saveData = await saveRes.json()
       if (!saveRes.ok) throw new Error(saveData.error || 'Sauvegarde échouée')
 
-      await fetch(`/api/interventions/${interv.id}/terrain-step`, {
+      const stepRes = await fetch(`/api/interventions/${interv.id}/terrain-step`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'set', step: 4 }),
       })
 
+      if (!stepRes.ok) throw new Error('Rapport enregistré, mais changement d’étape impossible. Réessaie.')
       await clearRapportDraft(interv.id).catch(() => {})
       onSaved()
     } catch (e) {
@@ -918,7 +921,7 @@ function StepRapport({ interv, technicien, onSaved, onError }: {
         <header className="text-center px-1">
           <div className="text-4xl sm:text-5xl mb-2">✨</div>
           <h1 className="text-xl sm:text-2xl font-black text-slate-800">Le rapport se rédige…</h1>
-          <p className="text-sm text-slate-600 mt-2">Patiente quelques instants, on cingle vers le soleil.</p>
+          <p className="text-sm text-slate-600 mt-2">Mise en forme de ta dictée en rapport technique.</p>
         </header>
 
         <TerrainOceanLoader done={genDone} expectedMs={75_000} />
@@ -926,7 +929,7 @@ function StepRapport({ interv, technicien, onSaved, onError }: {
         <p className="text-xs text-center text-slate-400 italic px-2">
           {genDone
             ? 'Ouverture de l’aperçu…'
-            : 'La génération prend généralement 30 à 90 secondes. L’écran reste allumé — ne ferme pas la page.'}
+            : 'Le délai dépend de la dictée et du service de rédaction. Garde la page ouverte.'}
         </p>
       </section>
     )
@@ -2011,7 +2014,31 @@ function TerrainDiffusionPanel({ interv, client, onRefresh, onError, techOnlyMai
     setProgress('🌐 Publication sur le site…')
     onError('')
     try {
+      if (!interv.seo_json?.contenu_principal) {
+        setProgress('📝 Préparation de l’article pour le site…')
+        const generated = await fetchJsonWithRetry<{ seo: SeoData; warning?: string }>('/api/generate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            mode: 'seo', rapport: interv.rapport_json,
+            transcription: interv.transcription,
+            type_intervention: interv.type_intervention || 'Intervention',
+            ville: interv.ville || client?.ville || '',
+            code_postal: interv.code_postal || client?.code_postal || '',
+          }),
+          retries: 1, timeoutMs: 240_000,
+        })
+        if (!generated.seo?.contenu_principal || generated.warning) {
+          throw new Error(generated.warning || 'Article non généré. Réessaie la publication.')
+        }
+        await fetchJsonWithRetry('/api/save-rapport', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ interventionId: interv.id, rapport: interv.rapport_json, seo: generated.seo }),
+          retries: 1, timeoutMs: 30_000,
+        })
+      }
       await linkClientBestEffort()
+      setProgress('🌐 Publication sur le site…')
       const res = await fetch('/api/publish/from-intervention', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

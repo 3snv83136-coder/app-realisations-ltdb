@@ -42,7 +42,9 @@ function slugify(s: string) {
 
 export async function POST(req: NextRequest) {
   const {
-    transcription,
+    mode = 'full',
+    rapport: existingRapport,
+    transcription: transcriptionBrute,
     type_intervention,
     ville,
     code_postal,
@@ -50,6 +52,15 @@ export async function POST(req: NextRequest) {
     technicien_annees,
     technicien_titre,
   } = await req.json()
+  if (!['full', 'rapport', 'seo'].includes(mode)) {
+    return NextResponse.json({ error: 'Mode invalide' }, { status: 400 })
+  }
+  if (mode === 'seo' && (!existingRapport || typeof existingRapport !== 'object' || Array.isArray(existingRapport))) {
+    return NextResponse.json({ error: 'Rapport requis pour préparer la publication' }, { status: 400 })
+  }
+  const transcription = typeof transcriptionBrute === "string"
+    ? transcriptionBrute
+    : ""
   if (!transcription || !type_intervention || !ville) {
     return NextResponse.json({ error: 'Champs manquants' }, { status: 400 })
   }
@@ -310,8 +321,8 @@ sont placés avant pour ne jamais être perdus si la réponse est longue.
   let seoRaw: string
   try {
     [rapportRaw, seoRaw] = await Promise.all([
-      llmChat(rapportPrompt, { maxTokens: 16000, jsonMode: true }),
-      llmChat(seoPrompt, { maxTokens: 16000, jsonMode: true }),
+      mode === 'seo' ? Promise.resolve(JSON.stringify(existingRapport)) : llmChat(rapportPrompt, { maxTokens: 16000, jsonMode: true }),
+      mode === 'rapport' ? Promise.resolve('{}') : llmChat(seoPrompt, { maxTokens: 16000, jsonMode: true }),
     ])
   } catch (e) {
     return NextResponse.json({
@@ -384,6 +395,12 @@ sont placés avant pour ne jamais être perdus si la réponse est longue.
     : []
   rapport.materiel_utilise = Array.isArray(rapport.materiel_utilise) ? rapport.materiel_utilise : []
 
+  // Le terrain n’attend ni article SEO ni dialogue de publication.
+  if (mode === 'rapport') {
+    rapport.reference = reference
+    return NextResponse.json({ rapport, seo: null })
+  }
+
   seo = seo && typeof seo === 'object' ? seo : {}
   seo.titre_h1 = typeof seo.titre_h1 === 'string' ? seo.titre_h1 : ''
   seo.meta_title = typeof seo.meta_title === 'string' ? seo.meta_title : ''
@@ -421,7 +438,7 @@ sont placés avant pour ne jamais être perdus si la réponse est longue.
 
   // Slug + référence déterministes côté serveur
   seo.slug = realisationSlug
-  rapport.reference = reference
+  rapport.reference = mode === 'seo' ? (rapport.reference || reference) : reference
   seo.resume_rich_snippet = seo.resume_rich_snippet || seo.meta_description || ''
 
   const pageUrl = `${SITE}/nos-realisations/${realisationSlug}`

@@ -362,7 +362,7 @@ export default function PlanningMap({
                           {i.prix_prevu != null ? ` · ${fmtEUR(i.prix_prevu)}` : ''}
                         </div>
                         <Link
-                          href={`/intervention/${i.id}`}
+                          href={`/intervention/${i.id}/terrain`}
                           className="inline-block mt-1 text-blue-700 font-bold text-xs hover:underline"
                         >
                           Ouvrir la fiche →
@@ -398,7 +398,7 @@ export default function PlanningMap({
               return (
                 <li key={i.id}>
                   <Link
-                    href={`/intervention/${i.id}`}
+                    href={`/intervention/${i.id}/terrain`}
                     className="flex items-start gap-3 px-4 py-2.5 hover:bg-slate-50 transition"
                   >
                     <span

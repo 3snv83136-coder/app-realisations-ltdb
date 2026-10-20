@@ -482,7 +482,7 @@ function KanbanColumn({ col, items, techMode = false }: { col: ColumnDef; items:
           {items.length}
         </span>
       </header>
-      <div className="flex-1 p-3 space-y-2.5 max-h-[calc(100vh-380px)] overflow-y-auto bg-white/40">
+      <div className="flex-1 p-3 space-y-2.5 lg:max-h-[calc(100dvh-380px)] lg:overflow-y-auto bg-white/40">
         {items.length === 0 ? (
           <p className="text-center text-slate-400 text-xs py-8 italic">Aucune intervention</p>
         ) : (
@@ -500,8 +500,8 @@ function InterventionCard({
   compact?: boolean
   techMode?: boolean
 }) {
-  // Admin → fiche ; tech → middleware redirige /intervention/[id] vers /terrain
-  const href = `/intervention/${i.id}`
+  // Le planning ouvre directement le parcours terrain pour tous les rôles.
+  const href = `/intervention/${i.id}/terrain`
   const villeLabel = [i.code_postal, i.ville].filter(Boolean).join(' ') || i.ville || 'Ville —'
   const metaMuted =
     i.statut === 'planifiee' ? 'text-amber-900/75' :

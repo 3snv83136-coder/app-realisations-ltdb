@@ -49,6 +49,7 @@ async function generateRapport(input: {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
+      mode: 'rapport',
       transcription: input.transcription,
       type_intervention: input.type_intervention || 'Intervention',
       ville: input.ville || '',
