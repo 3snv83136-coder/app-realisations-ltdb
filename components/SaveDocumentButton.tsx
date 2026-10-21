@@ -4,6 +4,7 @@ import { errorMessage } from "@/lib/error-message"
 
 type SaveButtonProps = {
   endpoint: string
+  method?: 'POST' | 'PATCH'
   body: () => unknown
   className?: string
   label?: string
@@ -14,7 +15,7 @@ type SaveButtonProps = {
 }
 
 export default function SaveDocumentButton({
-  endpoint, body, className, label, disabled, allowResave, onSaved,
+  endpoint, method = 'POST', body, className, label, disabled, allowResave, onSaved,
 }: SaveButtonProps) {
   const [state, setState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
   const [error, setError] = useState('')
@@ -25,7 +26,7 @@ export default function SaveDocumentButton({
     setState('saving'); setError('')
     try {
       const res = await fetch(endpoint, {
-        method: 'POST',
+        method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body()),
       })
