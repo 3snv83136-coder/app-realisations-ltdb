@@ -13,9 +13,23 @@ interface TerrainPhotoCaptureProps {
   titre?: string
 }
 
+function formatCatchError(e: unknown): string {
+  if (e instanceof Error && e.message) return e.message
+  if (typeof e === 'string' && e.trim()) return e
+  // FileReader / XHR : onerror reçoit un ProgressEvent → String(e) = "[object ProgressEvent]"
+  if (e && typeof e === 'object') {
+    const any = e as { type?: string; target?: { error?: { message?: string } | null } }
+    const fr = any.target?.error?.message
+    if (fr) return fr
+    if (any.type === 'error') return 'Lecture du fichier impossible (format photo non supporté ou fichier corrompu).'
+  }
+  return 'Erreur inattendue lors de l’envoi de la photo.'
+}
+
 /**
  * Composant de capture photo unique avec 3 sources : caméra, galerie, fichier.
  * Compresse côté client puis upload vers /api/interventions/[id]/photo.
+ * Sur iPhone : object URL (pas FileReader) + fallback sans compression si HEIC échoue.
  */
 export default function TerrainPhotoCapture({
   interventionId,
@@ -32,48 +46,84 @@ export default function TerrainPhotoCapture({
   const fileInputRef = useRef<HTMLInputElement | null>(null)
 
   async function compress(file: File): Promise<File> {
-    if (!file.type.startsWith('image/')) return file
-    const dataUrl = await new Promise<string>((resolve, reject) => {
-      const reader = new FileReader()
-      reader.onload = () => resolve(reader.result as string)
-      reader.onerror = reject
-      reader.readAsDataURL(file)
-    })
-    return new Promise((resolve, reject) => {
-      const img = new Image()
-      img.onload = () => {
-        const maxDim = 1920
-        let { width, height } = img
-        if (width > maxDim || height > maxDim) {
-          if (width >= height) { height = Math.round(height * maxDim / width); width = maxDim }
-          else { width = Math.round(width * maxDim / height); height = maxDim }
+    if (file.type === 'application/pdf') return file
+    if (file.type && !file.type.startsWith('image/') && file.type !== 'application/octet-stream') {
+      return file
+    }
+
+    let objectUrl: string | null = null
+    let bitmap: ImageBitmap | null = null
+    try {
+      let source: CanvasImageSource
+      let width: number
+      let height: number
+
+      if (typeof createImageBitmap === 'function') {
+        try {
+          bitmap = await createImageBitmap(file)
+          source = bitmap
+          width = bitmap.width
+          height = bitmap.height
+        } catch {
+          bitmap = null
         }
-        const canvas = document.createElement('canvas')
-        canvas.width = width; canvas.height = height
-        const ctx = canvas.getContext('2d')
-        if (!ctx) return reject(new Error('Canvas non supporté'))
-        ctx.drawImage(img, 0, 0, width, height)
-        canvas.toBlob(
-          blob => {
-            if (!blob) return reject(new Error('Compression échouée'))
-            resolve(new File([blob], file.name.replace(/\.(heic|heif|png|webp)$/i, '.jpg'), { type: 'image/jpeg' }))
-          },
-          'image/jpeg',
-          0.82,
-        )
       }
-      img.onerror = () => reject(new Error('Lecture image impossible'))
-      img.src = dataUrl
-    })
+
+      if (!bitmap) {
+        // Object URL > FileReader : évite [object ProgressEvent] sur iPhone / HEIC
+        objectUrl = URL.createObjectURL(file)
+        const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+          const el = new Image()
+          el.onload = () => resolve(el)
+          el.onerror = () => reject(new Error('Lecture image impossible — essaye Galerie ou une photo JPEG.'))
+          el.src = objectUrl!
+        })
+        source = img
+        width = img.naturalWidth || img.width
+        height = img.naturalHeight || img.height
+      }
+
+      const maxDim = 1920
+      if (width > maxDim || height > maxDim) {
+        if (width >= height) {
+          height = Math.round((height * maxDim) / width)
+          width = maxDim
+        } else {
+          width = Math.round((width * maxDim) / height)
+          height = maxDim
+        }
+      }
+      const canvas = document.createElement('canvas')
+      canvas.width = width
+      canvas.height = height
+      const ctx = canvas.getContext('2d')
+      if (!ctx) throw new Error('Canvas non supporté')
+      ctx.drawImage(source!, 0, 0, width, height)
+
+      const blob = await new Promise<Blob | null>(resolve => {
+        canvas.toBlob(resolve, 'image/jpeg', 0.82)
+      })
+      if (!blob) throw new Error('Compression échouée')
+      const base = file.name.replace(/\.(heic|heif|png|webp|jpeg|jpg)$/i, '') || 'photo'
+      return new File([blob], `${base}.jpg`, { type: 'image/jpeg' })
+    } catch {
+      // HEIC non décodable en canvas → envoi de l’original (Supabase accepte)
+      return file
+    } finally {
+      if (bitmap) bitmap.close()
+      if (objectUrl) URL.revokeObjectURL(objectUrl)
+    }
   }
 
   async function handleFile(file: File | null) {
     if (!file) return
     setError('')
     setUploading(true)
+    let localPreview: string | null = null
     try {
       const compressed = await compress(file)
-      setPreview(URL.createObjectURL(compressed))
+      localPreview = URL.createObjectURL(compressed)
+      setPreview(localPreview)
 
       const fd = new FormData()
       fd.append('photo', compressed)
@@ -86,12 +136,20 @@ export default function TerrainPhotoCapture({
         method: 'POST',
         body: fd,
       })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`)
 
-      onUploaded(data.url, data.terrain_step)
+      let data: { error?: string; url?: string; terrain_step?: number } = {}
+      try {
+        data = await res.json()
+      } catch {
+        throw new Error(res.ok ? 'Réponse serveur invalide' : `Erreur serveur HTTP ${res.status}`)
+      }
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`)
+      if (!data.url) throw new Error('URL photo manquante dans la réponse')
+
+      onUploaded(data.url, data.terrain_step ?? 0)
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e))
+      setError(formatCatchError(e))
+      if (localPreview) URL.revokeObjectURL(localPreview)
       setPreview(null)
     } finally {
       setUploading(false)
@@ -107,21 +165,21 @@ export default function TerrainPhotoCapture({
         accept="image/*"
         capture="environment"
         className="hidden"
-        onChange={e => handleFile(e.target.files?.[0] || null)}
+        onChange={e => { void handleFile(e.target.files?.[0] || null); e.target.value = '' }}
       />
       <input
         ref={galleryInputRef}
         type="file"
         accept="image/*"
         className="hidden"
-        onChange={e => handleFile(e.target.files?.[0] || null)}
+        onChange={e => { void handleFile(e.target.files?.[0] || null); e.target.value = '' }}
       />
       <input
         ref={fileInputRef}
         type="file"
         accept="image/*,application/pdf"
         className="hidden"
-        onChange={e => handleFile(e.target.files?.[0] || null)}
+        onChange={e => { void handleFile(e.target.files?.[0] || null); e.target.value = '' }}
       />
 
       {preview && (
