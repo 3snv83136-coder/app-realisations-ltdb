@@ -54,9 +54,9 @@ export default function TerrainPhotoCapture({
     let objectUrl: string | null = null
     let bitmap: ImageBitmap | null = null
     try {
-      let source: CanvasImageSource
-      let width: number
-      let height: number
+      let source: CanvasImageSource | null = null
+      let width = 0
+      let height = 0
 
       if (typeof createImageBitmap === 'function') {
         try {
@@ -69,18 +69,23 @@ export default function TerrainPhotoCapture({
         }
       }
 
-      if (!bitmap) {
+      if (!source) {
         // Object URL > FileReader : évite [object ProgressEvent] sur iPhone / HEIC
         objectUrl = URL.createObjectURL(file)
+        const objectUrlSafe = objectUrl
         const img = await new Promise<HTMLImageElement>((resolve, reject) => {
           const el = new Image()
           el.onload = () => resolve(el)
           el.onerror = () => reject(new Error('Lecture image impossible — essaye Galerie ou une photo JPEG.'))
-          el.src = objectUrl!
+          el.src = objectUrlSafe
         })
         source = img
         width = img.naturalWidth || img.width
         height = img.naturalHeight || img.height
+      }
+
+      if (!source || width <= 0 || height <= 0) {
+        throw new Error('Dimensions image invalides')
       }
 
       const maxDim = 1920
@@ -98,7 +103,7 @@ export default function TerrainPhotoCapture({
       canvas.height = height
       const ctx = canvas.getContext('2d')
       if (!ctx) throw new Error('Canvas non supporté')
-      ctx.drawImage(source!, 0, 0, width, height)
+      ctx.drawImage(source, 0, 0, width, height)
 
       const blob = await new Promise<Blob | null>(resolve => {
         canvas.toBlob(resolve, 'image/jpeg', 0.82)
