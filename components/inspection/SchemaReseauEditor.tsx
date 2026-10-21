@@ -1,10 +1,21 @@
 'use client'
 /**
- * Schéma libre du réseau + marqueurs liés aux observations / photos.
- * Exporte une image composite (dessin + pastilles numérotées) pour le PDF.
+ * Schéma réseau professionnel :
+ * - banque de symboles (regards, canalisations, flèches…)
+ * - dessin libre
+ * - pastilles d’anomalies liées aux observations / photos
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { SchemaMarker } from '@/components/InspectionCameraPDF'
+import {
+  SCHEMA_SYMBOL_BANK,
+  SCHEMA_SYMBOL_CATEGORIES,
+  getSymbolDef,
+  paintSymbolInstance,
+  symbolPreviewDataUrl,
+  type SchemaSymbolInstance,
+  type SchemaSymbolKind,
+} from '@/lib/schema-reseau-symbols'
 
 export type SchemaObsOption = {
   tronconId: string
@@ -16,15 +27,17 @@ export type SchemaObsOption = {
   hasPhoto: boolean
 }
 
-type Mode = 'draw' | 'pin'
+type Mode = 'draw' | 'symbol' | 'pin' | 'select'
 
 type Props = {
   observations: SchemaObsOption[]
   drawingUrl?: string | null
   markers: SchemaMarker[]
+  symbols?: SchemaSymbolInstance[]
   onChange: (next: {
     drawingUrl: string | null
     markers: SchemaMarker[]
+    symbols: SchemaSymbolInstance[]
     compositeUrl: string | null
   }) => void
 }
@@ -38,10 +51,11 @@ function markerColor(n: number) {
 export function composeSchemaImage(
   drawingUrl: string | null,
   markers: SchemaMarker[],
+  symbols: SchemaSymbolInstance[],
   cssW = 800,
   cssH = 480,
 ): Promise<string | null> {
-  if (!drawingUrl && markers.length === 0) return Promise.resolve(null)
+  if (!drawingUrl && markers.length === 0 && symbols.length === 0) return Promise.resolve(null)
 
   const w = Math.max(800, Math.round(cssW * 2))
   const h = Math.max(480, Math.round(cssH * 2))
@@ -63,7 +77,8 @@ export function composeSchemaImage(
     ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke()
   }
 
-  const drawMarkers = () => {
+  const finish = () => {
+    for (const sym of symbols) paintSymbolInstance(ctx, sym, w, h)
     for (const m of markers) {
       const x = (m.xPct / 100) * w
       const y = (m.yPct / 100) * h
@@ -81,18 +96,18 @@ export function composeSchemaImage(
       ctx.textBaseline = 'middle'
       ctx.fillText(String(m.n), x, y + 1)
     }
-    return canvas.toDataURL('image/jpeg', 0.88)
+    return canvas.toDataURL('image/jpeg', 0.9)
   }
 
-  if (!drawingUrl) return Promise.resolve(drawMarkers())
+  if (!drawingUrl) return Promise.resolve(finish())
 
   return new Promise(resolve => {
     const img = new Image()
     img.onload = () => {
       ctx.drawImage(img, 0, 0, w, h)
-      resolve(drawMarkers())
+      resolve(finish())
     }
-    img.onerror = () => resolve(drawMarkers())
+    img.onerror = () => resolve(finish())
     img.src = drawingUrl
   })
 }
@@ -115,45 +130,70 @@ function paintGrid(ctx: CanvasRenderingContext2D, cssW: number, cssH: number) {
   ctx.strokeStyle = '#0e2a52'
 }
 
+function SymbolThumb({ kind }: { kind: SchemaSymbolKind }) {
+  const [src, setSrc] = useState('')
+  useEffect(() => {
+    setSrc(symbolPreviewDataUrl(kind, 56))
+  }, [kind])
+  if (!src) return <span className="w-10 h-10 block bg-slate-100 rounded" />
+  // eslint-disable-next-line @next/next/no-img-element
+  return <img src={src} alt="" className="w-10 h-10 object-contain" />
+}
+
 export default function SchemaReseauEditor({
   observations,
   drawingUrl,
   markers,
+  symbols: symbolsProp = [],
   onChange,
 }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const drawing = useRef(false)
   const hasInk = useRef(Boolean(drawingUrl))
-  const [mode, setMode] = useState<Mode>('draw')
-  const [selectedObsKey, setSelectedObsKey] = useState<string>('')
-  const [empty, setEmpty] = useState(!drawingUrl && markers.length === 0)
+  const [mode, setMode] = useState<Mode>('symbol')
+  const [selectedKind, setSelectedKind] = useState<SchemaSymbolKind>('regard')
+  const [selectedObsKey, setSelectedObsKey] = useState('')
+  const [symbols, setSymbols] = useState<SchemaSymbolInstance[]>(symbolsProp)
+  const [selectedSymbolId, setSelectedSymbolId] = useState<string | null>(null)
+  const [category, setCategory] = useState<(typeof SCHEMA_SYMBOL_CATEGORIES)[number]['id']>('ouvrages')
+  const [empty, setEmpty] = useState(!drawingUrl && markers.length === 0 && symbolsProp.length === 0)
   const onChangeRef = useRef(onChange)
   onChangeRef.current = onChange
   const markersRef = useRef(markers)
   markersRef.current = markers
+  const symbolsRef = useRef(symbols)
+  symbolsRef.current = symbols
   const emitSeq = useRef(0)
 
-  const obsKey = (o: SchemaObsOption) => `${o.tronconId}:${o.obsIndex}`
+  // Sync symbols from parent when draft restored
+  useEffect(() => {
+    setSymbols(symbolsProp)
+    symbolsRef.current = symbolsProp
+  }, [symbolsProp])
 
+  const obsKey = (o: SchemaObsOption) => `${o.tronconId}:${o.obsIndex}`
   const placedKeys = useMemo(
     () => new Set(markers.map(m => `${m.tronconId}:${m.obsIndex}`)),
     [markers],
   )
-
   const availableObs = useMemo(
     () => observations.filter(o => !placedKeys.has(obsKey(o))),
     [observations, placedKeys],
   )
 
   useEffect(() => {
-    if (!selectedObsKey && availableObs[0]) {
-      setSelectedObsKey(obsKey(availableObs[0]))
-    } else if (selectedObsKey && !availableObs.some(o => obsKey(o) === selectedObsKey)) {
+    if (!selectedObsKey && availableObs[0]) setSelectedObsKey(obsKey(availableObs[0]))
+    else if (selectedObsKey && !availableObs.some(o => obsKey(o) === selectedObsKey)) {
       setSelectedObsKey(availableObs[0] ? obsKey(availableObs[0]) : '')
     }
   }, [availableObs, selectedObsKey])
 
-  const emit = useCallback(async (nextMarkers: SchemaMarker[]) => {
+  const bankFiltered = useMemo(
+    () => SCHEMA_SYMBOL_BANK.filter(s => s.category === category),
+    [category],
+  )
+
+  const emit = useCallback(async (nextMarkers: SchemaMarker[], nextSymbols: SchemaSymbolInstance[]) => {
     const canvas = canvasRef.current
     const rect = canvas?.getBoundingClientRect()
     const drawingOut = hasInk.current && canvas ? canvas.toDataURL('image/png') : null
@@ -161,14 +201,16 @@ export default function SchemaReseauEditor({
     const composite = await composeSchemaImage(
       drawingOut,
       nextMarkers,
+      nextSymbols,
       rect?.width || 800,
       rect?.height || 480,
     )
     if (seq !== emitSeq.current) return
-    setEmpty(!drawingOut && nextMarkers.length === 0)
+    setEmpty(!drawingOut && nextMarkers.length === 0 && nextSymbols.length === 0)
     onChangeRef.current({
       drawingUrl: drawingOut,
       markers: nextMarkers,
+      symbols: nextSymbols,
       compositeUrl: composite,
     })
   }, [])
@@ -252,38 +294,86 @@ export default function SchemaReseauEditor({
     if (mode !== 'draw' || !drawing.current) return
     drawing.current = false
     if (!hasInk.current) return
-    void emit(markersRef.current)
+    void emit(markersRef.current, symbolsRef.current)
   }
 
-  function placePin(e: React.PointerEvent<HTMLCanvasElement>) {
-    if (mode !== 'pin') return
+  function nextTagFor(kind: SchemaSymbolKind): string {
+    const def = getSymbolDef(kind)
+    const same = symbolsRef.current.filter(s => s.kind === kind).length + 1
+    if (kind === 'nord' || kind === 'fleche_ecoulement' || kind === 'fleche_inspection') return ''
+    return `${def.short}${same}`
+  }
+
+  function placeOnCanvas(e: React.PointerEvent<HTMLCanvasElement>) {
+    if (mode === 'draw') return
     e.preventDefault()
-    const obs = availableObs.find(o => obsKey(o) === selectedObsKey)
-    if (!obs) return
     const { x, y, w, h } = point(e)
     if (w <= 0 || h <= 0) return
-    const n = markersRef.current.length + 1
-    const next: SchemaMarker = {
-      id: `m-${Date.now().toString(36)}-${n}`,
-      xPct: Math.round((x / w) * 1000) / 10,
-      yPct: Math.round((y / h) * 1000) / 10,
-      n,
-      tronconId: obs.tronconId,
-      tronconNom: obs.tronconNom,
-      obsIndex: obs.obsIndex,
-      label: obs.label,
-      code: obs.code,
-      description: obs.description.slice(0, 160),
-      hasPhoto: obs.hasPhoto,
+    const xPct = Math.round((x / w) * 1000) / 10
+    const yPct = Math.round((y / h) * 1000) / 10
+
+    if (mode === 'symbol') {
+      const next: SchemaSymbolInstance = {
+        id: `s-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
+        kind: selectedKind,
+        xPct,
+        yPct,
+        rotationDeg: 0,
+        scale: 1,
+        tag: nextTagFor(selectedKind) || undefined,
+      }
+      const nextSymbols = [...symbolsRef.current, next]
+      setSymbols(nextSymbols)
+      symbolsRef.current = nextSymbols
+      setSelectedSymbolId(next.id)
+      void emit(markersRef.current, nextSymbols)
+      return
     }
-    void emit([...markersRef.current, next])
+
+    if (mode === 'pin') {
+      const obs = availableObs.find(o => obsKey(o) === selectedObsKey)
+      if (!obs) return
+      const n = markersRef.current.length + 1
+      const next: SchemaMarker = {
+        id: `m-${Date.now().toString(36)}-${n}`,
+        xPct,
+        yPct,
+        n,
+        tronconId: obs.tronconId,
+        tronconNom: obs.tronconNom,
+        obsIndex: obs.obsIndex,
+        label: obs.label,
+        code: obs.code,
+        description: obs.description.slice(0, 160),
+        hasPhoto: obs.hasPhoto,
+      }
+      void emit([...markersRef.current, next], symbolsRef.current)
+    }
   }
 
   function removeMarker(id: string) {
     const remaining = markersRef.current
       .filter(m => m.id !== id)
       .map((m, i) => ({ ...m, n: i + 1 }))
-    void emit(remaining)
+    void emit(remaining, symbolsRef.current)
+  }
+
+  function removeSymbol(id: string) {
+    const next = symbolsRef.current.filter(s => s.id !== id)
+    setSymbols(next)
+    symbolsRef.current = next
+    if (selectedSymbolId === id) setSelectedSymbolId(null)
+    void emit(markersRef.current, next)
+  }
+
+  function updateSelectedSymbol(patch: Partial<SchemaSymbolInstance>) {
+    if (!selectedSymbolId) return
+    const next = symbolsRef.current.map(s =>
+      s.id === selectedSymbolId ? { ...s, ...patch } : s,
+    )
+    setSymbols(next)
+    symbolsRef.current = next
+    void emit(markersRef.current, next)
   }
 
   function clearAll() {
@@ -299,40 +389,45 @@ export default function SchemaReseauEditor({
     }
     hasInk.current = false
     setEmpty(true)
-    onChangeRef.current({ drawingUrl: null, markers: [], compositeUrl: null })
+    setSymbols([])
+    symbolsRef.current = []
+    setSelectedSymbolId(null)
+    onChangeRef.current({ drawingUrl: null, markers: [], symbols: [], compositeUrl: null })
   }
+
+  const selectedSym = symbols.find(s => s.id === selectedSymbolId) || null
 
   return (
     <div className="space-y-3">
       <p className="text-sm text-slate-600">
-        Dessine le sens du réseau (regards, direction d’écoulement), puis place les anomalies
-        pour les relier à une observation et sa photo.
+        Place des symboles techniques (regards, canalisations, sens d’écoulement…),
+        complète au trait libre si besoin, puis marque les anomalies liées aux observations.
       </p>
 
+      {/* Modes */}
       <div className="flex flex-wrap gap-2">
-        <button
-          type="button"
-          onClick={() => setMode('draw')}
-          className={`px-3 py-2 rounded-xl text-sm font-bold border-2 transition ${
-            mode === 'draw'
-              ? 'border-[#0e2a52] bg-[#0e2a52] text-white'
-              : 'border-slate-200 bg-white text-slate-700'
-          }`}
-        >
-          ✏️ Dessiner
-        </button>
-        <button
-          type="button"
-          onClick={() => setMode('pin')}
-          disabled={availableObs.length === 0}
-          className={`px-3 py-2 rounded-xl text-sm font-bold border-2 transition disabled:opacity-40 ${
-            mode === 'pin'
-              ? 'border-red-600 bg-red-600 text-white'
-              : 'border-slate-200 bg-white text-slate-700'
-          }`}
-        >
-          📍 Placer une anomalie
-        </button>
+        {([
+          ['symbol', 'Banque symboles'],
+          ['draw', 'Trait libre'],
+          ['pin', 'Anomalie'],
+          ['select', 'Sélection'],
+        ] as const).map(([m, label]) => (
+          <button
+            key={m}
+            type="button"
+            onClick={() => setMode(m)}
+            disabled={m === 'pin' && availableObs.length === 0}
+            className={`px-3 py-2 rounded-xl text-sm font-bold border-2 transition disabled:opacity-40 ${
+              mode === m
+                ? m === 'pin'
+                  ? 'border-red-600 bg-red-600 text-white'
+                  : 'border-[#0e2a52] bg-[#0e2a52] text-white'
+                : 'border-slate-200 bg-white text-slate-700'
+            }`}
+          >
+            {label}
+          </button>
+        ))}
         <button
           type="button"
           onClick={clearAll}
@@ -342,13 +437,56 @@ export default function SchemaReseauEditor({
         </button>
       </div>
 
+      {/* Palette symboles */}
+      {mode === 'symbol' && (
+        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3 space-y-3">
+          <div className="flex flex-wrap gap-1.5">
+            {SCHEMA_SYMBOL_CATEGORIES.map(c => (
+              <button
+                key={c.id}
+                type="button"
+                onClick={() => setCategory(c.id)}
+                className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition ${
+                  category === c.id
+                    ? 'bg-[#0e2a52] text-white'
+                    : 'bg-white text-slate-600 border border-slate-200'
+                }`}
+              >
+                {c.label}
+              </button>
+            ))}
+          </div>
+          <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-2">
+            {bankFiltered.map(def => (
+              <button
+                key={def.kind}
+                type="button"
+                onClick={() => setSelectedKind(def.kind)}
+                className={`flex flex-col items-center gap-1 p-2 rounded-xl border-2 bg-white transition ${
+                  selectedKind === def.kind
+                    ? 'border-[#0e2a52] ring-2 ring-[#0e2a52]/20'
+                    : 'border-slate-200 hover:border-slate-300'
+                }`}
+                title={def.label}
+              >
+                <SymbolThumb kind={def.kind} />
+                <span className="text-[10px] font-bold text-slate-700 text-center leading-tight">
+                  {def.label}
+                </span>
+              </button>
+            ))}
+          </div>
+          <p className="text-xs text-slate-500">
+            Symbole sélectionné : <strong>{getSymbolDef(selectedKind).label}</strong> — touche le schéma pour le placer.
+          </p>
+        </div>
+      )}
+
       {mode === 'pin' && (
         <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 space-y-2">
-          <div className="text-xs font-bold uppercase tracking-wider text-amber-900">
-            Observation à associer
-          </div>
+          <div className="text-xs font-bold uppercase tracking-wider text-amber-900">Observation à associer</div>
           {availableObs.length === 0 ? (
-            <p className="text-sm text-amber-800">Toutes les observations sont déjà placées, ou aucune n’est renseignée.</p>
+            <p className="text-sm text-amber-800">Toutes les observations sont déjà placées.</p>
           ) : (
             <select
               value={selectedObsKey}
@@ -362,30 +500,68 @@ export default function SchemaReseauEditor({
               ))}
             </select>
           )}
-          <p className="text-xs text-amber-800">Puis touche le schéma à l’endroit de l’anomalie.</p>
         </div>
       )}
 
+      {/* Canvas */}
       <div className="relative rounded-2xl overflow-hidden border-2 border-slate-300 bg-white shadow-sm">
         <canvas
           ref={canvasRef}
-          onPointerDown={mode === 'draw' ? startDraw : placePin}
+          onPointerDown={mode === 'draw' ? startDraw : placeOnCanvas}
           onPointerMove={moveDraw}
           onPointerUp={endDraw}
           onPointerCancel={endDraw}
-          className={`w-full h-64 sm:h-80 touch-none ${mode === 'draw' ? 'cursor-crosshair' : 'cursor-cell'}`}
+          className={`w-full h-72 sm:h-96 touch-none ${
+            mode === 'draw' ? 'cursor-crosshair' : mode === 'select' ? 'cursor-default' : 'cursor-cell'
+          }`}
         />
+        {/* Symboles en overlay HTML pour sélection / feedback */}
+        {symbols.map(sym => {
+          const def = getSymbolDef(sym.kind)
+          const active = selectedSymbolId === sym.id
+          return (
+            <button
+              key={sym.id}
+              type="button"
+              title={`${def.label}${sym.tag ? ` (${sym.tag})` : ''} — cliquer pour sélectionner`}
+              onClick={e => {
+                e.stopPropagation()
+                setMode('select')
+                setSelectedSymbolId(sym.id)
+              }}
+              className={`absolute -translate-x-1/2 -translate-y-1/2 rounded-lg border-2 bg-white/90 shadow ${
+                active ? 'border-[#0e2a52] ring-2 ring-blue-300 z-10' : 'border-transparent'
+              }`}
+              style={{
+                left: `${sym.xPct}%`,
+                top: `${sym.yPct}%`,
+                transform: `translate(-50%, -50%) rotate(${sym.rotationDeg}deg) scale(${sym.scale})`,
+                width: 48,
+                height: 48,
+                pointerEvents: mode === 'draw' ? 'none' : 'auto',
+              }}
+            >
+              <SymbolThumb kind={sym.kind} />
+              {sym.tag && (
+                <span className="absolute -bottom-4 left-1/2 -translate-x-1/2 text-[9px] font-black text-[#0e2a52] whitespace-nowrap">
+                  {sym.tag}
+                </span>
+              )}
+            </button>
+          )
+        })}
         {markers.map(m => (
           <button
             key={m.id}
             type="button"
             title={`${m.label} — cliquer pour retirer`}
             onClick={() => removeMarker(m.id)}
-            className="absolute w-7 h-7 -ml-3.5 -mt-3.5 rounded-full text-white text-xs font-black shadow-md border-2 border-white flex items-center justify-center"
+            className="absolute w-7 h-7 -ml-3.5 -mt-3.5 rounded-full text-white text-xs font-black shadow-md border-2 border-white flex items-center justify-center z-20"
             style={{
               left: `${m.xPct}%`,
               top: `${m.yPct}%`,
               backgroundColor: markerColor(m.n),
+              pointerEvents: mode === 'draw' ? 'none' : 'auto',
             }}
           >
             {m.n}
@@ -393,14 +569,61 @@ export default function SchemaReseauEditor({
         ))}
       </div>
 
-      <div className="flex items-center justify-between gap-2 text-[11px] text-slate-500">
-        <span>
-          {empty
-            ? 'Schéma vide — dessine puis place les anomalies'
-            : `Schéma prêt · ${markers.length} anomalie(s) placée(s)`}
-        </span>
-        {mode === 'draw' && <span>Mode dessin actif</span>}
-        {mode === 'pin' && <span>Mode placement actif</span>}
+      {/* Contrôles symbole sélectionné */}
+      {selectedSym && mode === 'select' && (
+        <div className="rounded-xl border border-blue-200 bg-blue-50 p-3 flex flex-wrap items-center gap-3">
+          <span className="text-sm font-bold text-[#0e2a52]">
+            {getSymbolDef(selectedSym.kind).label}
+            {selectedSym.tag ? ` · ${selectedSym.tag}` : ''}
+          </span>
+          <label className="text-xs font-semibold text-slate-600 flex items-center gap-1.5">
+            Rotation
+            <input
+              type="range"
+              min={0}
+              max={360}
+              step={15}
+              value={selectedSym.rotationDeg}
+              onChange={e => updateSelectedSymbol({ rotationDeg: Number(e.target.value) })}
+              className="w-28"
+            />
+            <span className="tabular-nums w-8">{selectedSym.rotationDeg}°</span>
+          </label>
+          <label className="text-xs font-semibold text-slate-600 flex items-center gap-1.5">
+            Taille
+            <input
+              type="range"
+              min={60}
+              max={180}
+              step={10}
+              value={Math.round((selectedSym.scale || 1) * 100)}
+              onChange={e => updateSelectedSymbol({ scale: Number(e.target.value) / 100 })}
+              className="w-24"
+            />
+          </label>
+          <label className="text-xs font-semibold text-slate-600 flex items-center gap-1.5">
+            Tag
+            <input
+              value={selectedSym.tag || ''}
+              onChange={e => updateSelectedSymbol({ tag: e.target.value.slice(0, 8) })}
+              className="border border-slate-300 rounded-lg px-2 py-1 w-16 text-sm"
+              placeholder="R1"
+            />
+          </label>
+          <button
+            type="button"
+            onClick={() => removeSymbol(selectedSym.id)}
+            className="ml-auto text-xs font-bold text-red-600"
+          >
+            Retirer
+          </button>
+        </div>
+      )}
+
+      <div className="text-[11px] text-slate-500">
+        {empty
+          ? 'Schéma vide — choisis un symbole dans la banque puis place-le'
+          : `${symbols.length} symbole(s) · ${markers.length} anomalie(s)`}
       </div>
 
       {markers.length > 0 && (
@@ -422,11 +645,7 @@ export default function SchemaReseauEditor({
                 </div>
                 <div className="text-xs text-slate-500 line-clamp-2">{m.description || '—'}</div>
               </div>
-              <button
-                type="button"
-                onClick={() => removeMarker(m.id)}
-                className="text-xs font-semibold text-red-600 shrink-0"
-              >
+              <button type="button" onClick={() => removeMarker(m.id)} className="text-xs font-semibold text-red-600 shrink-0">
                 Retirer
               </button>
             </div>

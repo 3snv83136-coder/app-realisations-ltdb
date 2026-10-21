@@ -11,6 +11,8 @@ import { PDF_C } from "./PdfBranding"
 import type { Style } from "@react-pdf/types"
 import { GRAVITE_LABELS, GLOSSAIRE, findDefaut } from "@/lib/camera-defauts"
 import { TEL_PRINCIPAL_FALLBACK } from "@/lib/parametres"
+import type { SchemaSymbolInstance } from "@/lib/schema-reseau-symbols"
+import { getSymbolDef } from "@/lib/schema-reseau-symbols"
 
 /* ============ CHARTE ============ */
 const C = {
@@ -82,6 +84,9 @@ export type SchemaMarker = {
   hasPhoto?: boolean
 }
 
+/** Symbole technique de la banque (regard, canalisation, etc.). */
+export type SchemaSymbol = SchemaSymbolInstance
+
 export type InspectionData = {
   numero: string
   dateInspection: string
@@ -99,10 +104,12 @@ export type InspectionData = {
   mapImageUrl?: string
   /** Photo de présentation choisie explicitement, indépendante des observations. */
   coverPhotoUrl?: string
-  /** Schéma libre du réseau (composite dessin + pastilles) pour le PDF. */
+  /** Schéma libre du réseau (composite dessin + symboles + pastilles) pour le PDF. */
   schemaReseauUrl?: string
   /** Légende des anomalies placées sur le schéma. */
   schemaMarkers?: SchemaMarker[]
+  /** Symboles techniques placés (regards, canalisations…). */
+  schemaSymbols?: SchemaSymbolInstance[]
   troncons: TronconBloc[]
   conclusionEtat: ConclusionEtat
 }
@@ -657,6 +664,14 @@ function SchemaBlock({ data }: { data: InspectionData }) {
           <Text style={s.coverMapFallbackTxt}>Schéma non renseigné</Text>
         </View>
       )}
+      {(data.schemaSymbols?.length || 0) > 0 ? (
+        <View style={{ marginTop: 8 }}>
+          <Text style={[s.partyHead, { marginBottom: 4 }]}>Symboles utilisés</Text>
+          <Text style={s.schemaLegendDesc}>
+            {Array.from(new Set((data.schemaSymbols || []).map(sy => getSymbolDef(sy.kind).label))).join(' · ')}
+          </Text>
+        </View>
+      ) : null}
       {markers.length > 0 ? (
         <View style={{ marginTop: 10 }}>
           <Text style={s.sectionTitle}>Légende des anomalies</Text>

@@ -17,6 +17,7 @@ import type {
   InspectionData,
   ObservationItem,
   SchemaMarker,
+  SchemaSymbol,
   TronconBloc,
 } from "@/components/InspectionCameraPDF"
 import { errorMessage } from "@/lib/error-message"
@@ -177,6 +178,7 @@ type InspectionDraft = {
   schemaDrawingUrl?: string
   schemaReseauUrl?: string
   schemaMarkers?: SchemaMarker[]
+  schemaSymbols?: SchemaSymbol[]
   troncons: TronconForm[]
 }
 
@@ -274,6 +276,7 @@ function InspectionPageInner() {
   const [schemaDrawingUrl, setSchemaDrawingUrl] = useState<string | null>(null)
   const [schemaReseauUrl, setSchemaReseauUrl] = useState<string | null>(null)
   const [schemaMarkers, setSchemaMarkers] = useState<SchemaMarker[]>([])
+  const [schemaSymbols, setSchemaSymbols] = useState<SchemaSymbol[]>([])
   const [visualTab, setVisualTab] = useState<'presentation' | 'inspection'>('presentation')
   const [showPreview, setShowPreview] = useState(false)
   const [draftHydrated, setDraftHydrated] = useState(false)
@@ -288,6 +291,7 @@ function InspectionPageInner() {
     setSchemaDrawingUrl(draft.schemaDrawingUrl || null)
     setSchemaReseauUrl(draft.schemaReseauUrl || null)
     setSchemaMarkers(Array.isArray(draft.schemaMarkers) ? draft.schemaMarkers : [])
+    setSchemaSymbols(Array.isArray(draft.schemaSymbols) ? draft.schemaSymbols : [])
     setNumero(draft.numero || genNumero())
     if (draft.dateInspection) setDateInspection(draft.dateInspection)
     if (draft.technicienNom) setTechnicienNom(draft.technicienNom)
@@ -329,6 +333,7 @@ function InspectionPageInner() {
             coverPhotoUrl: inspection.coverPhotoUrl,
             schemaReseauUrl: inspection.schemaReseauUrl,
             schemaMarkers: inspection.schemaMarkers,
+            schemaSymbols: inspection.schemaSymbols,
             troncons: inspection.troncons.map(t => emptyTroncon({
               nom: t.nom, ...t.caracteristiques, longueurM: t.caracteristiques.longueurM?.toString() || '',
               observations: t.observations, precoCustom: t.preconisations, resume: t.resume, conclusionEtat: t.conclusionEtat,
@@ -407,6 +412,7 @@ function InspectionPageInner() {
       coverPhotoUrl.length > 0
       || Boolean(schemaReseauUrl)
       || schemaMarkers.length > 0
+      || schemaSymbols.length > 0
       || clientNom.trim().length > 0
       || troncons.some(t =>
         Boolean(t.resume?.trim())
@@ -436,6 +442,7 @@ function InspectionPageInner() {
         schemaDrawingUrl: schemaDrawingUrl || undefined,
         schemaReseauUrl: schemaReseauUrl || undefined,
         schemaMarkers: schemaMarkers.length ? schemaMarkers : undefined,
+        schemaSymbols: schemaSymbols.length ? schemaSymbols : undefined,
         troncons: stripTronconsForDraft(troncons),
       })
       setDraftSavedAt(savedAt)
@@ -445,7 +452,7 @@ function InspectionPageInner() {
     draftHydrated, draftRestored, numero, dateInspection, technicienNom,
     linkedInterventionId, linkedInterventionLabel,
     clientNom, clientAdresse, clientCP, clientVille, clientEmail, clientTel,
-    troncons, coverPhotoUrl, schemaDrawingUrl, schemaReseauUrl, schemaMarkers,
+    troncons, coverPhotoUrl, schemaDrawingUrl, schemaReseauUrl, schemaMarkers, schemaSymbols,
   ])
 
   function fillFromClient(c: ClientRecord) {
@@ -808,13 +815,14 @@ function InspectionPageInner() {
       coverPhotoUrl: coverPhotoUrl || undefined,
       schemaReseauUrl: schemaReseauUrl || undefined,
       schemaMarkers: schemaMarkers.length ? schemaMarkers : undefined,
+      schemaSymbols: schemaSymbols.length ? schemaSymbols : undefined,
       troncons: blocs,
       conclusionEtat: worstConclusion(blocs.map(b => b.conclusionEtat)),
     }
   }, [
     numero, dateInspection, technicienNom, session?.user?.name, agence,
     clientNom, clientAdresse, clientCP, clientVille, clientEmail, clientTel,
-    troncons, coverPhotoUrl, schemaReseauUrl, schemaMarkers,
+    troncons, coverPhotoUrl, schemaReseauUrl, schemaMarkers, schemaSymbols,
   ])
 
   const schemaObsOptions = useMemo(() => {
@@ -1505,9 +1513,11 @@ function InspectionPageInner() {
             observations={schemaObsOptions}
             drawingUrl={schemaDrawingUrl}
             markers={schemaMarkers}
-            onChange={({ drawingUrl, markers, compositeUrl }) => {
+            symbols={schemaSymbols}
+            onChange={({ drawingUrl, markers, symbols, compositeUrl }) => {
               setSchemaDrawingUrl(drawingUrl)
               setSchemaMarkers(markers)
+              setSchemaSymbols(symbols)
               setSchemaReseauUrl(compositeUrl)
             }}
           />
