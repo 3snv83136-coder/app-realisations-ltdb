@@ -8,7 +8,7 @@ import {
 import { getSupabaseOrNull } from "@/lib/supabase"
 
 export const dynamic = 'force-dynamic'
-export const maxDuration = 30
+export const maxDuration = 60
 
 const PHOTOS_BUCKET = process.env.SUPABASE_PHOTOS_BUCKET || 'interventions-photos'
 
@@ -19,8 +19,7 @@ type Params = { params: { id: string } }
  * Multipart/form-data : `photo` (File), `legende` (string, optionnel).
  *
  * Ajoute l'URL publique à interventions.photos_urls[] et la légende à
- * interventions.photos_legendes[]. Bump terrain_step selon contexte
- * (1 = première photo "avant", 3 = photo "après").
+ * interventions.photos_legendes[]. Conserve l’étape du parcours terrain.
  */
 export async function POST(req: NextRequest, { params }: Params) {
   const sb = getSupabaseOrNull()
@@ -106,26 +105,13 @@ export async function POST(req: NextRequest, { params }: Params) {
   }
   photosCategories.push(inferredCat)
 
-  // Bump terrain_step : photo avant → 1, photo après → 4 (rapport).
-  // Les photos « travaux supplémentaires » ne font pas avancer le wizard.
-  const currentStep = interv.terrain_step ?? 0
-  let nextStep = currentStep
-  const count = photosUrls.length
-  const leg = legende.toLowerCase()
-  const isTravauxSupp = leg.includes('travaux supplémentaires')
-  const isPhotoApres = leg.includes('photo après') && !isTravauxSupp
-  if (!isTravauxSupp) {
-    if (count >= 1 && currentStep < 1 && leg.includes('avant')) nextStep = 1
-    else if (isPhotoApres && currentStep < 3) nextStep = 3
-  }
-
+  // Une photo ne change jamais l’étape : le technicien décide quand continuer.
   const { data: updated, error: upErr } = await sb
     .from('interventions')
     .update({
       photos_urls: photosUrls,
       photos_legendes: photosLegendes,
       photos_categories: photosCategories,
-      terrain_step: nextStep,
     })
     .eq('id', interventionId)
     .select('id, photos_urls, photos_legendes, photos_categories, terrain_step')

@@ -13,9 +13,25 @@ interface TerrainPhotoCaptureProps {
   titre?: string
 }
 
+/** Limite sous le plafond Vercel (~4,5 Mo) pour éviter « Failed to fetch ». */
+const MAX_UPLOAD_BYTES = 3.5 * 1024 * 1024
+
 function formatCatchError(e: unknown): string {
-  if (e instanceof Error && e.message) return e.message
-  if (typeof e === 'string' && e.trim()) return e
+  if (e instanceof TypeError || (e instanceof Error && /failed to fetch|networkerror|load failed/i.test(e.message))) {
+    return 'Envoi impossible (réseau ou photo trop lourde). Vérifie la connexion 4G/Wi‑Fi, ou réessaie via Galerie.'
+  }
+  if (e instanceof Error && e.message) {
+    if (/failed to fetch/i.test(e.message)) {
+      return 'Envoi impossible (réseau ou photo trop lourde). Vérifie la connexion, ou réessaie via Galerie.'
+    }
+    return e.message
+  }
+  if (typeof e === 'string' && e.trim()) {
+    if (/failed to fetch/i.test(e)) {
+      return 'Envoi impossible (réseau ou photo trop lourde). Vérifie la connexion, ou réessaie via Galerie.'
+    }
+    return e
+  }
   // FileReader / XHR : onerror reçoit un ProgressEvent → String(e) = "[object ProgressEvent]"
   if (e && typeof e === 'object') {
     const any = e as { type?: string; target?: { error?: { message?: string } | null } }
@@ -26,10 +42,153 @@ function formatCatchError(e: unknown): string {
   return 'Erreur inattendue lors de l’envoi de la photo.'
 }
 
+function isHeicLike(file: File): boolean {
+  const t = (file.type || '').toLowerCase()
+  const n = file.name.toLowerCase()
+  return t.includes('heic') || t.includes('heif') || n.endsWith('.heic') || n.endsWith('.heif')
+}
+
+/**
+ * Compresse en JPEG sous MAX_UPLOAD_BYTES.
+ * Sur iPhone : object URL (pas FileReader) pour éviter ProgressEvent.
+ * Ne renvoie jamais un HEIC / original trop lourd (sinon Vercel coupe → Failed to fetch).
+ */
+async function compressForUpload(file: File): Promise<File> {
+  if (file.type === 'application/pdf') {
+    if (file.size > MAX_UPLOAD_BYTES) {
+      throw new Error('PDF trop lourd (max ~3,5 Mo).')
+    }
+    return file
+  }
+  if (file.type && !file.type.startsWith('image/') && file.type !== 'application/octet-stream') {
+    throw new Error('Format de fichier non supporté.')
+  }
+
+  let objectUrl: string | null = null
+  let bitmap: ImageBitmap | null = null
+  try {
+    let source: CanvasImageSource | null = null
+    let width = 0
+    let height = 0
+
+    if (typeof createImageBitmap === 'function') {
+      try {
+        bitmap = await createImageBitmap(file)
+        source = bitmap
+        width = bitmap.width
+        height = bitmap.height
+      } catch {
+        bitmap = null
+      }
+    }
+
+    if (!source) {
+      objectUrl = URL.createObjectURL(file)
+      const url = objectUrl
+      const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+        const el = new Image()
+        el.onload = () => resolve(el)
+        el.onerror = () => reject(new Error(
+          isHeicLike(file)
+            ? 'Photo HEIC non lisible. Dans Réglages iPhone → Appareil photo, active « Formats compatibles », ou choisis une photo via Galerie.'
+            : 'Lecture image impossible — réessaie via Galerie.',
+        ))
+        el.src = url
+      })
+      source = img
+      width = img.naturalWidth || img.width
+      height = img.naturalHeight || img.height
+    }
+
+    if (!source || width <= 0 || height <= 0) {
+      throw new Error('Dimensions image invalides')
+    }
+
+    const base = file.name.replace(/\.(heic|heif|png|webp|jpeg|jpg)$/i, '') || 'photo'
+    const attempts: { maxDim: number; quality: number }[] = [
+      { maxDim: 1600, quality: 0.78 },
+      { maxDim: 1280, quality: 0.7 },
+      { maxDim: 1024, quality: 0.62 },
+      { maxDim: 800, quality: 0.55 },
+    ]
+
+    for (const { maxDim, quality } of attempts) {
+      let w = width
+      let h = height
+      if (w > maxDim || h > maxDim) {
+        if (w >= h) {
+          h = Math.round((h * maxDim) / w)
+          w = maxDim
+        } else {
+          w = Math.round((w * maxDim) / h)
+          h = maxDim
+        }
+      }
+      const canvas = document.createElement('canvas')
+      canvas.width = w
+      canvas.height = h
+      const ctx = canvas.getContext('2d')
+      if (!ctx) throw new Error('Canvas non supporté')
+      ctx.drawImage(source, 0, 0, w, h)
+
+      const blob = await new Promise<Blob | null>(resolve => {
+        canvas.toBlob(resolve, 'image/jpeg', quality)
+      })
+      if (!blob) continue
+      if (blob.size <= MAX_UPLOAD_BYTES) {
+        return new File([blob], `${base}.jpg`, { type: 'image/jpeg' })
+      }
+    }
+
+    throw new Error('Photo trop lourde même après compression. Réessaie une photo moins détaillée via Galerie.')
+  } catch (e) {
+    // Ne pas renvoyer l’original HEIC/lourd : Vercel coupe → « Failed to fetch »
+    if (e instanceof Error) throw e
+    if (file.size > MAX_UPLOAD_BYTES || isHeicLike(file)) {
+      throw new Error(
+        'Impossible de compresser cette photo. Active « Formats compatibles » sur l’iPhone, ou envoie via Galerie en JPEG.',
+      )
+    }
+    if (file.size <= MAX_UPLOAD_BYTES) return file
+    throw new Error('Photo trop lourde (max ~3,5 Mo).')
+  } finally {
+    if (bitmap) bitmap.close()
+    if (objectUrl) URL.revokeObjectURL(objectUrl)
+  }
+}
+
+async function postPhoto(
+  interventionId: string,
+  file: File,
+  legendeDefaut: string,
+  categorie?: PhotoCategory,
+): Promise<{ url: string; terrain_step: number }> {
+  const fd = new FormData()
+  fd.append('photo', file)
+  fd.append('legende', legendeDefaut)
+  if (categorie && isPhotoCategory(categorie)) {
+    fd.append('categorie', categorie)
+  }
+
+  const res = await fetch(`/api/interventions/${interventionId}/photo`, {
+    method: 'POST',
+    body: fd,
+  })
+
+  let data: { error?: string; url?: string; terrain_step?: number } = {}
+  try {
+    data = await res.json()
+  } catch {
+    throw new Error(res.ok ? 'Réponse serveur invalide' : `Erreur serveur HTTP ${res.status}`)
+  }
+  if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`)
+  if (!data.url) throw new Error('URL photo manquante dans la réponse')
+  return { url: data.url, terrain_step: data.terrain_step ?? 0 }
+}
+
 /**
  * Composant de capture photo unique avec 3 sources : caméra, galerie, fichier.
  * Compresse côté client puis upload vers /api/interventions/[id]/photo.
- * Sur iPhone : object URL (pas FileReader) + fallback sans compression si HEIC échoue.
  */
 export default function TerrainPhotoCapture({
   interventionId,
@@ -45,113 +204,30 @@ export default function TerrainPhotoCapture({
   const galleryInputRef = useRef<HTMLInputElement | null>(null)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
 
-  async function compress(file: File): Promise<File> {
-    if (file.type === 'application/pdf') return file
-    if (file.type && !file.type.startsWith('image/') && file.type !== 'application/octet-stream') {
-      return file
-    }
-
-    let objectUrl: string | null = null
-    let bitmap: ImageBitmap | null = null
-    try {
-      let source: CanvasImageSource | null = null
-      let width = 0
-      let height = 0
-
-      if (typeof createImageBitmap === 'function') {
-        try {
-          bitmap = await createImageBitmap(file)
-          source = bitmap
-          width = bitmap.width
-          height = bitmap.height
-        } catch {
-          bitmap = null
-        }
-      }
-
-      if (!source) {
-        // Object URL > FileReader : évite [object ProgressEvent] sur iPhone / HEIC
-        objectUrl = URL.createObjectURL(file)
-        const objectUrlSafe = objectUrl
-        const img = await new Promise<HTMLImageElement>((resolve, reject) => {
-          const el = new Image()
-          el.onload = () => resolve(el)
-          el.onerror = () => reject(new Error('Lecture image impossible — essaye Galerie ou une photo JPEG.'))
-          el.src = objectUrlSafe
-        })
-        source = img
-        width = img.naturalWidth || img.width
-        height = img.naturalHeight || img.height
-      }
-
-      if (!source || width <= 0 || height <= 0) {
-        throw new Error('Dimensions image invalides')
-      }
-
-      const maxDim = 1920
-      if (width > maxDim || height > maxDim) {
-        if (width >= height) {
-          height = Math.round((height * maxDim) / width)
-          width = maxDim
-        } else {
-          width = Math.round((width * maxDim) / height)
-          height = maxDim
-        }
-      }
-      const canvas = document.createElement('canvas')
-      canvas.width = width
-      canvas.height = height
-      const ctx = canvas.getContext('2d')
-      if (!ctx) throw new Error('Canvas non supporté')
-      ctx.drawImage(source, 0, 0, width, height)
-
-      const blob = await new Promise<Blob | null>(resolve => {
-        canvas.toBlob(resolve, 'image/jpeg', 0.82)
-      })
-      if (!blob) throw new Error('Compression échouée')
-      const base = file.name.replace(/\.(heic|heif|png|webp|jpeg|jpg)$/i, '') || 'photo'
-      return new File([blob], `${base}.jpg`, { type: 'image/jpeg' })
-    } catch {
-      // HEIC non décodable en canvas → envoi de l’original (Supabase accepte)
-      return file
-    } finally {
-      if (bitmap) bitmap.close()
-      if (objectUrl) URL.revokeObjectURL(objectUrl)
-    }
-  }
-
   async function handleFile(file: File | null) {
     if (!file) return
     setError('')
     setUploading(true)
     let localPreview: string | null = null
     try {
-      const compressed = await compress(file)
+      const compressed = await compressForUpload(file)
       localPreview = URL.createObjectURL(compressed)
       setPreview(localPreview)
 
-      const fd = new FormData()
-      fd.append('photo', compressed)
-      fd.append('legende', legendeDefaut)
-      if (categorie && isPhotoCategory(categorie)) {
-        fd.append('categorie', categorie)
-      }
-
-      const res = await fetch(`/api/interventions/${interventionId}/photo`, {
-        method: 'POST',
-        body: fd,
-      })
-
-      let data: { error?: string; url?: string; terrain_step?: number } = {}
+      let result: { url: string; terrain_step: number }
       try {
-        data = await res.json()
-      } catch {
-        throw new Error(res.ok ? 'Réponse serveur invalide' : `Erreur serveur HTTP ${res.status}`)
+        result = await postPhoto(interventionId, compressed, legendeDefaut, categorie)
+      } catch (first) {
+        // Un seul retry sur coupure réseau mobile
+        if (first instanceof TypeError || (first instanceof Error && /failed to fetch/i.test(first.message))) {
+          await new Promise(r => setTimeout(r, 600))
+          result = await postPhoto(interventionId, compressed, legendeDefaut, categorie)
+        } else {
+          throw first
+        }
       }
-      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`)
-      if (!data.url) throw new Error('URL photo manquante dans la réponse')
 
-      onUploaded(data.url, data.terrain_step ?? 0)
+      onUploaded(result.url, result.terrain_step)
     } catch (e) {
       setError(formatCatchError(e))
       if (localPreview) URL.revokeObjectURL(localPreview)
@@ -163,7 +239,6 @@ export default function TerrainPhotoCapture({
 
   return (
     <div className="space-y-4">
-      {/* Inputs cachés — un par source */}
       <input
         ref={cameraInputRef}
         type="file"
@@ -189,6 +264,7 @@ export default function TerrainPhotoCapture({
 
       {preview && (
         <div className="rounded-2xl overflow-hidden border-2 border-slate-200 bg-slate-50">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={preview} alt="Aperçu" className="w-full h-auto max-h-80 object-contain" />
         </div>
       )}
@@ -231,7 +307,7 @@ export default function TerrainPhotoCapture({
       {uploading && (
         <div className="bg-blue-50 border-2 border-blue-200 rounded-2xl p-6 text-center">
           <div className="animate-spin h-8 w-8 border-3 border-blue-600 border-t-transparent rounded-full mx-auto mb-3"></div>
-          <p className="text-sm font-bold text-blue-700">Envoi en cours…</p>
+          <p className="text-sm font-bold text-blue-700">Compression & envoi…</p>
         </div>
       )}
 
