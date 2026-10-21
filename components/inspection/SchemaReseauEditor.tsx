@@ -27,7 +27,15 @@ export type SchemaObsOption = {
   hasPhoto: boolean
 }
 
-type Mode = 'draw' | 'symbol' | 'pin' | 'select'
+type Mode = 'draw' | 'pipe' | 'symbol' | 'pin' | 'select'
+
+const PIPE_KINDS = new Set<SchemaSymbolKind>(['canalisation', 'canalisation_ep', 'branchement'])
+
+function pipeStyle(kind: SchemaSymbolKind): { color: string; width: number } {
+  if (kind === 'canalisation_ep') return { color: '#0369a1', width: 10 }
+  if (kind === 'branchement') return { color: '#0e2a52', width: 5 }
+  return { color: '#0e2a52', width: 9 }
+}
 
 type Props = {
   observations: SchemaObsOption[]
@@ -150,12 +158,13 @@ export default function SchemaReseauEditor({
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const drawing = useRef(false)
   const hasInk = useRef(Boolean(drawingUrl))
-  const [mode, setMode] = useState<Mode>('symbol')
-  const [selectedKind, setSelectedKind] = useState<SchemaSymbolKind>('regard')
+  const [mode, setMode] = useState<Mode>('pipe')
+  const [selectedKind, setSelectedKind] = useState<SchemaSymbolKind>('canalisation')
+  const [pipeKind, setPipeKind] = useState<SchemaSymbolKind>('canalisation')
   const [selectedObsKey, setSelectedObsKey] = useState('')
   const [symbols, setSymbols] = useState<SchemaSymbolInstance[]>(symbolsProp)
   const [selectedSymbolId, setSelectedSymbolId] = useState<string | null>(null)
-  const [category, setCategory] = useState<(typeof SCHEMA_SYMBOL_CATEGORIES)[number]['id']>('ouvrages')
+  const [category, setCategory] = useState<(typeof SCHEMA_SYMBOL_CATEGORIES)[number]['id']>('reseaux')
   const [empty, setEmpty] = useState(!drawingUrl && markers.length === 0 && symbolsProp.length === 0)
   const onChangeRef = useRef(onChange)
   onChangeRef.current = onChange
@@ -164,6 +173,8 @@ export default function SchemaReseauEditor({
   const symbolsRef = useRef(symbols)
   symbolsRef.current = symbols
   const emitSeq = useRef(0)
+  const pipeKindRef = useRef(pipeKind)
+  pipeKindRef.current = pipeKind
 
   // Sync symbols from parent when draft restored
   useEffect(() => {
@@ -267,23 +278,44 @@ export default function SchemaReseauEditor({
     return { x: e.clientX - rect.left, y: e.clientY - rect.top, w: rect.width, h: rect.height }
   }
 
+  function applyStrokeStyle(ctx: CanvasRenderingContext2D, forPipe: boolean) {
+    if (forPipe) {
+      const st = pipeStyle(pipeKindRef.current)
+      ctx.strokeStyle = st.color
+      ctx.lineWidth = st.width
+      ctx.lineCap = 'round'
+      ctx.lineJoin = 'round'
+    } else {
+      ctx.strokeStyle = '#0e2a52'
+      ctx.lineWidth = 2.4
+      ctx.lineCap = 'round'
+      ctx.lineJoin = 'round'
+    }
+  }
+
   function startDraw(e: React.PointerEvent<HTMLCanvasElement>) {
-    if (mode !== 'draw') return
+    if (mode !== 'draw' && mode !== 'pipe') return
     e.preventDefault()
     const ctx = canvasRef.current?.getContext('2d')
     if (!ctx) return
     drawing.current = true
+    applyStrokeStyle(ctx, mode === 'pipe')
     const { x, y } = point(e)
     ctx.beginPath()
     ctx.moveTo(x, y)
+    // Point de départ visible (surtout utile au toucher)
+    ctx.lineTo(x + 0.01, y + 0.01)
+    ctx.stroke()
+    hasInk.current = true
     e.currentTarget.setPointerCapture(e.pointerId)
   }
 
   function moveDraw(e: React.PointerEvent<HTMLCanvasElement>) {
-    if (mode !== 'draw' || !drawing.current) return
+    if ((mode !== 'draw' && mode !== 'pipe') || !drawing.current) return
     e.preventDefault()
     const ctx = canvasRef.current?.getContext('2d')
     if (!ctx) return
+    applyStrokeStyle(ctx, mode === 'pipe')
     const { x, y } = point(e)
     ctx.lineTo(x, y)
     ctx.stroke()
@@ -291,10 +323,20 @@ export default function SchemaReseauEditor({
   }
 
   function endDraw() {
-    if (mode !== 'draw' || !drawing.current) return
+    if ((mode !== 'draw' && mode !== 'pipe') || !drawing.current) return
     drawing.current = false
     if (!hasInk.current) return
     void emit(markersRef.current, symbolsRef.current)
+  }
+
+  function selectBankSymbol(kind: SchemaSymbolKind) {
+    setSelectedKind(kind)
+    if (PIPE_KINDS.has(kind)) {
+      setPipeKind(kind)
+      setMode('pipe')
+    } else {
+      setMode('symbol')
+    }
   }
 
   function nextTagFor(kind: SchemaSymbolKind): string {
@@ -305,7 +347,7 @@ export default function SchemaReseauEditor({
   }
 
   function placeOnCanvas(e: React.PointerEvent<HTMLCanvasElement>) {
-    if (mode === 'draw') return
+    if (mode === 'draw' || mode === 'pipe') return
     e.preventDefault()
     const { x, y, w, h } = point(e)
     if (w <= 0 || h <= 0) return
@@ -399,35 +441,83 @@ export default function SchemaReseauEditor({
 
   return (
     <div className="space-y-3">
-      <p className="text-sm text-slate-600">
-        Place des symboles techniques (regards, canalisations, sens d’écoulement…),
-        complète au trait libre si besoin, puis marque les anomalies liées aux observations.
-      </p>
+      <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-700 space-y-1">
+        <p className="font-bold text-[#0e2a52]">Comment faire</p>
+        <ol className="list-decimal list-inside text-xs sm:text-sm space-y-0.5 text-slate-600">
+          <li><strong>Canalisation continue</strong> : clique « Canalisation EU/EP » puis trace au doigt sans lever (trait épais).</li>
+          <li><strong>Regards / flèches</strong> : banque → symbole → touche le plan pour poser.</li>
+          <li><strong>Anomalies</strong> : d’abord une observation dans un tronçon, puis « Marquer une anomalie » → choisir l’obs → toucher le plan.</li>
+        </ol>
+      </div>
 
       {/* Modes */}
       <div className="flex flex-wrap gap-2">
-        {([
-          ['symbol', 'Banque symboles'],
-          ['draw', 'Trait libre'],
-          ['pin', 'Anomalie'],
-          ['select', 'Sélection'],
-        ] as const).map(([m, label]) => (
-          <button
-            key={m}
-            type="button"
-            onClick={() => setMode(m)}
-            disabled={m === 'pin' && availableObs.length === 0}
-            className={`px-3 py-2 rounded-xl text-sm font-bold border-2 transition disabled:opacity-40 ${
-              mode === m
-                ? m === 'pin'
-                  ? 'border-red-600 bg-red-600 text-white'
-                  : 'border-[#0e2a52] bg-[#0e2a52] text-white'
-                : 'border-slate-200 bg-white text-slate-700'
-            }`}
-          >
-            {label}
-          </button>
-        ))}
+        <button
+          type="button"
+          onClick={() => { setPipeKind('canalisation'); setSelectedKind('canalisation'); setMode('pipe'); setCategory('reseaux') }}
+          className={`px-3 py-2 rounded-xl text-sm font-bold border-2 transition ${
+            mode === 'pipe' && pipeKind === 'canalisation'
+              ? 'border-[#0e2a52] bg-[#0e2a52] text-white'
+              : 'border-slate-200 bg-white text-slate-700'
+          }`}
+        >
+          ━ Canalisation EU
+        </button>
+        <button
+          type="button"
+          onClick={() => { setPipeKind('canalisation_ep'); setSelectedKind('canalisation_ep'); setMode('pipe'); setCategory('reseaux') }}
+          className={`px-3 py-2 rounded-xl text-sm font-bold border-2 transition ${
+            mode === 'pipe' && pipeKind === 'canalisation_ep'
+              ? 'border-sky-700 bg-sky-700 text-white'
+              : 'border-slate-200 bg-white text-slate-700'
+          }`}
+        >
+          ━ Canalisation EP
+        </button>
+        <button
+          type="button"
+          onClick={() => setMode('symbol')}
+          className={`px-3 py-2 rounded-xl text-sm font-bold border-2 transition ${
+            mode === 'symbol'
+              ? 'border-[#0e2a52] bg-[#0e2a52] text-white'
+              : 'border-slate-200 bg-white text-slate-700'
+          }`}
+        >
+          Banque symboles
+        </button>
+        <button
+          type="button"
+          onClick={() => setMode('draw')}
+          className={`px-3 py-2 rounded-xl text-sm font-bold border-2 transition ${
+            mode === 'draw'
+              ? 'border-[#0e2a52] bg-[#0e2a52] text-white'
+              : 'border-slate-200 bg-white text-slate-700'
+          }`}
+        >
+          Trait libre
+        </button>
+        <button
+          type="button"
+          onClick={() => setMode('pin')}
+          className={`px-3 py-2 rounded-xl text-sm font-bold border-2 transition ${
+            mode === 'pin'
+              ? 'border-red-600 bg-red-600 text-white'
+              : 'border-slate-200 bg-white text-slate-700'
+          }`}
+        >
+          📍 Marquer une anomalie
+        </button>
+        <button
+          type="button"
+          onClick={() => setMode('select')}
+          className={`px-3 py-2 rounded-xl text-sm font-bold border-2 transition ${
+            mode === 'select'
+              ? 'border-[#0e2a52] bg-[#0e2a52] text-white'
+              : 'border-slate-200 bg-white text-slate-700'
+          }`}
+        >
+          Sélection
+        </button>
         <button
           type="button"
           onClick={clearAll}
@@ -437,8 +527,15 @@ export default function SchemaReseauEditor({
         </button>
       </div>
 
+      {mode === 'pipe' && (
+        <div className="rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-900 font-semibold">
+          Mode canalisation {pipeKind === 'canalisation_ep' ? 'EP (bleu)' : pipeKind === 'branchement' ? 'branchement' : 'EU (navy)'} —
+          glisse le doigt / la souris sans lever pour un tracé continu.
+        </div>
+      )}
+
       {/* Palette symboles */}
-      {mode === 'symbol' && (
+      {(mode === 'symbol' || mode === 'pipe') && (
         <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3 space-y-3">
           <div className="flex flex-wrap gap-1.5">
             {SCHEMA_SYMBOL_CATEGORIES.map(c => (
@@ -461,44 +558,66 @@ export default function SchemaReseauEditor({
               <button
                 key={def.kind}
                 type="button"
-                onClick={() => setSelectedKind(def.kind)}
+                onClick={() => selectBankSymbol(def.kind)}
                 className={`flex flex-col items-center gap-1 p-2 rounded-xl border-2 bg-white transition ${
-                  selectedKind === def.kind
+                  (PIPE_KINDS.has(def.kind) ? mode === 'pipe' && pipeKind === def.kind : mode === 'symbol' && selectedKind === def.kind)
                     ? 'border-[#0e2a52] ring-2 ring-[#0e2a52]/20'
                     : 'border-slate-200 hover:border-slate-300'
                 }`}
-                title={def.label}
+                title={PIPE_KINDS.has(def.kind) ? `${def.label} — tracé continu` : def.label}
               >
                 <SymbolThumb kind={def.kind} />
                 <span className="text-[10px] font-bold text-slate-700 text-center leading-tight">
                   {def.label}
+                  {PIPE_KINDS.has(def.kind) ? ' · continu' : ''}
                 </span>
               </button>
             ))}
           </div>
           <p className="text-xs text-slate-500">
-            Symbole sélectionné : <strong>{getSymbolDef(selectedKind).label}</strong> — touche le schéma pour le placer.
+            {PIPE_KINDS.has(selectedKind)
+              ? 'Canalisation = tracé continu (glisser). Autres symboles = toucher pour poser.'
+              : <>Symbole : <strong>{getSymbolDef(selectedKind).label}</strong> — touche le schéma pour le placer.</>}
           </p>
         </div>
       )}
 
       {mode === 'pin' && (
-        <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 space-y-2">
-          <div className="text-xs font-bold uppercase tracking-wider text-amber-900">Observation à associer</div>
-          {availableObs.length === 0 ? (
-            <p className="text-sm text-amber-800">Toutes les observations sont déjà placées.</p>
+        <div className="bg-amber-50 border-2 border-amber-300 rounded-xl p-4 space-y-3">
+          <div className="text-sm font-black text-amber-950">Marquer une anomalie sur le schéma</div>
+          {observations.length === 0 ? (
+            <div className="text-sm text-amber-900 space-y-2">
+              <p>
+                Aucune observation disponible. Remonte dans la section <strong>3. Tronçons</strong>,
+                ajoute une observation (position / code / description, photo si possible),
+                puis reviens ici.
+              </p>
+              <p className="text-xs text-amber-800">
+                Sans observation renseignée, on ne peut pas lier une pastille à un constat.
+              </p>
+            </div>
+          ) : availableObs.length === 0 ? (
+            <p className="text-sm text-amber-900">Toutes les observations sont déjà placées sur le schéma.</p>
           ) : (
-            <select
-              value={selectedObsKey}
-              onChange={e => setSelectedObsKey(e.target.value)}
-              className="w-full border-2 border-amber-300 rounded-lg px-3 py-2 text-sm bg-white"
-            >
-              {availableObs.map(o => (
-                <option key={obsKey(o)} value={obsKey(o)}>
-                  {o.label}{o.hasPhoto ? ' 📷' : ''} — {o.description.slice(0, 60) || 'sans description'}
-                </option>
-              ))}
-            </select>
+            <>
+              <label className="block text-xs font-bold uppercase tracking-wider text-amber-900">
+                1. Choisis l’observation
+                <select
+                  value={selectedObsKey}
+                  onChange={e => setSelectedObsKey(e.target.value)}
+                  className="mt-1.5 w-full border-2 border-amber-400 rounded-lg px-3 py-2.5 text-sm bg-white font-semibold text-slate-800"
+                >
+                  {availableObs.map(o => (
+                    <option key={obsKey(o)} value={obsKey(o)}>
+                      {o.label}{o.hasPhoto ? ' 📷' : ''} — {o.description.slice(0, 60) || 'sans description'}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <p className="text-sm font-bold text-amber-950">
+                2. Touche ensuite le schéma à l’endroit de l’anomalie (pastille numérotée).
+              </p>
+            </>
           )}
         </div>
       )}
@@ -507,12 +626,12 @@ export default function SchemaReseauEditor({
       <div className="relative rounded-2xl overflow-hidden border-2 border-slate-300 bg-white shadow-sm">
         <canvas
           ref={canvasRef}
-          onPointerDown={mode === 'draw' ? startDraw : placeOnCanvas}
+          onPointerDown={(mode === 'draw' || mode === 'pipe') ? startDraw : placeOnCanvas}
           onPointerMove={moveDraw}
           onPointerUp={endDraw}
           onPointerCancel={endDraw}
           className={`w-full h-72 sm:h-96 touch-none ${
-            mode === 'draw' ? 'cursor-crosshair' : mode === 'select' ? 'cursor-default' : 'cursor-cell'
+            mode === 'draw' || mode === 'pipe' ? 'cursor-crosshair' : mode === 'select' ? 'cursor-default' : 'cursor-cell'
           }`}
         />
         {/* Symboles en overlay HTML pour sélection / feedback */}
@@ -538,7 +657,7 @@ export default function SchemaReseauEditor({
                 transform: `translate(-50%, -50%) rotate(${sym.rotationDeg}deg) scale(${sym.scale})`,
                 width: 48,
                 height: 48,
-                pointerEvents: mode === 'draw' ? 'none' : 'auto',
+                pointerEvents: (mode === 'draw' || mode === 'pipe') ? 'none' : 'auto',
               }}
             >
               <SymbolThumb kind={sym.kind} />
@@ -561,7 +680,7 @@ export default function SchemaReseauEditor({
               left: `${m.xPct}%`,
               top: `${m.yPct}%`,
               backgroundColor: markerColor(m.n),
-              pointerEvents: mode === 'draw' ? 'none' : 'auto',
+              pointerEvents: (mode === 'draw' || mode === 'pipe') ? 'none' : 'auto',
             }}
           >
             {m.n}
@@ -622,8 +741,8 @@ export default function SchemaReseauEditor({
 
       <div className="text-[11px] text-slate-500">
         {empty
-          ? 'Schéma vide — choisis un symbole dans la banque puis place-le'
-          : `${symbols.length} symbole(s) · ${markers.length} anomalie(s)`}
+          ? 'Schéma vide — trace une canalisation ou pose un regard'
+          : `${symbols.length} symbole(s) · ${markers.length} anomalie(s)${hasInk.current ? ' · tracés' : ''}`}
       </div>
 
       {markers.length > 0 && (
