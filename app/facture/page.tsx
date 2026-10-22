@@ -56,6 +56,12 @@ function formatLieuFacture(
 }
 
 type StatutFiltre = 'all' | 'brouillon' | 'envoye' | 'paye' | 'retard' | 'annule'
+type VueTab = 'liste' | 'ca'
+
+const VUE_TABS: { key: VueTab; label: string }[] = [
+  { key: 'liste', label: 'Liste des factures' },
+  { key: 'ca', label: 'Chiffre d’affaires' },
+]
 
 const STATUT_FILTRES: { key: StatutFiltre; label: string }[] = [
   { key: 'all',       label: 'Toutes' },
@@ -65,6 +71,8 @@ const STATUT_FILTRES: { key: StatutFiltre; label: string }[] = [
   { key: 'paye',      label: 'Payées' },
   { key: 'annule',    label: 'Annulées' },
 ]
+
+const MOIS_COURTS = ['janv.', 'févr.', 'mars', 'avr.', 'mai', 'juin', 'juil.', 'août', 'sept.', 'oct.', 'nov.', 'déc.']
 
 const STATUT_LABEL: Record<string, string> = {
   brouillon: 'Brouillon',
@@ -97,6 +105,7 @@ export default function FactureConsolePage() {
   const [to, setTo] = useState(initial.to)
   const [periodeOuverte, setPeriodeOuverte] = useState(false)
   const [pendingId, setPendingId] = useState<string | null>(null)
+  const [vueTab, setVueTab] = useState<VueTab>('liste')
 
   async function load() {
     setLoading(true); setError(''); setInfo('')
@@ -324,6 +333,27 @@ export default function FactureConsolePage() {
       </nav>
 
       <main className="max-w-7xl mx-auto px-4 py-5 space-y-4">
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-2 flex flex-wrap gap-1.5">
+          {VUE_TABS.map(t => (
+            <button
+              key={t.key}
+              type="button"
+              onClick={() => setVueTab(t.key)}
+              className={`px-4 py-2 rounded-xl text-sm font-bold transition ${
+                vueTab === t.key
+                  ? 'bg-[#0e2a52] text-white shadow-sm'
+                  : 'bg-slate-50 text-slate-600 hover:bg-slate-100'
+              }`}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+
+        {vueTab === 'ca' && <CaMensuelPanel agenceFiltre={agence} />}
+
+        {vueTab === 'liste' && (
+        <>
         {/* KPI */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
           <KpiCard
@@ -635,7 +665,236 @@ export default function FactureConsolePage() {
             </div>
           </section>
         )}
+        </>
+        )}
       </main>
+    </div>
+  )
+}
+
+type RecetteLite = {
+  date_emission: string
+  statut: string
+  montant_ttc: number | null
+  montant_ht: number | null
+  agence: string | null
+}
+
+type MonthBar = {
+  key: string
+  label: string
+  emis: number
+  encaisse: number
+  count: number
+}
+
+function CaMensuelPanel({ agenceFiltre }: { agenceFiltre: string }) {
+  const currentYear = new Date().getFullYear()
+  const [annee, setAnnee] = useState(currentYear)
+  const [agence, setAgence] = useState(agenceFiltre)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const [rows, setRows] = useState<RecetteLite[]>([])
+  const [mode, setMode] = useState<'ttc' | 'ht'>('ttc')
+
+  useEffect(() => { setAgence(agenceFiltre) }, [agenceFiltre])
+
+  useEffect(() => {
+    let cancelled = false
+    async function load() {
+      setLoading(true)
+      setError('')
+      try {
+        const params = new URLSearchParams({
+          from: `${annee}-01-01`,
+          to: `${annee}-12-31`,
+        })
+        if (agence) params.set('agence', agence)
+        const res = await fetch(`/api/comptabilite/recettes?${params}`, { cache: 'no-store' })
+        const data = await res.json()
+        if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`)
+        if (!cancelled) setRows(data.recettes || [])
+      } catch (e) {
+        if (!cancelled) setError(errorMessage(e) || 'Erreur de chargement')
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    }
+    load()
+    return () => { cancelled = true }
+  }, [annee, agence])
+
+  const months: MonthBar[] = useMemo(() => {
+    const base: MonthBar[] = Array.from({ length: 12 }, (_, i) => ({
+      key: `${annee}-${pad2(i + 1)}`,
+      label: MOIS_COURTS[i],
+      emis: 0,
+      encaisse: 0,
+      count: 0,
+    }))
+    const idx = (k: string) => base.findIndex(m => m.key === k)
+    for (const r of rows) {
+      if (r.statut === 'annule') continue
+      const k = (r.date_emission || '').slice(0, 7)
+      const i = idx(k)
+      if (i < 0) continue
+      const amount = mode === 'ht' ? (r.montant_ht || 0) : (r.montant_ttc || 0)
+      base[i].emis += amount
+      base[i].count += 1
+      if (r.statut === 'paye') base[i].encaisse += amount
+    }
+    return base
+  }, [rows, annee, mode])
+
+  const max = Math.max(1, ...months.map(m => Math.max(m.emis, m.encaisse)))
+  const totalEmis = months.reduce((s, m) => s + m.emis, 0)
+  const totalEncaisse = months.reduce((s, m) => s + m.encaisse, 0)
+  const totalCount = months.reduce((s, m) => s + m.count, 0)
+  const best = months.reduce((a, b) => (b.emis > a.emis ? b : a), months[0])
+
+  const annees = useMemo(() => {
+    const ys = new Set<number>([currentYear, currentYear - 1, currentYear - 2])
+    for (const r of rows) {
+      const y = Number((r.date_emission || '').slice(0, 4))
+      if (y > 2000) ys.add(y)
+    }
+    return Array.from(ys).sort((a, b) => b - a)
+  }, [rows, currentYear])
+
+  return (
+    <div className="space-y-4">
+      <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 flex flex-wrap gap-2 items-center">
+        <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Année</label>
+        <select
+          value={annee}
+          onChange={e => setAnnee(Number(e.target.value))}
+          className="border-2 border-slate-200 rounded-xl px-3 py-2 text-sm bg-white font-semibold"
+        >
+          {annees.map(y => <option key={y} value={y}>{y}</option>)}
+        </select>
+        <select
+          value={agence}
+          onChange={e => setAgence(e.target.value)}
+          className="border-2 border-slate-200 rounded-xl px-3 py-2 text-sm bg-white"
+        >
+          <option value="">Toutes les agences</option>
+          {AGENCES.map(a => <option key={a} value={a}>{a}</option>)}
+        </select>
+        <div className="flex rounded-xl overflow-hidden border-2 border-slate-200 ml-auto">
+          <button
+            type="button"
+            onClick={() => setMode('ttc')}
+            className={`px-3 py-1.5 text-xs font-bold ${mode === 'ttc' ? 'bg-[#0e2a52] text-white' : 'bg-white text-slate-600'}`}
+          >TTC</button>
+          <button
+            type="button"
+            onClick={() => setMode('ht')}
+            className={`px-3 py-1.5 text-xs font-bold ${mode === 'ht' ? 'bg-[#0e2a52] text-white' : 'bg-white text-slate-600'}`}
+          >HT</button>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <KpiCard label={`CA émis ${mode.toUpperCase()}`} value={fmtEUR(totalEmis)} sub={`${totalCount} facture${totalCount > 1 ? 's' : ''}`} tone="slate" />
+        <KpiCard label={`Encaissé ${mode.toUpperCase()}`} value={fmtEUR(totalEncaisse)} sub="payées" tone="emerald" />
+        <KpiCard label="Reste à encaisser" value={fmtEUR(Math.max(0, totalEmis - totalEncaisse))} sub="émis − payé" tone="blue" />
+        <KpiCard label="Meilleur mois" value={best.emis > 0 ? best.label : '—'} sub={best.emis > 0 ? fmtEUR(best.emis) : 'aucune facture'} tone="slate" />
+      </div>
+
+      {error && (
+        <div className="bg-red-50 border border-red-200 text-red-700 p-3 rounded-xl text-sm">{error}</div>
+      )}
+
+      <section className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
+        <div className="flex flex-wrap items-end justify-between gap-2 mb-5">
+          <div>
+            <h2 className="font-bold text-[#0e2a52] text-lg tracking-tight">CA mensuel {annee}</h2>
+            <p className="text-xs text-slate-500 mt-0.5">Factures non annulées · {mode.toUpperCase()}</p>
+          </div>
+          <div className="flex gap-4 text-xs text-slate-500">
+            <span className="inline-flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-[#0e2a52]" />Émis</span>
+            <span className="inline-flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-sm bg-emerald-500" />Encaissé</span>
+          </div>
+        </div>
+
+        {loading ? (
+          <div className="h-56 flex items-center justify-center text-slate-500 text-sm">Chargement…</div>
+        ) : totalEmis === 0 ? (
+          <div className="h-56 flex flex-col items-center justify-center text-slate-500 text-sm gap-2">
+            <ReceiptIcon className="w-8 h-8 text-slate-300" />
+            <p>Aucune facture sur {annee}.</p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <div className="min-w-[640px] flex items-end gap-2 sm:gap-3 h-64 px-1">
+              {months.map(m => {
+                const hEmis = Math.max(m.emis > 0 ? 4 : 0, Math.round((m.emis / max) * 100))
+                const hPaye = Math.max(m.encaisse > 0 ? 4 : 0, Math.round((m.encaisse / max) * 100))
+                return (
+                  <div key={m.key} className="flex-1 flex flex-col items-center gap-1.5 min-w-0 group">
+                    <div className="text-[10px] font-bold tabular-nums text-slate-600 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
+                      {m.emis > 0 ? fmtEUR(m.emis) : '—'}
+                    </div>
+                    <div className="w-full h-48 flex items-end justify-center gap-1">
+                      <div
+                        className="w-[42%] max-w-[28px] rounded-t-md bg-[#0e2a52] transition-all"
+                        style={{ height: `${hEmis}%` }}
+                        title={`Émis : ${fmtEUR(m.emis)}`}
+                      />
+                      <div
+                        className="w-[42%] max-w-[28px] rounded-t-md bg-emerald-500 transition-all"
+                        style={{ height: `${hPaye}%` }}
+                        title={`Encaissé : ${fmtEUR(m.encaisse)}`}
+                      />
+                    </div>
+                    <div className="text-[11px] font-semibold text-slate-500 capitalize">{m.label}</div>
+                    <div className="text-[10px] tabular-nums text-slate-400">{m.count || ''}</div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
+      </section>
+
+      {!loading && totalEmis > 0 && (
+        <section className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+          <div className="px-4 py-3 border-b border-slate-100">
+            <h3 className="font-bold text-[#0e2a52] text-sm">Détail par mois</h3>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-slate-50 text-slate-500 uppercase text-[10px] tracking-wider">
+                <tr>
+                  <th className="px-3 py-2 text-left">Mois</th>
+                  <th className="px-3 py-2 text-right">Factures</th>
+                  <th className="px-3 py-2 text-right">Émis</th>
+                  <th className="px-3 py-2 text-right">Encaissé</th>
+                  <th className="px-3 py-2 text-right">Reste</th>
+                </tr>
+              </thead>
+              <tbody>
+                {months.map(m => (
+                  <tr key={m.key} className="border-t border-slate-100">
+                    <td className="px-3 py-2 font-semibold capitalize text-slate-800">{m.label} {annee}</td>
+                    <td className="px-3 py-2 text-right tabular-nums text-slate-600">{m.count}</td>
+                    <td className="px-3 py-2 text-right tabular-nums font-bold text-[#0e2a52]">{fmtEUR(m.emis)}</td>
+                    <td className="px-3 py-2 text-right tabular-nums text-emerald-700">{fmtEUR(m.encaisse)}</td>
+                    <td className="px-3 py-2 text-right tabular-nums text-slate-600">{fmtEUR(Math.max(0, m.emis - m.encaisse))}</td>
+                  </tr>
+                ))}
+                <tr className="border-t-2 border-slate-200 bg-slate-50 font-bold">
+                  <td className="px-3 py-2.5 text-slate-800">Total {annee}</td>
+                  <td className="px-3 py-2.5 text-right tabular-nums">{totalCount}</td>
+                  <td className="px-3 py-2.5 text-right tabular-nums text-[#0e2a52]">{fmtEUR(totalEmis)}</td>
+                  <td className="px-3 py-2.5 text-right tabular-nums text-emerald-700">{fmtEUR(totalEncaisse)}</td>
+                  <td className="px-3 py-2.5 text-right tabular-nums">{fmtEUR(Math.max(0, totalEmis - totalEncaisse))}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
     </div>
   )
 }
