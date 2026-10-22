@@ -4,29 +4,84 @@ import { persistInspection, type PersistInspectionInput } from "@/lib/persist"
 import { getTelPrincipal } from "@/lib/parametres"
 import { errorMessage } from "@/lib/error-message"
 import { fmtDateISOtoFR } from "@/lib/format"
+import { getSupabaseOrNull } from "@/lib/supabase"
+import type { InspectionData } from "@/components/InspectionCameraPDF"
 
 export const maxDuration = 60
+
+/** Limite PDF joint (multipart) — au-delà Resend / Vercel deviennent fragiles. */
+const MAX_PDF_BYTES = 10 * 1024 * 1024
 
 interface NotifyInspectionBody extends Partial<PersistInspectionInput> {
   technicienNom?: string
   pdfBase64?: string
   pdfFilename?: string
   dateInspection?: string | null
+  /** Si fourni : marque ce document « envoyé » sans réécrire le payload (évite d’écraser les photos). */
+  documentId?: string
+}
+
+async function parseBody(req: NextRequest): Promise<{
+  meta: NotifyInspectionBody
+  pdfBase64?: string
+  pdfFilename?: string
+}> {
+  const ctype = req.headers.get('content-type') || ''
+
+  // Multipart : PDF binaire + JSON meta (évite la limite ~4.5 Mo du JSON base64).
+  if (ctype.includes('multipart/form-data')) {
+    const form = await req.formData()
+    const raw = String(form.get('payload') || '')
+    let meta: NotifyInspectionBody = {}
+    try {
+      meta = raw ? JSON.parse(raw) as NotifyInspectionBody : {}
+    } catch {
+      throw new Error('JSON payload invalide')
+    }
+
+    const file = form.get('pdf')
+    if (file instanceof File && file.size > 0) {
+      if (file.size > MAX_PDF_BYTES) {
+        throw Object.assign(new Error('PDF trop lourd (max 10 Mo)'), { status: 413 })
+      }
+      const buf = Buffer.from(await file.arrayBuffer())
+      return {
+        meta,
+        pdfBase64: buf.toString('base64'),
+        pdfFilename: meta.pdfFilename || file.name || 'inspection-camera.pdf',
+      }
+    }
+    return {
+      meta,
+      pdfBase64: meta.pdfBase64,
+      pdfFilename: meta.pdfFilename,
+    }
+  }
+
+  const meta = await req.json() as NotifyInspectionBody
+  return { meta, pdfBase64: meta.pdfBase64, pdfFilename: meta.pdfFilename }
 }
 
 export async function POST(req: NextRequest) {
-  let body: NotifyInspectionBody
+  let parsed: { meta: NotifyInspectionBody; pdfBase64?: string; pdfFilename?: string }
   try {
-    body = await req.json()
-  } catch {
-    return NextResponse.json({ error: 'JSON invalide' }, { status: 400 })
+    parsed = await parseBody(req)
+  } catch (e) {
+    const status = (e as { status?: number }).status
+    if (status === 413) {
+      return NextResponse.json({ error: errorMessage(e) }, { status: 413 })
+    }
+    return NextResponse.json({ error: errorMessage(e) || 'Requête invalide' }, { status: 400 })
   }
 
   const {
     clientEmail, clientNom, technicienNom, ville, dateInspection, numero,
-    pdfBase64, pdfFilename, inspection, agence, clientAdresse, clientCP,
-    clientTelephone, interventionId,
-  } = body
+    inspection, agence, clientAdresse, clientCP,
+    clientTelephone, interventionId, documentId,
+  } = parsed.meta
+
+  const pdfBase64 = parsed.pdfBase64
+  const pdfFilename = parsed.pdfFilename
 
   const ctx = initResend(clientEmail)
   if ('error' in ctx) return NextResponse.json({ error: ctx.error }, { status: ctx.status })
@@ -72,35 +127,66 @@ export async function POST(req: NextRequest) {
     }, { status: 500 })
   }
 
-  let docId: string | null = null
+  let docId: string | null = documentId || null
   let persistError: string | null = null
-  if (inspection || num) {
-    try {
-      if (!inspection) {
-        persistError = 'Payload inspection manquant pour la sauvegarde'
+
+  try {
+    if (documentId) {
+      // Document déjà en base : ne pas réécrire le payload (photos intactes).
+      const sb = getSupabaseOrNull()
+      if (!sb) {
+        persistError = 'Supabase non configuré'
       } else {
-        docId = await persistInspection({
-          inspection: (() => {
-            const { mapImageUrl: _map, coverPhotoUrl: _photo, ...rest } = inspection
-            return rest
-          })(),
-          clientNom: clientNom || inspection.client?.nom,
-          clientEmail: clientEmail || inspection.client?.email,
-          clientAdresse: clientAdresse || inspection.client?.adresse,
-          clientCP: clientCP || inspection.client?.codePostal,
-          ville: villeLabel || inspection.client?.ville,
-          clientTelephone: clientTelephone || inspection.client?.telephone,
-          agence: agence || inspection.agence,
-          numero: num || inspection.numero,
-          interventionId: interventionId || null,
-          emailSent: true,
-        })
-        if (!docId) persistError = "Sauvegarde DB impossible (vérifie les logs serveur)"
+        const { error } = await sb.from('documents').update({
+          statut: 'envoye',
+          envoye_email: clientEmail || null,
+          envoye_at: new Date().toISOString(),
+        }).eq('id', documentId).eq('type', 'inspection')
+        if (error) persistError = error.message
       }
-    } catch (e) {
-      persistError = errorMessage(e) || 'Erreur de sauvegarde DB'
-      console.error('[notify-inspection] persist', e)
+    } else if (inspection) {
+      docId = await persistInspection({
+        inspection: (() => {
+          const { mapImageUrl: _map, ...rest } = inspection as InspectionData
+          return rest
+        })(),
+        clientNom: clientNom || inspection.client?.nom,
+        clientEmail: clientEmail || inspection.client?.email,
+        clientAdresse: clientAdresse || inspection.client?.adresse,
+        clientCP: clientCP || inspection.client?.codePostal,
+        ville: villeLabel || inspection.client?.ville,
+        clientTelephone: clientTelephone || inspection.client?.telephone,
+        agence: agence || inspection.agence,
+        numero: num || inspection.numero,
+        interventionId: interventionId || null,
+        emailSent: true,
+      })
+      if (!docId) persistError = "Sauvegarde DB impossible (vérifie les logs serveur)"
+    } else if (num) {
+      // Marque « envoyé » par numéro si le rapport existe déjà.
+      const sb = getSupabaseOrNull()
+      if (sb) {
+        const { data: existing } = await sb
+          .from('documents')
+          .select('id')
+          .eq('type', 'inspection')
+          .eq('numero', num)
+          .limit(1)
+          .maybeSingle()
+        if (existing?.id) {
+          docId = existing.id
+          const { error } = await sb.from('documents').update({
+            statut: 'envoye',
+            envoye_email: clientEmail || null,
+            envoye_at: new Date().toISOString(),
+          }).eq('id', existing.id)
+          if (error) persistError = error.message
+        }
+      }
     }
+  } catch (e) {
+    persistError = errorMessage(e) || 'Erreur de sauvegarde DB'
+    console.error('[notify-inspection] persist', e)
   }
 
   return NextResponse.json({

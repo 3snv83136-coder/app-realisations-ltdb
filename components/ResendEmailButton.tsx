@@ -44,7 +44,11 @@ async function buildSendBody(
   doc: HistoriqueDocument,
   payload: DocumentPayload,
   clientEmail: string,
-): Promise<{ endpoint: string; body: Record<string, unknown> } | null> {
+): Promise<
+  | { endpoint: string; body: Record<string, unknown>; formData?: undefined }
+  | { endpoint: string; formData: FormData; body?: undefined }
+  | null
+> {
   const technicienNom = getTechnicien()
 
   if (doc.type === 'facture') {
@@ -174,27 +178,34 @@ async function buildSendBody(
       },
     }
     const { buildInspectionPdfBlob } = await import('@/lib/build-inspection-pdf')
-    const { blobToBase64 } = await import('@/lib/pdfToBase64')
     const blob = await buildInspectionPdfBlob(safe)
     if (!blob || blob.size < 500) throw new Error('PDF vide')
-    const pdfBase64 = await blobToBase64(blob)
+    if (blob.size > 4 * 1024 * 1024) {
+      const { inspectionPayloadTooLargeMessage } = await import('@/lib/inspection-payload')
+      throw new Error(inspectionPayloadTooLargeMessage(413))
+    }
+    const pdfFilename = safeFilename('inspection-camera', safe.numero || doc.id)
+    // Multipart : PDF binaire + meta sans re-dupliquer les photos (évite HTTP 413).
+    const fd = new FormData()
+    fd.append('pdf', blob, pdfFilename)
+    fd.append('payload', JSON.stringify({
+      clientEmail,
+      clientNom: safe.client.nom,
+      technicienNom: getTechnicien() || safe.technicienNom,
+      ville: safe.client.ville,
+      dateInspection: safe.dateInspection,
+      numero: safe.numero,
+      agence: doc.agence || safe.agence,
+      pdfFilename,
+      documentId: doc.id,
+      interventionId: (doc as DocWithEmail & { intervention_id?: string | null }).intervention_id || undefined,
+      clientAdresse: safe.client.adresse,
+      clientCP: safe.client.codePostal,
+      clientTelephone: safe.client.telephone,
+    }))
     return {
       endpoint: '/api/notify-inspection',
-      body: {
-        clientEmail,
-        clientNom: safe.client.nom,
-        technicienNom: getTechnicien() || safe.technicienNom,
-        ville: safe.client.ville,
-        dateInspection: safe.dateInspection,
-        numero: safe.numero,
-        agence: doc.agence || safe.agence,
-        pdfBase64,
-        pdfFilename: safeFilename('inspection-camera', safe.numero || doc.id),
-        inspection: safe,
-        clientAdresse: safe.client.adresse,
-        clientCP: safe.client.codePostal,
-        clientTelephone: safe.client.telephone,
-      },
+      formData: fd,
     }
   }
 
@@ -227,16 +238,24 @@ export default function ResendEmailButton({
       const built = await buildSendBody(doc, payload, email.trim())
       if (!built) throw new Error('Type non supporté')
 
-      const res = await fetch(built.endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...built.body,
-          ...(doc.intervention_id ? { interventionId: doc.intervention_id } : {}),
-        }),
-      })
+      const res = built.formData
+        ? await fetch(built.endpoint, { method: 'POST', body: built.formData })
+        : await fetch(built.endpoint, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              ...built.body,
+              ...(doc.intervention_id ? { interventionId: doc.intervention_id } : {}),
+            }),
+          })
       const data = await res.json().catch(() => ({}))
-      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`)
+      if (!res.ok) {
+        if (res.status === 413) {
+          const { inspectionPayloadTooLargeMessage } = await import('@/lib/inspection-payload')
+          throw new Error(data.error || inspectionPayloadTooLargeMessage(413))
+        }
+        throw new Error(data.error || `HTTP ${res.status}`)
+      }
 
       // Assure le statut Envoyé côté historique (idempotent)
       try {

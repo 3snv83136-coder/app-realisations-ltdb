@@ -121,7 +121,7 @@ function fileToDataUrl(file: File): Promise<string> {
   })
 }
 
-async function compressImage(file: File, maxDim = 1600, quality = 0.82): Promise<File> {
+async function compressImage(file: File, maxDim = 1280, quality = 0.72): Promise<File> {
   if (!file.type.startsWith('image/')) return file
   const dataUrl = await fileToDataUrl(file)
   return new Promise((resolve, reject) => {
@@ -869,37 +869,50 @@ function InspectionPageInner() {
     setEmailError('')
     setEmailSent(false)
     try {
-      const [{ buildInspectionPdfBlob }, { blobToBase64 }, { safeFilename }] = await Promise.all([
+      const [
+        { buildInspectionPdfBlob },
+        { safeFilename },
+        { slimInspectionForTransport, inspectionPayloadTooLargeMessage },
+      ] = await Promise.all([
         import('@/lib/build-inspection-pdf'),
-        import('@/lib/pdfToBase64'),
         import('@/lib/filename'),
+        import('@/lib/inspection-payload'),
       ])
       const blob = await buildInspectionPdfBlob(data)
       if (!blob || blob.size < 500) throw new Error('PDF vide — réessaie dans quelques secondes')
-      const pdfBase64 = await blobToBase64(blob)
+      // Vercel coupe ~4.5 Mo : PDF binaire + meta légère (sans re-dupliquer les photos en JSON).
+      if (blob.size > 4 * 1024 * 1024) {
+        throw new Error(inspectionPayloadTooLargeMessage(413))
+      }
       const pdfFilename = safeFilename('inspection-camera', numero || 'rapport')
+      const fd = new FormData()
+      fd.append('pdf', blob, pdfFilename)
+      fd.append('payload', JSON.stringify({
+        clientEmail: clientEmail.trim(),
+        clientNom,
+        technicienNom: data.technicienNom,
+        ville: clientVille,
+        dateInspection,
+        numero,
+        pdfFilename,
+        // Document déjà sauvé → on ne réécrit pas le payload (photos conservées).
+        documentId: documentFromUrl || undefined,
+        inspection: documentFromUrl ? undefined : slimInspectionForTransport(data),
+        clientAdresse: clientAdresse || undefined,
+        clientCP: clientCP || undefined,
+        clientTelephone: clientTel || undefined,
+        agence: agence || undefined,
+        interventionId: linkedInterventionId || undefined,
+      }))
       const res = await fetch('/api/notify-inspection', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          clientEmail: clientEmail.trim(),
-          clientNom,
-          technicienNom: data.technicienNom,
-          ville: clientVille,
-          dateInspection,
-          numero,
-          pdfBase64,
-          pdfFilename,
-          inspection: data,
-          clientAdresse: clientAdresse || undefined,
-          clientCP: clientCP || undefined,
-          clientTelephone: clientTel || undefined,
-          agence: agence || undefined,
-          interventionId: linkedInterventionId || undefined,
-        }),
+        body: fd,
       })
       const json = await res.json().catch(() => ({})) as { error?: string; warning?: string }
-      if (!res.ok) throw new Error(json.error || `HTTP ${res.status}`)
+      if (!res.ok) {
+        if (res.status === 413) throw new Error(json.error || inspectionPayloadTooLargeMessage(413))
+        throw new Error(json.error || `HTTP ${res.status}`)
+      }
       if (json.warning) setEmailError(json.warning)
       else {
         setEmailSent(true)
