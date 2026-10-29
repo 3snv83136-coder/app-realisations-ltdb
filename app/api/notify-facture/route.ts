@@ -10,6 +10,7 @@ import { persistFacture, type PersistFactureInput } from "@/lib/persist"
 import { getTelPrincipal } from "@/lib/parametres"
 import { sendOwnerConfirmation } from "@/lib/owner-confirmation"
 import { errorMessage } from "@/lib/error-message"
+import { buildFactureExtraAttachments } from "@/lib/admin-documents"
 
 export const maxDuration = 30
 
@@ -18,6 +19,10 @@ interface NotifyFactureBody extends Partial<PersistFactureInput> {
   dateFacture?: string
   pdfBase64?: string
   pdfFilename?: string
+  /** Joindre le Kbis stocké (admin/documents) */
+  joindreKbis?: boolean
+  /** Joindre le RIB stocké (admin/documents) */
+  joindreRib?: boolean
 }
 
 export async function POST(req: NextRequest) {
@@ -31,6 +36,7 @@ export async function POST(req: NextRequest) {
     clientEmail, clientNom, technicienNom, ville, dateFacture,
     numero, totalTTC, echeance, agence, pdfBase64, pdfFilename,
     facture, totalHT, tvaTaux, clientAdresse, clientCP,
+    joindreKbis, joindreRib,
   } = body
 
   const ctx = initResend(clientEmail)
@@ -38,9 +44,19 @@ export async function POST(req: NextRequest) {
   const { resend, fromEmail, recipient } = ctx
 
   const tech = technicienNom || 'votre technicien'
-  const attachments = pdfBase64 && pdfFilename
-    ? [{ filename: pdfFilename, content: pdfBase64 }]
-    : undefined
+  const attachments: { filename: string; content: string }[] = []
+  if (pdfBase64 && pdfFilename) {
+    attachments.push({ filename: pdfFilename, content: pdfBase64 })
+  }
+  try {
+    const extras = await buildFactureExtraAttachments({
+      joindreKbis: Boolean(joindreKbis),
+      joindreRib: Boolean(joindreRib),
+    })
+    attachments.push(...extras)
+  } catch (e) {
+    console.error('[notify-facture] pièces admin', e)
+  }
 
   const subject = numero
     ? `Votre facture ${numero}${ville ? ` — ${ville}` : ''}`
@@ -52,8 +68,12 @@ export async function POST(req: NextRequest) {
     from: `Les Techniciens du Débouchage <${fromEmail}>`,
     to: recipient,
     subject,
-    html: emailFacture({ clientNom, technicienNom: tech, ville, dateFacture, numero, totalTTC, echeance, agence, tel }),
-    attachments,
+    html: emailFacture({
+      clientNom, technicienNom: tech, ville, dateFacture, numero, totalTTC, echeance, agence, tel,
+      joindreKbis: Boolean(joindreKbis),
+      joindreRib: Boolean(joindreRib),
+    }),
+    attachments: attachments.length ? attachments : undefined,
   })
 
   if (result.error) {
@@ -148,9 +168,10 @@ export async function POST(req: NextRequest) {
   })
 }
 
-function emailFacture({ clientNom, technicienNom, ville, dateFacture, numero, totalTTC, echeance, agence, tel }: {
+function emailFacture({ clientNom, technicienNom, ville, dateFacture, numero, totalTTC, echeance, agence, tel, joindreKbis, joindreRib }: {
   clientNom?: string | null; technicienNom: string; ville?: string | null; dateFacture?: string | null;
   numero?: string | null; totalTTC?: number | null; echeance?: string | null; agence?: string | null; tel: string;
+  joindreKbis?: boolean; joindreRib?: boolean;
 }) {
   const cn = escapeHtml(clientNom || 'Madame, Monsieur')
   const tn = escapeHtml(technicienNom)
@@ -161,6 +182,12 @@ function emailFacture({ clientNom, technicienNom, ville, dateFacture, numero, to
   const ttc = typeof totalTTC === 'number' ? fmtEUR(totalTTC) : ''
   const ech = escapeHtml(echeance || 'À réception')
   const isRegle = /^r[ée]gl[ée]e?$/i.test((echeance || '').trim())
+  const extras: string[] = []
+  if (joindreKbis) extras.push('extrait Kbis')
+  if (joindreRib) extras.push('RIB')
+  const extrasLine = extras.length
+    ? `<p style="font-size:13px;color:#475569">Pièces jointes complémentaires : <strong>${extras.join(' et ')}</strong>.</p>`
+    : ''
 
   return `<!doctype html>
 <html><body style="margin:0;padding:0;font-family:Arial,sans-serif;background:#f4f6fa;color:#1a1a1a">
@@ -175,6 +202,7 @@ function emailFacture({ clientNom, technicienNom, ville, dateFacture, numero, to
       <tr><td style="padding:30px">
         <p>Bonjour ${cn},</p>
         <p>Suite à notre intervention${v ? ` à <strong>${v}</strong>` : ''}, vous trouverez ci-joint votre <strong>facture détaillée</strong>${ag ? ` (${ag})` : ''}.</p>
+        ${extrasLine}
         ${ttc ? `<table width="100%" cellpadding="0" cellspacing="0" style="margin:24px 0;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden">
           <tr><td style="background:#f8fafc;padding:16px 20px;color:#475569;font-size:13px">Montant total TTC</td>
               <td style="background:#f8fafc;padding:16px 20px;text-align:right;color:#0e2a52;font-size:18px;font-weight:bold">${ttc}</td></tr>

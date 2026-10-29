@@ -322,13 +322,21 @@ export default function FactureConsolePage() {
               <div className="text-[11px] text-slate-500">Suivi, paiements & relances</div>
             </div>
           </div>
-          <Link
-            href="/facture/nouvelle"
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#0e2a52] hover:bg-[#0a1f3d] text-white font-semibold text-sm transition active:scale-[0.98]"
-          >
-            <PlusIcon className="w-4 h-4" strokeWidth={2.25} />
-            <span>Nouvelle facture</span>
-          </Link>
+          <div className="flex flex-wrap items-center gap-2">
+            <Link
+              href="/admin/documents"
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-sm transition"
+            >
+              Kbis &amp; RIB
+            </Link>
+            <Link
+              href="/facture/nouvelle"
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#0e2a52] hover:bg-[#0a1f3d] text-white font-semibold text-sm transition active:scale-[0.98]"
+            >
+              <PlusIcon className="w-4 h-4" strokeWidth={2.25} />
+              <span>Nouvelle facture</span>
+            </Link>
+          </div>
         </div>
       </nav>
 

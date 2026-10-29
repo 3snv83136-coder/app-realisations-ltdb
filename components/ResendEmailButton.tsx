@@ -44,6 +44,7 @@ async function buildSendBody(
   doc: HistoriqueDocument,
   payload: DocumentPayload,
   clientEmail: string,
+  extras?: { joindreKbis?: boolean; joindreRib?: boolean },
 ): Promise<
   | { endpoint: string; body: Record<string, unknown>; formData?: undefined }
   | { endpoint: string; formData: FormData; body?: undefined }
@@ -84,6 +85,8 @@ async function buildSendBody(
         tvaTaux,
         clientAdresse: doc.client_adresse,
         clientCP: doc.client_code_postal,
+        joindreKbis: Boolean(extras?.joindreKbis),
+        joindreRib: Boolean(extras?.joindreRib),
       },
     }
   }
@@ -224,9 +227,29 @@ export default function ResendEmailButton({
   const [sending, setSending] = useState(false)
   const [error, setError] = useState('')
   const [sent, setSent] = useState(false)
+  const [joindreKbis, setJoindreKbis] = useState(false)
+  const [joindreRib, setJoindreRib] = useState(false)
+  const [docsDispo, setDocsDispo] = useState<{ kbis: boolean; rib: boolean }>({ kbis: false, rib: false })
 
   if (doc.type !== 'facture' && doc.type !== 'devis' && doc.type !== 'attestation' && doc.type !== 'inspection') {
     return null
+  }
+
+  function openModal() {
+    setOpen(true)
+    setError('')
+    setSent(false)
+    setJoindreKbis(false)
+    setJoindreRib(false)
+    if (doc.type === 'facture') {
+      fetch('/api/admin/documents', { cache: 'no-store' })
+        .then(r => r.ok ? r.json() : null)
+        .then(data => {
+          if (!data) return
+          setDocsDispo({ kbis: Boolean(data.kbis?.url), rib: Boolean(data.rib?.url) })
+        })
+        .catch(() => {})
+    }
   }
 
   async function handleSend() {
@@ -235,7 +258,10 @@ export default function ResendEmailButton({
     try {
       const payload = await fetchPayload(doc.id)
       if (!payload) throw new Error('Document indisponible (payload manquant)')
-      const built = await buildSendBody(doc, payload, email.trim())
+      const built = await buildSendBody(doc, payload, email.trim(), {
+        joindreKbis: joindreKbis && docsDispo.kbis,
+        joindreRib: joindreRib && docsDispo.rib,
+      })
       if (!built) throw new Error('Type non supporté')
 
       const res = built.formData
@@ -289,7 +315,7 @@ export default function ResendEmailButton({
     <>
       <button
         type="button"
-        onClick={() => { setOpen(true); setError(''); setSent(false) }}
+        onClick={openModal}
         className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition"
         title={`Renvoyer ${typeLabel} par email`}
       >
@@ -324,6 +350,37 @@ export default function ResendEmailButton({
               className="w-full border-2 border-slate-200 focus:border-blue-500 outline-none rounded-lg px-3 py-2.5 text-base"
               disabled={sending || sent}
             />
+            {doc.type === 'facture' && (docsDispo.kbis || docsDispo.rib) && (
+              <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 space-y-2">
+                <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                  Pièces jointes optionnelles
+                </div>
+                {docsDispo.kbis && (
+                  <label className="flex items-center gap-2 text-sm text-slate-800 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={joindreKbis}
+                      onChange={e => setJoindreKbis(e.target.checked)}
+                      disabled={sending || sent}
+                      className="rounded border-slate-300 text-[#0e2a52] focus:ring-[#0e2a52]"
+                    />
+                    <span>Joindre le <strong>Kbis</strong></span>
+                  </label>
+                )}
+                {docsDispo.rib && (
+                  <label className="flex items-center gap-2 text-sm text-slate-800 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={joindreRib}
+                      onChange={e => setJoindreRib(e.target.checked)}
+                      disabled={sending || sent}
+                      className="rounded border-slate-300 text-[#0e2a52] focus:ring-[#0e2a52]"
+                    />
+                    <span>Joindre le <strong>RIB</strong></span>
+                  </label>
+                )}
+              </div>
+            )}
             {error && (
               <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg px-3 py-2 text-sm mt-3">
                 ⚠ {error}

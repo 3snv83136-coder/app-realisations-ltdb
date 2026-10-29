@@ -61,11 +61,26 @@ export default function FacturePage() {
   const [emailSent, setEmailSent] = useState(false)
   const [emailError, setEmailError] = useState('')
   const [emailInfo, setEmailInfo] = useState('')
+  const [joindreKbis, setJoindreKbis] = useState(false)
+  const [joindreRib, setJoindreRib] = useState(false)
+  const [docsDispo, setDocsDispo] = useState<{ kbis: boolean; rib: boolean }>({ kbis: false, rib: false })
 
   useUnsavedChangesWarning(
     (step === 'capture' && (transcription.trim() !== '' || clientNom.trim() !== '')) ||
     (step === 'preview' && facture !== null && !emailSent)
   )
+
+  useEffect(() => {
+    let cancelled = false
+    fetch('/api/admin/documents', { cache: 'no-store' })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (cancelled || !data) return
+        setDocsDispo({ kbis: Boolean(data.kbis?.url), rib: Boolean(data.rib?.url) })
+      })
+      .catch(() => { /* admin docs optionnels */ })
+    return () => { cancelled = true }
+  }, [])
 
   // Pré-remplissage depuis un devis transformé
   useEffect(() => {
@@ -183,6 +198,8 @@ export default function FacturePage() {
           agence,
           pdfBase64,
           pdfFilename: filename,
+          joindreKbis: joindreKbis && docsDispo.kbis,
+          joindreRib: joindreRib && docsDispo.rib,
           // Champs persistance DB
           facture: factureToSend,
           totalHT,
@@ -415,6 +432,41 @@ export default function FacturePage() {
           <section className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 space-y-3">
             <h2 className="font-bold text-[#0e2a52]">Envoyer la facture au client</h2>
             <p className="text-xs text-slate-500">Le PDF sera joint à un email récapitulant le montant et l&apos;échéance.</p>
+            {(docsDispo.kbis || docsDispo.rib) && (
+              <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 space-y-2">
+                <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                  Pièces jointes optionnelles
+                </div>
+                {docsDispo.kbis && (
+                  <label className="flex items-center gap-2 text-sm text-slate-800 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={joindreKbis}
+                      onChange={e => setJoindreKbis(e.target.checked)}
+                      disabled={emailSending}
+                      className="rounded border-slate-300 text-[#0e2a52] focus:ring-[#0e2a52]"
+                    />
+                    <span>Joindre le <strong>Kbis</strong></span>
+                  </label>
+                )}
+                {docsDispo.rib && (
+                  <label className="flex items-center gap-2 text-sm text-slate-800 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={joindreRib}
+                      onChange={e => setJoindreRib(e.target.checked)}
+                      disabled={emailSending}
+                      className="rounded border-slate-300 text-[#0e2a52] focus:ring-[#0e2a52]"
+                    />
+                    <span>Joindre le <strong>RIB</strong></span>
+                  </label>
+                )}
+                <p className="text-[11px] text-slate-500">
+                  Gérer les fichiers dans{' '}
+                  <a href="/admin/documents" className="underline font-semibold text-blue-800">Documents admin</a>.
+                </p>
+              </div>
+            )}
             <div className="flex flex-col sm:flex-row gap-2">
               <input
                 type="email"
