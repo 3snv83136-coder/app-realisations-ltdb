@@ -3,6 +3,8 @@ import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import SendSmsButton from "@/components/SendSmsButton"
+import FactureRelanceModePicker from "@/components/FactureRelanceModePicker"
+import type { FactureRelanceMode } from "@/lib/facture-relance-modes"
 
 export type InterventionActionsHubProps = {
   interventionId: string
@@ -39,6 +41,7 @@ export default function InterventionActionsHub({
   const [joindreKbis, setJoindreKbis] = useState(false)
   const [joindreRib, setJoindreRib] = useState(false)
   const [docsDispo, setDocsDispo] = useState<{ kbis: boolean; rib: boolean }>({ kbis: false, rib: false })
+  const [relanceMode, setRelanceMode] = useState<FactureRelanceMode>('classique')
 
   useEffect(() => {
     if (!sendOpen) return
@@ -68,6 +71,7 @@ export default function InterventionActionsHub({
           clientEmail: email,
           joindreKbis: joindreKbis && docsDispo.kbis,
           joindreRib: joindreRib && docsDispo.rib,
+          relanceMode,
         }),
       })
       const j = await res.json()
@@ -80,7 +84,12 @@ export default function InterventionActionsHub({
           ? `rapport ${j.attachments.rapport ? '✓' : '✗'}, facture ${j.attachments.facture ? '✓' : '✗'}, accord ${j.attachments.accord ? '✓' : '✗'}, attestation ${j.attachments.attestation ? '✓' : '✗'}${j.attachments.kbis ? ', Kbis ✓' : ''}${j.attachments.rib ? ', RIB ✓' : ''}`
           : ''
         const ack = j.owner_confirmation ? 'Accusé gérant ✓' : 'Accusé gérant ✗'
-        setStatus(`Envoyé à ${j.recipient || email} · ${pj} · ${ack}`)
+        const relInfo = typeof j.facture_relances_planifiees === 'number'
+          ? (j.facture_relances_planifiees > 0
+            ? ` · ${j.facture_relances_planifiees} relance(s) paiement`
+            : ' · sans relance paiement')
+          : ''
+        setStatus(`Envoyé à ${j.recipient || email} · ${pj} · ${ack}${relInfo}`)
         if (j.accord_warning) setStatus(s => `${s} · ${j.accord_warning}`)
         if (j.attestation_warning) setStatus(s => `${s} · ${j.attestation_warning}`)
         if (j.owner_confirmation_warning) setStatus(s => `${s} · ${j.owner_confirmation_warning}`)
@@ -210,7 +219,7 @@ export default function InterventionActionsHub({
               <button onClick={() => { setSendOpen(false); setStatus(null) }} className="text-slate-400 hover:text-slate-700 text-xl leading-none">×</button>
             </div>
             <p className="text-xs text-slate-500 mb-3">
-              Un seul email avec les 2 PDFs en pièces jointes. Relances <strong>avis Google</strong> : mail J+1, SMS J+2, mail J+4, mail J+7 ; si facture impayée, relances <strong>paiement</strong> J+10/J+15/J+20.
+              Un seul email avec les 2 PDFs en pièces jointes. Relances <strong>avis Google</strong> : mail J+1, SMS J+2, mail J+4, mail J+7. Choisis ci-dessous les relances <strong>paiement</strong>.
             </p>
             <label className="block text-xs font-medium text-slate-600 mb-1">Email destinataire</label>
             <input
@@ -252,6 +261,12 @@ export default function InterventionActionsHub({
                 )}
               </div>
             )}
+            <FactureRelanceModePicker
+              className="mt-3"
+              value={relanceMode}
+              onChange={setRelanceMode}
+              disabled={sending}
+            />
             {status && (
               <div className={`mt-3 text-sm ${status.startsWith('Envoyé') ? 'text-emerald-600' : 'text-red-600'}`}>{status}</div>
             )}

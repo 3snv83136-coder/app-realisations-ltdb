@@ -5,7 +5,9 @@ import {
   isFactureReglee,
   isFacturePayeeOuReglee,
   mergeFacturePayloadMeta,
+  normalizeFactureRelanceMode,
   planifierFactureRelances,
+  type FactureRelanceMode,
 } from "@/lib/facture-relance"
 import { planifierAvisRelances } from "@/lib/avis-relance"
 import { buildRapportFactureHtml } from "@/lib/rapport-facture-message"
@@ -53,6 +55,8 @@ export async function POST(req: NextRequest) {
     joindreKbis?: boolean
     /** Joindre le RIB stocké (admin/documents) */
     joindreRib?: boolean
+    /** Mode relances paiement facture : classique | j45 | aucune */
+    relanceMode?: FactureRelanceMode | boolean | string
   }
   try {
     body = await req.json()
@@ -382,10 +386,12 @@ export async function POST(req: NextRequest) {
     attestationJointe: !!attestationB64,
   })
 
-  // Relances paiement J+10, J+15, J+20 (si facture non réglée)
+  // Relances paiement selon le mode choisi à l'envoi (si facture non réglée)
+  const relanceMode = normalizeFactureRelanceMode(body.relanceMode)
   let factureRelanceIds: string[] = []
   let factureRelanceErrors: string[] = []
-  if (!factureReglee) {
+  let factureRelanceJours: number[] = []
+  if (!factureReglee && relanceMode !== 'aucune') {
     try {
       const rel = await planifierFactureRelances({
         baseUrl: getBaseUrl(req),
@@ -398,9 +404,11 @@ export async function POST(req: NextRequest) {
         totalTTC: totalTTC ?? undefined,
         echeance: facture.echeance || undefined,
         anchorAt: new Date().toISOString(),
+        mode: relanceMode,
       })
       factureRelanceIds = rel.reminderIds
       factureRelanceErrors = rel.reminderErrors
+      factureRelanceJours = rel.jours
     } catch (e) {
       factureRelanceErrors.push(e instanceof Error ? e.message : String(e))
       console.error("[notify-rapport-facture] relances paiement", e)
@@ -488,8 +496,10 @@ export async function POST(req: NextRequest) {
     ...(isResendTestMode() ? {
       test_mode_warning: `Mode test actif : le mail est redirigé vers ${recipient}, pas vers le client.`,
     } : {}),
+    facture_relance_mode: factureReglee ? 'aucune' : relanceMode,
     ...(!factureReglee ? {
       facture_relances_planifiees: factureRelanceIds.length,
+      facture_relances_jours: factureRelanceJours,
       facture_relance_ids: factureRelanceIds,
       ...(factureRelanceErrors.length ? { facture_relance_warnings: factureRelanceErrors } : {}),
     } : {}),

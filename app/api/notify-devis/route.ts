@@ -104,6 +104,9 @@ export async function POST(req: NextRequest) {
         ? `Votre devis ${numero}${ville ? ` — ${ville}` : ''}`
         : `Votre devis${ville ? ` — ${ville}` : ''}`
       const htmlSimple = emailDevisSimple({ clientNom, technicienNom: tech, ville, dateDevis, numero, totalTTC, validiteJours, tel })
+      const scheduledAt = premierEnvoiAt && new Date(premierEnvoiAt).getTime() > Date.now()
+        ? new Date(premierEnvoiAt).toISOString()
+        : undefined
       const result = await resend.emails.send({
         from: `Les Techniciens du Débouchage <${fromEmail}>`,
         to: recipient,
@@ -114,6 +117,7 @@ export async function POST(req: NextRequest) {
         text: htmlToText(htmlSimple),
         headers: buildUnsubscribeHeaders(),
         attachments,
+        ...(scheduledAt ? { scheduledAt } : {}),
       })
       if (result.error) {
         return NextResponse.json({ error: result.error.message || 'Envoi échoué' }, { status: 500 })

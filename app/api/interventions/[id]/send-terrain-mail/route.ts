@@ -40,6 +40,7 @@ export async function POST(req: NextRequest, { params }: Params) {
     forceResend?: boolean
     joindreKbis?: boolean
     joindreRib?: boolean
+    relanceMode?: string | boolean
   }
   try {
     body = await req.json()
@@ -126,6 +127,7 @@ export async function POST(req: NextRequest, { params }: Params) {
       regeneratePdfs: false,
       joindreKbis: !!body.joindreKbis,
       joindreRib: !!body.joindreRib,
+      relanceMode: body.relanceMode ?? 'classique',
     }),
   })
 

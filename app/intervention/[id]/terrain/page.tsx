@@ -29,6 +29,8 @@ import RapportOfflineBanner from "@/components/rapport/RapportOfflineBanner"
 const VideoUploadPanel = dynamic(() => import("@/components/VideoUploadPanel"))
 import { CATALOGUE_PRESTATIONS, fetchCataloguePrestations, type PrestationCatalogue } from "@/lib/catalogue-prestations"
 const FactureRemiseButton = dynamic(() => import("@/components/FactureRemiseButton"))
+import FactureRelanceModePicker from "@/components/FactureRelanceModePicker"
+import type { FactureRelanceMode } from "@/lib/facture-relance-modes"
 import {
   clearRapportDraft,
   getRapportDraft,
@@ -1822,6 +1824,7 @@ function TerrainDiffusionPanel({ interv, client, onRefresh, onError, techOnlyMai
   const [joindreKbis, setJoindreKbis] = useState(false)
   const [joindreRib, setJoindreRib] = useState(false)
   const [docsDispo, setDocsDispo] = useState<{ kbis: boolean; rib: boolean }>({ kbis: false, rib: false })
+  const [relanceMode, setRelanceMode] = useState<FactureRelanceMode>('classique')
   const mailRef = useRef(false)
   const smsRef = useRef(false)
 
@@ -1916,6 +1919,7 @@ function TerrainDiffusionPanel({ interv, client, onRefresh, onError, techOnlyMai
             forceResend,
             joindreKbis: joindreKbis && docsDispo.kbis,
             joindreRib: joindreRib && docsDispo.rib,
+            relanceMode,
           }),
           retries: 2,
           timeoutMs: 120_000,
@@ -2213,8 +2217,7 @@ function TerrainDiffusionPanel({ interv, client, onRefresh, onError, techOnlyMai
           <div>📄 Rapport d&apos;intervention (PDF)</div>
           <div>🧾 Facture (PDF)</div>
           <div className="text-xs text-slate-500 pt-1">
-            Avis Google : 1 seul SMS 24&nbsp;h après l&apos;intervention (pas de relance).
-            Facture impayée : relances J+10/15/20.
+            Avis Google : 1 seul SMS 24&nbsp;h après l&apos;intervention (pas de relance mail).
           </div>
         </div>
 
@@ -2249,6 +2252,12 @@ function TerrainDiffusionPanel({ interv, client, onRefresh, onError, techOnlyMai
             )}
           </div>
         )}
+
+        <FactureRelanceModePicker
+          value={relanceMode}
+          onChange={setRelanceMode}
+          disabled={!!busy}
+        />
       </div>
 
       {progress && (

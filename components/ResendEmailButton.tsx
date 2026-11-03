@@ -12,6 +12,8 @@ import type { HistoriqueDocument } from "./DocumentDownloadButton"
 import { errorMessage } from "@/lib/error-message"
 import type { DocumentPayload } from "@/lib/types-documents"
 import { getLtdbSignatureUrl } from "@/lib/rapport-signatures"
+import FactureRelanceModePicker from "@/components/FactureRelanceModePicker"
+import { type FactureRelanceMode, isFactureReglee } from "@/lib/facture-relance-modes"
 
 type DocWithEmail = HistoriqueDocument & {
   envoye_email?: string | null
@@ -44,7 +46,12 @@ async function buildSendBody(
   doc: HistoriqueDocument,
   payload: DocumentPayload,
   clientEmail: string,
-  extras?: { joindreKbis?: boolean; joindreRib?: boolean },
+  extras?: {
+    joindreKbis?: boolean
+    joindreRib?: boolean
+    relanceMode?: FactureRelanceMode
+    planRelances?: boolean
+  },
 ): Promise<
   | { endpoint: string; body: Record<string, unknown>; formData?: undefined }
   | { endpoint: string; formData: FormData; body?: undefined }
@@ -87,6 +94,7 @@ async function buildSendBody(
         clientCP: doc.client_code_postal,
         joindreKbis: Boolean(extras?.joindreKbis),
         joindreRib: Boolean(extras?.joindreRib),
+        relanceMode: extras?.relanceMode ?? 'classique',
       },
     }
   }
@@ -123,6 +131,7 @@ async function buildSendBody(
         tvaTaux,
         clientAdresse: doc.client_adresse,
         clientCP: doc.client_code_postal,
+        planRelances: extras?.planRelances !== false,
       },
     }
   }
@@ -230,6 +239,9 @@ export default function ResendEmailButton({
   const [joindreKbis, setJoindreKbis] = useState(false)
   const [joindreRib, setJoindreRib] = useState(false)
   const [docsDispo, setDocsDispo] = useState<{ kbis: boolean; rib: boolean }>({ kbis: false, rib: false })
+  const [relanceMode, setRelanceMode] = useState<FactureRelanceMode>('classique')
+  const [planRelancesDevis, setPlanRelancesDevis] = useState(true)
+  const [factureEcheance, setFactureEcheance] = useState<string | null>(null)
 
   if (doc.type !== 'facture' && doc.type !== 'devis' && doc.type !== 'attestation' && doc.type !== 'inspection') {
     return null
@@ -241,12 +253,21 @@ export default function ResendEmailButton({
     setSent(false)
     setJoindreKbis(false)
     setJoindreRib(false)
+    setRelanceMode('classique')
+    setPlanRelancesDevis(true)
+    setFactureEcheance(null)
     if (doc.type === 'facture') {
       fetch('/api/admin/documents', { cache: 'no-store' })
         .then(r => r.ok ? r.json() : null)
         .then(data => {
           if (!data) return
           setDocsDispo({ kbis: Boolean(data.kbis?.url), rib: Boolean(data.rib?.url) })
+        })
+        .catch(() => {})
+      fetchPayload(doc.id)
+        .then(p => {
+          const ech = (p as FactureData | null)?.echeance
+          setFactureEcheance(typeof ech === 'string' ? ech : null)
         })
         .catch(() => {})
     }
@@ -261,6 +282,8 @@ export default function ResendEmailButton({
       const built = await buildSendBody(doc, payload, email.trim(), {
         joindreKbis: joindreKbis && docsDispo.kbis,
         joindreRib: joindreRib && docsDispo.rib,
+        relanceMode,
+        planRelances: planRelancesDevis,
       })
       if (!built) throw new Error('Type non supporté')
 
@@ -380,6 +403,32 @@ export default function ResendEmailButton({
                   </label>
                 )}
               </div>
+            )}
+            {doc.type === 'facture' && (
+              <FactureRelanceModePicker
+                className="mt-3"
+                value={relanceMode}
+                onChange={setRelanceMode}
+                disabled={sending || sent}
+                hidden={isFactureReglee(factureEcheance)}
+              />
+            )}
+            {doc.type === 'devis' && (
+              <label className="mt-3 flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm text-slate-800 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={planRelancesDevis}
+                  onChange={e => setPlanRelancesDevis(e.target.checked)}
+                  disabled={sending || sent}
+                  className="mt-0.5 rounded border-slate-300 text-amber-600 focus:ring-amber-500"
+                />
+                <span>
+                  <strong>Relances devis</strong>
+                  <span className="block text-[11px] text-slate-500 font-normal mt-0.5">
+                    Relances hebdomadaires (S1–S3, -10&nbsp;% en semaine 3)
+                  </span>
+                </span>
+              </label>
             )}
             {error && (
               <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg px-3 py-2 text-sm mt-3">

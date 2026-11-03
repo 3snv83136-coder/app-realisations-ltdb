@@ -20,6 +20,8 @@ import type {
 import type { ClientData } from "@/components/DevisPDF"
 import { errorMessage } from "@/lib/error-message"
 import { resolveAdresseChantierAffichee } from "@/lib/facture-adresse-chantier"
+import FactureRelanceModePicker from "@/components/FactureRelanceModePicker"
+import { type FactureRelanceMode, isFactureReglee } from "@/lib/facture-relance-modes"
 
 const FactureDownloadButton = dynamic(() => import("@/components/FacturePDFDownloadButton"), { ssr: false })
 const SaveDocumentButton = dynamic(() => import("@/components/SaveDocumentButton"), { ssr: false })
@@ -64,6 +66,7 @@ export default function FacturePage() {
   const [joindreKbis, setJoindreKbis] = useState(false)
   const [joindreRib, setJoindreRib] = useState(false)
   const [docsDispo, setDocsDispo] = useState<{ kbis: boolean; rib: boolean }>({ kbis: false, rib: false })
+  const [relanceMode, setRelanceMode] = useState<FactureRelanceMode>('classique')
 
   useUnsavedChangesWarning(
     (step === 'capture' && (transcription.trim() !== '' || clientNom.trim() !== '')) ||
@@ -200,6 +203,7 @@ export default function FacturePage() {
           pdfFilename: filename,
           joindreKbis: joindreKbis && docsDispo.kbis,
           joindreRib: joindreRib && docsDispo.rib,
+          relanceMode,
           // Champs persistance DB
           facture: factureToSend,
           totalHT,
@@ -213,10 +217,12 @@ export default function FacturePage() {
       if (data.warning) setEmailError(data.warning)
       else {
         setEmailSent(true)
-        if (data.relances_planifiees) {
+        if (data.relances_planifiees && Array.isArray(data.relances_jours) && data.relances_jours.length) {
           setEmailInfo(
-            `${data.relances_planifiees} relance(s) planifiée(s) à J+10, J+15 et J+20 si la facture n'est pas réglée.`,
+            `${data.relances_planifiees} relance(s) planifiée(s) à ${data.relances_jours.map((j: number) => `J+${j}`).join(', ')}.`,
           )
+        } else if (relanceMode === 'aucune' || data.relance_mode === 'aucune') {
+          setEmailInfo('Aucune relance de paiement planifiée.')
         }
       }
     } catch (e) {
@@ -467,6 +473,12 @@ export default function FacturePage() {
                 </p>
               </div>
             )}
+            <FactureRelanceModePicker
+              value={relanceMode}
+              onChange={setRelanceMode}
+              disabled={emailSending}
+              hidden={isFactureReglee(facture.echeance)}
+            />
             <div className="flex flex-col sm:flex-row gap-2">
               <input
                 type="email"

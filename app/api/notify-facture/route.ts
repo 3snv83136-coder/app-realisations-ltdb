@@ -3,8 +3,9 @@ import { escapeHtml, initResend } from "@/lib/email-utils"
 import { fmtEUR } from "@/lib/format"
 import {
   isFacturePayeeOuReglee,
-  JOURS_RELANCE_FACTURE,
+  normalizeFactureRelanceMode,
   planifierFactureRelances,
+  type FactureRelanceMode,
 } from "@/lib/facture-relance"
 import { persistFacture, type PersistFactureInput } from "@/lib/persist"
 import { getTelPrincipal } from "@/lib/parametres"
@@ -23,6 +24,8 @@ interface NotifyFactureBody extends Partial<PersistFactureInput> {
   joindreKbis?: boolean
   /** Joindre le RIB stocké (admin/documents) */
   joindreRib?: boolean
+  /** Mode relances paiement : classique | j45 | aucune */
+  relanceMode?: FactureRelanceMode | boolean | string
 }
 
 export async function POST(req: NextRequest) {
@@ -36,8 +39,10 @@ export async function POST(req: NextRequest) {
     clientEmail, clientNom, technicienNom, ville, dateFacture,
     numero, totalTTC, echeance, agence, pdfBase64, pdfFilename,
     facture, totalHT, tvaTaux, clientAdresse, clientCP,
-    joindreKbis, joindreRib,
+    joindreKbis, joindreRib, relanceMode: relanceModeRaw,
   } = body
+
+  const relanceMode = normalizeFactureRelanceMode(relanceModeRaw)
 
   const ctx = initResend(clientEmail)
   if ('error' in ctx) return NextResponse.json({ error: ctx.error }, { status: ctx.status })
@@ -72,6 +77,7 @@ export async function POST(req: NextRequest) {
       clientNom, technicienNom: tech, ville, dateFacture, numero, totalTTC, echeance, agence, tel,
       joindreKbis: Boolean(joindreKbis),
       joindreRib: Boolean(joindreRib),
+      relanceMode,
     }),
     attachments: attachments.length ? attachments : undefined,
   })
@@ -103,6 +109,7 @@ export async function POST(req: NextRequest) {
   let persistError: string | null = null
   let relanceIds: string[] = []
   let relanceErrors: string[] = []
+  let relanceJours: number[] = []
 
   const reglee = isFacturePayeeOuReglee(
     typeof facture === "object" && facture && "statut" in facture ? String((facture as { statut?: string }).statut) : null,
@@ -113,7 +120,7 @@ export async function POST(req: NextRequest) {
     process.env.NEXT_PUBLIC_APP_URL ||
     new URL(req.url).origin
 
-  if (facture && !reglee) {
+  if (facture && !reglee && relanceMode !== 'aucune') {
     try {
       const rel = await planifierFactureRelances({
         baseUrl,
@@ -126,9 +133,11 @@ export async function POST(req: NextRequest) {
         totalTTC,
         echeance,
         anchorAt: new Date().toISOString(),
+        mode: relanceMode,
       })
       relanceIds = rel.reminderIds
       relanceErrors = rel.reminderErrors
+      relanceJours = rel.jours
     } catch (e) {
       relanceErrors.push(errorMessage(e) || "Planification relances échouée")
       console.error("[notify-facture] relances", e)
@@ -156,11 +165,12 @@ export async function POST(req: NextRequest) {
     docId,
     owner_confirmation: ownerConfirmation.sent,
     ...(ownerConfirmation.error ? { owner_confirmation_warning: ownerConfirmation.error } : {}),
+    relance_mode: reglee ? 'aucune' : relanceMode,
     ...(reglee
       ? {}
       : {
           relances_planifiees: relanceIds.length,
-          relances_jours: [...JOURS_RELANCE_FACTURE],
+          relances_jours: relanceJours,
           relance_ids: relanceIds,
           ...(relanceErrors.length ? { relance_warnings: relanceErrors } : {}),
         }),
@@ -168,10 +178,10 @@ export async function POST(req: NextRequest) {
   })
 }
 
-function emailFacture({ clientNom, technicienNom, ville, dateFacture, numero, totalTTC, echeance, agence, tel, joindreKbis, joindreRib }: {
+function emailFacture({ clientNom, technicienNom, ville, dateFacture, numero, totalTTC, echeance, agence, tel, joindreKbis, joindreRib, relanceMode }: {
   clientNom?: string | null; technicienNom: string; ville?: string | null; dateFacture?: string | null;
   numero?: string | null; totalTTC?: number | null; echeance?: string | null; agence?: string | null; tel: string;
-  joindreKbis?: boolean; joindreRib?: boolean;
+  joindreKbis?: boolean; joindreRib?: boolean; relanceMode: FactureRelanceMode;
 }) {
   const cn = escapeHtml(clientNom || 'Madame, Monsieur')
   const tn = escapeHtml(technicienNom)
@@ -188,6 +198,12 @@ function emailFacture({ clientNom, technicienNom, ville, dateFacture, numero, to
   const extrasLine = extras.length
     ? `<p style="font-size:13px;color:#475569">Pièces jointes complémentaires : <strong>${extras.join(' et ')}</strong>.</p>`
     : ''
+  const relanceNote =
+    relanceMode === 'j45'
+      ? `<p style="font-size:12px;color:#64748b;margin-top:12px">En l'absence de règlement, une relance automatique vous sera adressée à J+45.</p>`
+      : relanceMode === 'classique'
+        ? `<p style="font-size:12px;color:#64748b;margin-top:12px">En l'absence de règlement, des relances automatiques vous seront adressées à J+10, J+15 et J+20.</p>`
+        : ''
 
   return `<!doctype html>
 <html><body style="margin:0;padding:0;font-family:Arial,sans-serif;background:#f4f6fa;color:#1a1a1a">
@@ -212,7 +228,7 @@ function emailFacture({ clientNom, technicienNom, ville, dateFacture, numero, to
         ${isRegle
           ? '<p style="font-size:14px">Cette intervention a déjà été réglée — aucun solde restant dû.</p>'
           : `<p style="font-size:14px">Le règlement peut se faire par virement (coordonnées bancaires sur la facture jointe) ou par carte sur place. Pour toute question : <strong>${escapeHtml(tel)}</strong>.</p>
-        <p style="font-size:12px;color:#64748b;margin-top:12px">En l'absence de règlement, des relances automatiques vous seront adressées à J+10, J+15 et J+20.</p>`}
+        ${relanceNote}`}
         <p style="margin-top:30px;font-size:13px;color:#666">Cordialement,<br><strong>${tn}</strong> — Expert en assainissement<br>Les Techniciens du Débouchage</p>
       </td></tr>
       <tr><td style="background:#0e2a52;color:#a0c0ff;padding:18px;text-align:center;font-size:11px">
