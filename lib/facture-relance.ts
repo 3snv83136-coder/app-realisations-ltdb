@@ -8,6 +8,7 @@ import type { FacturePayload, FacturePayloadMeta } from "@/lib/types-documents"
 import {
   JOURS_RELANCE_FACTURE,
   NB_RELANCES_FACTURE,
+  isFacturePayeeOuReglee,
   joursForFactureRelanceMode,
   normalizeFactureRelanceMode,
   type FactureRelanceMode,
