@@ -1,5 +1,6 @@
 'use client'
 import { useEffect, useMemo, useRef, useState } from "react"
+import { isDevisIntervention } from "@/lib/types-intervention"
 import Link from "next/link"
 import dynamic from "next/dynamic"
 import { useSession } from "next-auth/react"
@@ -49,6 +50,7 @@ type InterventionRow = {
   created_at: string
   updated_at: string
   client_nom: string | null
+  client_final_nom?: string | null
   client_email: string | null
   client_telephone: string | null
   technicien_nom: string | null
@@ -131,6 +133,7 @@ export default function PlanningPage() {
   const [filterTech, setFilterTech] = useState<string>('all')
   const [filterAgence, setFilterAgence] = useState<string>('all')
   const [filterDate, setFilterDate] = useState<DateFilter>('week')
+  const [filterSearch, setFilterSearch] = useState('')
 
   const [showForm, setShowForm] = useState(false)
   const [viewMode, setViewMode] = useState<'agenda' | 'kanban' | 'map'>('agenda')
@@ -181,8 +184,22 @@ export default function PlanningPage() {
         : rows.filter(i => i.technicien_id === filterTech)
     }
     if (filterAgence !== 'all') rows = rows.filter(i => i.agence === filterAgence)
+    const q = filterSearch.trim().toLowerCase()
+    if (q) {
+      rows = rows.filter(i => {
+        const hay = [
+          i.client_nom,
+          i.client_final_nom,
+          i.ville,
+          i.adresse_chantier,
+          i.reference,
+          i.type_intervention,
+        ].map(v => (v || '').toLowerCase()).join(' ')
+        return hay.includes(q)
+      })
+    }
     return rows
-  }, [interventions, filterStatut, filterTech, filterAgence])
+  }, [interventions, filterStatut, filterTech, filterAgence, filterSearch])
 
   const filtered = useMemo(() => {
     let rows = [...filteredBase]
@@ -275,58 +292,70 @@ export default function PlanningPage() {
 
         {/* Filtres (agenda + kanban) */}
         {(viewMode === 'kanban' || viewMode === 'agenda') && (
-        <div className={`bg-white rounded-2xl shadow-sm border border-slate-200 p-4 grid gap-3 ${
-          isTech
-            ? (viewMode === 'kanban' ? 'grid-cols-2' : 'grid-cols-1')
-            : (viewMode === 'kanban' ? 'grid-cols-2 sm:grid-cols-4' : 'grid-cols-2 sm:grid-cols-3')
-        }`}>
-          <FilterSelect
-            label="Statut"
-            value={filterStatut}
-            onChange={v => setFilterStatut(v as 'all' | Statut)}
-            options={[
-              { value: 'all', label: 'Tous' },
-              { value: 'planifiee', label: 'Planifiée' },
-              { value: 'en_cours', label: 'En cours' },
-              { value: 'terminee', label: 'Terminée' },
-              { value: 'annulee', label: 'Annulée' },
-            ]}
-          />
-          {!isTech && (
-            <>
-              <FilterSelect
-                label="Technicien"
-                value={filterTech}
-                onChange={setFilterTech}
-                options={[
-                  { value: 'all', label: 'Tous' },
-                  { value: 'none', label: 'Non assignée' },
-                  ...techniciens.map(t => ({ value: t.id, label: t.nom })),
-                ]}
-              />
-              <FilterSelect
-                label="Agence"
-                value={filterAgence}
-                onChange={setFilterAgence}
-                options={[
-                  { value: 'all', label: 'Toutes' },
-                  ...AGENCES.map(a => ({ value: a, label: a })),
-                ]}
-              />
-            </>
-          )}
-          {viewMode === 'kanban' && (
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 space-y-3">
+          <label className="block text-sm">
+            <span className="text-xs uppercase tracking-wide text-slate-500 font-semibold">Recherche</span>
+            <input
+              type="search"
+              value={filterSearch}
+              onChange={e => setFilterSearch(e.target.value)}
+              placeholder="Client, donneur d'ordre, ville, adresse…"
+              className="mt-1 w-full border-2 border-slate-200 focus:border-[#0e2a52] outline-none rounded-xl px-3 py-2 text-sm"
+            />
+          </label>
+          <div className={`grid gap-3 ${
+            isTech
+              ? (viewMode === 'kanban' ? 'grid-cols-2' : 'grid-cols-1')
+              : (viewMode === 'kanban' ? 'grid-cols-2 sm:grid-cols-4' : 'grid-cols-2 sm:grid-cols-3')
+          }`}>
             <FilterSelect
-              label="Date"
-              value={filterDate}
-              onChange={v => setFilterDate(v as DateFilter)}
+              label="Statut"
+              value={filterStatut}
+              onChange={v => setFilterStatut(v as 'all' | Statut)}
               options={[
-                { value: 'week', label: 'Cette semaine' },
-                { value: 'today', label: "Aujourd'hui" },
-                { value: 'all', label: 'Tout' },
+                { value: 'all', label: 'Tous' },
+                { value: 'planifiee', label: 'Planifiée' },
+                { value: 'en_cours', label: 'En cours' },
+                { value: 'terminee', label: 'Terminée' },
+                { value: 'annulee', label: 'Annulée' },
               ]}
             />
-          )}
+            {!isTech && (
+              <>
+                <FilterSelect
+                  label="Technicien"
+                  value={filterTech}
+                  onChange={setFilterTech}
+                  options={[
+                    { value: 'all', label: 'Tous' },
+                    { value: 'none', label: 'Non assignée' },
+                    ...techniciens.map(t => ({ value: t.id, label: t.nom })),
+                  ]}
+                />
+                <FilterSelect
+                  label="Agence"
+                  value={filterAgence}
+                  onChange={setFilterAgence}
+                  options={[
+                    { value: 'all', label: 'Toutes' },
+                    ...AGENCES.map(a => ({ value: a, label: a })),
+                  ]}
+                />
+              </>
+            )}
+            {viewMode === 'kanban' && (
+              <FilterSelect
+                label="Date"
+                value={filterDate}
+                onChange={v => setFilterDate(v as DateFilter)}
+                options={[
+                  { value: 'week', label: 'Cette semaine' },
+                  { value: 'today', label: "Aujourd'hui" },
+                  { value: 'all', label: 'Tout' },
+                ]}
+              />
+            )}
+          </div>
         </div>
         )}
 
@@ -500,14 +529,20 @@ function InterventionCard({
   compact?: boolean
   techMode?: boolean
 }) {
-  // Le planning ouvre directement le parcours terrain pour tous les rôles.
-  const href = `/intervention/${i.id}/terrain`
+  // Devis → fiche ; autres → parcours terrain.
+  const href = isDevisIntervention(i.type_intervention)
+    ? `/intervention/${i.id}`
+    : `/intervention/${i.id}/terrain`
   const villeLabel = [i.code_postal, i.ville].filter(Boolean).join(' ') || i.ville || 'Ville —'
   const metaMuted =
     i.statut === 'planifiee' ? 'text-amber-900/75' :
     i.statut === 'en_cours' ? 'text-blue-900/75' :
     i.statut === 'terminee' ? 'text-emerald-900/75' :
     'text-slate-600'
+  const titleClient = i.client_final_nom || i.client_nom || 'Client —'
+  const subDonneur = i.client_final_nom && i.client_nom && i.client_final_nom !== i.client_nom
+    ? `via ${i.client_nom}`
+    : null
 
   return (
     <Link
@@ -520,8 +555,13 @@ function InterventionCard({
             {villeLabel}
           </div>
           <div className="text-sm font-bold truncate mt-0.5 opacity-95">
-            {i.client_nom || 'Client —'}
+            {titleClient}
           </div>
+          {subDonneur && (
+            <div className={`text-[11px] font-semibold truncate mt-0.5 ${metaMuted}`}>
+              {subDonneur}
+            </div>
+          )}
         </div>
         <div className="flex flex-col items-end gap-1 shrink-0">
           {i.urgence && (
@@ -932,7 +972,11 @@ function NouvelleInterventionModal({
         <div className="p-5 space-y-5">
           {/* Client */}
           <section className="space-y-3">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500">Client</h3>
+            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500">Donneur d&apos;ordre &amp; client</h3>
+            <p className="text-xs text-slate-500 -mt-1">
+              Sous-traitance : le <strong>donneur d&apos;ordre</strong> est la société qui te commande ;
+              le <strong>client de l&apos;intervention</strong> est celui chez qui tu te rends (recherche possible sur ce nom).
+            </p>
 
             <div className="bg-emerald-50 border-2 border-emerald-200 rounded-xl p-3 space-y-2">
               <label className="block text-sm">
@@ -990,7 +1034,7 @@ function NouvelleInterventionModal({
               }}
             />
             <ClientAutocomplete
-              label="Nom facturé (syndic / client) *"
+              label="Donneur d'ordre (société / facturé) *"
               value={clientNom}
               onTextChange={v => { setClientNom(v); setClientId(null) }}
               onSelect={c => {
@@ -1004,10 +1048,10 @@ function NouvelleInterventionModal({
               }}
             />
             <Field
-              label="Nom du client concerné (occupant / locataire)"
+              label="Client de l'intervention (chez qui tu interviens)"
               value={clientFinalNom}
               onChange={setClientFinalNom}
-              placeholder="Ex. M. Dupont — si différent du syndic"
+              placeholder="Ex. M. Dupont — nom du client final"
             />
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <Field label="Email" type="email" value={clientEmail} onChange={setClientEmail} placeholder="client@exemple.fr" />

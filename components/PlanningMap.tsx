@@ -15,6 +15,7 @@ import {
 } from '@/lib/geocode-address'
 import { fmtDateFR, fmtEUR } from '@/lib/format'
 import { formatCreneau } from '@/lib/creneau'
+import { isDevisIntervention } from '@/lib/types-intervention'
 
 export type PlanningMapIntervention = {
   id: string
@@ -33,6 +34,17 @@ export type PlanningMapIntervention = {
   technicien_id: string | null
   technicien_nom: string | null
   client_nom: string | null
+  client_final_nom?: string | null
+}
+
+function interventionHref(i: PlanningMapIntervention): string {
+  return isDevisIntervention(i.type_intervention)
+    ? `/intervention/${i.id}`
+    : `/intervention/${i.id}/terrain`
+}
+
+function interventionClientLabel(i: PlanningMapIntervention): string {
+  return i.client_final_nom || i.client_nom || 'Client'
 }
 
 export type PlanningMapTech = {
@@ -351,7 +363,10 @@ export default function PlanningMap({
                         <div className="text-xs text-slate-500">
                           {creneau || '—'} · {STATUT_LABEL[i.statut] || i.statut}
                         </div>
-                        <div>{i.client_nom || 'Client'}</div>
+                        <div>{interventionClientLabel(i)}</div>
+                        {i.client_final_nom && i.client_nom && i.client_final_nom !== i.client_nom && (
+                          <div className="text-xs text-slate-500">via {i.client_nom}</div>
+                        )}
                         <div className="text-xs text-slate-600">
                           {[i.adresse_chantier, [i.code_postal, i.ville].filter(Boolean).join(' ')]
                             .filter(Boolean)
@@ -362,7 +377,7 @@ export default function PlanningMap({
                           {i.prix_prevu != null ? ` · ${fmtEUR(i.prix_prevu)}` : ''}
                         </div>
                         <Link
-                          href={`/intervention/${i.id}/terrain`}
+                          href={interventionHref(i)}
                           className="inline-block mt-1 text-blue-700 font-bold text-xs hover:underline"
                         >
                           Ouvrir la fiche →
@@ -398,7 +413,7 @@ export default function PlanningMap({
               return (
                 <li key={i.id}>
                   <Link
-                    href={`/intervention/${i.id}/terrain`}
+                    href={interventionHref(i)}
                     className="flex items-start gap-3 px-4 py-2.5 hover:bg-slate-50 transition"
                   >
                     <span
@@ -409,7 +424,7 @@ export default function PlanningMap({
                     <div className="min-w-0 flex-1">
                       <div className="text-sm font-semibold text-[#0e2a52] truncate">
                         {creneau ? `${creneau} · ` : ''}
-                        {i.client_nom || 'Client'}
+                        {interventionClientLabel(i)}
                       </div>
                       <div className="text-xs text-slate-500 truncate">
                         {i.type_intervention || '—'} · {[i.ville, i.adresse_chantier].filter(Boolean).join(' · ')}

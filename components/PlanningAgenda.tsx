@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react'
 import Link from 'next/link'
 import { formatCreneau } from '@/lib/creneau'
 import { fmtDateFR, fmtEUR } from '@/lib/format'
+import { isDevisIntervention } from '@/lib/types-intervention'
 
 type Statut = 'planifiee' | 'en_cours' | 'terminee' | 'annulee'
 
@@ -23,6 +24,7 @@ export type AgendaIntervention = {
   statut: Statut
   prix_prevu: number | null
   client_nom: string | null
+  client_final_nom?: string | null
   client_telephone: string | null
   technicien_nom: string | null
 }
@@ -550,10 +552,16 @@ function AgendaCard({
   size: 'large' | 'compact' | 'chip'
   techMode: boolean
 }) {
-  // Accès direct au terrain ; la fiche reste disponible depuis son en-tête.
-  const href = `/intervention/${i.id}/terrain`
+  // Devis → fiche ; sinon terrain.
+  const href = isDevisIntervention(i.type_intervention)
+    ? `/intervention/${i.id}`
+    : `/intervention/${i.id}/terrain`
   const villeLabel = [i.code_postal, i.ville].filter(Boolean).join(' ') || i.ville || '—'
   const heure = formatCreneau(i.heure_prevue, i.heure_fin_prevue) || fmtHeure(i.heure_prevue) || '—'
+  const titleClient = i.client_final_nom || i.client_nom || 'Client —'
+  const subDonneur = i.client_final_nom && i.client_nom && i.client_final_nom !== i.client_nom
+    ? `via ${i.client_nom}`
+    : null
 
   if (size === 'chip') {
     return (
@@ -562,7 +570,7 @@ function AgendaCard({
         className={`block rounded-lg border px-1.5 py-1.5 text-[10px] leading-tight transition ${CARD_STATUT_STYLE[i.statut]}`}
       >
         <div className="font-black tabular-nums">{heure}</div>
-        <div className="font-semibold truncate">{i.client_nom || 'Client'}</div>
+        <div className="font-semibold truncate">{titleClient}</div>
         <div className="truncate opacity-80">{villeLabel}</div>
       </Link>
     )
@@ -577,9 +585,10 @@ function AgendaCard({
         <div className="flex items-center gap-3">
           <div className="text-base font-black tabular-nums w-14 shrink-0">{heure}</div>
           <div className="min-w-0 flex-1">
-            <div className="font-bold truncate text-sm">{i.client_nom || 'Client —'}</div>
+            <div className="font-bold truncate text-sm">{titleClient}</div>
             <div className="text-xs truncate opacity-80">
               {villeLabel}
+              {subDonneur ? ` · ${subDonneur}` : ''}
               {i.type_intervention ? ` · ${i.type_intervention}` : ''}
             </div>
           </div>
@@ -606,7 +615,8 @@ function AgendaCard({
         <div className="min-w-0 flex-1 space-y-1">
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0">
-              <div className="text-lg font-black truncate">{i.client_nom || 'Client —'}</div>
+              <div className="text-lg font-black truncate">{titleClient}</div>
+              {subDonneur && <div className="text-xs font-semibold opacity-75 truncate">{subDonneur}</div>}
               <div className="text-sm font-bold opacity-90">{villeLabel}</div>
             </div>
             <div className="flex flex-col items-end gap-1 shrink-0">

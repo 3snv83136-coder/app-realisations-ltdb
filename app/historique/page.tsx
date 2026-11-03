@@ -30,6 +30,7 @@ type Intervention = {
   created_at: string
   client_id: string | null
   client_nom: string | null
+  client_final_nom?: string | null
   client_email: string | null
   client_adresse: string | null
   client_code_postal: string | null
@@ -337,7 +338,7 @@ export default function HistoriquePage() {
                   <tr>
                     <th className="px-4 py-2 text-left">Date</th>
                     <th className="px-4 py-2 text-left">Référence</th>
-                    <th className="px-4 py-2 text-left">Client</th>
+                    <th className="px-4 py-2 text-left">Client / donneur d&apos;ordre</th>
                     <th className="px-4 py-2 text-left">Adresse / ville</th>
                     <th className="px-4 py-2 text-left">Type</th>
                     <th className="px-4 py-2 text-left">Statut</th>
@@ -351,7 +352,12 @@ export default function HistoriquePage() {
                     <tr key={i.id} className={`border-t border-slate-100 hover:bg-slate-50 ${deletingId === i.id ? 'opacity-50' : ''}`}>
                       <td className="px-4 py-3 text-slate-600">{fmtDateFR(i.date_realisee || i.date_prevue || i.created_at)}</td>
                       <td className="px-4 py-3 font-mono text-xs text-[#0e2a52] font-bold">{i.reference || '—'}</td>
-                      <td className="px-4 py-3 font-semibold text-slate-700">{i.client_nom || '—'}</td>
+                      <td className="px-4 py-3 text-slate-700">
+                        <div className="font-semibold">{i.client_final_nom || i.client_nom || '—'}</div>
+                        {i.client_final_nom && i.client_nom && i.client_final_nom !== i.client_nom && (
+                          <div className="text-[11px] text-slate-500">via {i.client_nom}</div>
+                        )}
+                      </td>
                       <td className="px-4 py-3 text-slate-600 max-w-[220px]">
                         <div className="truncate" title={formatLieu(i.adresse_chantier || i.client_adresse, i.code_postal || i.client_code_postal, i.ville || i.client_ville)}>
                           {formatLieu(i.adresse_chantier || i.client_adresse, i.code_postal || i.client_code_postal, i.ville || i.client_ville)}

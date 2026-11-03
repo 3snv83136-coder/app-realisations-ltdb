@@ -103,9 +103,9 @@ export default function TerrainPage({ params }: { params: { id: string } }) {
       const res = await fetch(`/api/interventions/${params.id}`, { cache: 'no-store' })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`)
-      // Après promote éventuel côté API, ne redirige plus vers /devis
+      // Type « Devis » : pas de parcours terrain → fiche intervention (pas le devis)
       if (isDevisIntervention(data.intervention?.type_intervention)) {
-        router.replace(`/devis?intervention=${params.id}`)
+        router.replace(`/intervention/${params.id}`)
         return
       }
       setInterv(data.intervention)
@@ -419,9 +419,9 @@ function StepPhotoAvant({ interv, onPhotoUploaded, onSkip, onError }: {
         interventionId={interv.id}
         legendeDefaut="Photo avant intervention"
         categorie="avant"
-        titre={hasPhotoAvant ? 'Remplacer la photo AVANT' : 'Prendre la photo AVANT'}
+        titre={hasPhotoAvant ? 'Ajouter une autre photo AVANT' : 'Prendre la photo AVANT'}
         onUploaded={(_url, terrainStep) => {
-          void onPhotoUploaded(terrainStep >= 1 ? terrainStep : 1)
+          void onPhotoUploaded(terrainStep)
         }}
       />
 
@@ -554,30 +554,15 @@ function StepEnCours({ interv, client, onPhotoUploaded, onRefresh, onTerminer, o
           <h2 className="font-bold text-slate-800">📷 Photo après l&apos;intervention</h2>
           <p className="text-xs text-slate-500 mt-1">Facultatif — capture le résultat si utile.</p>
         </div>
-        {!hasPhotoApres ? (
-          <TerrainPhotoCapture
-            interventionId={interv.id}
-            legendeDefaut="Photo après intervention"
-            categorie="apres"
-            titre="Photo APRÈS"
-            onUploaded={onPhotoUploaded}
-          />
-        ) : (
-          <div className="rounded-xl overflow-hidden border-2 border-emerald-200">
-            <img
-              src={proxyImageUrl(
-                interv.photos_urls![
-                  (interv.photos_legendes || []).findIndex(l =>
-                    (l || '').toLowerCase().includes('photo après') && !(l || '').toLowerCase().includes('supplément'),
-                  )
-                ] || interv.photos_urls![interv.photos_urls!.length - 1],
-              )}
-              alt="Après"
-              className="w-full max-h-60 object-cover"
-            />
-            <div className="text-xs text-emerald-700 py-1 bg-emerald-50 font-bold">✓ Photo après enregistrée</div>
-          </div>
-        )}
+        {hasPhotoApres && <p className="text-sm font-semibold text-emerald-800">✓ Photo après enregistrée. Vous pouvez en ajouter d’autres.</p>}
+        <TerrainPhotoCapture
+          interventionId={interv.id}
+          legendeDefaut="Photo après intervention"
+          categorie="apres"
+          titre={hasPhotoApres ? 'Ajouter une autre photo APRÈS' : 'Photo APRÈS'}
+          onUploaded={onPhotoUploaded}
+        />
+
       </div>
 
       <TerrainExtraPhotos

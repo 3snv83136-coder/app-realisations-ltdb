@@ -100,7 +100,7 @@ export async function GET(req: NextRequest) {
 
   let query = sb
     .from('interventions')
-    .select('id, reference, client_id, technicien_id, agence, type_intervention, adresse_chantier, ville, code_postal, date_prevue, heure_prevue, heure_fin_prevue, duree_estimee_min, date_realisee, urgence, statut, prix_prevu, notes_internes, publie_slug, canal_acquisition, terrain_step, created_at, updated_at')
+    .select('id, reference, client_id, client_final_nom, technicien_id, agence, type_intervention, adresse_chantier, ville, code_postal, date_prevue, heure_prevue, heure_fin_prevue, duree_estimee_min, date_realisee, urgence, statut, prix_prevu, notes_internes, publie_slug, canal_acquisition, terrain_step, created_at, updated_at')
     .order('date_prevue', { ascending: true, nullsFirst: false })
     .order('heure_prevue', { ascending: true, nullsFirst: false })
     // range() au lieu de limit() : limit + order drop la ligne la plus
@@ -118,7 +118,7 @@ export async function GET(req: NextRequest) {
   if (error?.message?.includes('heure_fin_prevue')) {
     const fallback = sb
       .from('interventions')
-      .select('id, reference, client_id, technicien_id, agence, type_intervention, adresse_chantier, ville, code_postal, date_prevue, heure_prevue, duree_estimee_min, date_realisee, urgence, statut, prix_prevu, notes_internes, publie_slug, canal_acquisition, terrain_step, created_at, updated_at')
+      .select('id, reference, client_id, client_final_nom, technicien_id, agence, type_intervention, adresse_chantier, ville, code_postal, date_prevue, heure_prevue, duree_estimee_min, date_realisee, urgence, statut, prix_prevu, notes_internes, publie_slug, canal_acquisition, terrain_step, created_at, updated_at')
       .order('date_prevue', { ascending: true, nullsFirst: false })
       .order('heure_prevue', { ascending: true, nullsFirst: false })
       .range(0, limit - 1)

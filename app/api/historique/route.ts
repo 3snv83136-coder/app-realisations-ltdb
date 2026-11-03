@@ -35,7 +35,7 @@ export async function GET(req: NextRequest) {
   const [intRes, docRes] = await Promise.all([
     sb
       .from('interventions')
-      .select('id, reference, type_intervention, adresse_chantier, ville, code_postal, date_realisee, date_prevue, statut, agence, publie_slug, created_at, client_id, technicien_id, rapport_json, photos_urls, pdf_rapport_url')
+      .select('id, reference, type_intervention, adresse_chantier, ville, code_postal, date_realisee, date_prevue, statut, agence, publie_slug, created_at, client_id, client_final_nom, technicien_id, rapport_json, photos_urls, pdf_rapport_url')
       .order('created_at', { ascending: false })
       .range(0, rangeEnd),
     sb
@@ -162,6 +162,7 @@ export async function GET(req: NextRequest) {
     return {
       ...i,
       client_nom: c?.nom || null,
+      client_final_nom: (i.client_final_nom as string | null) || null,
       client_email: c?.email || null,
       client_adresse: c?.adresse || null,
       client_code_postal: c?.code_postal || null,

@@ -317,18 +317,6 @@ export default function InterventionDetailPage({ params }: { params: { id: strin
     return () => { cancelled = true }
   }, [intervention?.id, intervention?.statut, techniciens.length])
 
-  // Intervention « Devis » : pas de mode terrain → génération devis directe
-  useEffect(() => {
-    if (!intervention || loading) return
-    if (!isDevisIntervention(intervention.type_intervention)) return
-    if (hasDevis) return
-    if (intervention.statut === 'annulee' || intervention.statut === 'terminee') return
-    const key = `ltdb_devis_redirect_${intervention.id}`
-    if (typeof sessionStorage !== 'undefined' && sessionStorage.getItem(key) === '1') return
-    sessionStorage.setItem(key, '1')
-    router.replace(`/devis?intervention=${intervention.id}`)
-  }, [intervention, loading, hasDevis, router, params.id])
-
   // Recharge la fiche quand l'onglet redevient visible ou prend le focus.
   // Garantit que hasFacture est à jour après suppression d'une facture
   // dans un autre onglet/page (ex: /historique).
@@ -837,18 +825,18 @@ export default function InterventionDetailPage({ params }: { params: { id: strin
 
         {/* Client */}
         <section className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 space-y-3">
-          <h2 className="text-sm font-bold uppercase tracking-wider text-slate-500">Client</h2>
+          <h2 className="text-sm font-bold uppercase tracking-wider text-slate-500">Donneur d&apos;ordre &amp; client</h2>
           {editing && client ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-blue-50 rounded-xl p-3 border border-blue-200">
-              <EditField label="Nom facturé">
+              <EditField label="Donneur d'ordre (société / facturé)">
                 <input value={clientForm.nom || ''} onChange={e => setClientForm(f => ({ ...f, nom: e.target.value }))} className={editInputCls} />
               </EditField>
-              <EditField label="Client concerné (occupant)">
+              <EditField label="Client de l'intervention">
                 <input
                   value={form.client_final_nom || ''}
                   onChange={e => setForm(f => ({ ...f, client_final_nom: e.target.value }))}
                   className={editInputCls}
-                  placeholder="Si différent du syndic / client facturé"
+                  placeholder="Nom du client chez qui tu interviens"
                 />
               </EditField>
               <EditField label="Téléphone">
@@ -873,13 +861,13 @@ export default function InterventionDetailPage({ params }: { params: { id: strin
             </div>
           ) : client ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
-              <InfoCell label="Nom facturé" value={client.nom} />
-              <InfoCell label="Client concerné" value={intervention.client_final_nom || '—'} />
+              <InfoCell label="Donneur d'ordre" value={client.nom} />
+              <InfoCell label="Client de l'intervention" value={intervention.client_final_nom || '—'} />
               <InfoCell label="Téléphone" value={client.telephone ? <a href={`tel:${client.telephone}`} className="text-blue-600 hover:underline font-bold">{client.telephone}</a> : '—'} />
               <InfoCell label="Email" value={client.email ? <a href={`mailto:${client.email}`} className="text-blue-600 hover:underline">{client.email}</a> : '—'} />
               <InfoCell label="Ville" value={[client.code_postal, client.ville].filter(Boolean).join(' ') || '—'} />
               <div className="sm:col-span-2">
-                <InfoCell label="Adresse client" value={client.adresse || '—'} />
+                <InfoCell label="Adresse donneur d'ordre" value={client.adresse || '—'} />
               </div>
             </div>
           ) : (
