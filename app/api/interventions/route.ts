@@ -292,7 +292,7 @@ export async function POST(req: NextRequest) {
 
   for (let attempt = 0; attempt < 8; attempt++) {
     const row: Record<string, unknown> = { ...baseRow }
-    for (const col of strippedCols) delete row[col]
+    strippedCols.forEach(col => { delete row[col] })
 
     const res = await sb
       .from('interventions')
