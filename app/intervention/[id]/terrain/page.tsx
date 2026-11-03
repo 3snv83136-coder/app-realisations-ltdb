@@ -1566,15 +1566,38 @@ function StepDevisOption({ interv, client, onContinue, onError }: {
       </div>
 
       <div className="bg-white rounded-2xl border-2 border-slate-200 p-4 space-y-3">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-2 flex-wrap">
           <h2 className="text-sm font-bold uppercase tracking-wider text-slate-500">Prestations</h2>
-          <button
-            type="button"
-            onClick={ajouterLigne}
-            className="text-xs font-bold bg-amber-100 text-amber-800 hover:bg-amber-200 rounded-lg px-3 py-1.5 transition"
-          >
-            + Ajouter
-          </button>
+          <div className="flex items-center gap-2">
+            <FactureRemiseButton
+              compact
+              title="Remise sur devis"
+              lignes={lignes}
+              onAdd={line => {
+                if (!devis) return
+                setDevis({
+                  ...devis,
+                  lignes: [
+                    ...devis.lignes,
+                    {
+                      designation: line.designation,
+                      description: line.description,
+                      qte: line.qte,
+                      unite: line.unite || 'forfait',
+                      pu_ht: line.pu_ht,
+                    },
+                  ],
+                })
+              }}
+            />
+            <button
+              type="button"
+              onClick={ajouterLigne}
+              className="text-xs font-bold bg-amber-100 text-amber-800 hover:bg-amber-200 rounded-lg px-3 py-1.5 transition"
+            >
+              + Ajouter
+            </button>
+          </div>
         </div>
 
         {lignes.length === 0 && (
@@ -1626,16 +1649,15 @@ function StepDevisOption({ interv, client, onContinue, onError }: {
               <input
                 type="number"
                 inputMode="decimal"
-                min="0"
                 step="0.01"
                 value={l.pu_ht}
                 onChange={e => updateLigne(i, { pu_ht: Number(e.target.value) || 0 })}
                 placeholder="Prix HT"
-                className="col-span-5 border-2 border-slate-200 focus:border-amber-500 outline-none rounded-lg px-2 py-2 text-sm text-right tabular-nums bg-white"
+                className={`col-span-5 border-2 border-slate-200 focus:border-amber-500 outline-none rounded-lg px-2 py-2 text-sm text-right tabular-nums bg-white ${Number(l.qte) * Number(l.pu_ht) < 0 ? 'text-amber-800 font-semibold' : ''}`}
                 aria-label="Prix unitaire HT"
               />
             </div>
-            <div className="text-right text-sm font-bold tabular-nums text-slate-700">
+            <div className={`text-right text-sm font-bold tabular-nums ${Number(l.qte) * Number(l.pu_ht) < 0 ? 'text-amber-800' : 'text-slate-700'}`}>
               {(Number(l.qte) * Number(l.pu_ht)).toFixed(2)} € HT
             </div>
           </div>

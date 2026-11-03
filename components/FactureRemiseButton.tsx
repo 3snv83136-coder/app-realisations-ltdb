@@ -2,16 +2,23 @@
 
 import { useState } from "react"
 import type { FactureLineData } from "@/components/FacturePDF"
-import { buildRemiseLine, sousTotalFacturePositif } from "@/lib/facture-remise"
+import { buildRemiseLine, sousTotalFacturePositif, type LignePourRemise } from "@/lib/facture-remise"
 
 type Props = {
-  lignes: FactureLineData[]
+  lignes: LignePourRemise[]
   onAdd: (line: FactureLineData) => void
   /** Compact pour le mode terrain. */
   compact?: boolean
+  /** Titre du panneau (facture / devis). */
+  title?: string
 }
 
-export default function FactureRemiseButton({ lignes, onAdd, compact }: Props) {
+export default function FactureRemiseButton({
+  lignes,
+  onAdd,
+  compact,
+  title = "Remise sur facture",
+}: Props) {
   const [open, setOpen] = useState(false)
   const [mode, setMode] = useState<"montant" | "pourcent">("pourcent")
   const [value, setValue] = useState("")
@@ -78,7 +85,7 @@ export default function FactureRemiseButton({ lignes, onAdd, compact }: Props) {
   return (
     <div className={`rounded-xl border-2 border-amber-200 bg-amber-50 p-3 space-y-2 ${compact ? "" : "mt-2"}`}>
       <div className="flex items-center justify-between gap-2">
-        <span className="text-xs font-bold uppercase tracking-wider text-amber-900">Remise sur facture</span>
+        <span className="text-xs font-bold uppercase tracking-wider text-amber-900">{title}</span>
         <button
           type="button"
           onClick={() => { setOpen(false); setError("") }}

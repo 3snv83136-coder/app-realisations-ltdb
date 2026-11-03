@@ -115,6 +115,8 @@ const s = StyleSheet.create({
   cPu: { width: '18%', paddingHorizontal: 6, fontSize: 9.5, textAlign: 'right' },
   cQte: { width: '14%', paddingHorizontal: 6, fontSize: 9.5, textAlign: 'center' },
   cTot: { width: '18%', paddingHorizontal: 6, fontSize: 9.5, textAlign: 'right', fontFamily: 'Helvetica-Bold' },
+  cRemise: { color: '#92400e' },
+  cRemiseName: { color: '#92400e', fontFamily: 'Helvetica-Bold', fontSize: 9.5 },
 
   /* Totaux */
   totalsMini: { alignSelf: 'flex-end', width: '46%', marginTop: 10 },
@@ -344,10 +346,11 @@ function Band({
 }
 
 function PrestationsLine({ l }: { l: DevisLineData }) {
+  const isRemise = ((l.pu_ht || 0) * (l.qte || 0)) < 0
   return (
     <View style={s.itemsRow} wrap={false} minPresenceAhead={48}>
       <View style={s.cDesig}>
-        <Text style={s.cDesigName}>{l.designation}</Text>
+        <Text style={isRemise ? s.cRemiseName : s.cDesigName}>{l.designation}</Text>
         {l.description ? <Text style={s.cDesigDesc}>{l.description}</Text> : null}
         {(l.photos?.length ?? 0) > 0 ? (
           <View style={s.linePhotos}>
@@ -359,9 +362,9 @@ function PrestationsLine({ l }: { l: DevisLineData }) {
           </View>
         ) : null}
       </View>
-      <Text style={s.cPu}>{fmtEur(l.pu_ht)}</Text>
+      <Text style={[s.cPu, isRemise ? s.cRemise : {}]}>{fmtEur(l.pu_ht)}</Text>
       <Text style={s.cQte}>{l.qte}{l.unite ? ` ${l.unite}` : ''}</Text>
-      <Text style={s.cTot}>{fmtEur(l.pu_ht * l.qte)}</Text>
+      <Text style={[s.cTot, isRemise ? s.cRemise : {}]}>{fmtEur(l.pu_ht * l.qte)}</Text>
     </View>
   )
 }

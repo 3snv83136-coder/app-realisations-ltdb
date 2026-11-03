@@ -1,7 +1,14 @@
 import type { FactureLineData } from "@/components/FacturePDF"
 
+/** Ligne minimale pour calculer un sous-total (facture ou devis). */
+export type LignePourRemise = {
+  pu_ht?: number
+  qte?: number
+  inclus?: boolean
+}
+
 /** Sous-total HT des lignes positives (hors inclus, hors remises déjà présentes). */
-export function sousTotalFacturePositif(lignes: FactureLineData[]): number {
+export function sousTotalFacturePositif(lignes: LignePourRemise[]): number {
   return lignes.reduce((sum, l) => {
     if (l.inclus) return sum
     const tot = (Number(l.pu_ht) || 0) * (Number(l.qte) || 0)

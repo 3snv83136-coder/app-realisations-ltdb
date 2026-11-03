@@ -10,6 +10,7 @@ import DevisTabs from "@/components/DevisTabs"
 import VilleCombobox from "@/components/VilleCombobox"
 import ClientAutocomplete from "@/components/ClientAutocomplete"
 import PrestationsCombobox from "@/components/PrestationsCombobox"
+import FactureRemiseButton from "@/components/FactureRemiseButton"
 import { useUnsavedChangesWarning } from "@/lib/useUnsavedChangesWarning"
 import type { DevisPDFProps, DevisLineData, DevisConstatItem, ClientData, DevisData } from "@/components/DevisPDF"
 import { LTDB_EMETTEUR } from "@/lib/emetteur"
@@ -761,9 +762,32 @@ function DevisPageContent() {
 
           {/* Lignes */}
           <section className="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 space-y-3">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between gap-3 flex-wrap">
               <h2 className="font-bold text-[#0e2a52]">Prestations</h2>
-              <button onClick={addLine} className="text-sm font-semibold text-blue-700 hover:text-blue-900">+ Ajouter une ligne</button>
+              <div className="flex items-center gap-3">
+                <FactureRemiseButton
+                  title="Remise sur devis"
+                  lignes={devis.lignes}
+                  onAdd={line => {
+                    const lastSection = devis.lignes[devis.lignes.length - 1]?.section || '1. Prestations'
+                    setDevis({
+                      ...devis,
+                      lignes: [
+                        ...devis.lignes,
+                        {
+                          section: lastSection,
+                          designation: line.designation,
+                          description: line.description,
+                          qte: line.qte,
+                          unite: line.unite || 'forfait',
+                          pu_ht: line.pu_ht,
+                        },
+                      ],
+                    })
+                  }}
+                />
+                <button onClick={addLine} className="text-sm font-semibold text-blue-700 hover:text-blue-900">+ Ajouter une ligne</button>
+              </div>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
@@ -860,13 +884,13 @@ function DevisPageContent() {
                       </td>
                       <td className="py-1 pr-2">
                         <input
-                          type="number" step="0.01" min="0"
+                          type="number" step="0.01"
                           value={l.pu_ht}
                           onChange={e => updateLine(i, { pu_ht: Number(e.target.value) })}
-                          className="w-full border border-slate-200 rounded px-2 py-1 text-right"
+                          className={`w-full border border-slate-200 rounded px-2 py-1 text-right ${l.qte * l.pu_ht < 0 ? 'text-amber-800 font-semibold' : ''}`}
                         />
                       </td>
-                      <td className="py-1 pr-2 text-right font-semibold text-[#0e2a52]">
+                      <td className={`py-1 pr-2 text-right font-semibold ${l.qte * l.pu_ht < 0 ? 'text-amber-800' : 'text-[#0e2a52]'}`}>
                         {(l.qte * l.pu_ht).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €
                       </td>
                       <td className="py-1">
