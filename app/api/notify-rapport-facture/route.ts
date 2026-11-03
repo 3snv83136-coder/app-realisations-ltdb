@@ -18,6 +18,7 @@ import { pdfBufferHasText } from "@/lib/pdf-text-check"
 import { generateTerrainPdfsOnServer } from "@/lib/terrain-pdf-server"
 import { loadAttestationPdfBase64ForIntervention } from "@/lib/attestation-pdf-for-mail"
 import { isAttestationConformite, isInspectionCamera } from "@/lib/types-intervention"
+import { buildFactureExtraAttachments } from "@/lib/admin-documents"
 
 export const maxDuration = 120
 
@@ -48,6 +49,10 @@ export async function POST(req: NextRequest) {
     forceResend?: boolean
     /** Régénère les PDF serveur avant envoi (défaut : true). */
     regeneratePdfs?: boolean
+    /** Joindre le Kbis stocké (admin/documents) */
+    joindreKbis?: boolean
+    /** Joindre le RIB stocké (admin/documents) */
+    joindreRib?: boolean
   }
   try {
     body = await req.json()
@@ -313,6 +318,16 @@ export async function POST(req: NextRequest) {
     ? `Votre rapport, facture et attestation${factureNum ? ` ${factureNum}` : ''}${ville ? ` — ${ville}` : ''}`
     : `Votre rapport et facture${factureNum ? ` ${factureNum}` : ''}${ville ? ` — ${ville}` : ''}`
 
+  let adminExtras: { filename: string; content: string }[] = []
+  try {
+    adminExtras = await buildFactureExtraAttachments({
+      joindreKbis: Boolean(body.joindreKbis),
+      joindreRib: Boolean(body.joindreRib),
+    })
+  } catch (e) {
+    console.error('[notify-rapport-facture] pièces admin', e)
+  }
+
   const immediate = await resend.emails.send({
     from: `Les Techniciens du Débouchage <${fromEmail}>`,
     to: recipient,
@@ -336,6 +351,7 @@ export async function POST(req: NextRequest) {
             content: attestationB64,
           }]
         : []),
+      ...adminExtras,
     ],
   })
 
@@ -452,6 +468,8 @@ export async function POST(req: NextRequest) {
       facture: true,
       accord: !!accordB64,
       attestation: !!attestationB64,
+      kbis: adminExtras.some(a => /kbis/i.test(a.filename)),
+      rib: adminExtras.some(a => /rib|iban/i.test(a.filename)),
     },
     followUp_ids: relanceIds,
     avis_sms_planifies: smsPlanned,

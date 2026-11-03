@@ -1,5 +1,5 @@
 'use client'
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import SendSmsButton from "@/components/SendSmsButton"
@@ -36,6 +36,22 @@ export default function InterventionActionsHub({
   const [status, setStatus] = useState<string | null>(null)
   const [gmbBusy, setGmbBusy] = useState(false)
   const [gmbStatus, setGmbStatus] = useState<string | null>(null)
+  const [joindreKbis, setJoindreKbis] = useState(false)
+  const [joindreRib, setJoindreRib] = useState(false)
+  const [docsDispo, setDocsDispo] = useState<{ kbis: boolean; rib: boolean }>({ kbis: false, rib: false })
+
+  useEffect(() => {
+    if (!sendOpen) return
+    let cancelled = false
+    fetch('/api/admin/documents', { cache: 'no-store' })
+      .then(r => (r.ok ? r.json() : null))
+      .then(data => {
+        if (cancelled || !data) return
+        setDocsDispo({ kbis: Boolean(data.kbis?.url), rib: Boolean(data.rib?.url) })
+      })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [sendOpen])
 
   async function sendCombined() {
     if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) {
@@ -47,7 +63,12 @@ export default function InterventionActionsHub({
       const res = await fetch('/api/notify-rapport-facture', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ interventionId, clientEmail: email }),
+        body: JSON.stringify({
+          interventionId,
+          clientEmail: email,
+          joindreKbis: joindreKbis && docsDispo.kbis,
+          joindreRib: joindreRib && docsDispo.rib,
+        }),
       })
       const j = await res.json()
       if (!res.ok || j.error) {
@@ -56,7 +77,7 @@ export default function InterventionActionsHub({
         setStatus(`⚠ Déjà envoyé récemment — aucun nouvel envoi (${j.recipient || email})`)
       } else {
         const pj = j.attachments
-          ? `rapport ${j.attachments.rapport ? '✓' : '✗'}, facture ${j.attachments.facture ? '✓' : '✗'}, accord ${j.attachments.accord ? '✓' : '✗'}, attestation ${j.attachments.attestation ? '✓' : '✗'}`
+          ? `rapport ${j.attachments.rapport ? '✓' : '✗'}, facture ${j.attachments.facture ? '✓' : '✗'}, accord ${j.attachments.accord ? '✓' : '✗'}, attestation ${j.attachments.attestation ? '✓' : '✗'}${j.attachments.kbis ? ', Kbis ✓' : ''}${j.attachments.rib ? ', RIB ✓' : ''}`
           : ''
         const ack = j.owner_confirmation ? 'Accusé gérant ✓' : 'Accusé gérant ✗'
         setStatus(`Envoyé à ${j.recipient || email} · ${pj} · ${ack}`)
@@ -200,6 +221,37 @@ export default function InterventionActionsHub({
               className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:border-[#0e2a52] outline-none text-sm"
               disabled={sending}
             />
+            {(docsDispo.kbis || docsDispo.rib) && (
+              <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 space-y-2">
+                <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                  Pièces jointes optionnelles
+                </div>
+                {docsDispo.kbis && (
+                  <label className="flex items-center gap-2 text-sm text-slate-800 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={joindreKbis}
+                      onChange={e => setJoindreKbis(e.target.checked)}
+                      disabled={sending}
+                      className="rounded border-slate-300 text-[#0e2a52] focus:ring-[#0e2a52]"
+                    />
+                    <span>Joindre le <strong>Kbis</strong></span>
+                  </label>
+                )}
+                {docsDispo.rib && (
+                  <label className="flex items-center gap-2 text-sm text-slate-800 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={joindreRib}
+                      onChange={e => setJoindreRib(e.target.checked)}
+                      disabled={sending}
+                      className="rounded border-slate-300 text-[#0e2a52] focus:ring-[#0e2a52]"
+                    />
+                    <span>Joindre le <strong>RIB</strong></span>
+                  </label>
+                )}
+              </div>
+            )}
             {status && (
               <div className={`mt-3 text-sm ${status.startsWith('Envoyé') ? 'text-emerald-600' : 'text-red-600'}`}>{status}</div>
             )}

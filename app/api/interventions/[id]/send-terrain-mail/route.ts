@@ -32,7 +32,15 @@ export async function POST(req: NextRequest, { params }: Params) {
     return NextResponse.json({ error: access.error }, { status: access.status })
   }
 
-  let body: { clientEmail?: string; nom?: string; ccEmail?: string; telephone?: string; forceResend?: boolean }
+  let body: {
+    clientEmail?: string
+    nom?: string
+    ccEmail?: string
+    telephone?: string
+    forceResend?: boolean
+    joindreKbis?: boolean
+    joindreRib?: boolean
+  }
   try {
     body = await req.json()
   } catch {
@@ -116,6 +124,8 @@ export async function POST(req: NextRequest, { params }: Params) {
       ccEmail: (body.ccEmail || "").trim() || undefined,
       forceResend: !!body.forceResend,
       regeneratePdfs: false,
+      joindreKbis: !!body.joindreKbis,
+      joindreRib: !!body.joindreRib,
     }),
   })
 

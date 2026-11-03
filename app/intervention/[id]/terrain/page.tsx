@@ -1809,9 +1809,19 @@ function TerrainDiffusionPanel({ interv, client, onRefresh, onError, techOnlyMai
     alreadySent?: boolean
     ownerConfirmation?: boolean
     ownerRecipients?: string[]
-    attachments?: { rapport?: boolean; facture?: boolean; accord?: boolean; attestation?: boolean }
+    attachments?: {
+      rapport?: boolean
+      facture?: boolean
+      accord?: boolean
+      attestation?: boolean
+      kbis?: boolean
+      rib?: boolean
+    }
     warnings: string[]
   } | null>(null)
+  const [joindreKbis, setJoindreKbis] = useState(false)
+  const [joindreRib, setJoindreRib] = useState(false)
+  const [docsDispo, setDocsDispo] = useState<{ kbis: boolean; rib: boolean }>({ kbis: false, rib: false })
   const mailRef = useRef(false)
   const smsRef = useRef(false)
 
@@ -1830,6 +1840,18 @@ function TerrainDiffusionPanel({ interv, client, onRefresh, onError, techOnlyMai
   useEffect(() => {
     setSmsOpenUri(null)
   }, [telephone])
+
+  useEffect(() => {
+    let cancelled = false
+    fetch('/api/admin/documents', { cache: 'no-store' })
+      .then(r => (r.ok ? r.json() : null))
+      .then(data => {
+        if (cancelled || !data) return
+        setDocsDispo({ kbis: Boolean(data.kbis?.url), rib: Boolean(data.rib?.url) })
+      })
+      .catch(() => { /* docs admin optionnels */ })
+    return () => { cancelled = true }
+  }, [])
 
   const mailDone = !!interv.mail_envoye_at
   const smsDone = !!interv.sms_envoye_at
@@ -1871,7 +1893,14 @@ function TerrainDiffusionPanel({ interv, client, onRefresh, onError, techOnlyMai
         attestation_warning?: string
         test_mode_warning?: string
         warning?: string
-        attachments?: { rapport?: boolean; facture?: boolean; accord?: boolean; attestation?: boolean }
+        attachments?: {
+          rapport?: boolean
+          facture?: boolean
+          accord?: boolean
+          attestation?: boolean
+          kbis?: boolean
+          rib?: boolean
+        }
         immediate_id?: string
         owner_confirmation_to?: string[]
       }>(
@@ -1885,6 +1914,8 @@ function TerrainDiffusionPanel({ interv, client, onRefresh, onError, techOnlyMai
             ccEmail: emailCc.trim() || undefined,
             telephone: telephone.trim() || undefined,
             forceResend,
+            joindreKbis: joindreKbis && docsDispo.kbis,
+            joindreRib: joindreRib && docsDispo.rib,
           }),
           retries: 2,
           timeoutMs: 120_000,
@@ -2186,6 +2217,38 @@ function TerrainDiffusionPanel({ interv, client, onRefresh, onError, techOnlyMai
             Facture impayée : relances J+10/15/20.
           </div>
         </div>
+
+        {(docsDispo.kbis || docsDispo.rib) && (
+          <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 space-y-2">
+            <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+              Pièces jointes optionnelles
+            </div>
+            {docsDispo.kbis && (
+              <label className="flex items-center gap-2 text-sm text-slate-800 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={joindreKbis}
+                  onChange={e => setJoindreKbis(e.target.checked)}
+                  disabled={!!busy}
+                  className="rounded border-slate-300 text-[#0e2a52] focus:ring-[#0e2a52]"
+                />
+                <span>Joindre le <strong>Kbis</strong></span>
+              </label>
+            )}
+            {docsDispo.rib && (
+              <label className="flex items-center gap-2 text-sm text-slate-800 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={joindreRib}
+                  onChange={e => setJoindreRib(e.target.checked)}
+                  disabled={!!busy}
+                  className="rounded border-slate-300 text-[#0e2a52] focus:ring-[#0e2a52]"
+                />
+                <span>Joindre le <strong>RIB</strong></span>
+              </label>
+            )}
+          </div>
+        )}
       </div>
 
       {progress && (
@@ -2228,6 +2291,12 @@ function TerrainDiffusionPanel({ interv, client, onRefresh, onError, techOnlyMai
               {' · '}facture {mailResult.attachments.facture ? '✓' : '✗'}
               {' · '}accord {mailResult.attachments.accord ? '✓' : '✗'}
               {' · '}attestation {mailResult.attachments.attestation ? '✓' : '✗'}
+              {mailResult.attachments.kbis != null && (
+                <>{' · '}Kbis {mailResult.attachments.kbis ? '✓' : '—'}</>
+              )}
+              {mailResult.attachments.rib != null && (
+                <>{' · '}RIB {mailResult.attachments.rib ? '✓' : '—'}</>
+              )}
             </p>
           )}
           <p>Accusé gérant : {mailResult.ownerConfirmation ? '✓ envoyé' : '✗ non reçu'}</p>
