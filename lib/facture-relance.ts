@@ -29,7 +29,7 @@ export {
 
 export type RelanceFactureTone = "cordial" | "neutre" | "ferme" | "ferme_plus"
 
-export function toneForRelanceNumero(numero: number, total = NB_RELANCES_FACTURE): RelanceFactureTone {
+export function toneForRelanceNumero(numero: number, total: number = NB_RELANCES_FACTURE): RelanceFactureTone {
   if (total <= 1) return "ferme"
   if (numero <= 1) return "cordial"
   if (numero === 2) return "ferme"
