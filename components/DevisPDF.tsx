@@ -1,8 +1,9 @@
 'use client'
 import React from "react"
 import { Document, Page, Text, View, StyleSheet, Image, PDFDownloadLink } from "@react-pdf/renderer"
-import { PdfBanner, PDF_C } from "./PdfBranding"
+import { PdfBanner, PDF_C, PDF_BANNER_HEIGHT } from "./PdfBranding"
 import { isDevisTravauxVariant } from '@/lib/devis-variant'
+import { resolveAdresseChantierAffichee } from '@/lib/facture-adresse-chantier'
 
 /* ============ CHARTE ============ */
 const C = {
@@ -19,21 +20,29 @@ const C = {
   teal: '#0d9488',
 }
 
+/** Marge sous la vague rouge du bandeau fixe (hors flux). */
+const GAP_BELOW_BANNER_PT = 8
+/** Réserve pied de page fixe. */
+const PAGE_FOOTER_RESERVE = 48
+
 /* ============ STYLES ============ */
 const s = StyleSheet.create({
+  /* Bandeau fixed hors flux → paddingTop réserve l'espace sur CHAQUE page */
   page: {
     paddingHorizontal: 0,
+    paddingTop: PDF_BANNER_HEIGHT + GAP_BELOW_BANNER_PT,
+    paddingBottom: PAGE_FOOTER_RESERVE,
     fontFamily: 'Helvetica',
     fontSize: 9.5,
     color: C.text,
     backgroundColor: C.white,
     lineHeight: 1.45,
   },
-  content: { paddingHorizontal: 40, paddingTop: 16, paddingBottom: 28, flexGrow: 1 },
+  content: { paddingHorizontal: 40, paddingTop: 0, paddingBottom: 6, flexGrow: 1 },
 
   /* Client + métadonnées */
-  infoRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 14 },
-  billTo: { flex: 1, paddingRight: 20 },
+  infoRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 14, alignItems: 'flex-start' },
+  billTo: { width: '55%', paddingRight: 16 },
   sectionLabel: {
     color: C.navy, fontFamily: 'Helvetica-Bold', fontSize: 9,
     textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 5,
@@ -74,14 +83,17 @@ const s = StyleSheet.create({
     borderRadius: 6, borderWidth: 1, borderColor: C.line,
   },
   linePhotos: {
-    flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 6,
+    flexDirection: 'row', flexWrap: 'wrap', marginTop: 6,
+  },
+  linePhotoWrap: {
+    width: 96, marginRight: 6, marginBottom: 6,
   },
   linePhoto: {
-    width: 110, height: 78, objectFit: 'cover',
+    width: 96, height: 68, objectFit: 'cover',
     borderRadius: 4, borderWidth: 1, borderColor: C.line,
   },
   linePhotoCaption: {
-    fontSize: 7.5, color: C.muted, marginTop: 2, width: 110,
+    fontSize: 7.5, color: C.muted, marginTop: 2, width: 96,
   },
 
   constatItem: {
@@ -347,24 +359,30 @@ function Band({
 
 function PrestationsLine({ l }: { l: DevisLineData }) {
   const isRemise = ((l.pu_ht || 0) * (l.qte || 0)) < 0
+  const photos = (l.photos || []).filter(Boolean).slice(0, 3)
+  const hasPhotos = photos.length > 0
+  // Avec photos : laisser le moteur découper la page (évite chevauchements).
+  // Sans photos : garder la ligne entière ensemble.
   return (
-    <View style={s.itemsRow} wrap={false} minPresenceAhead={48}>
-      <View style={s.cDesig}>
-        <Text style={isRemise ? s.cRemiseName : s.cDesigName}>{l.designation}</Text>
-        {l.description ? <Text style={s.cDesigDesc}>{l.description}</Text> : null}
-        {(l.photos?.length ?? 0) > 0 ? (
-          <View style={s.linePhotos}>
-            {l.photos!.slice(0, 4).map((src, pi) => (
-              <View key={pi} wrap={false}>
-                <Image src={src} style={s.linePhoto} />
-              </View>
-            ))}
-          </View>
-        ) : null}
+    <View wrap={hasPhotos ? undefined : false} minPresenceAhead={hasPhotos ? 72 : 44}>
+      <View style={s.itemsRow}>
+        <View style={s.cDesig}>
+          <Text style={isRemise ? s.cRemiseName : s.cDesigName}>{l.designation}</Text>
+          {l.description ? <Text style={s.cDesigDesc}>{l.description}</Text> : null}
+        </View>
+        <Text style={[s.cPu, isRemise ? s.cRemise : {}]}>{fmtEur(l.pu_ht)}</Text>
+        <Text style={s.cQte}>{l.qte}{l.unite ? ` ${l.unite}` : ''}</Text>
+        <Text style={[s.cTot, isRemise ? s.cRemise : {}]}>{fmtEur(l.pu_ht * l.qte)}</Text>
       </View>
-      <Text style={[s.cPu, isRemise ? s.cRemise : {}]}>{fmtEur(l.pu_ht)}</Text>
-      <Text style={s.cQte}>{l.qte}{l.unite ? ` ${l.unite}` : ''}</Text>
-      <Text style={[s.cTot, isRemise ? s.cRemise : {}]}>{fmtEur(l.pu_ht * l.qte)}</Text>
+      {hasPhotos ? (
+        <View style={[s.linePhotos, { paddingHorizontal: 8, paddingBottom: 6 }]}>
+          {photos.map((src, pi) => (
+            <View key={pi} style={s.linePhotoWrap} wrap={false}>
+              <Image src={src} style={s.linePhoto} />
+            </View>
+          ))}
+        </View>
+      ) : null}
     </View>
   )
 }
@@ -375,7 +393,7 @@ export function DevisDocument({ emetteur, client, devis, phone }: DevisPDFProps)
   const dateFmt = fmtDateFR(devis.date_devis)
   const tvaTaux = devis.tva_taux ?? 10
 
-  const totalHT = devis.lignes.reduce((sum, l) => sum + l.pu_ht * l.qte, 0)
+  const totalHT = devis.lignes.reduce((sum, l) => sum + (Number(l.pu_ht) || 0) * (Number(l.qte) || 0), 0)
   const tva = totalHT * tvaTaux / 100
   const totalTTC = totalHT + tva
 
@@ -389,6 +407,10 @@ export function DevisDocument({ emetteur, client, devis, phone }: DevisPDFProps)
     : ['Chèque', 'Virement bancaire', 'Carte bancaire', 'Espèces (dans la limite légale)']
 
   const sections = groupBySection(devis.lignes)
+  const adresseChantierAffichee = resolveAdresseChantierAffichee(
+    client.adresseChantier,
+    client.adresseLignes || [],
+  )
 
   const subTitle = [
     `établi le ${dateFmt}`,
@@ -434,10 +456,10 @@ export function DevisDocument({ emetteur, client, devis, phone }: DevisPDFProps)
                   <Text key={i} style={s.clientLine}>{l}</Text>
                 ))}
                 {client.siret ? <Text style={s.clientLine}>SIRET {client.siret}</Text> : null}
-                {client.adresseChantier ? (
+                {adresseChantierAffichee ? (
                   <>
                     <Text style={s.clientLabel}>Adresse du chantier :</Text>
-                    <Text style={s.clientLine}>{client.adresseChantier}</Text>
+                    <Text style={s.clientLine}>{adresseChantierAffichee}</Text>
                   </>
                 ) : null}
               </View>
@@ -462,7 +484,7 @@ export function DevisDocument({ emetteur, client, devis, phone }: DevisPDFProps)
 
           {/* ===== Objet ===== */}
           {devis.objet ? (
-            <DevisBlock minPresenceAhead={72}>
+            <DevisBlock splitable minPresenceAhead={64}>
               <Band label="Objet du devis" />
               <View style={s.objetBox}>
                 <Text style={s.objetText}>{devis.objet}</Text>
@@ -518,7 +540,7 @@ export function DevisDocument({ emetteur, client, devis, phone }: DevisPDFProps)
 
           {/* ===== Non garantie ===== */}
           {devis.non_garantie ? (
-            <DevisBlock minPresenceAhead={80}>
+            <DevisBlock splitable minPresenceAhead={72}>
               <Band label="Non garantie suite à notre intervention" />
               <View style={s.objetBox}>
                 <Text style={s.objetText}>{devis.non_garantie}</Text>
@@ -600,11 +622,11 @@ export function DevisDocument({ emetteur, client, devis, phone }: DevisPDFProps)
 
           {/* ===== Conditions d'exécution ===== */}
           {devis.conditions ? (
-            <DevisBlock minPresenceAhead={160}>
+            <DevisBlock splitable minPresenceAhead={88}>
               <Band label="Conditions d'exécution" />
               <View style={s.condTable}>
                 {conditionRows.map((row, i, arr) => (
-                  <View key={i} style={[s.condRow, i === arr.length - 1 ? s.condRowLast : {}]} wrap={false}>
+                  <View key={i} style={[s.condRow, i === arr.length - 1 ? s.condRowLast : {}]} wrap={false} minPresenceAhead={40}>
                     <Text style={s.condLabel}>{row.k}</Text>
                     <Text style={s.condValue}>{row.v}</Text>
                   </View>
@@ -614,7 +636,7 @@ export function DevisDocument({ emetteur, client, devis, phone }: DevisPDFProps)
           ) : null}
 
           {/* ===== Modalités de règlement ===== */}
-          <DevisBlock minPresenceAhead={140}>
+          <DevisBlock minPresenceAhead={120}>
             <Band label="Modalités de règlement" tone="red" />
             <View style={s.modalitesBox}>
               <Text style={s.modalitesP}>

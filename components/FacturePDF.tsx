@@ -4,7 +4,7 @@ import type { EmetteurData, ClientData } from "./DevisPDF"
 import { FACTURE_MENTIONS_LEGALES } from "@/lib/entreprise"
 import { MENTION_TVA_FRANCHISE } from "@/lib/accord/blocs-legaux"
 import { resolveAdresseChantierAffichee } from "@/lib/facture-adresse-chantier"
-import { PdfBanner, PDF_C } from "./PdfBranding"
+import { PdfBanner, PDF_C, PDF_BANNER_HEIGHT } from "./PdfBranding"
 import type { Agence } from "@/lib/agences"
 
 export type { Agence } from "@/lib/agences"
@@ -31,16 +31,21 @@ const C = {
 }
 
 /* ============ STYLES ============ */
+const GAP_BELOW_BANNER_PT = 8
+const PAGE_FOOTER_RESERVE = 48
+
 const s = StyleSheet.create({
   page: {
     paddingHorizontal: 0,
+    paddingTop: PDF_BANNER_HEIGHT + GAP_BELOW_BANNER_PT,
+    paddingBottom: PAGE_FOOTER_RESERVE,
     fontFamily: 'Helvetica',
     fontSize: 9.5,
     color: C.text,
     backgroundColor: C.white,
     lineHeight: 1.45,
   },
-  content: { paddingHorizontal: 40, paddingTop: 16, paddingBottom: 10, flexGrow: 1 },
+  content: { paddingHorizontal: 40, paddingTop: 0, paddingBottom: 6, flexGrow: 1 },
 
   /* Client + métadonnées */
   infoRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 14 },
