@@ -285,16 +285,14 @@ export async function POST(req: NextRequest) {
   let inserted: ({ id: string; technicien_id: string | null } & Record<string, unknown>) | null = null
   let insertErr: PostgrestError | null = null
   let currentRef = baseReference
-  // Tant que 028/029/034 ne sont pas appliquées, on retire ces colonnes une fois pour toutes.
-  let stripOptionalCols = false
+  // Colonnes optionnelles absentes (migrations non appliquées) : on retire
+  // UNIQUEMENT la colonne en erreur, pas les autres (sinon client_final_nom
+  // disparaissait dès qu'une autre colonne optionnelle manquait).
+  const strippedCols = new Set<string>()
 
   for (let attempt = 0; attempt < 8; attempt++) {
     const row: Record<string, unknown> = { ...baseRow }
-    if (stripOptionalCols) {
-      delete row.mode_paiement
-      delete row.heure_fin_prevue
-      delete row.client_final_nom
-    }
+    for (const col of strippedCols) delete row[col]
 
     const res = await sb
       .from('interventions')
@@ -312,24 +310,23 @@ export async function POST(req: NextRequest) {
     const msg = res.error?.message || ''
 
     if (
-      !stripOptionalCols
-      && (
-        msg.includes('mode_paiement')
-        || msg.includes('heure_fin_prevue')
-        || msg.includes('client_final_nom')
-      )
+      msg.includes('mode_paiement')
+      || msg.includes('heure_fin_prevue')
+      || msg.includes('client_final_nom')
     ) {
       // Ancienne contrainte mono-mode (migration 030 absente) : garder le 1er mode.
       if (
-        /check|constraint/i.test(msg)
+        msg.includes('mode_paiement')
+        && /check|constraint/i.test(msg)
         && typeof baseRow.mode_paiement === 'string'
         && String(baseRow.mode_paiement).includes(',')
       ) {
         baseRow.mode_paiement = String(baseRow.mode_paiement).split(',')[0]
         continue
       }
-      // Colonnes absentes (028/029/034) → on les retire pour les essais suivants.
-      stripOptionalCols = true
+      if (msg.includes('mode_paiement')) strippedCols.add('mode_paiement')
+      if (msg.includes('heure_fin_prevue')) strippedCols.add('heure_fin_prevue')
+      if (msg.includes('client_final_nom')) strippedCols.add('client_final_nom')
       continue
     }
 

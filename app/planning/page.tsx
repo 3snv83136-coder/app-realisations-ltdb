@@ -974,8 +974,7 @@ function NouvelleInterventionModal({
           <section className="space-y-3">
             <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500">Donneur d&apos;ordre &amp; client</h3>
             <p className="text-xs text-slate-500 -mt-1">
-              Sous-traitance : le <strong>donneur d&apos;ordre</strong> est la société qui te commande ;
-              le <strong>client de l&apos;intervention</strong> est celui chez qui tu te rends (recherche possible sur ce nom).
+              Remplis les <strong>deux blocs</strong> : société qui commande + client chez qui tu interviens.
             </p>
 
             <div className="bg-emerald-50 border-2 border-emerald-200 rounded-xl p-3 space-y-2">
@@ -1033,49 +1032,69 @@ function NouvelleInterventionModal({
                 setClientVille(c.ville)
               }}
             />
-            <ClientAutocomplete
-              label="Donneur d'ordre (société / facturé) *"
-              value={clientNom}
-              onTextChange={v => { setClientNom(v); setClientId(null) }}
-              onSelect={c => {
-                setClientId(c.id)
-                setClientNom(c.nom)
-                setClientEmail(c.email || '')
-                setClientTel(c.telephone || '')
-                setClientAdresse(c.adresse || '')
-                setClientCP(c.code_postal || '')
-                setClientVille(c.ville || '')
-              }}
-            />
-            <Field
-              label="Client de l'intervention (chez qui tu interviens)"
-              value={clientFinalNom}
-              onChange={setClientFinalNom}
-              placeholder="Ex. M. Dupont — nom du client final"
-            />
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <Field label="Email" type="email" value={clientEmail} onChange={setClientEmail} placeholder="client@exemple.fr" />
-              <div>
-                <Field label="Téléphone" value={clientTel} onChange={setClientTel} placeholder="06 12 34 56 78" />
-                <PhoneMatchHint
-                  searching={phoneSearching}
-                  matches={phoneMatches}
-                  hasClientId={!!clientId}
-                  onPick={fillFromClient}
-                />
+
+            <div className="rounded-xl border-2 border-slate-200 bg-slate-50 p-3 space-y-3">
+              <div className="text-xs font-black uppercase tracking-wider text-slate-600">
+                1 · Donneur d&apos;ordre (société qui te commande)
               </div>
-              <Field label="Adresse" value={clientAdresse} onChange={setClientAdresse} placeholder="5 rue des Tombades" />
-              <label className="block text-sm">
-                <span className="text-xs uppercase tracking-wide text-slate-500">Ville</span>
-                <div className="mt-1">
-                  <VilleCombobox
-                    value={clientVille}
-                    onChange={setClientVille}
-                    onSelect={v => { setClientVille(v.nom); setClientCP(v.cp) }}
+              <ClientAutocomplete
+                label="Nom du donneur d'ordre *"
+                value={clientNom}
+                onTextChange={v => { setClientNom(v); setClientId(null) }}
+                onSelect={c => {
+                  setClientId(c.id)
+                  setClientNom(c.nom)
+                  setClientEmail(c.email || '')
+                  setClientTel(c.telephone || '')
+                  setClientAdresse(c.adresse || '')
+                  setClientCP(c.code_postal || '')
+                  setClientVille(c.ville || '')
+                }}
+              />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <Field label="Email" type="email" value={clientEmail} onChange={setClientEmail} placeholder="client@exemple.fr" />
+                <div>
+                  <Field label="Téléphone" value={clientTel} onChange={setClientTel} placeholder="06 12 34 56 78" />
+                  <PhoneMatchHint
+                    searching={phoneSearching}
+                    matches={phoneMatches}
+                    hasClientId={!!clientId}
+                    onPick={fillFromClient}
                   />
                 </div>
+                <Field label="Adresse" value={clientAdresse} onChange={setClientAdresse} placeholder="5 rue des Tombades" />
+                <label className="block text-sm">
+                  <span className="text-xs uppercase tracking-wide text-slate-500 font-semibold">Ville</span>
+                  <div className="mt-1">
+                    <VilleCombobox
+                      value={clientVille}
+                      onChange={setClientVille}
+                      onSelect={v => { setClientVille(v.nom); setClientCP(v.cp) }}
+                    />
+                  </div>
+                </label>
+                <Field label="Code postal" value={clientCP} onChange={setClientCP} placeholder="83000" />
+              </div>
+            </div>
+
+            <div className="rounded-xl border-2 border-amber-300 bg-amber-50 p-3 space-y-2">
+              <div className="text-xs font-black uppercase tracking-wider text-amber-900">
+                2 · Client de l&apos;intervention (chez qui tu interviens)
+              </div>
+              <p className="text-[11px] text-amber-900/80">
+                Sous-traitance : saisis ici le nom du client final (ex. M. Dupont). C&apos;est ce nom qui apparaît sur le planning et dans la recherche.
+              </p>
+              <label className="block text-sm">
+                <span className="text-xs uppercase tracking-wide text-amber-900 font-bold">Nom du client *</span>
+                <input
+                  type="text"
+                  value={clientFinalNom}
+                  onChange={e => setClientFinalNom(e.target.value)}
+                  placeholder="Ex. M. Dupont / Mme Martin"
+                  autoComplete="off"
+                  className="w-full border-2 border-amber-300 focus:border-amber-600 outline-none rounded-lg px-3 py-2.5 mt-1 bg-white text-base font-semibold"
+                />
               </label>
-              <Field label="Code postal" value={clientCP} onChange={setClientCP} placeholder="83000" />
             </div>
           </section>
 
