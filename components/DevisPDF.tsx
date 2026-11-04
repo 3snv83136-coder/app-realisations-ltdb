@@ -72,38 +72,37 @@ const s = StyleSheet.create({
   objetText: { color: C.text, fontSize: 9.5, lineHeight: 1.6, marginBottom: 6 },
   objetTextLast: { color: C.text, fontSize: 9.5, lineHeight: 1.6, marginBottom: 0 },
 
-  /* Photos annexe — 1 photo / page, dimensions FIXES (même pattern que InspectionCameraPDF). */
-  photoPage: {
-    paddingHorizontal: 0,
-    paddingTop: 0,
-    paddingBottom: 64,
-    fontFamily: 'Helvetica',
-    fontSize: 9.5,
-    color: C.text,
-    backgroundColor: C.white,
+  /* Photos dans le devis — grille 2 colonnes, dimensions en points (pas %). */
+  photosGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    marginTop: 8,
+    marginBottom: 10,
   },
-  photoPageContent: { paddingHorizontal: 40, paddingTop: 18, paddingBottom: 8 },
-  photoSlot: { width: 515, marginTop: 12 },
+  photoCell: {
+    width: 250,
+    height: 188,
+    marginBottom: 12,
+  },
   photoFrame: {
-    width: 515,
-    height: 400,
+    width: 250,
+    height: 150,
     backgroundColor: C.lineSoft,
     borderRadius: 6,
     borderWidth: 1,
     borderColor: C.line,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   photoImg: {
-    width: 515,
-    height: 400,
-    objectFit: 'contain',
+    width: 250,
+    height: 150,
+    objectFit: 'cover',
   },
   photoCaption: {
-    fontSize: 8.5,
+    fontSize: 7.5,
     color: C.muted,
-    marginTop: 10,
-    width: 515,
+    marginTop: 4,
+    width: 250,
   },
 
   constatItem: {
@@ -383,7 +382,7 @@ function Band({
 
 function PrestationsLine({ l }: { l: DevisLineData }) {
   const isRemise = ((l.pu_ht || 0) * (l.qte || 0)) < 0
-  // Jamais d'Image ici — les photos vont en pages annexes.
+  // Photos hors tableau (galerie après totaux) — sinon chevauchement react-pdf.
   return (
     <View style={s.itemsRow} wrap={false} minPresenceAhead={40}>
       <View style={s.cDesig}>
@@ -404,42 +403,26 @@ function isUsablePhotoSrc(src: unknown): src is string {
   if (typeof src !== 'string') return false
   const t = src.trim()
   if (!t) return false
-  // data URI trop courte = placeholder 8×8 (ne réserve pas de vraie image)
   if (t.startsWith('data:') && t.length < 400) return false
   return true
 }
 
-/** Collecte devis.photos + photos de lignes (max 10) pour les pages annexes. */
+/** Collecte devis.photos + photos de lignes (max 8) pour la galerie du devis. */
 function collectGalleryPhotos(devis: DevisData): GalleryPhoto[] {
   const out: GalleryPhoto[] = []
   for (const src of devis.photos || []) {
     if (!isUsablePhotoSrc(src)) continue
     out.push({ src, caption: '' })
-    if (out.length >= 10) return out
+    if (out.length >= 8) return out
   }
   for (const l of devis.lignes) {
     for (const src of (l.photos || []).slice(0, 2)) {
       if (!isUsablePhotoSrc(src)) continue
       out.push({ src, caption: l.designation || 'Prestation' })
-      if (out.length >= 10) return out
+      if (out.length >= 8) return out
     }
   }
   return out
-}
-
-/**
- * Slot photo — Image à largeur/hauteur explicites (pas d'absolute).
- * Une page = une photo : impossible de chevaucher le tableau ou le pied de page.
- */
-function PhotoSlot({ src, caption }: GalleryPhoto) {
-  return (
-    <View style={s.photoSlot} wrap={false}>
-      <View style={s.photoFrame}>
-        <Image src={src} style={s.photoImg} />
-      </View>
-      {caption ? <Text style={s.photoCaption}>{caption}</Text> : null}
-    </View>
-  )
 }
 
 /* ============ DOCUMENT ============ */
@@ -628,7 +611,23 @@ export function DevisDocument({ emetteur, client, devis, phone }: DevisPDFProps)
             </View>
           </Section>
 
-          {/* Photos → pages annexes dédiées (après signatures), jamais dans ce flux. */}
+          {/* ===== Photos (dans le devis, après totaux — hors tableau) ===== */}
+          {galleryPhotos.length > 0 ? (
+            <Section>
+              <View break />
+              <Band label="Photos" />
+              <View style={s.photosGrid}>
+                {galleryPhotos.map((ph, i) => (
+                  <View key={i} style={s.photoCell} wrap={false} minPresenceAhead={180}>
+                    <View style={s.photoFrame}>
+                      <Image src={ph.src} style={s.photoImg} />
+                    </View>
+                    {ph.caption ? <Text style={s.photoCaption}>{ph.caption}</Text> : null}
+                  </View>
+                ))}
+              </View>
+            </Section>
+          ) : null}
 
           {/* ===== Conditions d'exécution ===== */}
           {devis.conditions ? (
@@ -713,17 +712,6 @@ export function DevisDocument({ emetteur, client, devis, phone }: DevisPDFProps)
 
         <Footer emetteur={emetteur} />
       </Page>
-
-      {/* ===== Pages annexes Photos — 1 photo / page, hors du tableau ===== */}
-      {galleryPhotos.map((ph, pageIdx) => (
-        <Page key={`photos-${pageIdx}`} size="A4" style={s.photoPage}>
-          <View style={s.photoPageContent}>
-            <Band label={pageIdx === 0 ? 'Photos' : 'Photos (suite)'} />
-            <PhotoSlot src={ph.src} caption={ph.caption} />
-          </View>
-          <Footer emetteur={emetteur} />
-        </Page>
-      ))}
     </Document>
   )
 }
