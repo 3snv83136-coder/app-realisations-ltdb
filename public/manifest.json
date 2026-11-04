@@ -1,7 +1,7 @@
 {
   "name": "Les Techniciens du Débouchage",
   "short_name": "LTDB",
-  "description": "Plombiers débouchage Var 83 — urgence 24h/24, 7j/7",
+  "description": "Back-office techniciens LTDB — Les Techniciens du Débouchage",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#0e2a52",
@@ -10,16 +10,28 @@
   "lang": "fr",
   "icons": [
     {
-      "src": "https://lestechniciensdudebouchage.fr/icons/icon-512x512.png",
-      "sizes": "512x512",
+      "src": "/icons/icon-192x192.png",
+      "sizes": "192x192",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
     },
     {
-      "src": "https://lestechniciensdudebouchage.fr/icons/icon-1024x1024.png",
+      "src": "/icons/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/icons/icon-1024x1024.png",
       "sizes": "1024x1024",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
     }
   ],
   "categories": ["business", "utilities"],
@@ -29,11 +41,11 @@
       "name": "Nouveau rapport",
       "short_name": "Rapport",
       "description": "Dicter une intervention",
-      "url": "/intervention/nouveau",
+      "url": "/nouveau",
       "icons": [
         {
-          "src": "https://lestechniciensdudebouchage.fr/icons/icon-512x512.png",
-          "sizes": "512x512"
+          "src": "/icons/icon-192x192.png",
+          "sizes": "192x192"
         }
       ]
     },
@@ -44,8 +56,8 @@
       "url": "/devis",
       "icons": [
         {
-          "src": "https://lestechniciensdudebouchage.fr/icons/icon-512x512.png",
-          "sizes": "512x512"
+          "src": "/icons/icon-192x192.png",
+          "sizes": "192x192"
         }
       ]
     },
@@ -56,8 +68,8 @@
       "url": "/planning",
       "icons": [
         {
-          "src": "https://lestechniciensdudebouchage.fr/icons/icon-512x512.png",
-          "sizes": "512x512"
+          "src": "/icons/icon-192x192.png",
+          "sizes": "192x192"
         }
       ]
     }
