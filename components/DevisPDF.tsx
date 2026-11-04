@@ -1,7 +1,7 @@
 'use client'
 import React from "react"
-import { Document, Page, Text, View, StyleSheet, Image, PDFDownloadLink } from "@react-pdf/renderer"
-import { PdfBanner, PDF_C, PDF_BANNER_HEIGHT } from "./PdfBranding"
+import { Document, Page, Text, View, StyleSheet, PDFDownloadLink } from "@react-pdf/renderer"
+import { PdfBanner, PDF_C } from "./PdfBranding"
 import { isDevisTravauxVariant } from '@/lib/devis-variant'
 import { resolveAdresseChantierAffichee } from '@/lib/facture-adresse-chantier'
 
@@ -20,17 +20,15 @@ const C = {
   teal: '#0d9488',
 }
 
-/** Marge sous la vague rouge du bandeau fixe (hors flux). */
-const GAP_BELOW_BANNER_PT = 8
-/** Réserve pied de page fixe. */
-const PAGE_FOOTER_RESERVE = 48
+/** Réserve pied de page fixe uniquement (le bandeau est dans le flux, page 1). */
+const PAGE_FOOTER_RESERVE = 52
 
 /* ============ STYLES ============ */
 const s = StyleSheet.create({
-  /* Bandeau fixed hors flux → paddingTop réserve l'espace sur CHAQUE page */
+  /* Bandeau EN FLUX (pas fixed) → plus de chevauchement multi-pages. */
   page: {
     paddingHorizontal: 0,
-    paddingTop: PDF_BANNER_HEIGHT + GAP_BELOW_BANNER_PT,
+    paddingTop: 0,
     paddingBottom: PAGE_FOOTER_RESERVE,
     fontFamily: 'Helvetica',
     fontSize: 9.5,
@@ -38,7 +36,7 @@ const s = StyleSheet.create({
     backgroundColor: C.white,
     lineHeight: 1.45,
   },
-  content: { paddingHorizontal: 40, paddingTop: 0, paddingBottom: 6, flexGrow: 1 },
+  content: { paddingHorizontal: 40, paddingTop: 12, paddingBottom: 8 },
 
   /* Client + métadonnées */
   infoRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 14, alignItems: 'flex-start' },
@@ -67,34 +65,12 @@ const s = StyleSheet.create({
   bandTxt: { color: C.white, fontSize: 10, fontFamily: 'Helvetica-Bold', letterSpacing: 0.5, textTransform: 'uppercase' },
 
   objetBox: {
-    borderWidth: 1, borderColor: C.line, backgroundColor: C.rowSoft,
-    borderRadius: 6, paddingVertical: 11, paddingHorizontal: 14, marginTop: 6, marginBottom: 4,
+    /* Fond léger sans bordure — les longs textes + borderWidth cassent le calcul de hauteur. */
+    backgroundColor: C.rowSoft,
+    borderRadius: 6, paddingTop: 10, paddingBottom: 10, paddingHorizontal: 14, marginTop: 6, marginBottom: 14,
   },
-  objetText: { color: C.text, fontSize: 9.5, lineHeight: 1.5 },
-
-  /* Photos */
-  photosGrid: {
-    flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between',
-    marginTop: 8, marginBottom: 4,
-  },
-  photoCell: { width: '48.5%', marginBottom: 10 },
-  photoImg: {
-    width: '100%', height: 150, objectFit: 'cover',
-    borderRadius: 6, borderWidth: 1, borderColor: C.line,
-  },
-  linePhotos: {
-    flexDirection: 'row', flexWrap: 'wrap', marginTop: 6,
-  },
-  linePhotoWrap: {
-    width: 96, marginRight: 6, marginBottom: 6,
-  },
-  linePhoto: {
-    width: 96, height: 68, objectFit: 'cover',
-    borderRadius: 4, borderWidth: 1, borderColor: C.line,
-  },
-  linePhotoCaption: {
-    fontSize: 7.5, color: C.muted, marginTop: 2, width: 96,
-  },
+  objetText: { color: C.text, fontSize: 9.5, lineHeight: 1.6, marginBottom: 6 },
+  objetTextLast: { color: C.text, fontSize: 9.5, lineHeight: 1.6, marginBottom: 0 },
 
   constatItem: {
     borderWidth: 1, borderColor: C.line, borderRadius: 6,
@@ -317,29 +293,43 @@ const Footer = ({ emetteur }: { emetteur: EmetteurData }) => {
   )
 }
 
-/**
- * Bloc harmonieux : titre + contenu restent ensemble.
- * - non splitable → le bloc entier saute de page s'il ne tient pas
- * - splitable → le début (bandeau) ne reste pas orphelin en bas de page
- */
-function DevisBlock({
-  children,
-  minPresenceAhead = 88,
-  splitable = false,
-}: {
-  children: React.ReactNode
-  minPresenceAhead?: number
-  splitable?: boolean
-}) {
-  return (
-    <View
-      wrap={splitable ? undefined : false}
-      minPresenceAhead={minPresenceAhead}
-      style={{ marginBottom: 4 }}
-    >
-      {children}
-    </View>
-  )
+/** Section découpable (jamais wrap=false — cause des chevauchements si trop haute). */
+function Section({ children, style }: { children: React.ReactNode; style?: object }) {
+  return <View style={[{ marginBottom: 6 }, style]}>{children}</View>
+}
+
+/** Découpe les longs textes pour que react-pdf calcule correctement la hauteur. */
+function LongTextBlock({ text, box }: { text: string; box?: boolean }) {
+  const parts = text
+    .split(/\n+/)
+    .flatMap((p) => {
+      const t = p.trim()
+      if (t.length <= 420) return t ? [t] : []
+      // Coupe aux phrases si trop long
+      const sentences = t.match(/[^.!?]+[.!?]+|[^.!?]+$/g) || [t]
+      const chunks: string[] = []
+      let buf = ''
+      for (const sent of sentences) {
+        if ((buf + sent).length > 380 && buf) {
+          chunks.push(buf.trim())
+          buf = sent
+        } else {
+          buf += sent
+        }
+      }
+      if (buf.trim()) chunks.push(buf.trim())
+      return chunks
+    })
+    .filter(Boolean)
+
+  const body = parts.map((p, i) => (
+    <Text key={i} style={i === parts.length - 1 ? s.objetTextLast : s.objetText}>
+      {p}
+    </Text>
+  ))
+
+  if (box) return <View style={s.objetBox}>{body}</View>
+  return <View style={{ marginTop: 6, marginBottom: 12 }}>{body}</View>
 }
 
 function Band({
@@ -351,7 +341,7 @@ function Band({
 }) {
   const style = tone === 'red' ? s.bandRed : tone === 'teal' ? s.bandTeal : s.bandNavy
   return (
-    <View style={style} wrap={false}>
+    <View style={style} wrap={false} minPresenceAhead={28}>
       <Text style={s.bandTxt}>{label}</Text>
     </View>
   )
@@ -359,30 +349,16 @@ function Band({
 
 function PrestationsLine({ l }: { l: DevisLineData }) {
   const isRemise = ((l.pu_ht || 0) * (l.qte || 0)) < 0
-  const photos = (l.photos || []).filter(Boolean).slice(0, 3)
-  const hasPhotos = photos.length > 0
-  // Avec photos : laisser le moteur découper la page (évite chevauchements).
-  // Sans photos : garder la ligne entière ensemble.
+  // Photos de ligne : volontairement hors du tableau — react-pdf les superpose sinon.
   return (
-    <View wrap={hasPhotos ? undefined : false} minPresenceAhead={hasPhotos ? 72 : 44}>
-      <View style={s.itemsRow}>
-        <View style={s.cDesig}>
-          <Text style={isRemise ? s.cRemiseName : s.cDesigName}>{l.designation}</Text>
-          {l.description ? <Text style={s.cDesigDesc}>{l.description}</Text> : null}
-        </View>
-        <Text style={[s.cPu, isRemise ? s.cRemise : {}]}>{fmtEur(l.pu_ht)}</Text>
-        <Text style={s.cQte}>{l.qte}{l.unite ? ` ${l.unite}` : ''}</Text>
-        <Text style={[s.cTot, isRemise ? s.cRemise : {}]}>{fmtEur(l.pu_ht * l.qte)}</Text>
+    <View style={s.itemsRow} wrap={false} minPresenceAhead={40}>
+      <View style={s.cDesig}>
+        <Text style={isRemise ? s.cRemiseName : s.cDesigName}>{l.designation}</Text>
+        {l.description ? <Text style={s.cDesigDesc}>{l.description}</Text> : null}
       </View>
-      {hasPhotos ? (
-        <View style={[s.linePhotos, { paddingHorizontal: 8, paddingBottom: 6 }]}>
-          {photos.map((src, pi) => (
-            <View key={pi} style={s.linePhotoWrap} wrap={false}>
-              <Image src={src} style={s.linePhoto} />
-            </View>
-          ))}
-        </View>
-      ) : null}
+      <Text style={[s.cPu, isRemise ? s.cRemise : {}]}>{fmtEur(l.pu_ht)}</Text>
+      <Text style={s.cQte}>{l.qte}{l.unite ? ` ${l.unite}` : ''}</Text>
+      <Text style={[s.cTot, isRemise ? s.cRemise : {}]}>{fmtEur(l.pu_ht * l.qte)}</Text>
     </View>
   )
 }
@@ -407,6 +383,7 @@ export function DevisDocument({ emetteur, client, devis, phone }: DevisPDFProps)
     : ['Chèque', 'Virement bancaire', 'Carte bancaire', 'Espèces (dans la limite légale)']
 
   const sections = groupBySection(devis.lignes)
+  // Photos absentes du PDF : @react-pdf/renderer sous-estime la hauteur des Image.
   const adresseChantierAffichee = resolveAdresseChantierAffichee(
     client.adresseChantier,
     client.adresseLignes || [],
@@ -432,20 +409,19 @@ export function DevisDocument({ emetteur, client, devis, phone }: DevisPDFProps)
   return (
     <Document>
       <Page size="A4" style={s.page} wrap>
-        <View fixed>
-          <PdfBanner
-            title="DEVIS"
-            numero={devis.numero}
-            subtitle={subTitle}
-            phone={phone || emetteur.telephone}
-            email={emetteur.email}
-          />
-        </View>
+        {/* Bandeau une seule fois, dans le flux (page 1) — pas de fixed/absolute */}
+        <PdfBanner
+          title="DEVIS"
+          numero={devis.numero}
+          subtitle={subTitle}
+          phone={phone || emetteur.telephone}
+          email={emetteur.email}
+        />
 
         <View style={s.content}>
           {/* ===== Client + métadonnées ===== */}
-          <DevisBlock minPresenceAhead={110}>
-            <View style={s.infoRow}>
+          <Section>
+            <View style={s.infoRow} wrap={false}>
               <View style={s.billTo}>
                 <Text style={s.sectionLabel}>Devis pour</Text>
                 <Text style={s.clientName}>{client.nom}</Text>
@@ -480,165 +456,120 @@ export function DevisDocument({ emetteur, client, devis, phone }: DevisPDFProps)
                 ) : null}
               </View>
             </View>
-          </DevisBlock>
+          </Section>
 
           {/* ===== Objet ===== */}
           {devis.objet ? (
-            <DevisBlock splitable minPresenceAhead={64}>
+            <Section>
               <Band label="Objet du devis" />
-              <View style={s.objetBox}>
-                <Text style={s.objetText}>{devis.objet}</Text>
-              </View>
-            </DevisBlock>
+              <LongTextBlock text={devis.objet} box />
+            </Section>
           ) : null}
 
           {/* ===== Constats conformes ===== */}
           {(devis.constats_conformes?.length ?? 0) > 0 ? (
-            <DevisBlock splitable minPresenceAhead={96}>
-              <View wrap={false} minPresenceAhead={64}>
-                <Band label="Conforme" tone="teal" />
-                <View style={s.constatItem}>
-                  <Text style={s.constatTitle}>{devis.constats_conformes![0].intitule}</Text>
-                  {devis.constats_conformes![0].localisation
-                    ? <Text style={s.constatLoc}>{devis.constats_conformes![0].localisation}</Text>
-                    : null}
-                  <Text style={s.constatDesc}>{devis.constats_conformes![0].description}</Text>
-                </View>
-              </View>
-              {devis.constats_conformes!.slice(1).map((row, i) => (
-                <View key={i} style={s.constatItem} wrap={false} minPresenceAhead={56}>
+            <Section>
+              <Band label="Conforme" tone="teal" />
+              {devis.constats_conformes!.map((row, i) => (
+                <View key={i} style={s.constatItem} wrap={false} minPresenceAhead={48}>
                   <Text style={s.constatTitle}>{row.intitule}</Text>
                   {row.localisation ? <Text style={s.constatLoc}>{row.localisation}</Text> : null}
                   <Text style={s.constatDesc}>{row.description}</Text>
                 </View>
               ))}
-            </DevisBlock>
+            </Section>
           ) : null}
 
           {/* ===== Constats critiques ===== */}
           {(devis.constats_critiques?.length ?? 0) > 0 ? (
-            <DevisBlock splitable minPresenceAhead={96}>
-              <View wrap={false} minPresenceAhead={64}>
-                <Band label="Critique" tone="red" />
-                <View style={s.constatItem}>
-                  <Text style={s.constatTitle}>{devis.constats_critiques![0].intitule}</Text>
-                  {devis.constats_critiques![0].localisation
-                    ? <Text style={s.constatLoc}>{devis.constats_critiques![0].localisation}</Text>
-                    : null}
-                  <Text style={s.constatDesc}>{devis.constats_critiques![0].description}</Text>
-                </View>
-              </View>
-              {devis.constats_critiques!.slice(1).map((row, i) => (
-                <View key={i} style={s.constatItem} wrap={false} minPresenceAhead={56}>
+            <Section>
+              <Band label="Critique" tone="red" />
+              {devis.constats_critiques!.map((row, i) => (
+                <View key={i} style={s.constatItem} wrap={false} minPresenceAhead={48}>
                   <Text style={s.constatTitle}>{row.intitule}</Text>
                   {row.localisation ? <Text style={s.constatLoc}>{row.localisation}</Text> : null}
                   <Text style={s.constatDesc}>{row.description}</Text>
                 </View>
               ))}
-            </DevisBlock>
+            </Section>
           ) : null}
 
           {/* ===== Non garantie ===== */}
           {devis.non_garantie ? (
-            <DevisBlock splitable minPresenceAhead={72}>
+            <Section>
               <Band label="Non garantie suite à notre intervention" />
-              <View style={s.objetBox}>
-                <Text style={s.objetText}>{devis.non_garantie}</Text>
-              </View>
-            </DevisBlock>
+              <LongTextBlock text={devis.non_garantie} box />
+            </Section>
           ) : null}
 
-          {/* ===== Photos (optionnel) ===== */}
-          {(devis.photos?.length ?? 0) > 0 ? (
-            <DevisBlock splitable minPresenceAhead={160}>
-              <View wrap={false} minPresenceAhead={120}>
-                <Band label="Photos" />
-                <View style={s.photosGrid}>
-                  {devis.photos!.slice(0, 2).map((src, i) => (
-                    <View key={i} style={s.photoCell} wrap={false}>
-                      <Image src={src} style={s.photoImg} />
-                    </View>
-                  ))}
-                </View>
-              </View>
-              {(devis.photos!.length > 2) ? (
-                <View style={s.photosGrid}>
-                  {devis.photos!.slice(2).map((src, i) => (
-                    <View key={i} style={s.photoCell} wrap={false} minPresenceAhead={140}>
-                      <Image src={src} style={s.photoImg} />
-                    </View>
-                  ))}
-                </View>
-              ) : null}
-            </DevisBlock>
+          {/* ===== Tableau prestations (sans photos inline) ===== */}
+          {/* Après objet / non-garantie longs : nouvelle page pour éviter en-tête orphelin + chevauchement */}
+          {(devis.non_garantie || (devis.objet && devis.objet.length > 280)) ? (
+            <View break />
           ) : null}
-
-          {/* ===== Tableau prestations ===== */}
-          <DevisBlock splitable minPresenceAhead={100}>
-            <View style={s.itemsHead} wrap={false} minPresenceAhead={72}>
+          <Section>
+            <View style={s.itemsHead} wrap={false} minPresenceAhead={80}>
               <Text style={[s.itemsHeadCell, { width: '50%' }]}>Description</Text>
               <Text style={[s.itemsHeadCell, { width: '18%', textAlign: 'right' }]}>Prix unitaire</Text>
               <Text style={[s.itemsHeadCell, { width: '14%', textAlign: 'center' }]}>Quantité</Text>
               <Text style={[s.itemsHeadCell, { width: '18%', textAlign: 'right' }]}>Total HT</Text>
             </View>
 
-            {sections.map((sec, si) => {
-              const [first, ...rest] = sec.items
-              return (
-                <View key={si} minPresenceAhead={64}>
-                  <View wrap={false} minPresenceAhead={56}>
-                    <View style={s.sectionRow}>
-                      <Text style={s.sectionRowTxt}>{sec.section}</Text>
-                    </View>
-                    {first ? <PrestationsLine l={first} /> : null}
-                  </View>
-                  {rest.map((l, li) => (
-                    <PrestationsLine key={li} l={l} />
-                  ))}
+            {sections.map((sec, si) => (
+              <View key={si}>
+                <View style={s.sectionRow} wrap={false} minPresenceAhead={28}>
+                  <Text style={s.sectionRowTxt}>{sec.section}</Text>
                 </View>
-              )
-            })}
-          </DevisBlock>
+                {sec.items.map((l, li) => (
+                  <PrestationsLine key={li} l={l} />
+                ))}
+              </View>
+            ))}
+          </Section>
 
-          {/* ===== Totaux (toujours ensemble) ===== */}
-          <DevisBlock minPresenceAhead={110}>
-            <View style={s.totalsMini}>
-              <View style={s.totalsMiniRow}>
-                <Text style={s.totalsMiniLbl}>Sous-total HT</Text>
-                <Text style={s.totalsMiniVal}>{fmtEur(totalHT)}</Text>
+          {/* ===== Totaux ===== */}
+          <Section>
+            <View wrap={false} minPresenceAhead={90}>
+              <View style={s.totalsMini}>
+                <View style={s.totalsMiniRow}>
+                  <Text style={s.totalsMiniLbl}>Sous-total HT</Text>
+                  <Text style={s.totalsMiniVal}>{fmtEur(totalHT)}</Text>
+                </View>
+                <View style={s.totalsMiniRow}>
+                  <Text style={s.totalsMiniLbl}>
+                    TVA ({tvaTaux} %){devis.tva_reduite_attestation ? ' — taux réduit' : ''}
+                  </Text>
+                  <Text style={s.totalsMiniVal}>{tvaTaux === 0 ? '—' : fmtEur(tva)}</Text>
+                </View>
               </View>
-              <View style={s.totalsMiniRow}>
-                <Text style={s.totalsMiniLbl}>
-                  TVA ({tvaTaux} %){devis.tva_reduite_attestation ? ' — taux réduit' : ''}
-                </Text>
-                <Text style={s.totalsMiniVal}>{tvaTaux === 0 ? '—' : fmtEur(tva)}</Text>
+              <View style={s.totalBar}>
+                <Text style={s.totalBarLbl}>TOTAL TTC</Text>
+                <Text style={s.totalBarVal}>{fmtEur(totalTTC)}</Text>
               </View>
             </View>
-            <View style={s.totalBar}>
-              <Text style={s.totalBarLbl}>TOTAL TTC</Text>
-              <Text style={s.totalBarVal}>{fmtEur(totalTTC)}</Text>
-            </View>
-          </DevisBlock>
+          </Section>
+
+          {/* Photos absentes du PDF (bug hauteur Image react-pdf). Restent dans l'app. */}
 
           {/* ===== Conditions d'exécution ===== */}
           {devis.conditions ? (
-            <DevisBlock splitable minPresenceAhead={88}>
+            <Section>
               <Band label="Conditions d'exécution" />
               <View style={s.condTable}>
                 {conditionRows.map((row, i, arr) => (
-                  <View key={i} style={[s.condRow, i === arr.length - 1 ? s.condRowLast : {}]} wrap={false} minPresenceAhead={40}>
+                  <View key={i} style={[s.condRow, i === arr.length - 1 ? s.condRowLast : {}]} wrap={false} minPresenceAhead={36}>
                     <Text style={s.condLabel}>{row.k}</Text>
                     <Text style={s.condValue}>{row.v}</Text>
                   </View>
                 ))}
               </View>
-            </DevisBlock>
+            </Section>
           ) : null}
 
           {/* ===== Modalités de règlement ===== */}
-          <DevisBlock minPresenceAhead={120}>
+          <Section>
             <Band label="Modalités de règlement" tone="red" />
-            <View style={s.modalitesBox}>
+            <View style={s.modalitesBox} wrap={false} minPresenceAhead={100}>
               <Text style={s.modalitesP}>
                 <Text style={s.modalitesStrong}>Acompte à la commande : </Text>
                 {acomptePct} % soit {fmtEur(acompteTTC)} TTC
@@ -655,43 +586,35 @@ export function DevisDocument({ emetteur, client, devis, phone }: DevisPDFProps)
                 Indemnité forfaitaire de recouvrement en cas de retard de paiement : 40 € (art. L441-10 C. com.) · Pas d&apos;escompte pour règlement anticipé.
               </Text>
             </View>
-          </DevisBlock>
+          </Section>
 
           {/* ===== Mentions légales (devis travaux) ===== */}
           {isDevisTravauxVariant(devis.variant) && devis.mentions_legales && devis.mentions_legales.length > 0 ? (
-            <DevisBlock splitable minPresenceAhead={120}>
-              <View wrap={false} minPresenceAhead={80}>
-                <Band label="Mentions légales & réglementaires" />
-                <View style={[s.modalitesBox, { borderLeftColor: C.navy, marginBottom: 4 }]}>
-                  <Text style={s.legalItem}>
-                    <Text style={s.legalBullet}>1. </Text>
-                    {devis.mentions_legales[0]}
-                  </Text>
-                </View>
-              </View>
-              <View style={[s.modalitesBox, { borderLeftColor: C.navy, marginBottom: 10, marginTop: 0 }]}>
-                {devis.mentions_legales.slice(1).map((mention, i) => (
-                  <Text key={i} style={s.legalItem} wrap={false} minPresenceAhead={36}>
-                    <Text style={s.legalBullet}>{i + 2}. </Text>
+            <Section>
+              <Band label="Mentions légales & réglementaires" />
+              <View style={[s.modalitesBox, { borderLeftColor: C.navy }]}>
+                {devis.mentions_legales.map((mention, i) => (
+                  <Text key={i} style={s.legalItem} minPresenceAhead={28}>
+                    <Text style={s.legalBullet}>{i + 1}. </Text>
                     {mention}
                   </Text>
                 ))}
               </View>
-            </DevisBlock>
+            </Section>
           ) : null}
 
           {/* ===== Attestation TVA 10% ===== */}
           {devis.tva_reduite_attestation ? (
-            <DevisBlock minPresenceAhead={72}>
+            <Section>
               <Text style={s.attestation}>
                 Je soussigné <Text style={s.attestationStrong}>{client.nom}</Text> atteste par la présente que les travaux qui font l&apos;objet du présent devis sont réalisés à l&apos;adresse précitée, à usage d&apos;habitation à plus de 50 % et que la construction est achevée depuis plus de 2 ans (attestation permettant l&apos;application du taux réduit de TVA à 10 %, art. 279-0 bis du CGI).
               </Text>
-            </DevisBlock>
+            </Section>
           ) : null}
 
           {/* ===== Signatures ===== */}
-          <DevisBlock minPresenceAhead={150}>
-            <View style={s.sigRow}>
+          <Section>
+            <View style={s.sigRow} wrap={false} minPresenceAhead={120}>
               <View style={s.sigCard}>
                 <Text style={s.sigHeadTxt}>{emetteur.raisonSociale}</Text>
                 <Text style={s.sigLine}>Date : {dateFmt}</Text>
@@ -706,7 +629,7 @@ export function DevisDocument({ emetteur, client, devis, phone }: DevisPDFProps)
                 </Text>
               </View>
             </View>
-          </DevisBlock>
+          </Section>
         </View>
 
         <Footer emetteur={emetteur} />
