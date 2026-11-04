@@ -32,12 +32,12 @@ export const SMS_REVIEW_LINK =
   || "https://lestechniciensdudebouchage.fr/avis"
 
 /**
- * Lien SMS Pages Jaunes (court) → /avis-pj redirige vers le formulaire Pages Jaunes.
- * Surcharge possible via SMS_PAGES_JAUNES_URL (ex. lien brandé site vitrine).
+ * Lien SMS Pages Jaunes — URL contribution directe (fiable hors auth app).
+ * Optionnel : SMS_PAGES_JAUNES_URL=https://app-realisations-ltdb.vercel.app/avis-pj
  */
 export const SMS_PAGES_JAUNES_LINK =
   process.env.SMS_PAGES_JAUNES_URL?.trim()
-  || "https://app-realisations-ltdb.vercel.app/avis-pj"
+  || PAGES_JAUNES_REVIEW_URL
 
 /**
  * SMS relance avis Google + Pages Jaunes.

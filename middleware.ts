@@ -18,8 +18,6 @@ function constantTimeEqual(a: string, b: string): boolean {
 
 const PUBLIC_PREFIXES = [
   "/login",
-  "/mirabella",
-  "/recup",
   "/api/auth",
   "/api/health",
   "/api/calendar.ics",
@@ -29,6 +27,7 @@ const PUBLIC_PREFIXES = [
   "/api/quote-complementaire/stop-reminders",
   "/api/facture/stop-reminders",
   "/api/cron/",
+  "/avis-pj", // SMS avis Pages Jaunes (redirection publique)
 ]
 
 export default auth(async (req) => {
@@ -94,6 +93,12 @@ export default auth(async (req) => {
     || pathname.startsWith("/admin")
     || pathname.startsWith("/api/admin")
     || pathname.startsWith("/reglages")
+    || pathname.startsWith("/comptabilite")
+    || pathname.startsWith("/api/comptabilite")
+    || pathname.startsWith("/rh")
+    || pathname.startsWith("/api/rh")
+    || pathname.startsWith("/historique")
+    || pathname.startsWith("/api/historique")
     || (pathname.startsWith("/api/demo-access") && !pathname.startsWith("/api/demo-access/check"))
 
   if (isDemo && demoMgmtBlocked) {
