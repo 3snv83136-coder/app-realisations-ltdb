@@ -294,8 +294,8 @@ const Footer = ({ emetteur }: { emetteur: EmetteurData }) => {
 }
 
 /** Section découpable (jamais wrap=false — cause des chevauchements si trop haute). */
-function Section({ children, style }: { children: React.ReactNode; style?: object }) {
-  return <View style={[{ marginBottom: 6 }, style]}>{children}</View>
+function Section({ children }: { children: React.ReactNode }) {
+  return <View style={{ marginBottom: 6 }}>{children}</View>
 }
 
 /** Découpe les longs textes pour que react-pdf calcule correctement la hauteur. */
