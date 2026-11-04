@@ -4,6 +4,11 @@ const FALLBACK_REVIEW_URL =
   process.env.GOOGLE_REVIEW_URL
   || "https://g.page/r/CascWzNKHgyEEAE/review"
 
+/** Lien Pages Jaunes « laisser un avis » (sollicitation LTDB). */
+export const PAGES_JAUNES_REVIEW_URL =
+  process.env.PAGES_JAUNES_REVIEW_URL?.trim()
+  || "https://www.pagesjaunes.fr/contribution/votre-avis/63850881?code_origine_sollicitation=slm&id_callback_sollicitation=7d2ec41affc340d2b53e756a928d4a9e&email=mondornaji@gmail.com"
+
 /** URL avis Google (paramètre Supabase ou variable d'environnement). */
 export async function getGoogleReviewUrl(): Promise<string> {
   let reviewUrl = FALLBACK_REVIEW_URL
@@ -27,8 +32,16 @@ export const SMS_REVIEW_LINK =
   || "https://lestechniciensdudebouchage.fr/avis"
 
 /**
- * SMS relance avis Google.
- * Seule l'URL est cliquable sur un téléphone — on la met seule sur sa ligne.
+ * Lien SMS Pages Jaunes (court) → /avis-pj redirige vers le formulaire Pages Jaunes.
+ * Surcharge possible via SMS_PAGES_JAUNES_URL (ex. lien brandé site vitrine).
+ */
+export const SMS_PAGES_JAUNES_LINK =
+  process.env.SMS_PAGES_JAUNES_URL?.trim()
+  || "https://app-realisations-ltdb.vercel.app/avis-pj"
+
+/**
+ * SMS relance avis Google + Pages Jaunes.
+ * Seules les URLs sont cliquables sur un téléphone — une URL = une ligne.
  * `reviewUrl` / `tel` restent acceptés pour compat appelants (mails / drafts).
  */
 export function buildReviewOnlySmsText(opts: {
@@ -45,11 +58,14 @@ export function buildReviewOnlySmsText(opts: {
     "",
     "30 secondes pour vous, un vrai coup de pouce pour nous.",
     "",
-    "Vous êtes satisfait de notre intervention ou de nos conseils ? Partagez votre expérience en laissant un avis Google :",
+    "Vous êtes satisfait de notre intervention ou de nos conseils ? Partagez votre expérience :",
     "",
+    "⭐ Google :",
     SMS_REVIEW_LINK,
+    "",
+    "📒 Pages Jaunes (même geste, merci) :",
+    SMS_PAGES_JAUNES_LINK,
     "",
     "Merci pour votre confiance.",
   ].join("\n")
 }
-
