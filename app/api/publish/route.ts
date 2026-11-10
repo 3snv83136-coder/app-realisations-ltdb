@@ -7,6 +7,7 @@ import {
 } from "@/lib/technicien-publish"
 import type { SupabaseClient } from "@supabase/supabase-js"
 import { errorMessage } from "@/lib/error-message"
+import { notifyGoogleIndexing, realisationPublicUrl } from "@/lib/google-indexing"
 import { sanitizePublishFormData } from "@/lib/publish-sanitize"
 import type { RapportData, SeoData } from "@/lib/types-documents"
 
@@ -75,12 +76,17 @@ export async function POST(req: NextRequest) {
     }
 
     const payload = typeof data === 'object' && data ? { ...data } : { ok: true as const }
+    const slug = persisted?.slug || (typeof data === 'object' && data && 'slug' in data ? data.slug : null)
+    const googleIndexing = typeof slug === 'string' && slug
+      ? await notifyGoogleIndexing(realisationPublicUrl(slug))
+      : { ok: false, skipped: true, error: 'slug absent' }
     return NextResponse.json({
       ...payload,
       ok: true,
       interventionId: persisted?.interventionId || null,
       photoUrl: persisted?.photoUrl || null,
-      slug: persisted?.slug || (typeof data === 'object' && data && 'slug' in data ? data.slug : null),
+      slug,
+      googleIndexing,
     }, { status: 201 })
   } catch (e) {
     return NextResponse.json({ error: `Publish fetch failed : ${errorMessage(e)}` }, { status: 500 })
