@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import seed from '@/lib/editorial-seed.json'
+import ArticleSocialContainer from '@/components/ArticleSocialContainer'
 
 type Draft = (typeof seed)[number]
 const KEY = 'ltdb-editorial-drafts-v2'
@@ -126,6 +127,7 @@ export default function EditorialEditor() {
           <label className="text-sm font-semibold">Photo de ton appareil<input type="file" accept="image/*" disabled={busy} onChange={e => { void upload(e.target.files?.[0]); e.target.value = '' }} className="block mt-2" /><span className="text-xs text-slate-500">{article.photoName || article.photoHint}</span></label>
           {photo && <div><img src={photo} alt={article.title} className="max-h-64 rounded-lg object-contain" /><a href={photo} download={article.id + '.jpg'} className="text-sm underline">Télécharger la photo associée</a></div>}
           </div><div className="flex flex-wrap gap-3 mt-6"><button disabled={busy} onClick={() => persist(drafts)} className="bg-[#0e2a52] text-white rounded-lg px-4 py-3">Enregistrer{dirty ? ' les modifications' : ''}</button><button disabled={busy} onClick={() => { if (!article.title.trim() || !article.body.trim()) { setMessage('Le titre et le contenu sont obligatoires.'); return } persist(drafts.map(a => a.id === selected ? { ...a, status: a.status === 'Validé' ? 'Brouillon' : 'Validé', updatedAt: new Date().toISOString() } : a)) }} className="bg-emerald-100 text-emerald-900 rounded-lg px-4 py-3">{article.status === 'Validé' ? 'Retirer la validation' : 'Valider le brouillon'}</button></div></>}
+          <ArticleSocialContainer title={article.title} meta={article.meta} disabled={!ready || busy} />
           <p role="status" aria-live="polite" className="mt-4 text-sm text-slate-600">{message}</p>
         </section>
       </div>

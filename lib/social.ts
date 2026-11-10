@@ -508,3 +508,271 @@ export async function publishToTikTok(opts: {
     postId: publishId,
   }
 }
+
+// ============================================================================
+// Article SEO — un seul brouillon, quatre réseaux, aucun envoi sur le site
+// ============================================================================
+
+const ARTICLE_IMAGE = "https://lestechniciensdudebouchage.fr/icons/icon-1024x1024.png"
+
+export type ArticleNetwork = "facebook" | "instagram" | "linkedin" | "tiktok"
+
+export type ArticlePostResult = {
+  platform: ArticleNetwork
+  ok: boolean
+  url?: string
+  error?: string
+}
+
+async function readAccess(platform: string): Promise<string> {
+  const sb = getSupabase()
+  const { data, error } = await sb
+    .from("social_tokens")
+    .select("access_token")
+    .eq("platform", platform)
+    .maybeSingle()
+  if (error) throw new Error(`DB social_tokens (${platform}): ${error.message}`)
+  if (!data?.access_token) {
+    const connect = platform === "instagram" ? "facebook" : platform
+    throw new Error(`Compte ${platform} non connecté. Ouvre /api/oauth/${connect}`)
+  }
+  return data.access_token
+}
+
+function linkedinClient() {
+  const clientId = process.env.LINKEDIN_CLIENT_ID
+  const clientSecret = process.env.LINKEDIN_CLIENT_SECRET
+  const redirectUri = process.env.LINKEDIN_REDIRECT_URI
+  if (!clientId || !clientSecret || !redirectUri) {
+    throw new Error("OAuth LinkedIn non configuré (LINKEDIN_CLIENT_ID / LINKEDIN_CLIENT_SECRET / LINKEDIN_REDIRECT_URI)")
+  }
+  return { clientId, clientSecret, redirectUri }
+}
+
+export function getLinkedInAuthUrl(): string {
+  const { clientId, redirectUri } = linkedinClient()
+  const params = new URLSearchParams({
+    response_type: "code",
+    client_id: clientId,
+    redirect_uri: redirectUri,
+    scope: "openid profile w_member_social w_organization_social",
+    state: "linkedin",
+  })
+  return `https://www.linkedin.com/oauth/v2/authorization?${params.toString()}`
+}
+
+export async function exchangeLinkedInCode(code: string): Promise<{ email?: string }> {
+  const { clientId, clientSecret, redirectUri } = linkedinClient()
+  const tokenRes = await fetch("https://www.linkedin.com/oauth/v2/accessToken", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      grant_type: "authorization_code",
+      code,
+      redirect_uri: redirectUri,
+      client_id: clientId,
+      client_secret: clientSecret,
+    }),
+    signal: AbortSignal.timeout(10000),
+  })
+  const tokenData = await tokenRes.json()
+  if (!tokenRes.ok || tokenData.error) {
+    throw new Error(`LinkedIn token: ${tokenData.error_description || tokenData.error || tokenRes.status}`)
+  }
+  const accessToken = tokenData.access_token as string
+  if (!accessToken) throw new Error("LinkedIn: access_token absent")
+
+  let account = ""
+  try {
+    const me = await fetch("https://api.linkedin.com/v2/userinfo", {
+      headers: { Authorization: `Bearer ${accessToken}` },
+      signal: AbortSignal.timeout(10000),
+    })
+    const profile = await me.json()
+    account = profile.email || profile.name || ""
+  } catch { /* non critique */ }
+
+  await storeToken("linkedin", {
+    access_token: accessToken,
+    refresh_token: tokenData.refresh_token || accessToken,
+    expires_at: tokenData.expires_in
+      ? new Date(Date.now() + Number(tokenData.expires_in) * 1000).toISOString()
+      : undefined,
+    scope: "w_member_social w_organization_social",
+    account_email: account || undefined,
+  })
+  return { email: account || undefined }
+}
+
+async function postFacebookText(message: string): Promise<ArticlePostResult> {
+  const accessToken = await readAccess("facebook")
+  const pagesRes = await fetch(
+    `https://graph.facebook.com/v18.0/me/accounts?access_token=${encodeURIComponent(accessToken)}`,
+    { signal: AbortSignal.timeout(10000) },
+  )
+  const pagesData = await pagesRes.json()
+  const page = pagesData.data?.[0]
+  if (!page?.id || !page?.access_token) {
+    throw new Error("Aucune page Facebook. Le compte connecté doit administrer la page.")
+  }
+  const res = await fetch(`https://graph.facebook.com/v18.0/${page.id}/feed`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      message: message.slice(0, 5000),
+      link: "https://lestechniciensdudebouchage.fr",
+      access_token: page.access_token,
+    }),
+    signal: AbortSignal.timeout(20000),
+  })
+  const data = await res.json()
+  if (data.error) throw new Error(data.error.message || "Publication Facebook refusée")
+  return {
+    platform: "facebook",
+    ok: true,
+    url: data.id ? `https://www.facebook.com/${data.id}` : `https://www.facebook.com/${page.id}`,
+  }
+}
+
+async function postInstagramImage(caption: string): Promise<ArticlePostResult> {
+  const accessToken = await readAccess("facebook")
+  const storedIg = await getToken("instagram").catch(() => null)
+  const pageId = storedIg?.refresh_token
+  if (!pageId) throw new Error("Instagram non relié. Reconnecte Facebook : la page doit avoir un compte professionnel.")
+  const igRes = await fetch(
+    `https://graph.facebook.com/v18.0/${pageId}?fields=instagram_business_account{id}&access_token=${encodeURIComponent(accessToken)}`,
+    { signal: AbortSignal.timeout(10000) },
+  )
+  const igData = await igRes.json()
+  const igAccountId = igData.instagram_business_account?.id
+  if (!igAccountId) throw new Error("Aucun compte Instagram professionnel lié à la page Facebook")
+
+  const createRes = await fetch(`https://graph.facebook.com/v18.0/${igAccountId}/media`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      image_url: ARTICLE_IMAGE,
+      caption: caption.slice(0, 2200),
+      access_token: accessToken,
+    }),
+    signal: AbortSignal.timeout(20000),
+  })
+  const createData = await createRes.json()
+  if (createData.error) throw new Error(createData.error.message || "Conteneur Instagram refusé")
+
+  const publishRes = await fetch(`https://graph.facebook.com/v18.0/${igAccountId}/media_publish`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ creation_id: createData.id, access_token: accessToken }),
+    signal: AbortSignal.timeout(20000),
+  })
+  const publishData = await publishRes.json()
+  if (publishData.error) throw new Error(publishData.error.message || "Publication Instagram refusée")
+  return {
+    platform: "instagram",
+    ok: true,
+    url: publishData.id ? `https://www.instagram.com/p/${publishData.id}/` : "https://www.instagram.com/",
+  }
+}
+
+async function postLinkedInText(message: string): Promise<ArticlePostResult> {
+  const accessToken = await readAccess("linkedin")
+  const orgId = process.env.LINKEDIN_ORGANIZATION_ID?.trim()
+  let author = orgId ? `urn:li:organization:${orgId}` : ""
+  if (!author) {
+    const me = await fetch("https://api.linkedin.com/v2/userinfo", {
+      headers: { Authorization: `Bearer ${accessToken}` },
+      signal: AbortSignal.timeout(10000),
+    })
+    const profile = await me.json()
+    if (!profile.sub) throw new Error("LinkedIn: impossible d'identifier le compte")
+    author = `urn:li:person:${profile.sub}`
+  }
+  const res = await fetch("https://api.linkedin.com/rest/posts", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+      "X-Restli-Protocol-Version": "2.0.0",
+      "LinkedIn-Version": "202401",
+    },
+    body: JSON.stringify({
+      author,
+      commentary: message.slice(0, 3000),
+      visibility: "PUBLIC",
+      distribution: { feedDistribution: "MAIN_FEED", targetEntities: [], thirdPartyDistributionChannels: [] },
+      lifecycleState: "PUBLISHED",
+      isReshareDisabledByAuthor: false,
+    }),
+    signal: AbortSignal.timeout(20000),
+  })
+  if (!res.ok) {
+    const detail = await res.text()
+    throw new Error(`LinkedIn ${res.status}: ${detail.slice(0, 280)}`)
+  }
+  const postId = res.headers.get("x-restli-id") || ""
+  return {
+    platform: "linkedin",
+    ok: true,
+    url: postId ? `https://www.linkedin.com/feed/update/${postId}` : "https://www.linkedin.com/feed/",
+  }
+}
+
+async function postTikTokPhoto(caption: string): Promise<ArticlePostResult> {
+  const accessToken = await refreshTikTokToken()
+  const title = caption.split("\n")[0]?.slice(0, 90) || "Intervention dans le Var"
+  const res = await fetch("https://open.tiktokapis.com/v2/post/publish/content/init/", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      post_info: {
+        title,
+        description: caption.slice(0, 4000),
+        privacy_level: "PUBLIC_TO_EVERYONE",
+        disable_comment: false,
+        auto_add_music: false,
+      },
+      source_info: {
+        source: "PULL_FROM_URL",
+        photo_cover_index: 0,
+        photo_images: [ARTICLE_IMAGE],
+      },
+      post_mode: "DIRECT_POST",
+      media_type: "PHOTO",
+    }),
+    signal: AbortSignal.timeout(20000),
+  })
+  const data = await res.json()
+  if (data.error?.code && data.error.code !== "ok") {
+    throw new Error(data.error.message || data.error.code)
+  }
+  const publishId = data.data?.publish_id || ""
+  return {
+    platform: "tiktok",
+    ok: true,
+    url: publishId ? `https://www.tiktok.com/` : "https://www.tiktok.com/",
+  }
+}
+
+/** Publie le texte d'un seul article. N'écrit rien sur le site. */
+export async function publishArticleToNetworks(caption: string): Promise<ArticlePostResult[]> {
+  const jobs: Array<Promise<ArticlePostResult>> = [
+    postFacebookText(caption),
+    postInstagramImage(caption),
+    postLinkedInText(caption),
+    postTikTokPhoto(caption),
+  ]
+  const settled = await Promise.allSettled(jobs)
+  const platforms: ArticleNetwork[] = ["facebook", "instagram", "linkedin", "tiktok"]
+  return settled.map((item, index) => {
+    if (item.status === "fulfilled") return item.value
+    return {
+      platform: platforms[index],
+      ok: false,
+      error: item.reason instanceof Error ? item.reason.message : "Publication impossible",
+    }
+  })
+}
