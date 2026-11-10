@@ -15,6 +15,7 @@ import {
 import { formatTechnicienNom } from "@/lib/technicien-nom"
 import { buildCityPageUrl } from "@/lib/seo-normalize"
 import { publishImageUrlForSite } from "@/lib/publish-image-url"
+import { notifyGoogleIndexing, realisationPublicUrl } from "@/lib/google-indexing"
 import { getSupabaseOrNull } from "@/lib/supabase"
 import { appendTechnicienPhotoToFormData } from "@/lib/technicien-publish"
 import { normalizeFrenchPostalCode, resolvePostalCodeForPublish } from "@/lib/postal-code"
@@ -405,5 +406,9 @@ export async function POST(req: NextRequest) {
     }).eq('id', interventionId)
   }
 
-  return NextResponse.json({ ok: true, slug, data })
+  const googleIndexing = slug
+    ? await notifyGoogleIndexing(realisationPublicUrl(slug))
+    : { ok: false, skipped: true, error: 'slug absent' }
+
+  return NextResponse.json({ ok: true, slug, data, googleIndexing })
 }
