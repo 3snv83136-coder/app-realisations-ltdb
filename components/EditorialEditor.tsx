@@ -5,7 +5,7 @@ import Link from 'next/link'
 import seed from '@/lib/editorial-seed.json'
 
 type Draft = (typeof seed)[number]
-const KEY = 'ltdb-editorial-drafts-v1'
+const KEY = 'ltdb-editorial-drafts-v2'
 const fields = [
   ['title', 'Titre de la page'], ['keyword', 'Mot-clé principal'],
   ['secondary', 'Mots-clés secondaires'], ['seoTitle', 'Title SEO'],
@@ -114,7 +114,7 @@ export default function EditorialEditor() {
   return <main className="min-h-screen bg-slate-50 text-slate-900">
     <header className="bg-[#0e2a52] text-white px-5 py-5"><div className="max-w-7xl mx-auto flex flex-wrap justify-between gap-4"><div><Link href="/" className="text-sm underline">← Accueil LTDB</Link><h1 className="text-2xl font-bold mt-2">Articles SEO · rédaction et validation</h1></div><a href="https://ltdb-growth-dashboard.alikeglint.chatgpt.site" target="_blank" rel="noopener noreferrer" className="underline self-center">Ouvrir le Growth Dashboard</a></div></header>
     <div className="max-w-7xl mx-auto p-4 md:p-6">
-      <p className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm mb-5">20 brouillons · un article tous les deux jours dès le 10 novembre 2026. Les textes, validations et photos sont conservés uniquement dans ce navigateur. Exporte une sauvegarde avant de changer d’appareil. La validation prépare la publication ; elle ne met aucun article en ligne.</p>
+      <p className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm mb-5">20 brouillons d’intervention · un article tous les deux jours dès le 10 novembre 2026. Chaque texte répond à une recherche réelle et se termine par un appel dans le Var. Aucun mode d’emploi pour déboucher soi-même. Le jeton {'{TEL_PRINCIPAL}'} sera remplacé par le numéro de la base à la publication. Les textes restent dans ce navigateur tant qu’ils ne sont pas validés. La validation ne met aucun article en ligne.</p>
       <div className="grid lg:grid-cols-[320px_1fr] gap-5">
         <aside className="space-y-3"><label className="block text-sm">Rechercher<input value={query} onChange={e => setQuery(e.target.value)} className="border rounded-lg p-3 w-full bg-white" /></label><label className="block text-sm">Statut<select className="border rounded-lg p-3 w-full bg-white" value={filter} onChange={e => setFilter(e.target.value)}><option>Tous</option><option>Brouillon</option><option>Validé</option></select></label>
           <p className="text-sm text-slate-600">{drafts.filter(a => a.status === 'Validé').length} / 20 validés</p>
