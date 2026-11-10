@@ -78,6 +78,8 @@ export default function Home() {
           <PlanningTile />
         </div>
 
+        {isOwner && <Link href="/articles" className="block rounded-2xl border border-cyan-300/30 bg-cyan-900/40 p-5 hover:bg-cyan-900/60"><strong className="text-xl">Articles SEO · rédaction et validation</strong><p className="mt-1 text-sm text-cyan-100">20 brouillons d’intervention à relire : chaque recherche se termine par un appel, rien n’est en ligne.</p></Link>}
+
         {/* 2 — Envoyer avis SMS */}
         <EnvoyerAvisSmsPanel className={introClass} />
 

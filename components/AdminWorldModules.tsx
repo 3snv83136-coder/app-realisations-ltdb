@@ -18,6 +18,7 @@ export type HubGroup = {
   desc: string
   bg: string
   emoji: string
+  ownerOnly?: boolean
   links: { href: string; label: string; sub?: string }[]
 }
 
@@ -44,6 +45,17 @@ export const ADMIN_HUBS: HubGroup[] = [
       { href: '/nouveau', label: 'Nouveau rapport', sub: 'Mode terrain' },
       { href: '/rapport-externe', label: 'Rapport externe', sub: 'Site + GMB' },
       { href: '/rapports', label: 'Tous les rapports', sub: 'Liste & envoi' },
+    ],
+  },
+  {
+    id: 'articles',
+    title: 'Articles SEO',
+    desc: 'Brouillons & diffusion',
+    bg: 'bg-gradient-to-br from-cyan-600 to-cyan-900',
+    emoji: '📰',
+    ownerOnly: true,
+    links: [
+      { href: '/articles', label: 'Ouvrir les articles', sub: '20 brouillons' },
     ],
   },
   {
@@ -165,8 +177,9 @@ function SmallTile({ t }: { t: HubTool }) {
 export default function AdminWorldModules() {
   const { data: session } = useSession()
   const isOwner = session?.user?.role === 'admin' && !session?.user?.isDemo
+  const visibleHubs = ADMIN_HUBS.filter(hub => !hub.ownerOnly || isOwner)
   const visibleTools = ADMIN_TOOLS.filter(t => !t.ownerOnly || isOwner)
-  const total = ADMIN_HUBS.length + visibleTools.length
+  const total = visibleHubs.length + visibleTools.length
 
   return (
     <div className="space-y-4 sm:space-y-5">
@@ -188,7 +201,7 @@ export default function AdminWorldModules() {
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3">
-        {ADMIN_HUBS.map(hub => (
+        {visibleHubs.map(hub => (
           <HubTile key={hub.id} hub={hub} />
         ))}
       </div>
@@ -211,5 +224,7 @@ export default function AdminWorldModules() {
 }
 
 export function adminWorldModuleCount(isOwner: boolean): number {
-  return ADMIN_HUBS.length + ADMIN_TOOLS.filter(t => !t.ownerOnly || isOwner).length
+  const hubs = ADMIN_HUBS.filter(hub => !hub.ownerOnly || isOwner).length
+  const tools = ADMIN_TOOLS.filter(t => !t.ownerOnly || isOwner).length
+  return hubs + tools
 }
