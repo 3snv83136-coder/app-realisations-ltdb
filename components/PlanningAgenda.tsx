@@ -4,7 +4,7 @@ import { useMemo, useState } from 'react'
 import Link from 'next/link'
 import { formatCreneau } from '@/lib/creneau'
 import { fmtDateFR, fmtEUR } from '@/lib/format'
-import { isDevisIntervention } from '@/lib/types-intervention'
+import { interventionFicheHref } from '@/lib/types-intervention'
 
 type Statut = 'planifiee' | 'en_cours' | 'terminee' | 'annulee'
 
@@ -27,6 +27,7 @@ export type AgendaIntervention = {
   client_final_nom?: string | null
   client_telephone: string | null
   technicien_nom: string | null
+  notes_internes?: string | null
 }
 
 export type AgendaPeriod = 'day' | 'week' | 'month'
@@ -553,9 +554,7 @@ function AgendaCard({
   techMode: boolean
 }) {
   // Devis → fiche ; sinon terrain.
-  const href = isDevisIntervention(i.type_intervention)
-    ? `/intervention/${i.id}`
-    : `/intervention/${i.id}/terrain`
+  const href = interventionFicheHref(i)
   const villeLabel = [i.code_postal, i.ville].filter(Boolean).join(' ') || i.ville || '—'
   const heure = formatCreneau(i.heure_prevue, i.heure_fin_prevue) || fmtHeure(i.heure_prevue) || '—'
   const titleClient = i.client_final_nom || i.client_nom || 'Client —'

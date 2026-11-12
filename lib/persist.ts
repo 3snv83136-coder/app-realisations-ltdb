@@ -1,3 +1,4 @@
+import { ensureFactureOnPlanning } from "@/lib/facture-planning"
 import { getSupabaseOrNull, saveDocument, upsertClient } from "@/lib/supabase"
 import { mergeFacturePayloadMeta } from "@/lib/facture-relance"
 import type {
@@ -48,6 +49,17 @@ export async function persistFacture(p: PersistFactureInput): Promise<string | n
     code_postal: p.clientCP ?? undefined,
     ville: p.ville ?? undefined,
   })
+  const interventionId = await ensureFactureOnPlanning({
+    interventionId: p.interventionId,
+    clientId,
+    clientAdresse: p.clientAdresse,
+    clientCP: p.clientCP,
+    ville: p.ville,
+    agence: p.agence,
+    numero: p.numero,
+    totalTTC: p.totalTTC,
+    facture: p.facture,
+  })
   const echeanceClean = (p.echeance || p.facture?.echeance || '').trim()
   const isRegle = /^r[ée]gl[ée]e?$/i.test(echeanceClean)
   return saveDocument({
@@ -67,7 +79,7 @@ export async function persistFacture(p: PersistFactureInput): Promise<string | n
         })
       : p.facture,
     client_id: clientId,
-    intervention_id: p.interventionId || null,
+    intervention_id: interventionId,
     envoye_email: p.emailSent ? (p.clientEmail || null) : null,
     envoye_at: p.emailSent ? (p.envoyeAt || new Date().toISOString()) : null,
   })

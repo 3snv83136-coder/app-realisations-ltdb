@@ -28,6 +28,17 @@ export function isDevisIntervention(type: string | null | undefined): boolean {
   return type === 'Devis'
 }
 
+/** Fiche d'intervention, ou mode terrain si le chantier a été planifié normalement. */
+export function interventionFicheHref(i: {
+  id: string
+  type_intervention?: string | null
+  notes_internes?: string | null
+}): string {
+  const fromFacture = (i.notes_internes || '').startsWith('Créée depuis la facture')
+  if (fromFacture || isDevisIntervention(i.type_intervention)) return `/intervention/${i.id}`
+  return `/intervention/${i.id}/terrain`
+}
+
 /** Chantier travaux (assainissement, pompe, terrassement…) — mode terrain + rapport photo. */
 export function isTravauxIntervention(type: string | null | undefined): boolean {
   const t = (type || '').trim()
