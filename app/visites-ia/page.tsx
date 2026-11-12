@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import AppTabs from '@/components/AppTabs'
 import { errorMessage } from '@/lib/error-message'
 import type { LlmVisitesReport } from '@/lib/llm-visits'
@@ -30,12 +30,27 @@ export default function VisitesIaPage() {
   const [moteur, setMoteur] = useState('')
   const [kind, setKind] = useState<KindFilter>('tous')
   const [search, setSearch] = useState('')
+  const [debut, setDebut] = useState('')
+  const [fin, setFin] = useState('')
+  const [exporting, setExporting] = useState(false)
+
+  function filters(format?: 'csv') {
+    const params = new URLSearchParams()
+    if (debut) params.set('debut', debut)
+    if (fin) params.set('fin', fin)
+    if (moteur) params.set('moteur', moteur)
+    if (kind !== 'tous') params.set('kind', kind)
+    if (search.trim()) params.set('q', search.trim())
+    if (format) params.set('format', format)
+    const searchText = params.toString()
+    return searchText ? `?${searchText}` : ''
+  }
 
   async function load() {
     setLoading(true)
     setError('')
     try {
-      const res = await fetch('/api/llm-visites', { cache: 'no-store' })
+      const res = await fetch(`/api/llm-visites${filters()}`, { cache: 'no-store' })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`)
       setReport(data)
@@ -46,21 +61,37 @@ export default function VisitesIaPage() {
     }
   }
 
-  useEffect(() => { void load() }, [])
+  useEffect(() => {
+    const timer = setTimeout(() => { void load() }, 300)
+    return () => clearTimeout(timer)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [debut, fin, moteur, kind, search])
 
-  const rows = useMemo(() => {
-    if (!report) return []
-    const needle = search.trim().toLowerCase()
-    return report.rows.filter(row => {
-      if (moteur && row.moteur !== moteur) return false
-      if (kind === 'robot' && row.kind !== 'robot') return false
-      if (kind === 'clic' && row.kind !== 'clic') return false
-      if (kind === 'requete' && !row.requete) return false
-      if (!needle) return true
-      return [row.path, row.requete, row.origine, row.agent, row.moteur]
-        .some(value => (value || '').toLowerCase().includes(needle))
-    })
-  }, [report, moteur, kind, search])
+  async function exporter() {
+    setExporting(true)
+    setError('')
+    try {
+      const res = await fetch(`/api/llm-visites${filters('csv')}`, { cache: 'no-store' })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        throw new Error(data.error || `HTTP ${res.status}`)
+      }
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      const name = ['visites-ia', debut, fin].filter(Boolean).join('-')
+      link.href = url
+      link.download = `${name}.csv`
+      link.click()
+      URL.revokeObjectURL(url)
+    } catch (e) {
+      setError(errorMessage(e) || 'Export impossible')
+    } finally {
+      setExporting(false)
+    }
+  }
+
+  const rows = report?.rows || []
 
   return (
     <div className="min-h-screen bg-slate-50 pb-20">
@@ -80,13 +111,23 @@ export default function VisitesIaPage() {
                 : 'Robots et arrivées depuis ChatGPT, Claude, Gemini, Perplexity'}
             </div>
           </div>
-          <button
-            type="button"
-            onClick={() => void load()}
-            className="shrink-0 text-xs font-bold px-3 py-2 rounded-lg bg-white/10 hover:bg-white/20 min-h-[44px]"
-          >
-            Rafraîchir
-          </button>
+          <div className="flex shrink-0 gap-2">
+            <button
+              type="button"
+              onClick={() => void exporter()}
+              disabled={exporting}
+              className="text-xs font-bold px-3 py-2 rounded-lg bg-white text-[#0e2a52] hover:bg-slate-100 min-h-[44px] disabled:opacity-60"
+            >
+              {exporting ? 'Export…' : 'Exporter'}
+            </button>
+            <button
+              type="button"
+              onClick={() => void load()}
+              className="text-xs font-bold px-3 py-2 rounded-lg bg-white/10 hover:bg-white/20 min-h-[44px]"
+            >
+              Rafraîchir
+            </button>
+          </div>
         </div>
       </nav>
 
@@ -135,7 +176,25 @@ export default function VisitesIaPage() {
               </button>
             ))}
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            <label className="block text-sm">
+              <span className="text-xs uppercase tracking-wide text-slate-500 font-semibold">Du</span>
+              <input
+                type="date"
+                value={debut}
+                onChange={e => setDebut(e.target.value)}
+                className="w-full border-2 border-slate-200 focus:border-blue-500 outline-none rounded-lg px-3 py-2 mt-1 min-h-[44px]"
+              />
+            </label>
+            <label className="block text-sm">
+              <span className="text-xs uppercase tracking-wide text-slate-500 font-semibold">Au</span>
+              <input
+                type="date"
+                value={fin}
+                onChange={e => setFin(e.target.value)}
+                className="w-full border-2 border-slate-200 focus:border-blue-500 outline-none rounded-lg px-3 py-2 mt-1 min-h-[44px]"
+              />
+            </label>
             <label className="block text-sm">
               <span className="text-xs uppercase tracking-wide text-slate-500 font-semibold">Assistant</span>
               <select
@@ -161,6 +220,11 @@ export default function VisitesIaPage() {
               />
             </label>
           </div>
+          {report && report.rows_total > rows.length && (
+            <p className="text-xs text-slate-500">
+              {rows.length.toLocaleString('fr-FR')} visites affichées sur {report.rows_total.toLocaleString('fr-FR')}. L&apos;export contient toute la sélection.
+            </p>
+          )}
         </section>
 
         <section className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
