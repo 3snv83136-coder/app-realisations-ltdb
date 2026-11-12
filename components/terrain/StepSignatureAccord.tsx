@@ -56,6 +56,7 @@ export default function StepSignatureAccord({ interv, client, technicienNom, onD
   const [demandeExpresse, setDemandeExpresse] = useState(false)
   const [renonciation, setRenonciation] = useState(false)
   const [busy, setBusy] = useState(false)
+  const [onglet, setOnglet] = useState<'sur-place' | 'impossible'>('sur-place')
 
   useEffect(() => {
     let cancelled = false
@@ -270,6 +271,52 @@ export default function StepSignatureAccord({ interv, client, technicienNom, onD
         </p>
       </header>
 
+      <div className="grid grid-cols-2 gap-2" role="tablist" aria-label="Mode de signature">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={onglet === 'sur-place'}
+          onClick={() => setOnglet('sur-place')}
+          className={`min-h-[44px] rounded-xl px-3 py-2 text-sm font-bold transition ${
+            onglet === 'sur-place'
+              ? 'bg-[#0e2a52] text-white'
+              : 'bg-white border-2 border-slate-200 text-slate-600'
+          }`}
+        >
+          Personne sur place
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={onglet === 'impossible'}
+          onClick={() => setOnglet('impossible')}
+          className={`min-h-[44px] rounded-xl px-3 py-2 text-sm font-bold transition ${
+            onglet === 'impossible'
+              ? 'bg-[#0e2a52] text-white'
+              : 'bg-white border-2 border-slate-200 text-slate-600'
+          }`}
+        >
+          Signature impossible
+        </button>
+      </div>
+
+      {onglet === 'impossible' ? (
+        <div className="space-y-4">
+          <p className="text-sm text-slate-600 text-center leading-relaxed">
+            Personne pour signer sur place. Le parcours continue sans signature.
+          </p>
+          <button
+            type="button"
+            onClick={handleContinueSansNouveau}
+            disabled={busy}
+            className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-2xl py-5 font-black text-lg shadow-lg transition"
+          >
+            {busy ? '⚙ Enregistrement…' : 'Passer à l’étape suivante →'}
+          </button>
+        </div>
+      ) : (
+      <>
+
       <div className="bg-blue-50 border-2 border-blue-200 rounded-2xl p-4 text-sm space-y-1">
         <div className="font-bold text-blue-900">Client : {client?.nom || '—'}</div>
         {(lignesFacture || []).filter(l => !l.inclus).map((l, i) => (
@@ -324,6 +371,8 @@ export default function StepSignatureAccord({ interv, client, technicienNom, onD
       >
         {busy ? '⚙ Enregistrement…' : '✓ Valider la signature'}
       </button>
+      </>
+      )}
     </section>
   )
 }
