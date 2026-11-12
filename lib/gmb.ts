@@ -218,7 +218,8 @@ export async function createGmbPost(
       "parametres.GMB_LOCATION non défini — récupère la fiche via /api/gmb/locations",
     )
   }
-  const summary = input.summary.trim().slice(0, 1490)
+  const summary = input.summary.trim()
+  if (summary.length > 1490) throw new Error("Le texte du post Google est trop long")
   if (!summary) throw new Error("Le texte du post est vide")
 
   const token = await getAccessToken()
@@ -255,6 +256,7 @@ export type GmbPost = {
   createTime: string
   searchUrl: string | null
   photoUrl: string | null
+  ctaUrl: string | null
 }
 
 /** Liste les posts publiés sur la fiche Google Business (API v4 `localPosts.list`). */
@@ -280,6 +282,7 @@ export async function listGmbPosts(): Promise<GmbPost[]> {
       state?: string
       createTime?: string
       searchUrl?: string
+      callToAction?: { url?: string }
       media?: Array<{ googleUrl?: string; sourceUrl?: string }>
     }>
   }
@@ -290,5 +293,6 @@ export async function listGmbPosts(): Promise<GmbPost[]> {
     createTime: p.createTime || "",
     searchUrl: p.searchUrl || null,
     photoUrl: p.media?.[0]?.googleUrl || p.media?.[0]?.sourceUrl || null,
+    ctaUrl: p.callToAction?.url || null,
   }))
 }

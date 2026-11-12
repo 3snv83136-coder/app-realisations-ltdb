@@ -172,6 +172,10 @@ export interface SeoData {
   technicien?: SeoTechnicien
   /** Graphe JSON-LD schema.org injecté dans la page publiée. */
   jsonld?: Record<string, unknown>
+  /** Post Google déjà créé pour cette intervention. Évite un second post. */
+  gmb_post_name?: string
+  explication_url?: string
+  explication_slug?: string
 }
 
 /* ─── Payloads documents (documents.payload) ─── */
