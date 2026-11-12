@@ -90,6 +90,8 @@ export default auth(async (req) => {
     pathname.startsWith("/acces-demo")
     || pathname.startsWith("/connexions")
     || pathname.startsWith("/api/connexions")
+    || pathname.startsWith("/visites-ia")
+    || pathname.startsWith("/api/llm-visites")
     || pathname.startsWith("/admin")
     || pathname.startsWith("/api/admin")
     || pathname.startsWith("/reglages")
