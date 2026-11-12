@@ -15,7 +15,7 @@ import {
 } from '@/lib/geocode-address'
 import { fmtDateFR, fmtEUR } from '@/lib/format'
 import { formatCreneau } from '@/lib/creneau'
-import { isDevisIntervention } from '@/lib/types-intervention'
+import { interventionFicheHref } from '@/lib/types-intervention'
 
 export type PlanningMapIntervention = {
   id: string
@@ -35,12 +35,11 @@ export type PlanningMapIntervention = {
   technicien_nom: string | null
   client_nom: string | null
   client_final_nom?: string | null
+  notes_internes?: string | null
 }
 
 function interventionHref(i: PlanningMapIntervention): string {
-  return isDevisIntervention(i.type_intervention)
-    ? `/intervention/${i.id}`
-    : `/intervention/${i.id}/terrain`
+  return interventionFicheHref(i)
 }
 
 function interventionClientLabel(i: PlanningMapIntervention): string {

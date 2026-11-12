@@ -1,6 +1,6 @@
 'use client'
 import { useEffect, useMemo, useRef, useState } from "react"
-import { isDevisIntervention } from "@/lib/types-intervention"
+import { interventionFicheHref } from "@/lib/types-intervention"
 import Link from "next/link"
 import dynamic from "next/dynamic"
 import { useSession } from "next-auth/react"
@@ -530,9 +530,7 @@ function InterventionCard({
   techMode?: boolean
 }) {
   // Devis → fiche ; autres → parcours terrain.
-  const href = isDevisIntervention(i.type_intervention)
-    ? `/intervention/${i.id}`
-    : `/intervention/${i.id}/terrain`
+  const href = interventionFicheHref(i)
   const villeLabel = [i.code_postal, i.ville].filter(Boolean).join(' ') || i.ville || 'Ville —'
   const metaMuted =
     i.statut === 'planifiee' ? 'text-amber-900/75' :
