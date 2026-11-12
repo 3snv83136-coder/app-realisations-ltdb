@@ -657,6 +657,7 @@ function StepRapport({ interv, technicien, onSaved, onError }: {
   const [isOnline, setIsOnline] = useState(true)
   const [queuedOk, setQueuedOk] = useState(false)
   const [draftSavedAt, setDraftSavedAt] = useState<string | null>(null)
+  const [attestationAnomalie, setAttestationAnomalie] = useState(false)
 
   useEffect(() => {
     if (typeof navigator === 'undefined') return
@@ -714,6 +715,7 @@ function StepRapport({ interv, technicien, onSaved, onError }: {
       ville: interv.ville,
       code_postal: interv.code_postal,
       date_prevue: interv.date_prevue,
+      attestation_anomalie: attestationAnomalie,
     })
     setQueuedOk(true)
     onError('')
@@ -744,6 +746,7 @@ function StepRapport({ interv, technicien, onSaved, onError }: {
           technicien_nom: technicien?.nom || '',
           technicien_annees: technicien?.annees_experience ?? undefined,
           technicien_titre: technicien?.titre_metier || undefined,
+          attestation_anomalie: attestationAnomalie,
         }),
         signal: AbortSignal.timeout(180_000),
       })
@@ -861,6 +864,24 @@ function StepRapport({ interv, technicien, onSaved, onError }: {
           {rapportPreview.commentaire_technicien && (
             <PreviewField label="Commentaire technicien" value={rapportPreview.commentaire_technicien} />
           )}
+          {rapportPreview.attestation_anomalie && (
+            <div className="border-2 border-red-300 bg-red-50 rounded-xl p-3 space-y-2">
+              <div className="text-[11px] uppercase tracking-wider text-red-800 font-bold">Attestation d&apos;anomalie</div>
+              <p className="text-sm font-bold text-red-950">{rapportPreview.attestation_anomalie.titre}</p>
+              {rapportPreview.attestation_anomalie.compte_rendu && (
+                <p className="text-sm text-red-950 whitespace-pre-wrap">{rapportPreview.attestation_anomalie.compte_rendu}</p>
+              )}
+              {(rapportPreview.attestation_anomalie.desordres || []).map((d, i) => (
+                <div key={i} className="rounded-lg overflow-hidden border border-red-600">
+                  <div className="bg-red-700 text-white text-xs font-bold px-3 py-1.5">Urgent — {d.titre}</div>
+                  <p className="bg-red-100 text-sm text-red-950 px-3 py-2 whitespace-pre-wrap">{d.constat}</p>
+                </div>
+              ))}
+              {rapportPreview.attestation_anomalie.attestation && (
+                <p className="text-sm italic text-red-950">{rapportPreview.attestation_anomalie.attestation}</p>
+              )}
+            </div>
+          )}
 
           {Array.isArray(rapportPreview.devis?.lignes) && rapportPreview.devis.lignes.length > 0 && (
             <div className="border-t border-slate-200 pt-4">
@@ -956,6 +977,20 @@ function StepRapport({ interv, technicien, onSaved, onError }: {
           placeholder="Ou tape ici directement le texte du rapport…"
           className="w-full border-2 border-slate-200 focus:border-blue-500 outline-none rounded-xl px-3 sm:px-4 py-3 text-base resize-y min-h-[140px]"
         />
+        <label className="flex items-start gap-3 rounded-xl border-2 border-red-200 bg-red-50 px-3 py-3 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={attestationAnomalie}
+            onChange={e => setAttestationAnomalie(e.target.checked)}
+            className="mt-1 h-5 w-5 accent-red-700"
+          />
+          <span>
+            <span className="block text-sm font-black text-red-900">Anomalie constatée</span>
+            <span className="block text-xs text-red-800 mt-0.5">
+              Le rapport de débouchage reste. On ajoute une attestation technique et des encadrés rouges sur les gros désordres (caméra, drain hors service, réseau qui n&apos;a jamais fonctionné).
+            </span>
+          </span>
+        </label>
         <p className="text-[11px] text-slate-400">
           {transcription.length} caractères
           {draftSavedAt && (

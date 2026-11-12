@@ -44,6 +44,7 @@ async function generateRapport(input: {
   type_intervention: string | null
   ville: string | null
   code_postal: string | null
+  attestation_anomalie?: boolean
 }) {
   const res = await fetch('/api/generate', {
     method: 'POST',
@@ -54,6 +55,7 @@ async function generateRapport(input: {
       type_intervention: input.type_intervention || 'Intervention',
       ville: input.ville || '',
       code_postal: input.code_postal || '',
+      attestation_anomalie: input.attestation_anomalie === true,
     }),
     signal: AbortSignal.timeout(180_000),
   })
@@ -153,6 +155,7 @@ export async function syncPendingRapports(): Promise<RapportSyncResult> {
           type_intervention: item.type_intervention,
           ville: item.ville,
           code_postal: item.code_postal,
+          attestation_anomalie: item.attestation_anomalie === true,
         })
         await saveRapportOnServer({
           interventionId: item.intervention_id,

@@ -66,6 +66,23 @@ export interface RapportAvisTechnique {
   recommandation_urgente: string
 }
 
+/** Gros désordre affiché dans un encadré rouge de l'attestation d'anomalie. */
+export interface RapportDesordre {
+  titre: string
+  constat: string
+}
+
+/**
+ * Complément du rapport classique : compte rendu technique et attestation
+ * d'intervention, uniquement quand la case est cochée en mode terrain.
+ */
+export interface RapportAttestationAnomalie {
+  titre: string
+  compte_rendu: string
+  desordres: RapportDesordre[]
+  attestation: string
+}
+
 export interface RapportGarantie {
   est_garanti: boolean
   commentaire?: string
@@ -87,6 +104,8 @@ export interface RapportData {
   conditions_intervention?: string
   phases?: RapportPhase[]
   avis_technique?: RapportAvisTechnique | null
+  /** Présent seulement si la case « anomalie constatée » a été cochée. */
+  attestation_anomalie?: RapportAttestationAnomalie | null
   analyse_table?: RapportAnalyseRow[]
   preconisations?: RapportPreco[]
   devis?: RapportDevis | null
