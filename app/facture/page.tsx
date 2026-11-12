@@ -15,6 +15,7 @@ import {
 } from "@/components/Icons"
 import { errorMessage } from "@/lib/error-message"
 import type { FacturePayload } from "@/lib/types-documents"
+import FacturesImpayees from "@/components/FacturesImpayees"
 
 const DocumentDownloadButton = dynamic(() => import("@/components/DocumentDownloadButton"), { ssr: false })
 const ResendEmailButton = dynamic(() => import("@/components/ResendEmailButton"), { ssr: false })
@@ -56,10 +57,11 @@ function formatLieuFacture(
 }
 
 type StatutFiltre = 'all' | 'brouillon' | 'envoye' | 'paye' | 'retard' | 'annule'
-type VueTab = 'liste' | 'ca'
+type VueTab = 'liste' | 'impayees' | 'ca'
 
 const VUE_TABS: { key: VueTab; label: string }[] = [
   { key: 'liste', label: 'Liste des factures' },
+  { key: 'impayees', label: 'Impayées' },
   { key: 'ca', label: 'Chiffre d’affaires' },
 ]
 
@@ -357,6 +359,8 @@ export default function FactureConsolePage() {
             </button>
           ))}
         </div>
+
+        {vueTab === 'impayees' && <FacturesImpayees />}
 
         {vueTab === 'ca' && <CaMensuelPanel agenceFiltre={agence} />}
 
