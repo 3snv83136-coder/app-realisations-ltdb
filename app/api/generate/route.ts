@@ -9,7 +9,7 @@ import {
   genererDialogueQa,
   resolvePrixPlaceholdersForType,
 } from "@/lib/generer-dialogue-qa"
-import type { RapportData, SeoData } from "@/lib/types-documents"
+import type { RapportAttestationAnomalie, RapportData, SeoData } from "@/lib/types-documents"
 
 /**
  * Sorties LLM avant normalisation : la forme est celle attendue, mais rien
@@ -34,6 +34,31 @@ const SERVICES = [
   { slug: 'tarifs', label: 'Nos tarifs' },
 ]
 
+function normalizeAttestationAnomalie(raw: unknown): RapportAttestationAnomalie | null {
+  if (!raw || typeof raw !== 'object') return null
+  const o = raw as Record<string, unknown>
+  const titre = typeof o.titre === 'string' ? o.titre.trim() : ''
+  const compte = typeof o.compte_rendu === 'string' ? o.compte_rendu.trim() : ''
+  const attestation = typeof o.attestation === 'string' ? o.attestation.trim() : ''
+  const desordres = Array.isArray(o.desordres)
+    ? o.desordres.flatMap((d) => {
+        if (!d || typeof d !== 'object') return []
+        const row = d as Record<string, unknown>
+        const t = typeof row.titre === 'string' ? row.titre.trim() : ''
+        const c = typeof row.constat === 'string' ? row.constat.trim() : ''
+        if (!t && !c) return []
+        return [{ titre: t || 'Désordre constaté', constat: c }]
+      })
+    : []
+  if (!titre && !compte && !attestation && desordres.length === 0) return null
+  return {
+    titre: titre || 'Anomalie constatée',
+    compte_rendu: compte,
+    desordres,
+    attestation,
+  }
+}
+
 function slugify(s: string) {
   return s.toLowerCase()
     .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
@@ -51,7 +76,9 @@ export async function POST(req: NextRequest) {
     technicien_nom,
     technicien_annees,
     technicien_titre,
+    attestation_anomalie: attestationAnomalieRaw,
   } = await req.json()
+  const attestationAnomalie = attestationAnomalieRaw === true
   if (!['full', 'rapport', 'seo'].includes(mode)) {
     return NextResponse.json({ error: 'Mode invalide' }, { status: 400 })
   }
@@ -103,6 +130,17 @@ Date: ${today.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year:
 - Si un champ ne peut pas être rempli → "" ou [].
 - "devis": null sauf si le technicien mentionne explicitement des prix/montants.
 - "avis_technique": null sauf si le technicien exprime une préoccupation ou un diagnostic critique.
+${attestationAnomalie ? `
+📌 ATTESTATION D'ANOMALIE — CASE COCHÉE
+Le rapport classique de débouchage reste complet (objet, diagnostic, travaux, phases).
+En PLUS, remplis "attestation_anomalie" : un compte rendu technique dédié à l'anomalie constatée, pas une attestation de conformité.
+Exemple de cas : passage caméra, drain hors service, réseau qui n'a jamais fonctionné.
+- "titre" : intitulé court de l'anomalie.
+- "compte_rendu" : 4 à 6 phrases techniques, uniquement ce qui est dicté.
+- "desordres" : un objet par gros désordre explicite. "titre" court, "constat" en 2 ou 3 phrases. Ce sont les encadrés rouges urgents du PDF.
+- "attestation" : formule d'attestation d'intervention, factuelle, qui commence par « Les Techniciens du Débouchage attestent avoir constaté ». Pas de téléphone, pas de prix, pas de fait inventé.
+- Si la dictée ne décrit aucun désordre, laisse "desordres": [] et rédige le compte rendu seulement avec les constats dictés.
+` : `- "attestation_anomalie": null. Ne rédige pas d'attestation d'anomalie.`}
 
 ⚠ RÈGLE STATUT "ok" / CONFORME ⚠
 N'utilise JAMAIS "statut": "ok" (qui affichera "CONFORME" dans le rapport) par défaut ou pour combler. Ce statut est réservé aux cas où le technicien DIT EXPLICITEMENT que quelque chose est en bon état / conforme / sans problème / fonctionne correctement.
@@ -151,6 +189,14 @@ Réponds UNIQUEMENT avec ce JSON (sans markdown, sans backticks) :
     }
   ],
   "avis_technique": null,
+  "attestation_anomalie": ${attestationAnomalie ? `{
+    "titre": "intitulé court de l'anomalie",
+    "compte_rendu": "compte rendu technique en 4-6 phrases, uniquement les faits dictés",
+    "desordres": [
+      { "titre": "gros désordre", "constat": "constat urgent en 2-3 phrases" }
+    ],
+    "attestation": "Les Techniciens du Débouchage attestent avoir constaté…"
+  }` : 'null'},
   "analyse_table": [
     { "probleme": "intitulé court", "localisation": "précision géographique", "description": "description en 1-2 phrases", "statut": "critical|warn|info|ok|neutral", "label": "✗ Urgent | ⚠ Attention | ⓘ À prévoir | ✓ Conforme | - N/A" }
   ],
@@ -394,6 +440,9 @@ sont placés avant pour ne jamais être perdus si la réponse est longue.
       }))
     : []
   rapport.materiel_utilise = Array.isArray(rapport.materiel_utilise) ? rapport.materiel_utilise : []
+  rapport.attestation_anomalie = attestationAnomalie
+    ? normalizeAttestationAnomalie(rapport.attestation_anomalie)
+    : null
 
   // Le terrain n’attend ni article SEO ni dialogue de publication.
   if (mode === 'rapport') {

@@ -622,6 +622,12 @@ export function RealisationDocument({
   if (hasContexte) sections.push('contexte')
   if (hasMethodo) sections.push('methodo')
   if (hasAnomalies) sections.push('anomalies')
+  const attestation = rapport.attestation_anomalie
+  const hasAttestationAnomalie = !!(
+    attestation &&
+    (attestation.titre?.trim() || attestation.compte_rendu?.trim() || attestation.attestation?.trim() || (attestation.desordres?.length ?? 0) > 0)
+  )
+  if (hasAttestationAnomalie) sections.push('attestation')
   if (hasPhotos) sections.push('photos')
   if (hasPrecos) sections.push('precos')
   if (hasGarantie) sections.push('garantie')
@@ -765,6 +771,30 @@ export function RealisationDocument({
                   </View>
                 )
               })}
+            </SectionCard>
+          )}
+
+          {hasAttestationAnomalie && attestation && (
+            <SectionCard num={numOf('attestation')} title="Attestation d'intervention — anomalie" accent="red" splitable minPresenceAhead={100}>
+              {attestation.titre?.trim() ? (
+                <Text style={[s.cardText, { fontFamily: 'Helvetica-Bold', marginBottom: 6 }]}>{attestation.titre}</Text>
+              ) : null}
+              {attestation.compte_rendu?.trim() ? (
+                <Text style={s.cardText}>{attestation.compte_rendu}</Text>
+              ) : null}
+              {(attestation.desordres || []).map((d, i) => (
+                <View key={i} style={[s.callout, { marginTop: 8 }]} wrap={false}>
+                  <View style={s.calloutHead}>
+                    <Text style={s.calloutHeadTxt}>Urgent — {d.titre || `Désordre ${i + 1}`}</Text>
+                  </View>
+                  <View style={s.calloutBody}>
+                    <Text style={s.calloutText}>{d.constat || '—'}</Text>
+                  </View>
+                </View>
+              ))}
+              {attestation.attestation?.trim() ? (
+                <Text style={[s.cardText, { marginTop: 8, fontFamily: 'Helvetica-Oblique' }]}>{attestation.attestation}</Text>
+              ) : null}
             </SectionCard>
           )}
 

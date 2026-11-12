@@ -26,6 +26,7 @@ export type PendingRapport = {
   ville: string | null
   code_postal: string | null
   date_prevue: string | null
+  attestation_anomalie?: boolean
   created_at: string
 }
 
