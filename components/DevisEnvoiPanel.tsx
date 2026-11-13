@@ -12,6 +12,7 @@ type Props = {
   clientAdresse: string
   clientCP: string
   clientVille: string
+  adresseChantier?: string
   dateDevis: string
   totalHT: number
   totalTTC: number
@@ -32,6 +33,7 @@ export default function DevisEnvoiPanel({
   clientAdresse,
   clientCP,
   clientVille,
+  adresseChantier,
   dateDevis,
   totalHT,
   totalTTC,
@@ -122,7 +124,7 @@ export default function DevisEnvoiPanel({
           // repli : on garde le numéro provisoire
         }
       }
-      const devisToSend: DevisData = { ...devis, numero }
+      const devisToSend: DevisData = { ...devis, numero, adresse_chantier: adresseChantier }
 
       const [{ DevisDocument }, { pdfDocumentToBase64 }, React] = await Promise.all([
         import('@/components/DevisPDF'),
@@ -133,6 +135,7 @@ export default function DevisEnvoiPanel({
       const client = {
         nom: clientNom || '—',
         adresseLignes: [clientAdresse || '', [clientCP, clientVille].filter(Boolean).join(' ')].filter(Boolean),
+        adresseChantier,
       }
       const pdfBase64 = await pdfDocumentToBase64(
         React.createElement(DevisDocument, {

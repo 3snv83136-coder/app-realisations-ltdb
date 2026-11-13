@@ -1,7 +1,8 @@
 import React from "react"
-import { Document, Page, Text, View, StyleSheet } from "@react-pdf/renderer"
+import { Document, Page, Text, View, StyleSheet, Image } from "@react-pdf/renderer"
 import { LTDB_EMETTEUR } from "@/lib/emetteur"
 import { LTDB_FORME_JURIDIQUE, LTDB_SIRET } from "@/lib/entreprise"
+import { LTDB_LOGO_SRC } from "@/lib/ltdb-logo"
 import type { RhDocumentGenereType, Salarie } from "@/lib/rh/types"
 import { salarieAdresseComplete, salarieNomComplet } from "@/lib/rh/types"
 
@@ -52,11 +53,16 @@ function fmtMoney(n?: number | null): string {
 function Header() {
   return (
     <View style={s.header}>
-      <Text style={s.firm}>{LTDB_EMETTEUR.raisonSociale}</Text>
-      <Text style={s.sub}>
-        {LTDB_EMETTEUR.adresseLignes.join(' — ')} · SIRET {LTDB_SIRET} · {LTDB_FORME_JURIDIQUE}
-      </Text>
-      <Text style={s.sub}>Représenté par M. NAJI MONDOR, gérant</Text>
+      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+        <Image src={LTDB_LOGO_SRC} style={{ width: 32, height: 32, marginRight: 8 }} />
+        <View>
+          <Text style={s.firm}>{LTDB_EMETTEUR.raisonSociale}</Text>
+          <Text style={s.sub}>
+            {LTDB_EMETTEUR.adresseLignes.join(' — ')} · SIRET {LTDB_SIRET} · {LTDB_FORME_JURIDIQUE}
+          </Text>
+          <Text style={s.sub}>Représenté par M. NAJI MONDOR, gérant</Text>
+        </View>
+      </View>
     </View>
   )
 }

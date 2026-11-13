@@ -18,6 +18,7 @@ import { fmtDateISOtoFR } from "@/lib/format"
 import { buildFactureFromDevis } from "@/lib/devisToFacture"
 import DevisEnvoiPanel from "@/components/DevisEnvoiPanel"
 import { errorMessage } from "@/lib/error-message"
+import { adressesEquivalent, buildAdresseChantierLine } from "@/lib/facture-adresse-chantier"
 import {
   DEVIS_TRAVAUX_MENTIONS_LEGALES,
   type DevisVariant,
@@ -29,6 +30,24 @@ const DevisDownloadButton = dynamic(() => import("@/components/DevisPDF"), { ssr
 const SaveDocumentButton = dynamic(() => import("@/components/SaveDocumentButton"), { ssr: false })
 
 type Step = 'capture' | 'extracting' | 'generating' | 'preview'
+
+function chantierDepuisIntervention(
+  client: { adresse?: string | null; code_postal?: string | null; ville?: string | null } | null,
+  intervention: { adresse_chantier?: string | null; code_postal?: string | null; ville?: string | null } | null,
+): string {
+  const clientLine = buildAdresseChantierLine({
+    adresse: client?.adresse,
+    codePostal: client?.code_postal,
+    ville: client?.ville,
+  })
+  const chantierLine = buildAdresseChantierLine({
+    adresse: intervention?.adresse_chantier,
+    codePostal: intervention?.code_postal,
+    ville: intervention?.ville,
+  })
+  if (!chantierLine || adressesEquivalent(chantierLine, clientLine)) return 'idem'
+  return chantierLine
+}
 
 export default function DevisPage() {
   return (
@@ -82,101 +101,106 @@ function DevisPageContent() {
   )
 
   useEffect(() => {
-    if (editDocumentId) {
-      let cancelled = false
-      ;(async () => {
-        setError('')
-        try {
-          const res = await fetch(`/api/historique/${editDocumentId}`, { cache: 'no-store' })
-          const data = await res.json()
-          if (cancelled) return
-          if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`)
-          const doc = data.document
-          if (!doc || doc.type !== 'devis') throw new Error('Document devis introuvable')
-          if (!doc.payload?.lignes) throw new Error('Contenu du devis indisponible')
-
-          setDevis(doc.payload as DevisData)
-          setClientNom(doc.client_nom || '')
-          setClientEmail(doc.envoye_email || doc.client_email || '')
-          setClientAdresse(doc.client_adresse || '')
-          setClientCP(doc.client_code_postal || '')
-          setClientVille(doc.client_ville || '')
-          setDateDevis(doc.payload.date_devis || doc.date_emission?.slice(0, 10) || new Date().toISOString().split('T')[0])
-          setReferenceDossier(doc.payload.reference_dossier || (doc.numero ? `Devis ${doc.numero}` : ''))
-          if (doc.intervention_id) setLoadedInterventionId(doc.intervention_id)
-          setEditingDocumentId(editDocumentId)
-          setStep('preview')
-        } catch (e) {
-          if (!cancelled) {
-            setError(e instanceof Error ? e.message : 'Erreur chargement devis')
-            setStep('capture')
-          }
-        } finally {
-          if (!cancelled) setPrefillLoading(false)
-        }
-      })()
-      return () => { cancelled = true }
-    }
-
-    if (!interventionId) {
+    if (!editDocumentId && !interventionId) {
       setPrefillLoading(false)
       return
     }
     let cancelled = false
     ;(async () => {
+      setError('')
       try {
-        const res = await fetch(`/api/interventions/${interventionId}`, { cache: 'no-store' })
-        const data = await res.json()
-        if (cancelled || !res.ok) return
-        const c = data.client
-        const itv = data.intervention
-        if (c?.nom) setClientNom(c.nom)
-        if (c?.email) setClientEmail(c.email)
-        if (c?.adresse) setClientAdresse(c.adresse)
-        if (c?.code_postal) setClientCP(c.code_postal)
-        if (c?.ville) setClientVille(c.ville)
-        if (itv?.adresse_chantier) setAdresseChantier(itv.adresse_chantier)
-        else if (c?.adresse) setAdresseChantier(c.adresse)
-        if (itv?.ville && !c?.ville) setClientVille(itv.ville)
-        if (itv?.code_postal && !c?.code_postal) setClientCP(itv.code_postal)
-        setReferenceDossier(itv?.reference ? `Intervention ${itv.reference}` : '')
-        setLoadedInterventionId(interventionId)
+        let doc: {
+          type?: string
+          numero?: string
+          payload?: DevisData
+          client_nom?: string
+          client_email?: string
+          envoye_email?: string
+          client_adresse?: string
+          client_code_postal?: string
+          client_ville?: string
+          date_emission?: string
+          intervention_id?: string | null
+          intervention_suggeree_id?: string | null
+          adresse_chantier?: string | null
+        } | null = null
 
-        // Devis déjà lié → ouverture en édition (contenu + renvoyer)
-        const existingDevisId = typeof data.devis_id === 'string' ? data.devis_id : null
-        if (existingDevisId) {
-          const docRes = await fetch(`/api/historique/${existingDevisId}`, { cache: 'no-store' })
-          const docData = await docRes.json().catch(() => ({}))
-          const doc = docData.document
-          if (!cancelled && docRes.ok && doc?.payload?.lignes) {
-            setDevis(doc.payload as DevisData)
-            if (doc.client_nom) setClientNom(doc.client_nom)
-            if (doc.envoye_email || doc.client_email) {
-              setClientEmail(doc.envoye_email || doc.client_email || '')
+        if (editDocumentId) {
+          const res = await fetch(`/api/historique/${editDocumentId}`, { cache: 'no-store' })
+          const data = await res.json()
+          if (cancelled) return
+          if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`)
+          if (!data.document || data.document.type !== 'devis') throw new Error('Document devis introuvable')
+          if (!data.document.payload?.lignes) throw new Error('Contenu du devis indisponible')
+          doc = data.document
+        }
+
+        let client: { nom?: string; email?: string; adresse?: string; code_postal?: string; ville?: string } | null = null
+        let itv: { reference?: string; adresse_chantier?: string; code_postal?: string; ville?: string } | null = null
+        if (interventionId) {
+          const res = await fetch(`/api/interventions/${interventionId}`, { cache: 'no-store' })
+          const data = await res.json()
+          if (!cancelled && res.ok) {
+            client = data.client || null
+            itv = data.intervention || null
+            if (!doc && typeof data.devis_id === 'string') {
+              const docRes = await fetch(`/api/historique/${data.devis_id}`, { cache: 'no-store' })
+              const docData = await docRes.json().catch(() => ({}))
+              if (!cancelled && docRes.ok && docData.document?.payload?.lignes) {
+                doc = docData.document
+                setEditingDocumentId(data.devis_id)
+                if (typeof window !== 'undefined') {
+                  const url = new URL(window.location.href)
+                  url.searchParams.set('intervention', interventionId)
+                  url.searchParams.set('document', data.devis_id)
+                  window.history.replaceState({}, '', url.toString())
+                }
+              }
             }
-            if (doc.client_adresse) setClientAdresse(doc.client_adresse)
-            if (doc.client_code_postal) setClientCP(doc.client_code_postal)
-            if (doc.client_ville) setClientVille(doc.client_ville)
-            setDateDevis(
-              doc.payload.date_devis
-              || doc.date_emission?.slice(0, 10)
-              || new Date().toISOString().split('T')[0],
-            )
-            setReferenceDossier(
-              doc.payload.reference_dossier || (doc.numero ? `Devis ${doc.numero}` : ''),
-            )
-            setEditingDocumentId(existingDevisId)
-            if (typeof window !== 'undefined') {
-              const url = new URL(window.location.href)
-              url.searchParams.delete('intervention')
-              url.searchParams.set('document', existingDevisId)
-              window.history.replaceState({}, '', url.toString())
-            }
-            setStep('preview')
           }
         }
-      } catch {
-        /* best-effort */
+
+        if (cancelled) return
+
+        const clientCourant = {
+          adresse: doc?.client_adresse || client?.adresse,
+          code_postal: doc?.client_code_postal || client?.code_postal,
+          ville: doc?.client_ville || client?.ville,
+        }
+        const savedChantier = (doc?.adresse_chantier || doc?.payload?.adresse_chantier || '').trim()
+        const savedDistinct = savedChantier
+          && savedChantier.toLowerCase() !== 'idem'
+          && !adressesEquivalent(savedChantier, buildAdresseChantierLine(clientCourant))
+          ? savedChantier
+          : ''
+        const chantier = itv
+          ? chantierDepuisIntervention(clientCourant, itv)
+          : (savedDistinct || 'idem')
+
+        if (doc?.payload) {
+          setDevis({ ...doc.payload, adresse_chantier: chantier })
+          setDateDevis(doc.payload.date_devis || doc.date_emission?.slice(0, 10) || new Date().toISOString().split('T')[0])
+          setReferenceDossier(doc.payload.reference_dossier || (doc.numero ? `Devis ${doc.numero}` : ''))
+          setStep('preview')
+        }
+
+        setClientNom(doc?.client_nom || client?.nom || '')
+        setClientEmail(doc?.envoye_email || doc?.client_email || client?.email || '')
+        setClientAdresse(doc?.client_adresse || client?.adresse || '')
+        setClientCP(doc?.client_code_postal || client?.code_postal || itv?.code_postal || '')
+        setClientVille(doc?.client_ville || client?.ville || itv?.ville || '')
+        setAdresseChantier(chantier)
+        if (itv?.reference && !doc?.payload?.reference_dossier) {
+          setReferenceDossier(`Intervention ${itv.reference}`)
+        }
+        const linkedIntervention = interventionId || doc?.intervention_id || doc?.intervention_suggeree_id || null
+        if (linkedIntervention) setLoadedInterventionId(linkedIntervention)
+        if (editDocumentId) setEditingDocumentId(editDocumentId)
+      } catch (e) {
+        if (!cancelled) {
+          setError(e instanceof Error ? e.message : 'Erreur chargement devis')
+          setStep('capture')
+        }
       } finally {
         if (!cancelled) setPrefillLoading(false)
       }
@@ -523,7 +547,7 @@ function DevisPageContent() {
                 label={isEditingExisting ? '💾 Mettre à jour le devis' : undefined}
                 allowResave
                 body={() => ({
-                  devis,
+                  devis: { ...devis, adresse_chantier: adresseChantier },
                   clientNom,
                   clientEmail,
                   clientAdresse,
@@ -570,6 +594,7 @@ function DevisPageContent() {
             clientAdresse={clientAdresse}
             clientCP={clientCP}
             clientVille={clientVille}
+            adresseChantier={adresseChantier}
             dateDevis={dateDevis}
             totalHT={total}
             totalTTC={ttc}

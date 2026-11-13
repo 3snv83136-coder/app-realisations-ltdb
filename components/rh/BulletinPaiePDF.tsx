@@ -1,7 +1,8 @@
 import React from "react"
-import { Document, Page, Text, View, StyleSheet } from "@react-pdf/renderer"
+import { Document, Page, Text, View, StyleSheet, Image } from "@react-pdf/renderer"
 import { LTDB_EMETTEUR } from "@/lib/emetteur"
 import { LTDB_FORME_JURIDIQUE, LTDB_SIRET } from "@/lib/entreprise"
+import { LTDB_LOGO_SRC } from "@/lib/ltdb-logo"
 import type { Salarie } from "@/lib/rh/types"
 import { salarieAdresseComplete, salarieNomComplet } from "@/lib/rh/types"
 import type { BulletinPaieCalc, RecapColonne } from "@/lib/rh/fiche-paie-calc"
@@ -143,6 +144,7 @@ export function BulletinPaieDocument({ salarie, bulletin }: BulletinPaiePdfProps
         <View style={s.box}>
           <View style={s.boxHalf}>
             <Text style={s.boxTitle}>EMPLOYEUR</Text>
+            <Image src={LTDB_LOGO_SRC} style={{ width: 28, height: 28, marginBottom: 4 }} />
             <Text style={s.line}>{LTDB_EMETTEUR.raisonSociale}</Text>
             <Text style={s.line}>{LTDB_EMETTEUR.adresseLignes.join(', ')}</Text>
             <Text style={s.line}>SIRET : {LTDB_SIRET} · NAF : 8122Z</Text>

@@ -45,7 +45,13 @@ const s = StyleSheet.create({
     backgroundColor: C.white,
     lineHeight: 1.45,
   },
-  content: { paddingHorizontal: 40, paddingTop: 0, paddingBottom: 6, flexGrow: 1 },
+  bannerFixed: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+  },
+  content: { paddingHorizontal: 40, paddingTop: 4, paddingBottom: 6 },
 
   /* Client + métadonnées */
   infoRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 14 },
@@ -284,7 +290,7 @@ export function FactureDocument({ emetteur, client, facture, phone }: FacturePDF
   return (
     <Document>
       <Page size="A4" style={s.page}>
-        <View fixed>
+        <View style={s.bannerFixed} fixed>
           <PdfBanner
             title="FACTURE"
             numero={facture.numero}

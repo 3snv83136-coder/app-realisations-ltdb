@@ -3,7 +3,7 @@ import React from "react"
 import { Document, Page, Text, View, StyleSheet, Image, PDFDownloadLink } from "@react-pdf/renderer"
 import { PdfBanner, PDF_C } from "./PdfBranding"
 import { isDevisTravauxVariant } from '@/lib/devis-variant'
-import { resolveAdresseChantierAffichee } from '@/lib/facture-adresse-chantier'
+import { adressesEquivalent, resolveAdresseChantierAffichee } from '@/lib/facture-adresse-chantier'
 
 /* ============ CHARTE ============ */
 const C = {
@@ -249,6 +249,8 @@ export interface DevisData {
   /** Bloc mentions légales (devis travaux assainissement / pompe de relevage). */
   mentions_legales?: string[]
   photos?: string[]           // URLs ou data URIs (base64) — optionnel, non bloquant
+  /** Adresse du chantier quand elle diffère de l'adresse du client. */
+  adresse_chantier?: string
 }
 
 export interface EmetteurData {
@@ -441,10 +443,15 @@ export function DevisDocument({ emetteur, client, devis, phone }: DevisPDFProps)
 
   const sections = groupBySection(devis.lignes)
   const photosSansLigne = usablePhotos(devis.photos)
-  const adresseChantierAffichee = resolveAdresseChantierAffichee(
+  const adresseFacturation = (client.adresseLignes || []).map((l) => l.trim()).filter(Boolean).join(', ')
+  const adresseChantierResolue = resolveAdresseChantierAffichee(
     client.adresseChantier,
     client.adresseLignes || [],
   )
+  const adresseChantierAffichee = adresseChantierResolue
+    && !adressesEquivalent(adresseChantierResolue, adresseFacturation)
+    ? adresseChantierResolue
+    : ''
 
   const subTitle = [
     `établi le ${dateFmt}`,

@@ -10,6 +10,7 @@ import { isCanalAcquisition } from "@/lib/canaux"
 import { cascadeDeleteIntervention } from "@/lib/cascadeDelete"
 import { normalizeModePaiementInput } from "@/lib/mode-paiement"
 import { permissionsForSession } from "@/lib/tech-permissions"
+import { isDevisIntervention } from "@/lib/types-intervention"
 
 export const dynamic = 'force-dynamic'
 
@@ -101,13 +102,28 @@ export async function GET(_req: NextRequest, { params }: Params) {
     technicien = t || null
   }
 
-  const { data: devisDoc } = await sb
+  const { data: linkedDevis } = await sb
     .from('documents')
     .select('id')
     .eq('intervention_id', id)
     .eq('type', 'devis')
     .limit(1)
     .maybeSingle()
+
+  let devisId = linkedDevis?.id || null
+  if (!devisId && intervention.client_id && isDevisIntervention(intervention.type_intervention)) {
+    const { data: recent } = await sb
+      .from('documents')
+      .select('id')
+      .eq('client_id', intervention.client_id)
+      .eq('type', 'devis')
+      .is('intervention_id', null)
+      .gte('created_at', intervention.created_at)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    devisId = recent?.id || null
+  }
 
   const { data: attestationDoc } = await sb
     .from('documents')
@@ -126,8 +142,8 @@ export async function GET(_req: NextRequest, { params }: Params) {
     intervention: safeIntervention,
     client,
     technicien,
-    has_devis: !!devisDoc?.id,
-    devis_id: devisDoc?.id || null,
+    has_devis: !!devisId,
+    devis_id: devisId,
     has_attestation: !!attestationDoc?.id,
   })
 }

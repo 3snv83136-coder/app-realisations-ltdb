@@ -1,5 +1,6 @@
 import React from "react"
-import { View, Text, StyleSheet, Svg, Path, Rect } from "@react-pdf/renderer"
+import { View, Text, StyleSheet, Svg, Path, Rect, Image } from "@react-pdf/renderer"
+import { LTDB_LOGO_SRC } from "@/lib/ltdb-logo"
 
 /* ============================================================
    Branding PDF partagé (factures & devis) — modèle bleu/blanc/rouge.
@@ -46,30 +47,17 @@ const b = StyleSheet.create({
   sub: { color: PDF_C.navySoft, fontSize: 9, marginTop: 3 },
 
   rightCol: { alignItems: 'flex-end' },
-  /* Logo : plaque blanche arrondie + pastille rouge + wordmark LTDB */
-  logoPlate: {
-    flexDirection: 'row', alignItems: 'center',
-    backgroundColor: PDF_C.white, borderRadius: 7,
-    paddingVertical: 7, paddingHorizontal: 11, marginBottom: 9,
-  },
-  logoMark: {
-    width: 16, height: 16, borderRadius: 4,
-    backgroundColor: PDF_C.red, marginRight: 7,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  logoMarkTxt: { color: PDF_C.white, fontSize: 10, fontFamily: 'Helvetica-Bold' },
-  logoWord: { color: PDF_C.navy, fontSize: 17, fontFamily: 'Helvetica-Bold', letterSpacing: 1.5 },
+  brandRow: { flexDirection: 'row', alignItems: 'center' },
+  logoBox: { width: 44, height: 44, marginRight: 8 },
+  logo: { width: 44, height: 44 },
   contact: { color: PDF_C.navySoft, fontSize: 8.5, textAlign: 'right', lineHeight: 1.5 },
 })
 
-/** Logo « LTDB » seul (plaque blanche, réutilisable). */
+/** Logo carré bleu, à côté des coordonnées pour garder la hauteur du bandeau. */
 export function PdfLogo() {
   return (
-    <View style={b.logoPlate}>
-      <View style={b.logoMark}>
-        <Text style={b.logoMarkTxt}>L</Text>
-      </View>
-      <Text style={b.logoWord}>LTDB</Text>
+    <View style={b.logoBox}>
+      <Image src={LTDB_LOGO_SRC} style={b.logo} />
     </View>
   )
 }
@@ -113,10 +101,14 @@ export function PdfBanner({ title, numero, subtitle, phone, email, site }: PdfBa
             {subtitle ? <Text style={b.sub}>{subtitle}</Text> : null}
           </View>
           <View style={b.rightCol}>
-            <PdfLogo />
-            {phone ? <Text style={b.contact}>Tél. {phone}</Text> : null}
-            {email ? <Text style={b.contact}>{email}</Text> : null}
-            <Text style={b.contact}>{siteUrl}</Text>
+            <View style={b.brandRow}>
+              <PdfLogo />
+              <View>
+                {phone ? <Text style={b.contact}>Tél. {phone}</Text> : null}
+                {email ? <Text style={b.contact}>{email}</Text> : null}
+                <Text style={b.contact}>{siteUrl}</Text>
+              </View>
+            </View>
           </View>
         </View>
       </View>
