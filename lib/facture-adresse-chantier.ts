@@ -28,3 +28,13 @@ export function resolveAdresseChantierAffichee(
   }
   return raw
 }
+
+/** Deux adresses désignent le même lieu (accents, casse et ponctuation ignorés). */
+export function adressesEquivalent(a: string, b: string): boolean {
+  const n = (s: string) =>
+    s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]/g, "")
+  const na = n(a)
+  const nb = n(b)
+  if (!na || !nb) return false
+  return na === nb || na.includes(nb) || nb.includes(na)
+}

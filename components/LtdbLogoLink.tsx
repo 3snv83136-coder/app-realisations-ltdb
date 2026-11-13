@@ -3,10 +3,10 @@ import Link from 'next/link'
 type Variant = 'nav' | 'header' | 'banner' | 'tab'
 
 const STYLES: Record<Variant, string> = {
-  nav: 'font-black text-base sm:text-lg leading-tight hover:opacity-80 transition-opacity',
-  header: 'text-xl sm:text-3xl font-black tracking-tight leading-none hover:opacity-80 transition-opacity',
-  banner: 'text-xl font-black tracking-tight hover:opacity-80 transition-opacity',
-  tab: 'font-black text-sm text-[#0e2a52] hover:opacity-80 transition-opacity shrink-0',
+  nav: 'h-8 w-8',
+  header: 'h-12 w-12',
+  banner: 'h-9 w-9',
+  tab: 'h-7 w-7',
 }
 
 export default function LtdbLogoLink({
@@ -19,10 +19,14 @@ export default function LtdbLogoLink({
   return (
     <Link
       href="/"
-      className={`${STYLES[variant]} ${className}`.trim()}
+      className={`inline-flex ${className}`.trim()}
       title="Retour à l'accueil"
     >
-      LTDB
+      <img
+        src="/logo-ltdb-icon.png"
+        alt="Les Techniciens du Débouchage"
+        className={`${STYLES[variant]} rounded-lg object-contain`}
+      />
     </Link>
   )
 }

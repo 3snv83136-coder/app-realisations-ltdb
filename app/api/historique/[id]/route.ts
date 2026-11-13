@@ -51,17 +51,42 @@ export async function GET(
       client_ville = c.ville || null
     }
   }
+  let intervention_suggeree_id: string | null = null
+  const applyChantier = (interv: {
+    id?: string
+    client_final_nom?: string | null
+    adresse_chantier?: string | null
+    ville?: string | null
+    code_postal?: string | null
+  } | null) => {
+    if (!interv) return
+    client_final_nom = (interv.client_final_nom as string | null) || client_final_nom
+    const rue = (interv.adresse_chantier as string | null) || null
+    if (rue) {
+      const cpVille = [interv.code_postal, interv.ville].filter(Boolean).join(' ')
+      adresse_chantier = [rue.trim(), cpVille].filter(Boolean).join(', ')
+    }
+  }
   if (data.intervention_id) {
     const { data: interv } = await sb
       .from('interventions')
       .select('client_final_nom, adresse_chantier, ville, code_postal')
       .eq('id', data.intervention_id)
       .maybeSingle()
-    client_final_nom = (interv?.client_final_nom as string | null) || null
-    const rue = (interv?.adresse_chantier as string | null) || null
-    if (rue) {
-      const cpVille = [interv?.code_postal, interv?.ville].filter(Boolean).join(' ')
-      adresse_chantier = [rue.trim(), cpVille].filter(Boolean).join(', ')
+    applyChantier(interv)
+  } else if (data.type === 'devis' && data.client_id) {
+    let q = sb
+      .from('interventions')
+      .select('id, client_final_nom, adresse_chantier, ville, code_postal, created_at')
+      .eq('client_id', data.client_id)
+      .eq('type_intervention', 'Devis')
+      .order('created_at', { ascending: false })
+      .limit(1)
+    if (data.created_at) q = q.lte('created_at', data.created_at)
+    const { data: interv } = await q.maybeSingle()
+    if (interv?.id) {
+      intervention_suggeree_id = interv.id as string
+      applyChantier(interv)
     }
   }
   // Repli payload facture
@@ -78,6 +103,7 @@ export async function GET(
       client_nom, client_email, client_adresse, client_code_postal, client_ville,
       client_final_nom,
       adresse_chantier,
+      intervention_suggeree_id,
     },
   })
 }

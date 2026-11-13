@@ -28,12 +28,17 @@ async function fetchPayload(id: string): Promise<DocumentPayload | null> {
 }
 
 function buildClientData(d: HistoriqueDocument): ClientData {
+  const payloadChantier =
+    d.payload && typeof d.payload === 'object' && 'adresse_chantier' in d.payload
+      ? String((d.payload as { adresse_chantier?: string }).adresse_chantier || '')
+      : ''
   return {
     nom: d.client_nom || '—',
     adresseLignes: [
       d.client_adresse || '',
       [d.client_code_postal, d.client_ville].filter(Boolean).join(' '),
     ].filter(Boolean),
+    adresseChantier: d.adresse_chantier || payloadChantier || undefined,
   }
 }
 
@@ -102,8 +107,13 @@ async function buildSendBody(
   if (doc.type === 'devis') {
     const devis = payload as DevisData
     if (!devis?.lignes) throw new Error('Payload devis invalide')
+    const client = buildClientData(doc)
+    const devisAvecChantier: DevisData = {
+      ...devis,
+      adresse_chantier: client.adresseChantier || devis.adresse_chantier,
+    }
     const element = React.createElement(DevisDocument, {
-      emetteur: LTDB_EMETTEUR, client: buildClientData(doc), devis, phone: LTDB_EMETTEUR.telephone,
+      emetteur: LTDB_EMETTEUR, client, devis: devisAvecChantier, phone: LTDB_EMETTEUR.telephone,
     })
     const pdfBase64 = await pdfDocumentToBase64(element)
     const totalHT = devis.lignes.reduce(
@@ -126,7 +136,7 @@ async function buildSendBody(
         agence: doc.agence,
         pdfBase64,
         pdfFilename: safeFilename('devis', devis.numero || doc.numero || doc.id),
-        devis,
+        devis: devisAvecChantier,
         totalHT,
         tvaTaux,
         clientAdresse: doc.client_adresse,
@@ -275,9 +285,13 @@ export default function ResendEmailButton({
     if (!email.trim()) { setError('Email obligatoire'); return }
     setSending(true); setError(''); setSent(false)
     try {
-      const payload = await fetchPayload(doc.id)
+      const metaRes = await fetch(`/api/historique/${doc.id}`, { cache: 'no-store' })
+      const meta = await metaRes.json()
+      if (!metaRes.ok) throw new Error(meta.error || 'Document indisponible')
+      const full = { ...doc, ...(meta.document || {}) }
+      const payload = full.payload
       if (!payload) throw new Error('Document indisponible (payload manquant)')
-      const built = await buildSendBody(doc, payload, email.trim(), {
+      const built = await buildSendBody(full, payload, email.trim(), {
         joindreKbis: joindreKbis && docsDispo.kbis,
         joindreRib: joindreRib && docsDispo.rib,
         relanceMode,
@@ -291,7 +305,9 @@ export default function ResendEmailButton({
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               ...built.body,
-              ...(doc.intervention_id ? { interventionId: doc.intervention_id } : {}),
+              ...((full.intervention_id || full.intervention_suggeree_id)
+                ? { interventionId: full.intervention_id || full.intervention_suggeree_id }
+                : {}),
             }),
           })
       const data = await res.json().catch(() => ({}))

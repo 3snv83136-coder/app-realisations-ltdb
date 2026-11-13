@@ -538,7 +538,7 @@ export default function InterventionDetailPage({ params }: { params: { id: strin
 
         {isDevisIntervention(intervention.type_intervention) && intervention.statut !== 'annulee' && (
           <Link
-            href={devisId ? `/devis?document=${devisId}` : `/devis?intervention=${intervention.id}`}
+            href={`/devis?intervention=${intervention.id}${devisId ? `&document=${devisId}` : ''}`}
             className="block bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white rounded-2xl p-5 shadow-lg transition"
           >
             <div className="flex items-center justify-between gap-3">

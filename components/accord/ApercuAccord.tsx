@@ -40,13 +40,16 @@ export default function ApercuAccord({ accord, lignes, emetteur, telephone, tech
   return (
     <article className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
       {/* En-tête document */}
-      <div className="bg-[#0e2a52] text-white px-5 py-4">
+      <div className="bg-[#0e2a52] text-white px-5 py-4 flex items-center gap-3">
+        <img src="/logo-ltdb-icon.png" alt="" className="h-12 w-12 rounded-lg shrink-0" />
+        <div>
         <div className="text-[10px] uppercase tracking-[0.2em] text-white/60 font-semibold">
           {emetteur.raisonSociale}
         </div>
         <h2 className="text-xl font-black mt-0.5">{ACCORD_TITRE}</h2>
         <div className="text-[11px] text-white/70 mt-1">
           {accord.reference || accord.id.slice(0, 8)} · établi le {fmtDateFR(dateAccord)}
+        </div>
         </div>
       </div>
 

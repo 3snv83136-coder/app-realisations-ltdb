@@ -5,6 +5,7 @@ import type { AccordIntervention, LigneDevis } from "@/lib/supabase"
 import type { EmetteurInfo } from "@/components/accord/ApercuAccord"
 import { proxyImageUrl } from "@/lib/proxyImageUrl"
 import { LTDB_SIGNATURE_PATH } from "@/lib/rapport-signatures"
+import { LTDB_LOGO_SRC } from "@/lib/ltdb-logo"
 import {
   ACCORD_TITRE,
   MENTION_TVA_FRANCHISE,
@@ -52,6 +53,8 @@ const s = StyleSheet.create({
     paddingHorizontal: 40, paddingTop: 18, paddingBottom: 10,
     borderBottomWidth: 2, borderBottomColor: C.red,
   },
+  brandRow: { flexDirection: 'row', alignItems: 'center' },
+  logo: { width: 36, height: 36, marginRight: 8 },
   brand: { color: C.navy, fontSize: 11, fontFamily: 'Helvetica-Bold', letterSpacing: 0.3 },
   brandTag: { color: C.muted, fontSize: 7.5, marginTop: 2 },
   headerPhone: { color: C.text, fontSize: 8.5, fontFamily: 'Helvetica-Oblique' },
@@ -176,9 +179,12 @@ export function AccordDocument({ accord, lignes, emetteur, telephone, signatureL
       <Page size="A4" style={s.page}>
         {/* Header */}
         <View style={s.header} fixed>
-          <View>
-            <Text style={s.brand}>{emetteur.raisonSociale}</Text>
-            <Text style={s.brandTag}>Débouchage · Assainissement · Plomberie d&apos;urgence</Text>
+          <View style={s.brandRow}>
+            <Image src={LTDB_LOGO_SRC} style={s.logo} />
+            <View>
+              <Text style={s.brand}>{emetteur.raisonSociale}</Text>
+              <Text style={s.brandTag}>Débouchage · Assainissement · Plomberie d&apos;urgence</Text>
+            </View>
           </View>
           <Text style={s.headerPhone}>Tél. {telephone}</Text>
         </View>

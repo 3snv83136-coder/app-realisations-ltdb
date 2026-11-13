@@ -4,6 +4,7 @@ import { Document, Page, Text, View, Image, StyleSheet, PDFDownloadLink } from "
 import type { Style } from "@react-pdf/types"
 import { LTDB_EMETTEUR } from "@/lib/emetteur"
 import { LTDB_SIGNATURE_PATH } from "@/lib/rapport-signatures"
+import { LTDB_LOGO_SRC } from "@/lib/ltdb-logo"
 
 /* ============ CHARTE OFFICIELLE ============ */
 const C = {
@@ -56,7 +57,8 @@ const s = StyleSheet.create({
   headerRuleGold: {
     height: 1, backgroundColor: C.gold,
   },
-  firmBlock: { flexDirection: 'column' },
+  firmBlock: { flexDirection: 'row', alignItems: 'center' },
+  logo: { width: 36, height: 36, marginRight: 8 },
   firmName: {
     color: C.navy, fontSize: 13, fontFamily: 'Helvetica-Bold',
     letterSpacing: 0.6, textTransform: 'uppercase',
@@ -350,8 +352,11 @@ const fmtDateFR = (raw: string) => {
 const Header = () => (
   <View style={s.header} fixed>
     <View style={s.firmBlock}>
-      <Text style={s.firmName}>{FIRM.raison}</Text>
-      <Text style={s.firmTag}>Assainissement · Inspection caméra · Curage · Débouchage</Text>
+      <Image src={LTDB_LOGO_SRC} style={s.logo} />
+      <View>
+        <Text style={s.firmName}>{FIRM.raison}</Text>
+        <Text style={s.firmTag}>Assainissement · Inspection caméra · Curage · Débouchage</Text>
+      </View>
     </View>
     <View style={s.headerRight}>
       <Text style={s.headerMeta}>Tél. {FIRM.tel}</Text>
