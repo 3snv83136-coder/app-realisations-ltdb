@@ -48,8 +48,8 @@ export default function DevisEnvoiPanel({
   const [error, setError] = useState('')
   const [extraEmails, setExtraEmails] = useState<string[]>([])
   const [newEmail, setNewEmail] = useState('')
-  /** Relances hebdomadaires devis (S1–S3) — choix à chaque envoi. */
-  const [planRelances, setPlanRelances] = useState(true)
+  /** Relances hebdomadaires devis (S1–S3) — jamais au renvoi, seulement au premier envoi. */
+  const [planRelances, setPlanRelances] = useState(!resendMode)
   // Numéro séquentiel définitif (DV-2026-0001), alloué une seule fois à l'envoi.
   const [finalNumero, setFinalNumero] = useState<string | null>(null)
 
@@ -166,7 +166,7 @@ export default function DevisEnvoiPanel({
           clientAdresse,
           clientCP,
           interventionId: interventionId || undefined,
-          planRelances,
+          planRelances: resendMode ? false : planRelances,
           premierEnvoiAt,
         }),
       })
@@ -192,26 +192,28 @@ export default function DevisEnvoiPanel({
         </h2>
         <p className="text-xs text-slate-500 mt-1">
           {resendMode
-            ? 'Le PDF actuel (après tes modifications) sera envoyé. Tu choisis si des relances hebdomadaires sont replanifiées.'
+            ? 'Le PDF du devis est renvoyé tel quel. Pas de texte de relance, pas de nouvelle séquence.'
             : <>Envoi du PDF au client. Optionnellement : 3 emails sur 3 semaines (présence S1–S2, puis <strong>-10&nbsp;%</strong> en S3).</>}
         </p>
       </div>
 
-      <label className="flex items-start gap-2.5 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 cursor-pointer">
-        <input
-          type="checkbox"
-          checked={planRelances}
-          onChange={(e) => setPlanRelances(e.target.checked)}
-          disabled={sending}
-          className="mt-0.5 rounded border-slate-300 text-amber-600 focus:ring-amber-500"
-        />
-        <span className="text-sm text-slate-800">
-          <strong>Activer les relances devis</strong>
-          <span className="block text-[11px] text-slate-500 font-normal mt-0.5">
-            Relances hebdomadaires (S1–S3) pour le destinataire principal — les copies ne reçoivent que le 1<sup>er</sup> envoi
+      {!resendMode && (
+        <label className="flex items-start gap-2.5 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={planRelances}
+            onChange={(e) => setPlanRelances(e.target.checked)}
+            disabled={sending}
+            className="mt-0.5 rounded border-slate-300 text-amber-600 focus:ring-amber-500"
+          />
+          <span className="text-sm text-slate-800">
+            <strong>Activer les relances devis</strong>
+            <span className="block text-[11px] text-slate-500 font-normal mt-0.5">
+              Relances hebdomadaires (S1–S3) pour le destinataire principal — les copies ne reçoivent que le 1<sup>er</sup> envoi
+            </span>
           </span>
-        </span>
-      </label>
+        </label>
+      )}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
         <button
@@ -223,7 +225,7 @@ export default function DevisEnvoiPanel({
         >
           ✉ {resendMode ? 'Renvoyer maintenant' : 'Envoyer maintenant'}
           <span className="block text-xs font-normal text-slate-500 mt-0.5">
-            {planRelances ? 'PDF + relances J+7 et J+14' : 'PDF uniquement, sans relance'}
+            {resendMode ? 'Le PDF du devis' : planRelances ? 'PDF + relances J+7 et J+14' : 'PDF uniquement, sans relance'}
           </span>
         </button>
         <button
@@ -235,7 +237,7 @@ export default function DevisEnvoiPanel({
         >
           📅 Premier envoi différé
           <span className="block text-xs font-normal text-slate-500 mt-0.5">
-            {planRelances ? 'Puis relances chaque semaine (×3)' : 'Un seul envoi à la date choisie'}
+            {resendMode || !planRelances ? 'Un seul envoi à la date choisie' : 'Puis relances chaque semaine (×3)'}
           </span>
         </button>
       </div>
@@ -335,9 +337,9 @@ export default function DevisEnvoiPanel({
         <p className="text-sm text-emerald-700">
           ✓ {mode === 'now' ? (resendMode ? 'Devis renvoyé' : 'Devis envoyé') : 'Envoi programmé'}
           {extraEmails.length > 0 ? ` à ${1 + extraEmails.length} destinataires` : ''}
-          {planRelances
+          {!resendMode && (planRelances
             ? ' — relances semaines 2 et 3 planifiées pour le destinataire principal.'
-            : ' — sans relance automatique.'}
+            : ' — sans relance automatique.')}
         </p>
       )}
       {error && <p className="text-sm text-red-600">{error}</p>}
