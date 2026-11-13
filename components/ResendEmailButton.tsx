@@ -131,7 +131,7 @@ async function buildSendBody(
         tvaTaux,
         clientAdresse: doc.client_adresse,
         clientCP: doc.client_code_postal,
-        planRelances: extras?.planRelances !== false,
+        planRelances: false,
       },
     }
   }
@@ -240,7 +240,6 @@ export default function ResendEmailButton({
   const [joindreRib, setJoindreRib] = useState(false)
   const [docsDispo, setDocsDispo] = useState<{ kbis: boolean; rib: boolean }>({ kbis: false, rib: false })
   const [relanceMode, setRelanceMode] = useState<FactureRelanceMode>('classique')
-  const [planRelancesDevis, setPlanRelancesDevis] = useState(true)
   const [factureEcheance, setFactureEcheance] = useState<string | null>(null)
 
   if (doc.type !== 'facture' && doc.type !== 'devis' && doc.type !== 'attestation' && doc.type !== 'inspection') {
@@ -254,7 +253,6 @@ export default function ResendEmailButton({
     setJoindreKbis(false)
     setJoindreRib(false)
     setRelanceMode('classique')
-    setPlanRelancesDevis(true)
     setFactureEcheance(null)
     if (doc.type === 'facture') {
       fetch('/api/admin/documents', { cache: 'no-store' })
@@ -283,7 +281,6 @@ export default function ResendEmailButton({
         joindreKbis: joindreKbis && docsDispo.kbis,
         joindreRib: joindreRib && docsDispo.rib,
         relanceMode,
-        planRelances: planRelancesDevis,
       })
       if (!built) throw new Error('Type non supporté')
 
@@ -412,23 +409,6 @@ export default function ResendEmailButton({
                 disabled={sending || sent}
                 hidden={isFactureReglee(factureEcheance)}
               />
-            )}
-            {doc.type === 'devis' && (
-              <label className="mt-3 flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm text-slate-800 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={planRelancesDevis}
-                  onChange={e => setPlanRelancesDevis(e.target.checked)}
-                  disabled={sending || sent}
-                  className="mt-0.5 rounded border-slate-300 text-amber-600 focus:ring-amber-500"
-                />
-                <span>
-                  <strong>Relances devis</strong>
-                  <span className="block text-[11px] text-slate-500 font-normal mt-0.5">
-                    Relances hebdomadaires (S1–S3, -10&nbsp;% en semaine 3)
-                  </span>
-                </span>
-              </label>
             )}
             {error && (
               <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg px-3 py-2 text-sm mt-3">
