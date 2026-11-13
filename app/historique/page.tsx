@@ -483,7 +483,9 @@ export default function HistoriquePage() {
                             />
                           )}
                           {/* Attestation : toujours Voir + PDF (payload) ; lien Storage en plus si présent */}
-                          {d.type === 'attestation' ? (
+                          {(d.type === 'facture' || d.type === 'devis') ? (
+                            <DocumentDownloadButton doc={d} />
+                          ) : d.type === 'attestation' ? (
                             <>
                               <DocumentDownloadButton doc={d} />
                               {d.pdf_url ? (

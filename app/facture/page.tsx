@@ -9,7 +9,7 @@ import { AGENCES } from "@/lib/agences"
 import { ltdbFactureEmetteur } from "@/lib/emetteur"
 import type { FactureData } from "@/components/FacturePDF"
 import {
-  PlusIcon, CheckIcon, EnvelopeIcon, ArrowDownTrayIcon, NoSymbolIcon,
+  PlusIcon, CheckIcon, EnvelopeIcon, NoSymbolIcon,
   TrashIcon, ArrowRefreshIcon, CalendarIcon, ReceiptIcon, ClockIcon,
   ExclamationIcon,
 } from "@/components/Icons"
@@ -612,21 +612,7 @@ export default function FactureConsolePage() {
                                 <span>Relancer</span>
                               </button>
                             )}
-                            {f.pdf_url ? (
-                              <a
-                                href={f.pdf_url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-white hover:bg-slate-50 text-slate-700 text-[11px] font-semibold transition border border-slate-200 hover:border-slate-300"
-                                title="Ouvrir le PDF"
-                                aria-label="Ouvrir le PDF"
-                              >
-                                <ArrowDownTrayIcon className="w-3.5 h-3.5" />
-                                <span>PDF</span>
-                              </a>
-                            ) : (
-                              <DocumentDownloadButton doc={f} />
-                            )}
+                            <DocumentDownloadButton doc={f} />
                             <ResendEmailButton doc={f} />
                             <RequestReviewButton
                               clientEmail={f.client_email}
