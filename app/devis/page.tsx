@@ -864,7 +864,7 @@ function DevisPageContent() {
                           )}
                         </div>
                         <p className="text-[10px] text-slate-400 mt-1">
-                          Photo liée à cet article — affichée à côté du texte sur le PDF.
+                          Photo liée à cet article — affichée sous ce texte sur le PDF.
                         </p>
                       </td>
                       <td className="py-1 pr-2">

@@ -72,37 +72,33 @@ const s = StyleSheet.create({
   objetText: { color: C.text, fontSize: 9.5, lineHeight: 1.6, marginBottom: 6 },
   objetTextLast: { color: C.text, fontSize: 9.5, lineHeight: 1.6, marginBottom: 0 },
 
-  /* Photos dans le devis — grille 2 colonnes, dimensions en points (pas %). */
-  photosGrid: {
+  /* Photos sous le texte de la ligne — 2 par rangée, taille fixe en points. */
+  linePhotos: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    justifyContent: 'space-between',
-    marginTop: 8,
-    marginBottom: 10,
+    marginTop: 2,
+    marginBottom: 6,
+    paddingLeft: 14,
   },
   photoCell: {
-    width: 250,
-    height: 188,
-    marginBottom: 12,
+    width: 168,
+    height: 112,
+    marginRight: 10,
+    marginBottom: 8,
   },
   photoFrame: {
-    width: 250,
-    height: 150,
+    width: 168,
+    height: 112,
     backgroundColor: C.lineSoft,
-    borderRadius: 6,
-    borderWidth: 1,
+    borderRadius: 4,
+    borderWidth: 0.75,
     borderColor: C.line,
+    overflow: 'hidden',
   },
   photoImg: {
-    width: 250,
-    height: 150,
+    width: 168,
+    height: 112,
     objectFit: 'cover',
-  },
-  photoCaption: {
-    fontSize: 7.5,
-    color: C.muted,
-    marginTop: 4,
-    width: 250,
   },
 
   constatItem: {
@@ -382,7 +378,6 @@ function Band({
 
 function PrestationsLine({ l }: { l: DevisLineData }) {
   const isRemise = ((l.pu_ht || 0) * (l.qte || 0)) < 0
-  // Photos hors tableau (galerie après totaux) — sinon chevauchement react-pdf.
   return (
     <View style={s.itemsRow} wrap={false} minPresenceAhead={40}>
       <View style={s.cDesig}>
@@ -396,8 +391,6 @@ function PrestationsLine({ l }: { l: DevisLineData }) {
   )
 }
 
-type GalleryPhoto = { src: string; caption: string }
-
 /** Source exploitable (ignore vides et placeholders data-URI minuscules). */
 function isUsablePhotoSrc(src: unknown): src is string {
   if (typeof src !== 'string') return false
@@ -407,22 +400,24 @@ function isUsablePhotoSrc(src: unknown): src is string {
   return true
 }
 
-/** Collecte devis.photos + photos de lignes (max 8) pour la galerie du devis. */
-function collectGalleryPhotos(devis: DevisData): GalleryPhoto[] {
-  const out: GalleryPhoto[] = []
-  for (const src of devis.photos || []) {
-    if (!isUsablePhotoSrc(src)) continue
-    out.push({ src, caption: '' })
-    if (out.length >= 8) return out
-  }
-  for (const l of devis.lignes) {
-    for (const src of (l.photos || []).slice(0, 2)) {
-      if (!isUsablePhotoSrc(src)) continue
-      out.push({ src, caption: l.designation || 'Prestation' })
-      if (out.length >= 8) return out
-    }
-  }
-  return out
+function usablePhotos(sources: string[] | undefined): string[] {
+  return (sources || []).filter(isUsablePhotoSrc)
+}
+
+/** Photos sous le texte : hors de la ligne de prix, pour éviter le chevauchement react-pdf. */
+function LinePhotos({ photos }: { photos: string[] }) {
+  if (photos.length === 0) return null
+  return (
+    <View style={s.linePhotos}>
+      {photos.map((src, i) => (
+        <View key={i} style={s.photoCell} wrap={false} minPresenceAhead={120}>
+          <View style={s.photoFrame}>
+            <Image src={src} style={s.photoImg} />
+          </View>
+        </View>
+      ))}
+    </View>
+  )
 }
 
 /* ============ DOCUMENT ============ */
@@ -445,7 +440,7 @@ export function DevisDocument({ emetteur, client, devis, phone }: DevisPDFProps)
     : ['Chèque', 'Virement bancaire', 'Carte bancaire', 'Espèces (dans la limite légale)']
 
   const sections = groupBySection(devis.lignes)
-  const galleryPhotos = collectGalleryPhotos(devis)
+  const photosSansLigne = usablePhotos(devis.photos)
   const adresseChantierAffichee = resolveAdresseChantierAffichee(
     client.adresseChantier,
     client.adresseLignes || [],
@@ -564,11 +559,20 @@ export function DevisDocument({ emetteur, client, devis, phone }: DevisPDFProps)
             </Section>
           ) : null}
 
-          {/* ===== Tableau prestations (sans photos inline) ===== */}
           {/* Après objet / non-garantie longs : nouvelle page pour éviter en-tête orphelin + chevauchement */}
           {(devis.non_garantie || (devis.objet && devis.objet.length > 280)) ? (
             <View break />
           ) : null}
+
+          {/* Photos du devis non rattachées à une ligne — juste avant le tableau. */}
+          {photosSansLigne.length > 0 ? (
+            <Section>
+              <Band label="Photos" />
+              <LinePhotos photos={photosSansLigne} />
+            </Section>
+          ) : null}
+
+          {/* ===== Tableau prestations ===== */}
           <Section>
             <View style={s.itemsHead} wrap={false} minPresenceAhead={80}>
               <Text style={[s.itemsHeadCell, { width: '50%' }]}>Description</Text>
@@ -583,7 +587,10 @@ export function DevisDocument({ emetteur, client, devis, phone }: DevisPDFProps)
                   <Text style={s.sectionRowTxt}>{sec.section}</Text>
                 </View>
                 {sec.items.map((l, li) => (
-                  <PrestationsLine key={li} l={l} />
+                  <View key={li} wrap={false}>
+                    <PrestationsLine l={l} />
+                    <LinePhotos photos={usablePhotos(l.photos)} />
+                  </View>
                 ))}
               </View>
             ))}
@@ -610,24 +617,6 @@ export function DevisDocument({ emetteur, client, devis, phone }: DevisPDFProps)
               </View>
             </View>
           </Section>
-
-          {/* ===== Photos (dans le devis, après totaux — hors tableau) ===== */}
-          {galleryPhotos.length > 0 ? (
-            <Section>
-              <View break />
-              <Band label="Photos" />
-              <View style={s.photosGrid}>
-                {galleryPhotos.map((ph, i) => (
-                  <View key={i} style={s.photoCell} wrap={false} minPresenceAhead={180}>
-                    <View style={s.photoFrame}>
-                      <Image src={ph.src} style={s.photoImg} />
-                    </View>
-                    {ph.caption ? <Text style={s.photoCaption}>{ph.caption}</Text> : null}
-                  </View>
-                ))}
-              </View>
-            </Section>
-          ) : null}
 
           {/* ===== Conditions d'exécution ===== */}
           {devis.conditions ? (
