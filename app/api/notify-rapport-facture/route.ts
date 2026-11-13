@@ -318,9 +318,13 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  const subject = attestationB64
-    ? `Votre rapport, facture et attestation${factureNum ? ` ${factureNum}` : ''}${ville ? ` — ${ville}` : ''}`
-    : `Votre rapport et facture${factureNum ? ` ${factureNum}` : ''}${ville ? ` — ${ville}` : ''}`
+  const pieces = ["rapport", "facture"]
+  if (accordB64) pieces.push("accord")
+  if (attestationB64) pieces.push("attestation")
+  const listePieces = pieces.length === 1
+    ? pieces[0]
+    : `${pieces.slice(0, -1).join(", ")} et ${pieces[pieces.length - 1]}`
+  const subject = `Votre ${listePieces}${factureNum ? ` ${factureNum}` : ''}${ville ? ` — ${ville}` : ''}`
 
   let adminExtras: { filename: string; content: string }[] = []
   try {
@@ -344,6 +348,7 @@ export async function POST(req: NextRequest) {
       includeReview,
       attestationJointe: !!attestationB64,
       attestationNumero,
+      accordJoint: !!accordB64,
     }),
     attachments: [
       { filename: `rapport-${reference}.pdf`, content: rapportB64 },

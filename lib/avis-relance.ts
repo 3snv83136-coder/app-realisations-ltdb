@@ -1,6 +1,7 @@
 import crypto from "crypto"
 import type { Resend } from "resend"
 import { escapeHtml } from "@/lib/email-utils"
+import { PAGES_JAUNES_REVIEW_URL } from "@/lib/review-url"
 import { getSupabaseOrNull } from "@/lib/supabase"
 import { buildReviewOnlySmsText } from "@/lib/review-url"
 import { isSmsConfigured, sendSms } from "@/lib/sms-provider"
@@ -41,32 +42,29 @@ export function buildAvisStopUrl(
 }
 
 function relanceSubject(jour: number, prenom: string): string {
-  if (jour === 1) return `${prenom}, 30 secondes pour nous faire plaisir ⭐`
-  if (jour === 4) return `${prenom}, tout va bien de votre côté ?`
-  return `${prenom}, une dernière petite faveur…`
+  if (jour === 1) return `${prenom}, un avis sur Google et sur Pages Jaunes`
+  if (jour === 4) return `${prenom}, les deux avis nous aident vraiment`
+  return `${prenom}, une dernière fois : Google et Pages Jaunes`
 }
 
-/** Contenu éditorial selon le jour de relance. */
-function relanceCopy(jour: number, ville: string): { titre: string; accroche: string; cta: string } {
+/** Contenu éditorial selon le jour de relance. Les deux avis sont toujours demandés. */
+function relanceCopy(jour: number, ville: string): { titre: string; accroche: string } {
   const lieu = ville ? ` à ${ville}` : ""
   if (jour === 1) {
     return {
-      titre: "Votre avis nous fait briller ✨",
-      accroche: `Merci pour votre confiance${lieu} ! Si l’intervention vous a plu, un petit avis Google (moins d’<strong>une minute</strong>) nous aide énormément à continuer.`,
-      cta: "⭐ Laisser 5 étoiles sur Google",
+      titre: "Deux petits avis, un grand merci",
+      accroche: `Merci pour votre confiance${lieu}. Si l'intervention vous a plu, le plus utile est de laisser le même avis aux deux endroits : Google et Pages Jaunes. Chacun prend moins d'une minute, et les deux comptent vraiment.`,
     }
   }
   if (jour === 4) {
     return {
-      titre: "Tout est rentré dans l’ordre ?",
-      accroche: `On espère que tout va parfaitement depuis notre passage${lieu}. Un petit mot sur Google, c’est le plus beau merci qu’on puisse recevoir.`,
-      cta: "⭐ Partager mon expérience",
+      titre: "Google et Pages Jaunes",
+      accroche: `On espère que tout va bien depuis notre passage${lieu}. Un mot sur Google et le même mot sur Pages Jaunes, c'est ce qui nous aide à être trouvés. Si l'un des deux manque, l'autre ne le remplace pas.`,
     }
   }
   return {
     titre: "Dernière petite demande",
-    accroche: `On ne voudrait pas vous embêter — c’est vraiment la dernière fois. Si vous êtes satisfait${lieu ? ` de notre intervention${lieu}` : ""}, un avis Google change vraiment notre journée.`,
-    cta: "⭐ Oui, je laisse mon avis",
+    accroche: `C'est vraiment la dernière fois. Si vous êtes satisfait${lieu ? ` de notre intervention${lieu}` : ""}, un avis sur Google et un avis sur Pages Jaunes changent notre semaine. Les deux, si vous pouvez.`,
   }
 }
 
@@ -90,6 +88,7 @@ export function buildEmailRelanceAvisHtml(opts: {
   const su = opts.stopUrl ? encodeURI(opts.stopUrl) : ""
   const tel = escapeHtml(opts.tel)
   const copy = relanceCopy(opts.jour, vEsc)
+  const pj = encodeURI(PAGES_JAUNES_REVIEW_URL)
   const stepLabel =
     opts.jour === 1 ? "Relance 1/3" : opts.jour === 4 ? "Relance 2/3" : "Dernière relance"
 
@@ -99,7 +98,7 @@ export function buildEmailRelanceAvisHtml(opts: {
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="color-scheme" content="light">
-<title>${escapeHtml(copy.titre.replace(/[✨…]/g, "").trim()) || "Avis Google"}</title>
+<title>Votre avis</title>
 </head>
 <body style="margin:0;padding:0;background:#eef3fb;font-family:Arial,Helvetica,sans-serif;-webkit-font-smoothing:antialiased;">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#eef3fb;padding:28px 12px;">
@@ -145,23 +144,30 @@ export function buildEmailRelanceAvisHtml(opts: {
       <td width="1%" style="font-size:0;width:8px;">&nbsp;</td>
       <td width="33%" valign="top" align="center" style="padding:12px 6px;background-color:#eaf0ff;border-radius:12px;">
         <div style="font-size:20px;line-height:1;">🚀</div>
-        <div style="font-size:12px;font-weight:bold;color:#1d4ed8;margin-top:6px;">Ça nous booste</div>
+        <div style="font-size:12px;font-weight:bold;color:#1d4ed8;margin-top:6px;">Ça nous aide</div>
       </td>
     </tr>
   </table>
 
-  <!-- CTA -->
+  <!-- Deux avis, les deux demandés -->
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
     <tr>
-      <td align="center" style="padding:6px 0 18px;">
-        <a href="${ru}" style="display:inline-block;background-color:#e67e22;color:#ffffff;text-decoration:none;font-weight:800;font-size:16px;line-height:1.2;padding:16px 28px;border-radius:999px;">
-          ${escapeHtml(copy.cta)}
+      <td align="center" style="padding:4px 0 10px;">
+        <a href="${ru}" style="display:inline-block;background-color:#e67e22;color:#ffffff;text-decoration:none;font-weight:bold;font-size:16px;line-height:1.2;padding:16px 28px;border-radius:999px;">
+          Laisser un avis sur Google
+        </a>
+      </td>
+    </tr>
+    <tr>
+      <td align="center" style="padding:0 0 8px;">
+        <a href="${pj}" style="display:inline-block;background-color:#f5c542;color:#0e2a52;text-decoration:none;font-weight:bold;font-size:16px;line-height:1.2;padding:16px 28px;border-radius:999px;">
+          Laisser le même avis sur Pages Jaunes
         </a>
       </td>
     </tr>
   </table>
 
-  <p style="margin:0 0 6px;text-align:center;font-size:12px;color:#94a3b8;">Un clic → Google → 5 étoiles. Merci infiniment 💛</p>
+  <p style="margin:0 0 6px;text-align:center;font-size:13px;line-height:1.5;color:#64748b;">Les deux nous aident. Si vous n'en laissez qu'un, l'autre manque.</p>
 </td>
 </tr>
 
@@ -195,7 +201,7 @@ ${su ? `<!-- Stop -->
 <!-- Pied -->
 <tr>
 <td style="background-color:#0e2a52;padding:14px 20px;text-align:center;">
-  <p style="margin:0;font-size:11px;color:#9fb4d4;letter-spacing:0.04em;">LES TECHNICIENS DU DÉBOUCHAGE · AVIS GOOGLE</p>
+  <p style="margin:0;font-size:11px;color:#9fb4d4;letter-spacing:0.04em;">LES TECHNICIENS DU DÉBOUCHAGE</p>
 </td>
 </tr>
 
@@ -1016,7 +1022,7 @@ export async function envoyerAvisManuel(opts: {
     const r = await opts.resend.emails.send({
       from: `Les Techniciens du Débouchage <${opts.fromEmail}>`,
       to: recipient,
-      subject: `${clientNom.split(" ").slice(-1)[0]}, votre avis nous serait précieux ⭐`,
+      subject: `${clientNom.split(" ").slice(-1)[0]}, un avis sur Google et sur Pages Jaunes`,
       html: emailRelanceAvis({
         clientNom,
         technicienNom: "votre technicien",
